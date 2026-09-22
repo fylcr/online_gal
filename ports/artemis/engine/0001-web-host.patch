@@ -1622,10 +1622,10 @@ index 72862a4..b3d8b0c 100644
              else if (kv.first == "dragarea") {
                  if (std::sscanf(kv.second.c_str(), "%f,%f,%f,%f",
 diff --git a/src/render/renderer.h b/src/render/renderer.h
-index 9d52a69..b74653d 100644
+index 9d52a69..dcf8128 100644
 --- a/src/render/renderer.h
 +++ b/src/render/renderer.h
-@@ -46,12 +46,41 @@ public:
+@@ -46,12 +46,45 @@ public:
      const std::string &LastError() const { return last_error_; }
  
  private:
@@ -1642,24 +1642,28 @@ index 9d52a69..b74653d 100644
 +    // *without* it. Gating these members on the macro therefore gave the two TUs different `Renderer`
 +    // layouts, and because `SwapPaced()`, `Ready()`, `Width()` and `Height()` are defined in-class
 +    // (inherently inline) the linker kept one copy and had every caller read a different member than
-+    // the one written:
++    // the one written.
 +    //
-+    // The accessors the linker kept were the ones compiled against `native_activity.cpp`'s (smaller)
-+    // layout, so they read the members at that TU's offsets — offsets that `Init()` had meanwhile
-+    // filled with parts of the EGL handles it wrote at the *other* TU's offsets. The layouts are
-+    // 72 vs 104 bytes, and the overlapping fields line up like this (`display_` spans bytes 0..7,
-+    // `surface_` 8..15, and the pseudo-handles are small integers — `0xE6400001`, `0xE6400003` — whose
-+    // upper bytes are zero):
++    // Measured on wasm32 (4-byte pointers, 12-byte `std::string`): the layout without the handles is
++    // **48 bytes** — `ready_`@0, `swap_paced_`@1, `width_`@4, `height_`@8, `last_error_`@36 — and
++    // with them **64 bytes** — `display_`@0, `surface_`@4, `context_`@8, `window_`@12, `ready_`@16,
++    // `swap_paced_`@17, `width_`@20. Two consequences follow, because `native_activity.cpp` allocates
++    // the 48-byte object while `renderer.cpp`'s `Init()` writes it as 64 bytes:
 +    //
-+    //   * `swap_paced_` (offset 1) reads byte 1 of `display_`       → `0x00`, so it reported `false`
-+    //     no matter what `eglSwapInterval` returned; the loop always took its 16 ms fallback sleep
-+    //   * `ready_`      (offset 0) reads byte 0 of `display_`       → `0x01`, true only by luck
-+    //   * `width_`      (offset 4) reads bytes 4..7 of `display_`   → garbage (and `height_`, at 8,
-+    //     reads `surface_`) — both land in `g_state.win_w/win_h`, which nothing reads
++    //   * the inline accessors read the smaller TU's offsets, which now sit **inside the handles**
++    //     (`kPseudoDisplay = 0xE6400001`, `kPseudoSurface = 0xE6400003`, little-endian `01 00 40 E6`):
++    //     `ready_`@0 reads `0x01` → true by luck, `swap_paced_`@1 reads `0x00` → **false forever**,
++    //     `width_`@4 / `height_`@8 read the 32-bit handle values → garbage;
++    //   * `Init()` writes **16 bytes past the end** of that object, over whatever the caller placed
++    //     next — in `native_activity.cpp` that is `booted` and `drawn_rev`, the redraw-gate revision.
 +    //
-+    // The tell was `Init()` logging "eglSwapInterval(1) applied" while the frame loop observed
-+    // `SwapPaced() == false` — one object, two answers, which is only possible if the two TUs
-+    // disagree about the class.
++    // `swap_paced_` reading false is what produced the visible symptom: the frame loop then always
++    // took its 16 ms fallback sleep and could never reach vsync. The tell was `Init()` logging
++    // "eglSwapInterval(1) applied" while the same object reported `SwapPaced() == false`.
++    //
++    // On the device the compiler defines `__ANDROID__` for the whole translation unit set, so the
++    // layouts agree and none of this happens — which is exactly why the port misbehaved in the
++    // browser and not on Android.
 +    //
 +    // On the device the compiler defines `__ANDROID__` for the whole translation unit set, so the
 +    // layouts agree and none of this happens — which is exactly why the port misbehaved in the

@@ -1323,15 +1323,36 @@ set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/render/renderer.cpp
 
 致命的是 `SwapPaced()` / `Ready()` / `Width()` / `Height()` 都**定义在类体内**（天生 inline），
 每个 TU 各发射一份弱定义，链接器留一份给所有调用者。`native_activity.cpp` 里
-`artc::Renderer renderer;` 按**小布局**分配对象，`renderer.cpp` 的 `Init()` 按**大布局**写入：
+`artc::Renderer renderer;` 按**小布局**分配对象，`renderer.cpp` 的 `Init()` 按**大布局**写入。
 
-- `Ready()` 读 `display_` 的**第 0 字节** → `0x01` → 恰好为真，所以渲染看起来没坏；
-- `SwapPaced()` 读 `display_` 的**第 1 字节**。`kPseudoDisplay = (void*)0xE6400001`
-  （`android-shim/src/shim.cpp:272`），小端字节序是 `01 00 40 E6`，第 1 字节 = **`0x00`**
-  → **永远 false**；
-- `Width()` / `Height()` 读 `display_` 的 4..12 字节 → 垃圾（落在 `g_state.win_w/win_h`，而这两者无人读，所以没暴露出别的症状）。
+在 **wasm32** 上实测（4 字节指针、12 字节 `std::string`）：
 
-`SwapPaced()` 恒假 → `native_activity.cpp` 的收尾
+| | 无句柄（`native_activity.cpp` 看到的）48 字节 | 有句柄（`renderer.cpp` 看到的）64 字节 |
+| --- | --- | --- |
+| 0 | `ready_` | `display_`（4 B） |
+| 4 | `width_` | `surface_` |
+| 8 | `height_` | `context_` |
+| 12 | `vp_x_` | `window_` |
+| 16 | `vp_y_` | `ready_` |
+| 17 | — | `swap_paced_` |
+| 20 | `vp_w_` | `width_` |
+| 36 | `last_error_` | — |
+
+两个后果：
+
+1. **inline 访问器读的是小布局的偏移，而那些偏移现在落在句柄内部**。
+   `kPseudoDisplay = (void*)0xE6400001`、`kPseudoSurface = (void*)0xE6400003`，
+   小端字节序是 `01 00 40 E6`：
+
+   - `ready_`@0 读 `display_` 的**第 0 字节** = `0x01` → 恰好为真，所以渲染看起来没坏；
+   - `swap_paced_`@1 读**第 1 字节** = **`0x00`** → **永远 false**；
+   - `width_`@4 / `height_`@8 读到的就是 `surface_` / `context_` 的整数值 → 垃圾
+     （它们落在 `g_state.win_w/win_h`，而这两者无人读，所以没暴露出别的症状）。
+
+2. **`Init()` 会越界写 16 字节**（64 − 48）到栈上那个按小布局分配的对象之后 ——
+   在 `native_activity.cpp` 里紧随其后的是 `booted` 与 `drawn_rev`（**重绘门控的 revision**）。
+
+`swap_paced_` 恒假 → `native_activity.cpp` 的收尾
 
 ```c
 if (!drew || !renderer.SwapPaced())
@@ -1341,8 +1362,12 @@ if (!drew || !renderer.SwapPaced())
 **每一帧都多睡 16 ms**，压在 14 ms 的帧耗时上 → 30.6 ms/帧 ≈ **32 Hz**，
 而 Android 上 `eglSwapInterval(1)` 成功、`swap_paced_=true`、由 vsync 背压 → 60 Hz。
 **这正是「安卓正常、web 不正常」**：设备端编译器对整个 TU 集合都定义 `__ANDROID__`，
-布局一致，什么问题都没有。此外 `Init()` 还会**越界写 32 字节**到栈上那个按小布局分配的对象之后，
-可能波及紧随其后的 `booted` / `drawn_rev`（重绘门控），这与「残影/帧错乱」的观感一致。
+布局一致，什么问题都没有。至于「残影/帧错乱」的观感，除帧率减半外，
+还有第 2 条越界写踩到 `booted` / `drawn_rev` 的可能。
+
+定位线索是这个**自相矛盾**：`Init()` 打印 "eglSwapInterval(1) applied"，
+而同一个对象的 `SwapPaced()` 在帧循环里恒为 `false` —— 一个对象给出两个答案，
+只可能是两个 TU 对类的认识不一致。
 
 ### 修法
 
