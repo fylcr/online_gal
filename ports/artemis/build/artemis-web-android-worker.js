@@ -69,6 +69,22 @@ const pump = function (why) {
   }
 };
 
+// Input must not be forwarded before the runtime exists.
+//
+// `runtimeReady` is checked separately because the exported functions are **not absent** before
+// initialization: the Emscripten glue fills every `EXPORTED_FUNCTIONS` slot with
+// `makeInvalidEarlyAccess(name)`, which is a real, truthy function that raises
+//   Aborted(Assertion failed: call to '_artc_shim_push_motion' via reference taken before Wasm
+//   module initialization)
+// when called. So `if (Module._artc_shim_push_motion)` is always true and does not guard anything —
+// and because `abort()` tears the runtime down (it is what installs the "runtime is dead" state),
+// a single pointer event arriving during instantiation kills the engine *before* it ever boots:
+// no `packs registered`, no `artc_android_boot`, and `pump()` silently returns forever after. The
+// pre-boot presses are dropped, which is correct — there is nothing yet that could receive them.
+const live = function (fn) {
+  return runtimeReady && typeof fn === 'function';
+};
+
 // Fallback only. If the notification handshake is alive this almost never finds work, because `cmd:4`
 // drives every drain; when it fires it means a wake-up was dropped.
 const FALLBACK_MS = 250;
@@ -107,18 +123,18 @@ self.onmessage = function (event) {
   }
   if (data.type === 'pointer') {
     ptrMsgs++;
-    if (self.Module && self.Module._artc_shim_push_motion)
+    if (live(self.Module && self.Module._artc_shim_push_motion))
       self.Module._artc_shim_push_motion(data.down ? 0 : 1, toBacking(data.x), toBacking(data.y));
     return;
   }
   if (data.type === 'pointermove') {
-    if (self.Module && self.Module._artc_shim_push_motion)
+    if (live(self.Module && self.Module._artc_shim_push_motion))
       self.Module._artc_shim_push_motion(2, toBacking(data.x), toBacking(data.y));
     return;
   }
   if (data.type === 'key') {
     keyMsgs++;
-    if (self.Module && self.Module._artc_shim_push_key)
+    if (live(self.Module && self.Module._artc_shim_push_key))
       self.Module._artc_shim_push_key(data.key, data.down ? 0 : 1);
     return;
   }

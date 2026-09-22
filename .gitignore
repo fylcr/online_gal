@@ -47,6 +47,11 @@ ports/**/build-final/
 ports/**/*.wasm
 ports/**/*.o
 
+# Python tooling bytecode. The deploy/analysis recipes are tracked; the caches
+# their interpreter drops beside them are not.
+__pycache__/
+*.pyc
+
 # Editor and OS
 .vscode/
 .idea/

@@ -773,18 +773,53 @@ try { return s.empty() ? def : std::stof(s); } catch (...) { return def; }
 在真实 Chrome 里第一次跑就复现了另一个 `Aborted`，断言版直接点名：
 
 ```
-Aborted(Assertion failed: call to '_artc_web_pointer_move' via reference taken before
+Aborted(Assertion failed: call to '_artc_shim_push_motion' via reference taken before
                      Wasm module initialization)
 ```
-
-`Module._artc_web_*` 在 wasm **实例化**后就已存在，但 Emscripten 的 `initRuntime()` 要再过一次
-`await` 才执行。这段窗口内调用导出是 UB：开断言就 abort，不开断言就是裸 `Aborted()`。
 
 **触发条件很日常**：页面在模块就绪前就挂好了 `pointermove`，**鼠标在加载期停在页面上**即可。
 无头脚本从不移动鼠标，所以一直没暴露——这也是「换真实浏览器」这一步的价值。
 
-修法：worker 加 `ready` 门，`onRuntimeInitialized` 里才置位；`canvas` 消息豁免（它正是加载模块的那条）。
+#### 真正的机制（比「加个 ready 门」更要紧的一点）
+
+一开始以为是「导出在 `initRuntime()` 完成前**还不存在**」，据此写了 `if (Module._artc_shim_push_motion)`
+当守卫。**这个守卫是错的，而且错得刚好相反**：Emscripten 胶水给每个 `EXPORTED_FUNCTIONS` 槽位
+**预先填了一个真实存在的函数**：
+
+```js
+var _artc_shim_push_motion = Module["_artc_shim_push_motion"] =
+    makeInvalidEarlyAccess("_artc_shim_push_motion");
+```
+
+`makeInvalidEarlyAccess` 返回的是**真函数、truthy**，只有**调用它**才 `abort()`。
+所以 `if (Module._artc_shim_push_motion)` **恒为真**，什么也没挡住。
+
+**后果比「调用被忽略」重得多**：`abort()` 会把整个运行时置为死亡状态，于是
+
+- 一次在实例化期间到达的指针事件就**在引擎启动之前把它杀掉**；
+- 之后 `pump()` 因为 `runtimeReady` 永远为 false 而**静默返回**；
+- 现象是 `packs registered` 与 `artc_android_boot` **永不出现**、画面全黑，
+  而控制台只有成对的 `[artc] Aborted(...)` + `[artc] worker error [object ErrorEvent]`。
+
+也就是说：**症状看起来像「引擎没启动」，成因却是「有人先打了它一下」**。本次是加载期先到了两个
+pointer 事件（`ptr=2`）。
+
+**修法**（`ports/artemis/build/artemis-web-android-worker.js`）：不再依赖导出的存在性，改为显式查自己的标志位：
+
+```js
+const live = function (fn) { return runtimeReady && typeof fn === 'function'; };
+// 三处守卫：if (live(self.Module && self.Module._artc_shim_push_motion)) / _artc_shim_push_key
+```
+
 初始化前的输入直接丢弃——引擎还没起来，没有状态可作用。
+
+**教训（可复用）**：Emscripten 的 `Module._x` 不是「未就绪时不存在」，而是
+**「未就绪时存在、但一调就 abort」**。任何用 truthiness 当就绪守卫的代码都是假的守卫；
+必须查 `runtimeReady` 这类自己的标志，或 `typeof` + 自己的判定。
+
+**验证**：`?v=41`（1500×900 CSS、dpr 1.5）→ `packs registered` → `artc_android_boot(2252x1479) -> 1`
+→ `viewport: 2252x1266 at 0,106` → `draw[1]/draw[301]/draw[601]`；`getImageData` 非黑像素
+**85.592%**、`maxLum=255`；点击后进入游戏（`startmask` 出现、`1.80.mw.adv_adv` 建层）。
 
 ### 9.21 动画位置不对：`off` 只在两处之一被识别
 
@@ -919,6 +954,141 @@ return SectionCount(a) < SectionCount(b);   // ← 永不执行
 3. 用**逐次 `Open` 的实参日志**把「谁传了错路径」钉死，而不是猜 `PackManager` 的逻辑。
 4. 每一步都让**症状与原因分居不同层**：`404 一个胡扯文件名` 是 ABI 问题，`stop after frame 1`
    是导出返回值问题，`black canvas` 是载荷字节问题。**这三者表面上都像「引擎没起来」。**
+
+
+## 十二、改向：直接跑官方 WebAssembly 构建
+
+`artemis-compat` 这条线的输入缺陷长期收敛不掉，于是**停止继续打磨我们的 port**，改为直接用
+**官方 SDK 自带的 WebAssembly 构建**（`.ref/artemis/WebAssembly/`）跑真实游戏。本节记录这条线，
+它现在是**唯一验证过能在浏览器里完整跑起真实游戏**的路线。
+
+### 12.1 只有 asyncify 模式能用
+
+官方给两种投递方式，**不是同一种东西的两种打包**：
+
+- `WebAssembly/`（plain）：把整包 `artemis.data` 下载后 `FS_createDataFile` 进内存。readme 自称
+  「オンメモリモードが基本」，对 15.8 MB 的 SDK 示例没问题；真实游戏不行——`pack_file.txt`
+  把单个 `.pfs` 限在 2 GB，而本作是 `root.pfs` 2.69 GB + `root.pfs.000` 3.36 GB。
+- `WebAssembly/asyncify/`：引擎按脚本需要**逐个文件**去 `<ASYNCIFY_URL><path>` 取。这是唯一可行的路。
+
+asyncify 需要 `system.ini` 的 `[WASM]` 段补两项：`SAVEPATH`（必需）与 `ASYNCIFY_URL`（以 `/` 结尾）。
+`ASYNCIFY_HASH_LIST_URL` 是**可选**的（readme 明写「必須ではありません」，只用于 IndexedDB 缓存校验）。
+
+**本作发布的 `system.ini` 恰好缺了 `SAVEPATH`**（`[WASM]` 段只有 `WIDTH/HEIGHT/CHARSET/BOOT`），
+所以直接跑会在引擎初始化工具层时卡住。补上即可。
+
+### 12.2 整条路线固化为一个脚本，且不依赖任何 SDK 专有二进制
+
+`ports/artemis/build/official-web-deploy.py`：
+
+```bash
+python ports/artemis/build/official-web-deploy.py \
+  --game .test/artemis-official-async/game \
+  --out  .test/artemis-official-async/deploy
+cd .test/artemis-official-async/deploy && python -m http.server 4700 --bind 127.0.0.1
+# 打开 http://127.0.0.1:4700/web/artemis.html
+```
+
+它取代了官方 Windows 工具链里的两个专有二进制：
+
+| SDK 工具 | 本脚本的替代 | 为什么必须自己写 |
+| --- | --- | --- |
+| `GeneratePackFile2.exe` | `write_pf8()` | 官方 packer 是 Windows-only 专有二进制；asyncify 模式下 pack 只需含 `system.ini`，自己写是 30 行的事 |
+| `ApplyWasmData.exe` | `embed_package_size()` | 只是把包长度写回 `artemis.js` 的元数据 |
+
+`.ref/` 与 `.test/` 都在 `.gitignore` 里，SDK 与本作数据都不会被提交；脚本只**读** `.ref/`。
+（许可：官方 `Copyright.txt` 只授权给向 Mikage 申请过的人，商业需付费——**不是 GPL，不得入仓**。）
+
+### 12.3 自写 pf8 与官方 packer 逐字节相同
+
+`write_pf8()` 的输出与 `GeneratePackFile2.exe` 在**单条目**（本脚本唯一用到的情形）下
+**逐字节相同**：同一份 `system.ini` 两边都是 `3752 bytes`，`IDENTICAL`。
+跨 7 组受控 fixture 比对，`one_sys`/`five_mix`/`nested`/`empty`/`big`/`jp` 全部 IDENTICAL。
+
+唯一残留差异是多条目时 payload 的**物理排放顺序**（官方近似大小写不敏感的字母序，我们按 index 的
+字节序）。payload 位置来自 index 里的 offset，**任何读者都看不见**；只有对整个文件做哈希时才体现。
+
+**顺带挖出一个格式事实：官方引擎在记录表之后还读一段 directory trailer**，而 GARbro 的
+`ArcPFS.cs` 与我们的 `packages/runtime-artemis/src/pfs.ts` 都停在第 `count` 条记录、都不读它。
+少了它，引擎打开 pack 时直接断言：
+
+```
+Assertion failed: mlf_ >= minimum_max_load_factor, at: .../boost/unordered/
+  detail/implementation.hpp,3027,min_buckets_for_size
+Assertion failed: false, at: .../Contribs/babel/babel.cpp,1513,translate
+```
+
+trailer 的形状（用受控 fixture 反推，`write_pf8()` 的 docstring 有完整说明）：
+
+```
+u32  record_count + 1
+repeat record_count times:  u32 (index offset just past THIS record's name), u32 0
+u32 0, u32 0
+u32 (index offset just past the LAST record)
+```
+
+另外两条同源的格式事实：**版本必须是 6**（`keyed = 4/5/8/9` 会用 `SHA-1(index)` 异或 payload，
+声明 8 却写明文会 XOR 成乱码再在 boost 里断言），**名字编码是 CP932 不是 UTF-8**。
+
+### 12.4 踩到的坑：`ApplyWasmData.exe` 改的不是一个数，是两个
+
+第一版 `embed_package_size()` 只替换 `remote_package_size`，部署**静默失败**：
+
+```
+canvas 1×1、status 空、控制台 0 条消息、一个 /game/... 请求都没发
+```
+
+真相是 `artemis.js` 顶部的元数据把包长记了**两处**：
+
+```js
+loadPackage({"files":[{"filename":"/root.pfs","start":0,"end":236,"audio":0}],
+             "remote_package_size":3752,"package_uuid":"..."})
+```
+
+`remote_package_size` 决定**下载**多少字节，各 file entry 的 `end` 决定交给 `FS_createDataFile`
+的**字节范围**。只改前者，`DataRequest` 拿到的是被截断的缓冲区，解包失败且**什么都不报**。
+`ApplyWasmData.exe` 两个都改。现在 `embed_package_size()` 两个都改，并同时换掉 `package_uuid`
+（它给 asyncify 的文件缓存做键，留着旧值会供应陈旧字节）。
+
+**这个坑值得记形状**：它不是「部署到子目录坏了」——那只是凑巧同时发生，让我一度去查
+`ASYNCIFY_URL` 的 origin 相对性。**真正的原因是元数据内部不一致，而它的失败模式是完全沉默的。**
+
+**教训**：「静默失败 + 只改一个字段」是最好的对照实验机会——把能跑的那份与不能跑的那份
+**逐字段 diff**（`diff <(tr ',' '\n' < a.js) <(tr ',' '\n' < b.js)`），比去猜目录结构快得多。
+
+### 12.5 验证
+
+部署到 `http://127.0.0.1:4700/deploy/web/artemis.html`（pageId 6，1500×900 CSS，dpr 1.5）：
+
+- canvas **2191×1321**，`calledRun: true`
+- `preserveDrawingBuffer` 为 false，**必须在 `requestAnimationFrame` 回调内 `readPixels`**，
+  否则读到的全是 0
+- 非黑像素 **2,701,503 / 2,894,311 = 93.338%**，`maxLum = 255`
+- ASCII 亮度图可辨：顶部 logo 带、中部人物立绘、右侧菜单块
+- 请求流（全部来自 `/game/`，证明是**按需**读散装树，不是整包进内存）：
+  `system/first.iet` → `system/init.lua` → 20+ 个 `system/**.lua` → `system/{ui,save,script}.asb`
+  → `script/brandlogo.ast` → `pc/ja/title/{btn,bg,char,logo,menu,char_l,char_s}.png`
+  → `sound/bgm/bgm99.ogg`；SAVEPATH 解析为 `artemis_e1ca47e694`
+  （拉丁化后为空的日文 `SAVEPATH = まどそふと\ハミダシクリエイティブ` 走 sha1 前 10 位，
+  避免所有游戏塌进同一个存档槽）
+
+**旁证：官方路线的坐标映射是亚像素级正确的**，所以 m03520 冻结的 mouse 缺陷**在我们的 port 里，
+不在引擎/web 层**。官方胶水把权威坐标写在 `window.Browser.mouseX/mouseY`（由它自己的
+`calculateMouseEvent` 写入），可直接当标定参照：
+
+```js
+var rect = Module["canvas"].getBoundingClientRect();
+var cw = Module["canvas"].width, ch = Module["canvas"].height;
+var x = event.pageX - (scrollX + rect.left);   // 再乘：
+x = x * (cw / rect.width);                     // <- backing-store 像素
+```
+
+**关键点是乘 `canvas.width / rect.width`，而不是盲乘 `devicePixelRatio`**——两者只在
+`canvas.width == cssWidth * dpr` 精确成立时才等价。我们的
+`ports/artemis/harness/android-host.html` 传的是 CSS px、由 worker 乘 `dpr`，
+`canvas.width = Math.round(size.width * dpr)` 的取整差与 resize 后的累积差都会破坏这个等式。
+这是 m03520 那个缺陷的**具体、可验证的机制**（用户已要求先冻结，未改）。
+
 
 
 

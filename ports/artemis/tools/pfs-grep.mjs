@@ -82,7 +82,12 @@ try {
       if (!opts.filter.test(entry.path)) continue;
       wanted.set(entry.path, { entry, loaded, name });
     }
-    console.log(`${name}: ${loaded.archive.entries.length} entries, ${wanted.size} match so far`);
+    // Progress goes to stderr, not stdout. `--dump` writes the payload to stdout
+    // and is documented to be redirectable (`--dump root.pfs > system.ini`), so a
+    // status line on stdout silently prepends junk to the extracted file -- and a
+    // corrupted `system.ini` does not fail here, it fails much later as an
+    // unrelated assert inside the engine's INI parser.
+    console.error(`${name}: ${loaded.archive.entries.length} entries, ${wanted.size} match so far`);
   }
 
   const utf8 = process.env.ARTEMIS_UTF8 === '1';
