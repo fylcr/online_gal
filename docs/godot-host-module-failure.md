@@ -102,5 +102,4 @@ expression. AetherKiri is the reference to build on.
 ## Reproducing the diagnosis
 
 - `node .test/wasm-identify.mjs` — identifies each module by its string markers
-- `node .test/ak-web-modules.mjs` — prints `GODOT_CONFIG` and the module list
 - `node .ref/ak-web/serve.mjs`, then `http://127.0.0.1:4600/` — the crashing page
