@@ -188,16 +188,25 @@ def write_pf8(path, files, version="6"):
 
 def patch_system_ini(path, extra):
     """
-    Add or overwrite keys in the `[WASM]` section.
+    Set the `[WASM]` keys we manage, removing any of them that we are not setting.
 
     The real game's `system.ini` already has a `[WASM]` block (WIDTH/HEIGHT/
     CHARSET/BOOT) because the publisher built one for a web release, but it is
-    missing `SAVEPATH`, which the readme makes mandatory. Existing keys are kept
-    and only the ones we set are replaced, so re-running does not stack duplicates.
+    missing `SAVEPATH`, which the readme makes mandatory. Keys we do not own are
+    left alone.
+
+    This edits the file in place, so it has to be *idempotent across option sets*,
+    not merely across repeats of the same options. Merely skipping keys that are
+    in `extra` is not enough: running once with `--hashlist` and then again
+    without it would leave the old `ASYNCIFY_HASH_LIST_URL` behind, silently
+    pointing the engine at a stale list. Every managed key is therefore dropped
+    unless this run sets it.
+
     Line endings are preserved because the file is CRLF and the engine's INI
     reader is happy either way, but rewriting them would show up as a whole-file
     diff for no reason.
     """
+    managed = ("SAVEPATH", "ASYNCIFY_URL", "ASYNCIFY_HASH_LIST_URL")
     raw = open(path, "rb").read()
     text = raw.decode("utf-8-sig" if raw[:3] == b"\xef\xbb\xbf" else "utf-8")
     newline = "\r\n" if "\r\n" in text else "\n"
@@ -205,10 +214,14 @@ def patch_system_ini(path, extra):
     if not sep:
         raise SystemExit(f"{path}: no [WASM] section; asyncify mode needs one")
 
+    dropped = []
     keep = []
     for line in tail.split(newline):
         key = line.split("=", 1)[0].strip().upper() if "=" in line else ""
         if key in extra:
+            continue
+        if key in managed:
+            dropped.append(key)
             continue
         keep.append(line)
 
@@ -218,9 +231,11 @@ def patch_system_ini(path, extra):
     print(f"  patched {path}")
     for key, value in extra.items():
         print(f"    [WASM] {key} = {value}")
+    for key in dropped:
+        print(f"    [WASM] -{key} (stale, removed)")
 
 
-def detect_savrpath(ini_text):
+def detect_savepath(ini_text):
     """
     Pick a `SAVEPATH`.
 
@@ -344,6 +359,12 @@ def build_hashlist(game, out):
       argument, which fails the load rather than being skipped.
 
     Hashes must be lowercase 40-character hex.
+
+    The document is written UTF-8 and sorted by the UTF-8 *bytes* of each path,
+    to match how the engine names files elsewhere: it percent-encodes the path as
+    UTF-8 when it fetches it, and 528 of this game's paths are Japanese. Writing
+    with the locale default (GBK on Windows) dies partway through on names like
+    `image/line/title01/*.png`.
     """
     lines = []
     for dirpath, _dirs, names in os.walk(game):
@@ -355,11 +376,12 @@ def build_hashlist(game, out):
                 for chunk in iter(lambda: handle.read(1 << 20), b""):
                     digest.update(chunk)
             lines.append(f"{rel},{digest.hexdigest()}")
-    lines.sort()
-    with open(out, "w", newline="") as handle:
-        handle.write("\n".join(lines))
-    tail = open(out, "rb").read()[-1:]
-    print(f"  hashlist.txt: {len(lines):,} entries, trailing newline = {tail == b'\n'}")
+    lines.sort(key=lambda line: line.encode("utf-8"))
+    blob = "\n".join(lines).encode("utf-8")
+    with open(out, "wb") as handle:
+        handle.write(blob)
+    print(f"  hashlist.txt: {len(lines):,} entries, {len(blob):,} bytes, "
+          f"trailing newline = {blob[-1:] == b'\n'}")
 
 
 def main():
@@ -399,13 +421,20 @@ def main():
     # the engine reads system.ini out of artemis.data, not off the server.
     savepath = args.savepath
     if savepath is None:
-        savepath = detect_savrpath(open(ini, "rb").read().decode("utf-8", "replace"))
+        savepath = detect_savepath(open(ini, "rb").read().decode("utf-8", "replace"))
     asyncify_url = args.asyncify_url or f"http://127.0.0.1:{args.port}/game/"
     extra = {"SAVEPATH": savepath}
     if args.flavour == "asyncify":
         extra["ASYNCIFY_URL"] = asyncify_url
         if args.hashlist:
-            extra["ASYNCIFY_HASH_LIST_URL"] = f"http://127.0.0.1:{args.port}/hashlist.txt"
+            # `build_hashlist` writes next to the other web artifacts (the page's own
+            # directory), so a page-relative URL is what stays correct. A
+            # root-absolute `/web/hashlist.txt` only lines up when the deployment
+            # directory happens to be the server root; nesting it (as in
+            # `.../deploy/web/artemis.html`) still resolves `/game/` correctly for
+            # ASYNCIFY_URL because that one is absolute on purpose, but the list
+            # would 404 -- and the engine reads the 404 page as the list.
+            extra["ASYNCIFY_HASH_LIST_URL"] = "hashlist.txt"
 
     print("== system.ini [WASM] ==")
     patch_system_ini(ini, extra)

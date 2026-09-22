@@ -1110,6 +1110,48 @@ rAF 161.5 Hz ← resolve_size 1500×900 后
 一个 1.5 秒的 rAF 计数就能把「引擎缺陷」与「观测环境」分开——这与 9.x 那轮
 「截图工具返回缓存帧」是同一类错误的两个变体：**症状看起来像被测对象坏了，其实是测量通道坏了。**
 
+### 12.7 部署脚本自身的四个缺陷（都已被真实运行暴露）
+
+`official-web-deploy.py` 第一次真正跑起来之后，剩下没跑通的地方全在脚本里，不在引擎里。
+四个都属于「错了不会当场报错」的那一类，所以逐条记下来。
+
+**（1）`patch_system_ini` 只幂等于「同一组选项」，跨选项集会留下陈旧键。**
+它原地改 `game/system.ini`，原先只跳过本次 `extra` 里的键，**不删自己上次写下的键**。
+于是「先 `--hashlist`、再去掉 `--hashlist` 重跑」会把上一轮的 `ASYNCIFY_HASH_LIST_URL`
+留在文件里，把引擎指向一个已不存在的列表。实证：一次带 `--hashlist` 的部署被超时打断后，
+重跑得到的 `artemis.data` 是 **3,817 B** 而不是 **3,752 B**，差值正是残留那一行。
+修法是把受管键显式列出（`SAVEPATH` / `ASYNCIFY_URL` / `ASYNCIFY_HASH_LIST_URL`），
+**本轮没设的一律删掉**，并打印 `[WASM] -KEY (stale, removed)`。
+修完三连测：设三个键 → 去掉一个（被删、文件中不再出现）→ 再跑一遍（逐字节稳定）。
+
+**（2）`build_hashlist` 用 locale 默认编码写文件，中文/日文路径直接崩。**
+`open(out, "w")` 在 Windows 上是 GBK，而这个游戏有 **528 个日文路径**
+（`image/line/title01/アメリ.png` 之类），于是写到一半
+`UnicodeEncodeError: 'gbk' codec can't encode character '\u30fb'`。
+注意这个错误**不是**提取出来时就已经坏掉的名字（全树 `U+FFFD` 计数为 0，名字是干净的 UTF-8），
+纯属写文件时的编码选择。已改成 UTF-8 字节写，并按 **UTF-8 字节序**排序，与引擎在别处
+命名文件的方式一致（它请求时把路径按 UTF-8 百分号编码——这一点已由
+`pc/ja/mw/name/武田信玄.png` 成功 200 证实）。
+
+**（3）hashlist 的 URL 写成了根绝对路径。**
+文件写在页面同目录（`<out>/web/hashlist.txt`），URL 却配成
+`http://127.0.0.1:<port>/hashlist.txt`——只有部署目录**恰好就是服务根**时才碰对。
+部署成 `<out>/deploy-hl/web/artemis.html` 时就 404，而**引擎会把 404 页面当成列表读**
+（`Detected invalid hash entry. <!DOCTYPE HTML>`）。改成**页面相对**的 `hashlist.txt`，
+两种摆放都对。`ASYNCIFY_URL` 保持绝对是有意的，因为它指向的是 `/game/` 这棵散装树。
+
+**（4）`embed_package_size` 的分析见 12.4，那一节留的是同一个教训**：这几个缺陷的
+失败模式全都不是「报错停下」，而是「继续跑、但跑的是别的东西」。
+
+**验证（改完后重跑一次完整 `--hashlist` 部署）**：
+`hashlist.txt: 29,224 entries, 2,102,078 bytes, trailing newline = False`；
+页面 `.../deploy-hl/web/artemis.html` 拉 `hashlist.txt` 得到 **200 / 2,097,730 B / 29,224 行**
+（含日文行 `image/line/title01/アメリ.png,326cbb…`），控制台里那条
+`Detected invalid hash entry` **已消失**；canvas **2251×1351**、`calledRun: true`、
+非黑像素 **2,851,993 / 3,041,101 = 93.782%**、`maxLum 255`；
+25 个 `/game/` 请求推进到标题画面（`pc/ja/title/{btn,bg,char,logo,menu,char_l,char_s}.png`
++ `sound/bgm/bgm99.ogg`）。
+
 
 
 
