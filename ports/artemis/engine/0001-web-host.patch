@@ -1,8 +1,8 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index e2290fa..1afb2d3 100644
+index e2290fa..979f25d 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -139,3 +139,180 @@ if(ARTC_BUILD_MAC_HOST AND APPLE)
+@@ -139,3 +139,191 @@ if(ARTC_BUILD_MAC_HOST AND APPLE)
      target_link_libraries(artemis-mac PRIVATE artemis_deps
          "-framework Cocoa" "-framework OpenGL")
  endif()
@@ -110,6 +110,17 @@ index e2290fa..1afb2d3 100644
 +    # Declared here rather than beside `add_library(lua51)` because this option does not exist yet
 +    # at that point in the file, which silently makes the condition false.
 +    target_compile_options(lua51 PRIVATE -pthread)
++    # `__ANDROID__` here selects renderer.cpp's real EGL implementation. It is defined **per source
++    # file**, and that is a trap worth naming: `renderer.h` is included by both this file and
++    # `src/jni/native_activity.cpp`, so anything in a *shared header* that changes layout under this
++    # macro gives the two translation units different class layouts. In-class accessors are inline,
++    # so the linker keeps one definition and every caller reads the other layout's offsets.
++    #
++    # That is not hypothetical. `renderer.h` used to gate its four EGL handle members on
++    # `__ANDROID__`; `Renderer::SwapPaced()` then read a byte that the block had shifted, reported
++    # `false` forever, and the frame loop fell back to a fixed 16 ms sleep on every frame — 32 Hz
++    # instead of 60 (see the note in `src/render/renderer.h` and `docs/artemis-web-port.md` §14).
++    # `renderer.cpp` needs the macro; **shared headers must not depend on it.**
 +    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/render/renderer.cpp
 +        PROPERTIES COMPILE_DEFINITIONS "__ANDROID__=1")
 +    target_link_options(artemis-web-android PRIVATE
@@ -1611,10 +1622,10 @@ index 72862a4..b3d8b0c 100644
              else if (kv.first == "dragarea") {
                  if (std::sscanf(kv.second.c_str(), "%f,%f,%f,%f",
 diff --git a/src/render/renderer.h b/src/render/renderer.h
-index 9d52a69..911c36e 100644
+index 9d52a69..b74653d 100644
 --- a/src/render/renderer.h
 +++ b/src/render/renderer.h
-@@ -46,12 +46,30 @@ public:
+@@ -46,12 +46,41 @@ public:
      const std::string &LastError() const { return last_error_; }
  
  private:
@@ -1633,11 +1644,22 @@ index 9d52a69..911c36e 100644
 +    // (inherently inline) the linker kept one copy and had every caller read a different member than
 +    // the one written:
 +    //
-+    //   * `Ready()`     read byte 0 of `display_`                 → true only by luck
-+    //   * `SwapPaced()` read byte 1 of `display_`                 → always false, so the frame loop
-+    //                                                               always took its 16 ms fallback
-+    //                                                               sleep and could never reach vsync
-+    //   * `Width()`/`Height()` read bytes 4..12 of `display_`     → garbage window geometry
++    // The accessors the linker kept were the ones compiled against `native_activity.cpp`'s (smaller)
++    // layout, so they read the members at that TU's offsets — offsets that `Init()` had meanwhile
++    // filled with parts of the EGL handles it wrote at the *other* TU's offsets. The layouts are
++    // 72 vs 104 bytes, and the overlapping fields line up like this (`display_` spans bytes 0..7,
++    // `surface_` 8..15, and the pseudo-handles are small integers — `0xE6400001`, `0xE6400003` — whose
++    // upper bytes are zero):
++    //
++    //   * `swap_paced_` (offset 1) reads byte 1 of `display_`       → `0x00`, so it reported `false`
++    //     no matter what `eglSwapInterval` returned; the loop always took its 16 ms fallback sleep
++    //   * `ready_`      (offset 0) reads byte 0 of `display_`       → `0x01`, true only by luck
++    //   * `width_`      (offset 4) reads bytes 4..7 of `display_`   → garbage (and `height_`, at 8,
++    //     reads `surface_`) — both land in `g_state.win_w/win_h`, which nothing reads
++    //
++    // The tell was `Init()` logging "eglSwapInterval(1) applied" while the frame loop observed
++    // `SwapPaced() == false` — one object, two answers, which is only possible if the two TUs
++    // disagree about the class.
 +    //
 +    // On the device the compiler defines `__ANDROID__` for the whole translation unit set, so the
 +    // layouts agree and none of this happens — which is exactly why the port misbehaved in the
