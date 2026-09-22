@@ -1089,6 +1089,28 @@ x = x * (cw / rect.width);                     // <- backing-store 像素
 `canvas.width = Math.round(size.width * dpr)` 的取整差与 resize 后的累积差都会破坏这个等式。
 这是 m03520 那个缺陷的**具体、可验证的机制**（用户已要求先冻结，未改）。
 
+### 12.6 差点让我误判的陷阱：窗口被折叠后 rAF 被限流到 1.2 Hz
+
+测输入时有一轮结论是「坐标送达正确、但点击完全没反应，画面像素签名一动不动」。
+**这个结论是错的，成因在观测侧**：浏览器窗口当时被折叠成了标题栏大小
+（`window.outerWidth/outerHeight = 159×27`），页面虽然 `visibilityState: "visible"`、
+`document.hidden: false`、`document.hasFocus(): true`，但**合成器不再驱动 `requestAnimationFrame`**：
+
+```
+rAF 1.2 Hz   ← 窗口折叠（outerWidth 159×27）
+rAF 161.5 Hz ← resolve_size 1500×900 后
+```
+
+引擎的主循环挂在 rAF 上，所以**帧根本没在推进**，输入自然什么都不触发。恢复窗口尺寸后，
+同一次点击立刻生效：悬停高亮改变像素、点击后请求数 15 → 19 → 23 → 27、
+画面进入事件 CG（`image/ev/ev_com_01/*.png` + `sound/vo/hiy/fem_hiy_0000N.ogg`）。
+
+**教训（可复用）**：判定「输入没反应」之前，**先量 `requestAnimationFrame` 的实际频率**。
+`visibilityState` / `hasFocus` 都正常**不代表** rAF 在被驱动；窗口尺寸与 rAF 频率才是直接证据。
+一个 1.5 秒的 rAF 计数就能把「引擎缺陷」与「观测环境」分开——这与 9.x 那轮
+「截图工具返回缓存帧」是同一类错误的两个变体：**症状看起来像被测对象坏了，其实是测量通道坏了。**
+
+
 
 
 
