@@ -26,6 +26,7 @@ ranged stream fails is still the reference for that problem — see
         build/                      the build recipe: scripts, patchers, shims
         harness/                    the page + worker that drive the built engine in a browser
         engine/                     patches to apply to the upstream checkout (artemis only)
+        tools/                      analysis helpers that read real game data (artemis only)
 
 ## Getting the upstream checkouts
 

@@ -1666,7 +1666,7 @@ index 851ee67..2c44e26 100644
      if(script_runner_)script_runner_->DiscardFlow();
      advance(LoadPhase::SnapshotScene);
 diff --git a/src/script/lua_tag_dispatch.cpp b/src/script/lua_tag_dispatch.cpp
-index 5c8b1c5..5d1030e 100644
+index 5c8b1c5..3f7cef8 100644
 --- a/src/script/lua_tag_dispatch.cpp
 +++ b/src/script/lua_tag_dispatch.cpp
 @@ -47,7 +47,18 @@ LuaEngine::TagAttrs LuaEngine::TraceAndCollectAttrs(lua_State *L,
@@ -1689,3 +1689,24 @@ index 5c8b1c5..5d1030e 100644
      }
      TagAttrs m;
      lua_pushnil(L);
+@@ -153,6 +164,20 @@ LuaEngine::TagTable() {
+         {"repeatedly", &LuaEngine::TagNoOp},      {"autoskip_disable", &LuaEngine::TagNoOp},
+         {"macroadd", &LuaEngine::TagNoOp},        {"macrodel", &LuaEngine::TagNoOp},
+         {"loading", &LuaEngine::TagNoOp},         {"saving", &LuaEngine::TagNoOp},
++        // Platform-surface tags the real game does send, which have no meaning
++        // in a canvas. Registered explicitly rather than left to fall through,
++        // so an "unhandled tag" reading stays meaningful.
++        //   mouse   — moves/hides the OS cursor. The official docs mark it
++        //             Windows-only; on the web the page owns the cursor.
++        //   caption — sets the window title bar. Windows-only per the docs.
++        //   autosave— allow=1/2 saves on exit or on every input wait. The game
++        //             sets allow=0 during init and we have no save-on-exit path,
++        //             so honoring it would only add writes the framework
++        //             performs itself through `savess`.
++        //   trophy  — achievement reporting; it is not in Docs/tag/ at all, so
++        //             the engine-level meaning is platform-defined.
++        {"mouse", &LuaEngine::TagNoOp},           {"caption", &LuaEngine::TagNoOp},
++        {"autosave", &LuaEngine::TagNoOp},        {"trophy", &LuaEngine::TagNoOp},
+         // message-layer text pipeline
+         {"fontdefault", &LuaEngine::TagFontDefault},
+         {"fontinit", &LuaEngine::TagFontInit},

@@ -867,6 +867,48 @@ return SectionCount(a) < SectionCount(b);   // ← 永不执行
 原 9.14 的结论（`HEAPU8.set` 是黑屏原因）**不成立**：那一步是对的，见 9.15–9.17。
 
 
+## 九·补二、要补的标签到底是几个：**59 个，不是 186 个**
+
+文档里 186 个标签、而 `artemis-compat` 只认得其中 104 个，看上去是最大的缺口。这个比较是错的，
+因为它把**两套词汇**当成了一套。
+
+**第一套：`.ast` 场景格式的词汇。** 真实游戏的 `script/*.ast`（218 个文件、11.2 MB）里出现
+37 个名字（`text` 32092 次、`fg` 19985 次、`vo` 15064 次、`bg` 6579 次 …）。但它们**不是引擎标签**：
+`.ast` 由**游戏自带的 Lua** 解析（包里 57 个 `.lua`，`system/init.lua` 逐个 `e:include`），
+名字表就在 `system/init.lua:5599`（`{"tone","timezone","bg","fgf","fg","fgact",…}`），
+分派在 `system/image/image_fg.lua` 等处（`elseif p3 == "fg"`、`elseif nm == "fg"`）。
+**引擎从来不看见这些名字。** 拿它们算缺口，得到「37 个里缺 32 个」，是个吓人且无意义的数字。
+
+**第二套：引擎标签**，即游戏 Lua 通过 `e:tag{...}` 交给引擎的那些。这才是我们要实现的接口，
+也正是 `.ref/artemis-compat/src/script/lua_tag_dispatch.cpp` 的 `TagTable()` 所分派的。
+
+对真实游戏测量第二套（`pfs-grep --filter '\.lua$' --dump` 后统计 `e:tag{"…"`）：
+
+    59 distinct / 478 calls
+      有同名处理器       52 distinct / 467 calls
+      seton*/delon* 前缀  7 distinct /  11 calls
+      未处理             0 distinct /   0 calls（本段补齐后）
+
+**真实接口是 59 个标签，不是 186 个。** 补齐的 4 个都不是逻辑缺口，而是平台表面：
+
+| 标签 | 调用 | 官方 `Docs/tag/` | 处理方式 |
+| --- | --- | --- | --- |
+| `mouse` | 4 | 有，**注明 Windows 专用** | 无操作：网页的光标由页面掌管 |
+| `caption` | 1 | 有，**注明 Windows 专用**（设窗口标题栏） | 无操作 |
+| `autosave` | 3 | 有（`allow=1/2` 退出时或每次等待时存档） | 无操作：游戏初始化时就设成 `allow=0`，且我们没有退出时存档路径 |
+| `trophy` | 1 | **根本没有这个文档** | 无操作，平台自定义 |
+
+另外 7 个（`setonwindowbutton`、`deloncommandskipin/out`、`deloncontrolskipin/out`、
+`setoncontrolskipin/out`）本来就由 `TagGenericSetOn` 的 `seton*`/`delon*` 前缀注册表兜住
+（`src/script/lua_tags_input.cpp:126`），把它们算成缺失同样是跨层比较的错。
+
+**旁证**：59 个里有 55 个能在官方 `artemis.wasm` 的字符串里找到（`var`/`rp`/`rt`/`lyc` 这四个
+太短，被字符串提取的 4 字符下限滤掉了）；而 `autosave` 在官方 **arm64 `libartemis.so` 的
+字节里找不到**——官方 Android 版也没有它。这印证了「表里那 4 个不是我们的缺口」。
+
+工具：`ports/artemis/tools/tag-usage-gap.mjs`（`--lua` 看引擎层、`--ast` 看游戏层、`--probe` 查官方二进制）。
+
+
 ## 十一、本轮定位方法的复盘
 
 值得留下的是**定位顺序**，而不是任何单个结论：
