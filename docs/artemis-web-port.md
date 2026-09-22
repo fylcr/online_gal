@@ -1193,6 +1193,202 @@ node ports/artemis/tools/extract-pfs.mjs -o .test/artemis-official-async/game-ch
 **110 个 `/game-chs/` 请求**、非黑像素 **2,851,932 / 3,041,101 = 93.780%**、
 `maxLum 255`；ASCII 亮度图能看出标题 logo 带、人物立绘、对话框与右侧菜单。
 
+## 十三、官方标签面：从二进制里读出来的 101 个，不是文档里的 187 个
+
+**目的**：把「artc 还缺哪些标签」从猜测变成可核对的事实，好决定移植工作量。
+此前 `tag-coverage.mjs` 拿 `Docs/tag/*.txt` 当权威，那个口径**两个方向都错**。
+
+### 权威在哪
+
+`libartemis.so`（arm64）的动态符号表里有 **`artemis::CArtemis::Command<Name>`，一个标签一个非虚方法**。
+`CArtemis::CommandTag` 是每个 `e:tag{...}` 唯一的入口，它按标签名 switch 到这些方法。
+所以这张符号表**就是**标签面，不是它的近似。`ports/artemis/tools/tag-oracle.mjs` 把它读出来并与 artc 对表。
+
+### 文档口径错在哪
+
+- **高估**：`Docs/tag/` 187 个文件名，但 24 个名字在整个引擎里根本不出现，
+  且若干是「一个文档讲一个家族」。真实面 = **101 个**。
+- **对改名瞎**：文档叫 `font_close.txt`，二进制里注册的字面量是 **`"/font"`**。
+  拿文档去 diff 会报「缺 font_close」，而引擎其实以另一个拼写拥有它。
+
+### 只有二进制才看得见的三件事（每件都改变结论）
+
+1. **闭合标签带前导斜杠**：`CommandFontClose` → `"/font"`，同理 `/ruby`、`/link`、
+   `/chgmsg`、`/tweenset`、`/voice`。
+2. **`seton*`/`delon*` 不是逐个方法**：只有一个 `CommandSeton` 和一个 `CommandDelon`，
+   内部按后缀 switch。所以 artc 显式表里没有某个 `setonX`，**不等于**缺口。
+   `tag-oracle.mjs` 为此单独报前缀家族，并去读 `lua_tags_input.cpp` 里 artc 自己的
+   前缀注册表（早期只读派发表，会误报 `prefix registry: NO`，把整个家族算成缺口）。
+3. **方法大小即真实行为**：`CommandTrophy` / `CommandIme` / `CommandLua` / `CommandVibrate`
+   都是 **4 字节**——空桩。「实现」它们意味着**有意地什么都不做**。
+
+### 结果：artc 缺 25 个 → 补掉 2 个后剩 23 个
+
+除空桩（`ime` `lua` `vibrate`）与平台面（`openbrowser` `statusbar` `purchase`
+`callnative` `httpget` `avoid` `debugprint` `debugreload` `voice` `/voice` `uidel` `unison` `slider`）之外，
+**真实游戏确实用到、artc 却没有的有两个**，本轮已补：
+
+| 标签 | 官方实现 | 真实游戏调用点 | 改法 |
+| --- | --- | --- | --- |
+| `skip` | `CommandSkip` `0x52613c` size `0x3e0` | `system/adv/autoskip.lua:12,27,37,66` `e:tag{"skip", allow="1/0"}`；另有 `:25,48,64` `e:tag{"exec", command="skip", mode="0"}` | 新增 `TagSkip`，**镜像 `automode` 的形状但不与它合并**：`skip_*` 是独立状态（框架分开驱动二者），`SetSkipMode` 触发 `commandskipin`/`commandskipout` 命名事件（`setoncommandskipout` 经 `TagGenericSetOn` 存的就是这个键名）。**顺带修掉一个静默洞**：`TagExecAutoMode` 原先 `if (m["command"] != "automode") return false;`，让 `command="skip"` 变成 no-op —— 框架以为跳停已关，实际跳过模式还在跑 |
+| `file` | `CommandFile` `0x556f54` size `0xa3c` | `system/adv/fileio.lua:291` `deleteFile(path)` → `e:tag{"file", command="delete", target=path}`；调用者 `system/adv/fsave.lua:308-311` `sv.deleteno()` | 新增 `artc::DeleteSaveFile(directory, file)`，**复用 `SavePath` 的同一套 `..` 逃逸防护**，否则这个标签就是一个任意文件删除原语。只实现 `delete`；`wasm_sync*` 有意不实现 |
+
+补完 `tag-oracle.mjs` 报 `artc registered: 104 names`，缺口从 25 降到 **23**，
+且剩下 23 个里没有真实游戏用到的（`skip`、`file` 是仅有的两个，现已消失）。
+
+`skip` 的语义按 `Docs/tag/scenario/skip.txt` 是 `allow`（0/1 是否允许跳过）与
+`unread`（0/1 是否跳过未读段落，`1` 表「跳过到已读处为止」）。
+`file` 的命令族是 `copy` / `delete` / `clear_cache` / `wasm_sync` /
+`wasm_sync_add_persistent` / `wasm_sync_delete_persistent`（后三个正是官方
+**WASM SYNC** 模式的配置入口，asyncify 模式不需要改脚本，故我们这条路不必实现它们）。
+
+### 验证
+
+`tests/save_regressions.cpp` 新增 2b) 用例（六个断言）：删除已有槽位、删完读不回来、
+**再删一次要返回 false**（让调用者能区分「删掉了」和「本来就没有」）、`../` 逃逸被拒
+**且外部文件真的还在**（否则「通过」只是因为本来就没东西可删）、空目录名返回 false。
+
+构建器：该机无原生工具链且有 zlib 依赖，用 emscripten 单编该用例跑通
+（`em++` 而非 `emcc`——C++ 驱动不对会报 `undefined symbol: std::__2::cerr`；还要带 `-lz`，否则 `undefined symbol: crc32`）：
+
+```bash
+cd .ref/artemis-compat
+em++ -O1 -std=c++17 -I src tests/save_regressions.cpp src/util/save_storage.cpp \
+     -lz -sNODERAWFS=1 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=1 -o /tmp/artc-t2/save_reg.js
+node /tmp/artc-t2/save_reg.js
+```
+
+结果：新用例六个断言全过。仍报 `FAIL: fork` 与 `FAIL: oversized write fails cleanly`
+各一条 —— 那是该文件里**既有的 POSIX-only 用例**（`fork`、`RLIMIT_FSIZE`），
+Emscripten 本来就模拟不了，与本轮改动无关。
+
+集成侧另有一路证据：`web-deploy.sh` 重建后真实游戏仍正常启动
+（canvas `2252x1352`、`artc_android_boot(2252x1352) -> 1`、`viewport: 2252x1266`、
+非黑像素 **93.733%**、`maxLum 255`）。注意产物 `.wasm` **无 name section、无 DWARF**，
+`grep` 在里面找不到新符号 —— 这类改动只能靠行为或原生测试证。
+
+### 复现
+
+```bash
+node ports/artemis/tools/tag-oracle.mjs           # 面 + 缺口
+node ports/artemis/tools/tag-oracle.mjs --sizes   # 逐个大小，标出空桩
+node ports/artemis/tools/tag-oracle.mjs --json .test/tag-oracle.json
+```
+
+## 十四、动画缺陷的根因：一个 `__ANDROID__` 把 `Renderer` 的**类布局**劈成了两半
+
+用户原话：「动画不对……artemis-compact 在安卓端的处理是正常的，在 web 端就不正常了，
+可能是 wasm 里有什么地方不一样，尝试逆向这一部分分析一下。」
+
+先按平台差异排掉了三条**错误**假说（都实测过，不要再回头查）：
+
+| 假说 | 实测 | 结论 |
+| --- | --- | --- |
+| mailbox 唤醒通道死了 | `checkMailbox` 计数 **188/s** | 错。Chrome 151 有 `Atomics.waitAsync`（`waitAsyncPolyfilled=false`），唤醒走 `__builtin_wasm_memory_atomic_notify`（`thread_mailbox.c:93-110`），**不发 postMessage**，所以 `cmd4/s 0` 是正常现象 |
+| pump 频率是帧率瓶颈 | 兜底定时器 `FALLBACK_MS` 250→8，`pumps/s` 4→67，`cf/s` **仍是 2** | 错 |
+| drain 很贵 | 同步计时：每秒 256 次、共 10 ms、单次最大 4 ms | 错 |
+
+**方法论坑（踩了两次，务必记住）**：`draw[N]` 与 `cf/s` 都被重绘门控
+（`native_activity.cpp` 的 `if (drawn_rev != Revision() || animating)`）挡住，
+静态标题页上它们量的是「门开了几次」，**不是循环帧率**。曾据此误判「引擎只有 2 Hz」。
+要测循环必须在 `while (g_state.running)` 里直接埋计数 —— 埋完之后实测 `loops≈32/s`，
+`block`（Clear+Draw+Present）在 5.7–203.5 ms 间抖动。
+
+### 根因
+
+`src/render/renderer.h` 把四个成员用 `#if defined(__ANDROID__)` 包起来：
+
+```c
+private:
+#if defined(__ANDROID__)
+    EGLDisplay display_ = EGL_NO_DISPLAY;
+    EGLSurface surface_ = EGL_NO_SURFACE;
+    EGLContext context_ = EGL_NO_CONTEXT;
+    void *window_ = nullptr;
+#endif
+```
+
+而 `CMakeLists.txt` 的 `artemis-web-android` 目标**只给 `renderer.cpp` 加了**
+`__ANDROID__`（`:246-247` `set_source_files_properties(... COMPILE_DEFINITIONS "__ANDROID__=1")`，
+意图是让 `audio.cpp` 留在非 OpenSL 路径上）——
+
+```cmake
+set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/render/renderer.cpp
+    PROPERTIES COMPILE_DEFINITIONS "__ANDROID__=1")
+```
+
+**但 `native_activity.cpp:41` 也 `#include "render/renderer.h"`**，而它的编译行里没有这个宏
+（`flags.make` 只有 `CXX_DEFINES = -DARTC_HAS_GLES=1`）。于是同一个类在两个翻译单元里
+**布局不同**：`renderer.cpp` 看到 4 个句柄（+32 字节），`native_activity.cpp` 看不到。
+
+致命的是 `SwapPaced()` / `Ready()` / `Width()` / `Height()` 都**定义在类体内**（天生 inline），
+每个 TU 各发射一份弱定义，链接器留一份给所有调用者。`native_activity.cpp` 里
+`artc::Renderer renderer;` 按**小布局**分配对象，`renderer.cpp` 的 `Init()` 按**大布局**写入：
+
+- `Ready()` 读 `display_` 的**第 0 字节** → `0x01` → 恰好为真，所以渲染看起来没坏；
+- `SwapPaced()` 读 `display_` 的**第 1 字节**。`kPseudoDisplay = (void*)0xE6400001`
+  （`android-shim/src/shim.cpp:272`），小端字节序是 `01 00 40 E6`，第 1 字节 = **`0x00`**
+  → **永远 false**；
+- `Width()` / `Height()` 读 `display_` 的 4..12 字节 → 垃圾（落在 `g_state.win_w/win_h`，而这两者无人读，所以没暴露出别的症状）。
+
+`SwapPaced()` 恒假 → `native_activity.cpp` 的收尾
+
+```c
+if (!drew || !renderer.SwapPaced())
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+```
+
+**每一帧都多睡 16 ms**，压在 14 ms 的帧耗时上 → 30.6 ms/帧 ≈ **32 Hz**，
+而 Android 上 `eglSwapInterval(1)` 成功、`swap_paced_=true`、由 vsync 背压 → 60 Hz。
+**这正是「安卓正常、web 不正常」**：设备端编译器对整个 TU 集合都定义 `__ANDROID__`，
+布局一致，什么问题都没有。此外 `Init()` 还会**越界写 32 字节**到栈上那个按小布局分配的对象之后，
+可能波及紧随其后的 `booted` / `drawn_rev`（重绘门控），这与「残影/帧错乱」的观感一致。
+
+### 修法
+
+1. **`src/render/renderer.h`**：四个句柄改成不透明指针，**不依赖任何宏**，
+   让类在**每个**翻译单元里布局一致。这是修根因，也是「把差异搬回 artemis-compat」的正解 ——
+   设备端本来就是这个布局。
+
+```c
+    void *display_ = nullptr;
+    void *surface_ = nullptr;
+    void *context_ = nullptr;
+    void *window_ = nullptr;
+```
+
+2. **`ports/artemis/build/android-shim/src/shim.cpp`**：`__wrap_eglSwapInterval` 原来
+   **故意 `return 0`**（回落到宿主自计时）。这本身是 web 与设备的第二处行为分歧：
+   设备报告成功并靠 **swap 阻塞**获得 vsync，web 端报告失败、由引擎每帧 `sleep_for(16ms)` ——
+   那是个**固定睡眠**，与显示时钟互相拍频（`16 ms 睡眠 + 14 ms 工作 = 30.6 ms`）。
+   现在如实报告「已应用」，并由 `__wrap_eglSwapBuffers` 承担 vsync 的角色：`commit_frame()`
+   之后按绝对时间表补足到下一个 1/60 s 边界。按绝对表而非固定睡眠，所以帧率不会漂；
+   迟到超过一个周期时**重排时间表**而不是追赶，否则会喷出一串连帧、看起来就是一次卡顿。
+   `sleep_for` 在 Emscripten pthread 上落到 `emscripten_thread_sleep`，
+   会顺带服务 queued-call 队列并 futex 等待，所以引擎线程停在这里时主 runtime 线程仍在抽干代理的 GL 工作。
+
+### 验证
+
+改变**只有** `renderer.h` 的一处布局（外加上面那处 vsync 语义），症状随之一并转好：
+
+| 指标 | 修前 | 修后 |
+| --- | --- | --- |
+| `SwapPaced()` / `paced=` | **0**（`Init` 却打印 "eglSwapInterval(1) applied" —— 自相矛盾就是线索） | **1** |
+| 动画时 `loops/s` | 16–17（`block≈500ms`、`sleep≈500ms`） | **61**（`block≈1000ms`、`sleep=0.0ms`） |
+| 静态时 `loops/s` | 32（`sleep≈920ms`，每帧多睡 16 ms） | 32（门控关着时确实该睡） |
+| `npm test` | — | **416 tests / 79 suites / 411 pass / 0 fail / 5 skipped** |
+| `npm run check:layout` | — | layout ok |
+
+诊断用的 `loopdbg` 埋点已全部移除，产物里 `grep loopdbg` 为 false。
+`fix` 同时进了 `ports/artemis/engine/0001-web-host.patch`（现 15 个 `diff --git`）。
+
+**遗留**：`initdbg` 式的 `LOGI` 走 shim 的 `__android_log_print`（只写 stderr），
+而 `Log(kLogInfo, …)` 走引擎 sink —— 两者都能到页面，但
+**worker 的 `printErr` 过滤器是白名单**（`artemis-web-android-worker.js`），
+新加的诊断字符串必须先加进那个正则，否则「没有输出」会被误读成「代码没跑」。
+这一条是本轮最容易骗到自己的陷阱。
+
+
 
 
 

@@ -1610,8 +1610,48 @@ index 72862a4..b3d8b0c 100644
              else if (kv.first == "draggable") l.draggable = (kv.second != "0");
              else if (kv.first == "dragarea") {
                  if (std::sscanf(kv.second.c_str(), "%f,%f,%f,%f",
+diff --git a/src/render/renderer.h b/src/render/renderer.h
+index 9d52a69..911c36e 100644
+--- a/src/render/renderer.h
++++ b/src/render/renderer.h
+@@ -46,12 +46,30 @@ public:
+     const std::string &LastError() const { return last_error_; }
+ 
+ private:
+-#if defined(__ANDROID__)
+-    EGLDisplay display_ = EGL_NO_DISPLAY;
+-    EGLSurface surface_ = EGL_NO_SURFACE;
+-    EGLContext context_ = EGL_NO_CONTEXT;
++    // The four handles below are `EGLDisplay`/`EGLSurface`/`EGLContext`/`ANativeWindow*` on an EGL
++    // build, but they are declared as opaque pointers so this class has the **same layout in every
++    // translation unit**.
++    //
++    // That is not a stylistic choice. `CMakeLists.txt` defines `__ANDROID__` for `renderer.cpp` only
++    // (so `audio.cpp` stays on its non-OpenSL path), and `native_activity.cpp` includes this header
++    // *without* it. Gating these members on the macro therefore gave the two TUs different `Renderer`
++    // layouts, and because `SwapPaced()`, `Ready()`, `Width()` and `Height()` are defined in-class
++    // (inherently inline) the linker kept one copy and had every caller read a different member than
++    // the one written:
++    //
++    //   * `Ready()`     read byte 0 of `display_`                 → true only by luck
++    //   * `SwapPaced()` read byte 1 of `display_`                 → always false, so the frame loop
++    //                                                               always took its 16 ms fallback
++    //                                                               sleep and could never reach vsync
++    //   * `Width()`/`Height()` read bytes 4..12 of `display_`     → garbage window geometry
++    //
++    // On the device the compiler defines `__ANDROID__` for the whole translation unit set, so the
++    // layouts agree and none of this happens — which is exactly why the port misbehaved in the
++    // browser and not on Android.
++    void *display_ = nullptr;
++    void *surface_ = nullptr;
++    void *context_ = nullptr;
+     void *window_ = nullptr;
+-#endif
+     bool ready_ = false;
+     bool swap_paced_ = false;   // eglSwapInterval(1) applied successfully
+     int width_ = 0, height_ = 0;
 diff --git a/src/script/lua_engine.cpp b/src/script/lua_engine.cpp
-index 851ee67..2c44e26 100644
+index 851ee67..f20cf4c 100644
 --- a/src/script/lua_engine.cpp
 +++ b/src/script/lua_engine.cpp
 @@ -514,9 +514,11 @@ LuaEngine *LuaEngine::Self(lua_State *L) {
@@ -1650,7 +1690,32 @@ index 851ee67..2c44e26 100644
      // Optional project tag.ini: positional parameter names for line tags.
      {
          std::vector<uint8_t> tag_ini;
-@@ -1801,7 +1807,13 @@ bool LuaEngine::LoadSnapshot(const std::string& file) {
+@@ -1563,6 +1569,24 @@ void LuaEngine::SetAutoMode(bool enabled) {
+     if (script_runner_) script_runner_->EndEvent(token);
+ }
+ 
++// Same shape as SetAutoMode above. The engine keeps skip and auto as separate
++// state because the framework drives them apart, so this must NOT be folded
++// into SetAutoMode even though the bodies look alike.
++void LuaEngine::SetSkipMode(bool enabled) {
++    if (enabled && !skip_allowed_) return;
++    if (skip_enabled_ == enabled) return;
++    skip_enabled_ = enabled;
++    sysvals_["status.commandskip"] = enabled ? "1" : "0";
++    const auto it = named_events_.find(enabled ? "commandskipin" : "commandskipout");
++    if (it == named_events_.end()) return;
++    const auto attrs = it->second; // callback can unregister itself
++    std::map<std::string, std::string> values(attrs.begin(), attrs.end());
++    const auto token = script_runner_ ? script_runner_->BeginEvent(*this) : 0;
++    if (!values["function"].empty()) CallEvent(values["function"], attrs, false);
++    else if (!values["file"].empty()) DispatchTag(values["handler"] == "jump" ? "jump" : "call", attrs);
++    if (script_runner_) script_runner_->EndEvent(token);
++}
++
+ void LuaEngine::FireNamedEvent(const std::string &key) {
+     const auto it = named_events_.find(key);
+     if (it == named_events_.end()) return;
+@@ -1801,7 +1825,13 @@ bool LuaEngine::LoadSnapshot(const std::string& file) {
      advance(LoadPhase::RestoreData);
      tag_queue_.clear();SuspendWait();SetAutoMode(false);
      save_image_={};
@@ -1665,8 +1730,47 @@ index 851ee67..2c44e26 100644
      onsoundfinish_.clear();pending_click_=false;drag_id_.clear();lyevents_.clear();
      if(script_runner_)script_runner_->DiscardFlow();
      advance(LoadPhase::SnapshotScene);
+diff --git a/src/script/lua_engine.h b/src/script/lua_engine.h
+index 1d29829..da4e588 100644
+--- a/src/script/lua_engine.h
++++ b/src/script/lua_engine.h
+@@ -235,6 +235,8 @@ private:
+     bool TagAutoMode(const std::string &tag, TagAttrs &m);
+     bool TagExecAutoMode(const std::string &tag, TagAttrs &m);
+     bool TagAutoModeEvent(const std::string &tag, TagAttrs &m);
++    bool TagSkip(const std::string &tag, TagAttrs &m);
++    bool TagFile(const std::string &tag, TagAttrs &m);
+     bool TagKeyConfig(const std::string &tag, TagAttrs &m);
+     bool TagClickWait(const std::string &tag, TagAttrs &m);
+     bool TagCallLua(const std::string &tag, TagAttrs &m);
+@@ -329,6 +331,7 @@ private:
+     void DispatchClick(float x, float y);
+     void AdvanceByInput();
+     void SetAutoMode(bool enabled);
++    void SetSkipMode(bool enabled);
+     void FireNamedEvent(const std::string &key);
+     void UpdateVideos();
+     void UpdateEmotes();
+@@ -404,6 +407,17 @@ private:
+     std::vector<std::string> auto_sync_se_;
+     AutoReadTimer auto_timer_;
+     std::map<std::string, std::vector<std::pair<std::string, std::string>>> auto_events_;
++    // [skip] state. Structurally the same as auto mode, but the engine keeps it
++    // as a separate pair of flags because the framework drives them apart:
++    // autoskip.lua:12,27 enables `automode` and `skip` independently, and
++    // autoskip_uiinit disables one without the other.
++    //
++    // `skip_unread_` mirrors the doc's `unread` attr: 0 = never skip unread
++    // text (the default), 1 = skip to the next already-read paragraph. Only
++    // the flag is tracked; nothing in artc consumes it yet, so a `skip` tag
++    // cannot change the runner's behaviour until the skip path reads it.
++    bool skip_allowed_ = true, skip_enabled_ = false;
++    bool skip_unread_ = false;
+     // Generic setonX/delonX registry for handler kinds without dedicated state
+     // (backlog/commandskip/controlskip/dirchg/hide/windowbutton ...).
+     std::map<std::string, std::vector<std::pair<std::string, std::string>>> named_events_;
 diff --git a/src/script/lua_tag_dispatch.cpp b/src/script/lua_tag_dispatch.cpp
-index 5c8b1c5..3f7cef8 100644
+index 5c8b1c5..2476ba7 100644
 --- a/src/script/lua_tag_dispatch.cpp
 +++ b/src/script/lua_tag_dispatch.cpp
 @@ -47,7 +47,18 @@ LuaEngine::TagAttrs LuaEngine::TraceAndCollectAttrs(lua_State *L,
@@ -1689,7 +1793,21 @@ index 5c8b1c5..3f7cef8 100644
      }
      TagAttrs m;
      lua_pushnil(L);
-@@ -153,6 +164,20 @@ LuaEngine::TagTable() {
+@@ -90,6 +101,13 @@ LuaEngine::TagTable() {
+         {"delonautomodein", &LuaEngine::TagAutoModeEvent},
+         {"delonautomodeout", &LuaEngine::TagAutoModeEvent},
+         {"keyconfig", &LuaEngine::TagKeyConfig},
++        // docs/tag/scenario/skip.txt and docs/tag/system/file.txt. Official
++        // CommandSkip (0x52613c) and CommandFile (0x556f54); both are reached
++        // by the framework that ships with this game (autoskip.lua:12,
++        // fsave.lua:308), so before these entries the tags were dropped by
++        // TagGenericSetOn's prefix check and did nothing.
++        {"skip", &LuaEngine::TagSkip},
++        {"file", &LuaEngine::TagFile},
+         // Click-wait gate ("@" is the pre-@ spelling). "rp" is deliberately
+         // NOT here: the official tag docs define it as a scenario page split
+         // (message layer) and the framework dispatches it through e:tag
+@@ -153,6 +171,20 @@ LuaEngine::TagTable() {
          {"repeatedly", &LuaEngine::TagNoOp},      {"autoskip_disable", &LuaEngine::TagNoOp},
          {"macroadd", &LuaEngine::TagNoOp},        {"macrodel", &LuaEngine::TagNoOp},
          {"loading", &LuaEngine::TagNoOp},         {"saving", &LuaEngine::TagNoOp},
@@ -1710,3 +1828,155 @@ index 5c8b1c5..3f7cef8 100644
          // message-layer text pipeline
          {"fontdefault", &LuaEngine::TagFontDefault},
          {"fontinit", &LuaEngine::TagFontInit},
+diff --git a/src/script/lua_tags_input.cpp b/src/script/lua_tags_input.cpp
+index 339fcf9..bd55228 100644
+--- a/src/script/lua_tags_input.cpp
++++ b/src/script/lua_tags_input.cpp
+@@ -8,6 +8,7 @@
+ // controlskip / dirchg / hide / windowbutton ...).
+ #include "script/lua_engine.h"
+ #include "log/logger.h"
++#include "util/save_storage.h"
+ #include <cstdlib>
+ #include <sstream>
+ #include <string>
+@@ -32,11 +33,66 @@ bool LuaEngine::TagAutoMode(const std::string &tag, TagAttrs &m) {
+ }
+ 
+ bool LuaEngine::TagExecAutoMode(const std::string &tag, TagAttrs &m) {
+-    if (m["command"] != "automode") return false;
+-    SetAutoMode(m.count("mode") ? m["mode"] != "0" : !auto_enabled_);
++    if (m["command"] == "automode") {
++        SetAutoMode(m.count("mode") ? m["mode"] != "0" : !auto_enabled_);
++        return true;
++    }
++    // docs/tag/scenario/skip.txt: `skip` is the second command this tag carries
++    // — autoskip.lua:25,48,64 sends `e:tag{"exec", command="skip", mode="0"}`
++    // to turn skip mode off. Returning false for it made the tag a silent no-op
++    // and left skip mode running after the framework believed it had stopped it.
++    if (m["command"] == "skip") {
++        SetSkipMode(m.count("mode") ? m["mode"] != "0" : !skip_enabled_);
++        return true;
++    }
++    return false;
++}
++
++// docs/tag/scenario/skip.txt. `allow` gates whether skip may be turned on at
++// all (the framework disables the skip key while skip is disallowed), and
++// `unread` selects whether unread paragraphs are skippable.
++//
++// Only the state is tracked here. Nothing consumes skip_enabled_ yet: artc's
++// runner has no skip path, so turning skip on does not yet fast-forward. This
++// handler exists so the flag is not silently dropped, so `s.status.commandskip`
++// answers correctly to the framework's poll at system/adv/func.lua:172, and so
++// the setoncommandskipin/out events (registered through the generic seton
++// registry) can fire.
++bool LuaEngine::TagSkip(const std::string &tag, TagAttrs &m) {
++    if (m.count("allow")) {
++        skip_allowed_ = m["allow"] != "0";
++        if (!skip_allowed_) SetSkipMode(false);
++    }
++    if (m.count("unread")) skip_unread_ = m["unread"] != "0";
+     return true;
+ }
+ 
++// docs/tag/system/file.txt. The command family is copy / delete / clear_cache
++// / wasm_sync / wasm_sync_add_persistent / wasm_sync_delete_persistent.
++//
++// Only `delete` is reachable from the framework that ships with this game:
++// system/adv/fsave.lua:308 sv.deleteno() calls deleteFile(path..'.dat') to
++// remove a save slot, and fileio.lua:291 forwards it here. The target is a
++// file under the save directory (`s.savepath`), not an asset in the pack —
++// fsave.lua:307 builds it as e:var("s.savepath")..'/'..file.
++//
++// The wasm_sync* commands configure the SDK's WASM SYNC mode, which this port
++// does not use (asyncify reads loose files instead), so they are deliberately
++// not implemented rather than silently wrong.
++bool LuaEngine::TagFile(const std::string &tag, TagAttrs &m) {
++    const std::string command = m.count("command") ? m["command"] : std::string();
++    if (command != "delete") return false;
++    if (!m.count("target") || m["target"].empty()) return false;
++    // Strip the save-directory prefix the framework prepends; DeleteSaveFile
++    // re-applies it through SavePath and rejects anything that escapes.
++    std::string target = m["target"];
++    if (!save_dir_.empty() && target.rfind(save_dir_, 0) == 0) {
++        target.erase(0, save_dir_.size());
++        while (!target.empty() && (target[0] == '/' || target[0] == '\\')) target.erase(0, 1);
++    }
++    return DeleteSaveFile(save_dir_, target);
++}
++
+ bool LuaEngine::TagAutoModeEvent(const std::string &tag, TagAttrs &m) {
+     const auto event = tag.substr(3);
+     if (tag.compare(0, 3, "set") == 0) auto_events_[event] = {m.begin(), m.end()};
+diff --git a/src/util/save_storage.cpp b/src/util/save_storage.cpp
+index f5c41ff..a210167 100644
+--- a/src/util/save_storage.cpp
++++ b/src/util/save_storage.cpp
+@@ -52,6 +52,14 @@ bool WriteSaveFile(const std::string& path,const std::vector<uint8_t>& bytes) {
+     if(!ok)std::remove(tmp.c_str());
+     return ok;
+ }
++bool DeleteSaveFile(const std::string& directory,const std::string& file) {
++    // Goes through SavePath so a `..` in `file` cannot escape the save
++    // directory -- the same guard the read/write paths rely on.
++    const auto path=SavePath(directory,file);
++    if(path.empty())return false;
++    std::error_code error;
++    return std::filesystem::remove(std::filesystem::path(path),error) && !error;
++}
+ bool EncodeVariableBank(const VariableBank& vars,bool checkpoint,std::vector<uint8_t>& out) {
+     if(vars.size()>65536)return false;
+     std::vector<uint8_t> bytes;
+diff --git a/src/util/save_storage.h b/src/util/save_storage.h
+index 9667f23..3448b10 100644
+--- a/src/util/save_storage.h
++++ b/src/util/save_storage.h
+@@ -8,6 +8,11 @@ using VariableBank=std::map<std::string,std::string>;
+ std::string SavePath(const std::string& directory,const std::string& file);
+ bool ReadSaveFile(const std::string& path,std::vector<uint8_t>& bytes);
+ bool WriteSaveFile(const std::string& path,const std::vector<uint8_t>& bytes);
++// Deletes a file inside the save directory. Used by the `file` tag's `delete`
++// command (docs/tag/system/file.txt), which this game reaches through
++// system/adv/fsave.lua:308 sv.deleteno() when the player deletes a save slot.
++// Returns false if the path escapes `directory` or the file did not exist.
++bool DeleteSaveFile(const std::string& directory,const std::string& file);
+ // ARCV is explicitly a compatibility checkpoint (onLoad reconstructs the
+ // scenario). It is not presented to original engines as a complete BOWS file.
+ bool EncodeVariableBank(const VariableBank& vars,bool checkpoint,std::vector<uint8_t>& out);
+diff --git a/tests/save_regressions.cpp b/tests/save_regressions.cpp
+index 2d0b564..e60213d 100644
+--- a/tests/save_regressions.cpp
++++ b/tests/save_regressions.cpp
+@@ -75,6 +75,31 @@ int main() {
+               "stale temp file leaves the committed save intact");
+     }
+ 
++    // 2b) DeleteSaveFile — the `file` tag's `delete` command
++    //     (docs/tag/system/file.txt), reached through fsave.lua sv.deleteno().
++    {
++        const std::string slot = "save01.dat";
++        const std::string slot_path = (dir / slot).string();
++        Check(artc::WriteSaveFile(slot_path, std::vector<uint8_t>{1, 2, 3}), "seed slot");
++        Check(artc::DeleteSaveFile(dir.string(), slot), "delete removes an existing slot");
++        std::vector<uint8_t> gone;
++        Check(!artc::ReadSaveFile(slot_path, gone), "deleted slot is really gone");
++        // A second delete reports false rather than pretending success, so a
++        // caller can tell "removed" from "was never there".
++        Check(!artc::DeleteSaveFile(dir.string(), slot), "deleting a missing slot returns false");
++        // Containment: the same `..` guard the read/write paths use must hold
++        // here too, or the tag becomes an arbitrary-file-delete primitive. The
++        // outside file must really exist, otherwise this would pass merely
++        // because there was nothing to delete.
++        const std::string outside = (dir.parent_path() / "artc_outside_escape.dat").string();
++        WriteRaw(outside, "OUTSIDE");
++        Check(!artc::DeleteSaveFile(dir.string(), "../artc_outside_escape.dat"),
++              "delete refuses to escape the save directory");
++        Check(fs::exists(outside), "the file outside the save directory survived");
++        fs::remove(outside);
++        Check(!artc::DeleteSaveFile("", slot), "delete with no directory returns false");
++    }
++
+     // 3) crash mid-write (child killed by RLIMIT_FSIZE while writing): the old
+     //    save survives because the rename never happens.
+     {

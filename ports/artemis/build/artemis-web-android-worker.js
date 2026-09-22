@@ -172,7 +172,7 @@ self.onmessage = function (event) {
       // Surface the engine's own diagnostics in the page log too, so a measurement does not have to be
       // fished out of a 1000-line console by hand.
       const s = String(t);
-      if (/SetText:|viewport:|print:|draw\[/.test(s)) say('eng|' + s.slice(0, 220));
+      if (/SetText:|viewport:|print:|draw\[|renderer:/.test(s)) say('eng|' + s.slice(0, 220));
     },
     onRuntimeInitialized: function () {
       runtimeReady = true;

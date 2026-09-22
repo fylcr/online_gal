@@ -16,6 +16,7 @@
 #include <android/native_activity.h>
 
 #include <condition_variable>
+#include <chrono>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -27,6 +28,7 @@
 #include <map>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 // ---- log ------------------------------------------------------------------
@@ -363,6 +365,23 @@ extern "C" unsigned __wrap_eglMakeCurrent(void *d, void *draw, void *read, void 
     Trace("eglMakeCurrent", handle ? "bound" : "unbound");
     return 1;
 }
+namespace {
+// Swap interval requested by the engine. `Renderer::Init` asks for 1, and on a real device
+// `eglSwapInterval(1)` succeeds: `Renderer::SwapPaced()` then returns true and
+// `native_activity.cpp:598` skips its own `sleep_for(16ms)` because the *swap itself* blocks until
+// the next vsync. Reporting the request as rejected (what this shim used to do) leaves the host
+// adding a fixed 16 ms sleep on top of a ~6-10 ms frame, which lands the loop at ~32 Hz instead of
+// the display's 60 Hz — the judder/frame-pacing half of the reported animation defect.
+//
+// So the request is honoured, and `__wrap_eglSwapBuffers` becomes the vsync: it blocks until the
+// next frame boundary. `std::this_thread::sleep_for` on an Emscripten pthread lowers to
+// `emscripten_thread_sleep`, which services the queued-call queue and futex-waits, so the main
+// runtime thread keeps draining proxied GL work while the engine thread is parked here.
+int g_swap_interval = 0;
+std::chrono::steady_clock::time_point g_next_swap{};
+constexpr int kSwapHz = 60;
+} // namespace
+
 extern "C" unsigned __wrap_eglSwapBuffers(void *d, void *surface) {
     (void)surface;
     if (d != kPseudoDisplay) return 0;
@@ -374,17 +393,33 @@ extern "C" unsigned __wrap_eglSwapBuffers(void *d, void *surface) {
         TraceCapped("eglSwapBuffers", "commit_frame failed");
         return 0;
     }
+    // The vsync back-pressure the device gets from `eglSwapInterval(1)`.
+    //
+    // Paced against an absolute schedule laid down one period at a time, not by sleeping a fixed
+    // period after each frame: the sleep is only the *remainder* of the current period, so the
+    // engine's own work happens inside the period rather than being added to it. Sleeping a whole
+    // period after the work instead pins the loop at `work + period` (14 ms of work + 16.7 ms of
+    // sleep = 30.6 ms, i.e. 32 Hz), which is precisely the judder this emulation exists to remove.
+    //
+    // A frame more than one period late — a stall, a tab switch, a slow scene load — restarts the
+    // schedule from now rather than trying to catch up, because catching up would present a burst of
+    // back-to-back frames and read as a stutter.
+    if (g_swap_interval > 0) {
+        const auto period = std::chrono::microseconds(1000000 / kSwapHz);
+        const auto now = std::chrono::steady_clock::now();
+        if (g_next_swap.time_since_epoch().count() == 0 || now > g_next_swap + period) {
+            g_next_swap = now + period;
+        }
+        std::this_thread::sleep_for(g_next_swap - now);
+        g_next_swap += period;
+    }
     return 1;
 }
 extern "C" unsigned __wrap_eglSwapInterval(void *d, int interval) {
-    (void)interval;
     if (d != kPseudoDisplay) return 0;
-    // Presentation is driven by the host's own frame loop, not by the browser's vsync: the engine
-    // thread runs detached from rAF, so reporting "applied" would make the host skip its sleep
-    // (`Renderer::SwapPaced`) while nothing actually throttles. Reporting rejection keeps the host
-    // pacing itself, which is the documented `ARTC_SWAP_INTERVAL=0` behaviour.
-    Trace("eglSwapInterval", "rejected (host-paced)");
-    return 0;
+    g_swap_interval = interval;
+    Trace("eglSwapInterval", interval > 0 ? "applied (swap paces to 60 Hz)" : "disabled");
+    return 1;
 }
 
 // ---- GL boundary trace ------------------------------------------------------
