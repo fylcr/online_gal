@@ -1622,10 +1622,10 @@ index 72862a4..b3d8b0c 100644
              else if (kv.first == "dragarea") {
                  if (std::sscanf(kv.second.c_str(), "%f,%f,%f,%f",
 diff --git a/src/render/renderer.h b/src/render/renderer.h
-index 9d52a69..dcf8128 100644
+index 9d52a69..cba99c7 100644
 --- a/src/render/renderer.h
 +++ b/src/render/renderer.h
-@@ -46,12 +46,45 @@ public:
+@@ -46,12 +46,46 @@ public:
      const std::string &LastError() const { return last_error_; }
  
  private:
@@ -1665,9 +1665,10 @@ index 9d52a69..dcf8128 100644
 +    // layouts agree and none of this happens — which is exactly why the port misbehaved in the
 +    // browser and not on Android.
 +    //
-+    // On the device the compiler defines `__ANDROID__` for the whole translation unit set, so the
-+    // layouts agree and none of this happens — which is exactly why the port misbehaved in the
-+    // browser and not on Android.
++    // Declaring these as `void *` is safe rather than merely convenient: on Emscripten
++    // `EGLDisplay`/`EGLSurface`/`EGLContext` are already `void *` (`EGL/egl.h`), and on Android they
++    // are opaque pointer typedefs too, so the only thing this changes is that the member types no
++    // longer *name* the handles. `renderer.cpp` casts them back at each EGL call.
 +    void *display_ = nullptr;
 +    void *surface_ = nullptr;
 +    void *context_ = nullptr;
