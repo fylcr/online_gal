@@ -20,8 +20,9 @@ import {
  * Derived from the fingerprint table documented in Tyranor-Next's
  * `docs/Artemis自动引擎识别优化计划方案.md` and
  * `app/.../ArtemisEngineFingerprintDetector.kt` — file names and layout in the
- * game directory, treated as facts. No code is copied from that project, whose
- * licence (GPL-2.0-only) is incompatible with this repository's GPL-3.0.
+ * game directory, treated as facts. That project is GPL-2.0-or-later, so its
+ * grant folds into this repository's GPL-3.0; no code has been copied from it,
+ * only the marker table.
  *
  * The distinction that matters for probing is **loose versus packaged**:
  *

@@ -564,7 +564,7 @@ wasm 构建、WebGPU 离屏读回、`Scene.pck` 解包、`Gameexe.dat` 解码器
 
 - **探针与评分**：标记文件与补丁命名规则来自 Tyranor-Next 文档化的指纹表
   （`docs/Artemis自动引擎识别优化计划方案.md` 与 `ArtemisEngineFingerprintDetector.kt`），
-  作为**事实**使用；没有复制其代码（该项目是 GPL-2.0-only，与本仓库 GPL-3.0 不兼容）。
+  作为**事实**使用；没有复制其代码。该项目是 GPL-2.0-or-later，与 GPL-3.0 兼容。
   评分区分证据强度：`root.pfs` 基础包 70；松散 `system/first.iet` 或包内命中该条目 +60；
   松散 `system.ini` +25；`root.pfs.NNN` 补丁包 +20；**只有一个 `.pfs` 容器**时仅 25 分并给低置信度，
   因为 `.pfs` 这个扩展名并不专属于 Artemis。
@@ -707,17 +707,16 @@ ports/                       把上面的运行时接到真实引擎的构建配
 | [AetherKiri](https://github.com/AetherKiri/AetherKiri) | **GPL-3.0-or-later** | ✅ 可（并入后本项目保持 GPL-3.0，已满足） |
 | [OnscripterYuri](https://github.com/YuriSizuku/OnscripterYuri)（AetherKiri fork） | **GPL-2.0-or-later** | ✅ 可升到 GPL-3.0 |
 | [Kirikiroid2](https://github.com/zeas2/Kirikiroid2)（TJS2 操作码与字节码格式表） | BSD 风格 | ✅ 已使用，声明保留在 `THIRD_PARTY_NOTICES.md` |
-| [Tyranor-Next](https://github.com/Weiss-UltimateSavior/Tyranor-Next) | **GPL-2.0-only** | ❌ **不可复制代码**，只能借鉴其文档化的引擎特征表与设计 |
+| [Tyranor-Next](https://github.com/Weiss-UltimateSavior/Tyranor-Next) | **GPL-2.0-or-later** | ✅ 可升到 GPL-3.0；目前只用了其文档化的引擎特征表 |
 | [siglus_rs](https://github.com/xmoezzz/siglus_rs)（Siglus 引擎，尚未引入） | MPL-2.0 | ⚠️ 可通过 §3.3 二次许可与 GPL-3.0 组合，须保留 MPL 声明 |
 
 关键判定依据：
 
-- OnscripterYuri 的源码头部声明是 *"either version 2 of the License, or (at your option) any later
-  version"*，因此是 **or-later**，可以并入 GPL-3.0 项目——AetherKiri 把整个项目标为
-  GPL-3.0-or-later 正是依赖这一点，其 `bridge/onscripter_runtime/` 就是 OnscripterYuri 的宿主桥。
-- Tyranor-Next 的 README 明确写 **GPL-2.0-only**，且其 `engine/` 下 131 个自有 Java 文件**没有**任何
-  "or later" 声明。GPL-2.0-only 与 GPL-3.0 **不兼容**，所以它的源码不能进本仓库。它的价值在于
-  引擎特征表与分层设计，这些属于事实性/架构性信息，可自由借鉴。
+- OnscripterYuri 与 Tyranor-Next 都声明 GPL-2 **or later**，因此可并入 GPL-3.0 项目——AetherKiri
+  把整个项目标为 GPL-3.0-or-later 正是依赖这一点，其 `bridge/onscripter_runtime/` 就是 OnscripterYuri
+  的宿主桥。
+- Tyranor-Next 的价值在于引擎特征表与分层设计；即便其许可证允许，当前也只借用了这些事实性/架构性
+  信息，没有复制实现代码。
 
-> 因此：**AetherKiri 与 Kirikiroid2 可以移植或转录代码；Tyranor-Next 只借鉴思路。** 引入任何移植
+> 因此：**AetherKiri、Kirikiroid2 与 Tyranor-Next 的代码都可以移植或转录。** 引入任何移植
 > 代码时，必须在本文件与 `THIRD_PARTY_NOTICES.md` 中追加对应的版权声明与来源说明。

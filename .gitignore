@@ -20,7 +20,7 @@ buildlog.txt
 #
 #   .ref/ak               AetherKiri (GPL-3.0-or-later) — bridge/ and the KAG3 demo
 #   .ref/kirikiroid2      Kirikiroid2 (BSD-style)       — TJS2 opcode/bytecode tables
-#   .ref/tynext           Tyranor-Next (GPL-2.0-only)   — engine marker facts only
+#   .ref/tynext           Tyranor-Next (GPL-2.0-or-later) — engine marker facts only
 #   .ref/onscripter-yuri  OnscripterYuri                — the ONScripter web build
 #   .ref/kirikiroid2-web  kirikiroid2-web               — the KiriKiri web build
 #   .ref/krkrsdl2         krkrsdl2 + krkrz              — the earlier KiriKiri attempt

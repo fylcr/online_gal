@@ -93,12 +93,11 @@ option 2 fails, it also removes the last uncertainty before starting option 1.
 
 ## Licensing note that affects how this work proceeds
 
-AetherKiri is GPL-3.0-or-later, and its code may be reused. **Tyranor-Next is
-GPL-2.0-only and is therefore incompatible with GPL-3.0** — no code from it may be
-copied, and the existing notices already record this correctly at
-`THIRD_PARTY_NOTICES.md`. Facts taken from it (engine marker names, directory
-layouts, the fingerprint table) are not copyrightable expression, but its
-implementation is off limits. AetherKiri is the reference to build on.
+AetherKiri is GPL-3.0-or-later, and its code may be reused. Tyranor-Next is
+GPL-2.0-or-later, so its grant is also compatible with GPL-3.0; even so, nothing
+from it has been copied into this repository — what is taken is the engine
+fingerprint table, which is factual material rather than copyrightable
+expression. AetherKiri is the reference to build on.
 
 ## Reproducing the diagnosis
 

@@ -67,6 +67,6 @@ under `.ref/`. The Windows-form path is preserved where a tool needs it — see 
 
 This repository is GPL-3.0-or-later. What the ports may and may not take from each upstream is
 tabulated in the root [`README.md`](../README.md) and [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md);
-the short version is that upstream GPL-3.0-or-later sources may be reused, GPL-2.0-**only**
-sources (Tyranor-Next) may not, and MPL-2.0 components (siglus_rs) may be combined with the
-notice kept.
+the short version is that upstream GPL-3.0-or-later sources may be reused, GPL-2.0-**or-later**
+sources (OnscripterYuri, Tyranor-Next) fold into GPL-3.0 as well, and MPL-2.0 components
+(siglus_rs) may be combined with their notice kept.
