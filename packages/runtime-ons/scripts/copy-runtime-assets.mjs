@@ -11,8 +11,13 @@
  * relative to the module at run time and a published package would not otherwise carry them.
  *
  * Copying rather than compiling keeps the harness byte-identical to the version that was
- * verified working in `.test/ons-worker/`, which is the point: those files are the engine
- * host, not something to rewrite.
+ * verified working in the browser harness under `ports/ons/harness/`, which is the point:
+ * those files are the engine host, not something to rewrite.
+ *
+ * Invoked from the root `build:packages` script and not only from this package's own
+ * `build`, because `tsc -b` at the root writes every package's `dist/` through project
+ * references and would otherwise never run this: a fresh clone could compile but not
+ * build the app, failing on `Could not resolve "./wasm/host.mjs"`.
  */
 import { copyFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';

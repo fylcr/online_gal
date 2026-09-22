@@ -75,11 +75,15 @@ pnpm build        # 构建全部 packages + 静态站点（apps/app/dist）
 pnpm preview
 ```
 
-测试（325 个用例）：
+测试（416 个用例）：
 
 ```bash
 pnpm test
 ```
+
+> `pnpm test` 需要本地的 `.test/` 工作台，而它**不在仓库里**（见下文「测试」）。因此刚克隆下来的
+> 仓库跑 `pnpm test` 会**明确报错退出**，而不是打一个 0 用例的绿色结果——空 glob 下
+> `node --test` 会以 0 退出，那种「假通过」比失败更糟。要跑测试，先把 `.test/` 与 `.ref/` 恢复。
 
 类型检查：
 
@@ -610,9 +614,13 @@ TyranoBuilder 额外注入一个 shim，让桌面导出回退到 Web 存储路�
 ## 测试
 
 测试套件位于 `.test/`，参考实现的上游检出位于 `.ref/`。**两者都不入库**：
-`.ref/` 体积大且不是本项目可再分发的代码；`.test/` 是本地工作台。
-需要随仓库发布的测试请放在 `test/`——`test/` 没有被忽略，`.test/` 才是。
-两个名字分开，克隆下来的仓库就可以自带 `test/` 而不与这套本地测试冲突。
+`.ref/` 体积大且不是本项目可再分发的代码；`.test/` 是本地工作台，依赖真实游戏数据
+（`~13 GB`）与上面那批上游检出，同样不能再分发。需要随仓库发布的测试请放在 `test/`——
+`test/` 没有被忽略，`.test/` 才是。两个名字分开，克隆下来的仓库就可以自带 `test/`
+而不与这套本地测试冲突。
+
+**因此，克隆下来的仓库没有测试可跑，`pnpm test` 会报错退出**（见「快速开始」的说明）。
+这不是缺陷，是刻意的：静默通过比明确失败更容易骗人。
 
 ```
 .test/
@@ -634,6 +642,11 @@ TyranoBuilder 额外注入一个 shim，让桌面导出回退到 Web 存储路�
 ├── kag-runtime.test.ts   # 端到端：KAG 会话（含跨脚本控制流与拒绝字节码）
 └── ons-runtime.test.ts   # 端到端：ONScripter 会话
 ```
+
+> 上表是完整的本地套件，但**不是每个用例都能在任何机器上跑**。因缺少 `.ref/` 检出而
+> 自行 skip 的有 `real-game.test.ts` 与 `kiri-vlfs-host-source.test.ts`（各自 `existsSync`
+> 判断后才注册用例）。`archives.test.ts` 里另有 5 个 `it.skip`，那是**永久跳过**：XP3 分块
+> 索引读取器还没实现，与其拿夹具把它们凑绿，不如留成待办并写清为什么。当前的 5 skipped 指的就是这 5 个。
 
 `kag-runtime.test.ts` 与 `ons-runtime.test.ts` 走的是应用真实调用路径
 （`create` → `load` → `tick`/`sendInput` → `save`/`restore`），用 `.test/harness/browser.ts`
