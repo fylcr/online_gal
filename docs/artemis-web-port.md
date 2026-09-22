@@ -1152,6 +1152,47 @@ rAF 161.5 Hz ← resolve_size 1500×900 后
 25 个 `/game/` 请求推进到标题画面（`pc/ja/title/{btn,bg,char,logo,menu,char_l,char_s}.png`
 + `sound/bgm/bgm99.ogg`）。
 
+### 12.8 中文补丁：原版说明要求改 `root.pfs.001`，网页路线要换个做法
+
+本作目录里有两个汉化补丁（`chs_patch_official.pfs` 447 条、`chs_patch_baijingmu.pfs` 445 条），
+`使用方法（必读）.txt` 说启用方法是**把补丁改名成 `root.pfs.001`**——那是给**客户端**用的：
+客户端的 `.pfs` 链按后缀递增往上叠。
+
+**网页这条路没有 `.pfs` 链可叠**：asyncify 模式是引擎按路径去 `<ASYNCIFY_URL><path>` 取**散装文件**，
+根本没有 pack 叠加这一步。所以正确的做法是在**解包时**就把补丁叠进去——
+`extract-pfs.mjs` 按参数顺序折叠（后给的覆盖先给的），所以：
+
+```bash
+node ports/artemis/tools/extract-pfs.mjs -o .test/artemis-official-async/game-chs \
+  .test/test-games/Artemis/root.pfs \
+  .test/test-games/Artemis/root.pfs.000 \
+  .test/test-games/Artemis/chs_patch_official.pfs
+```
+
+（`root.pfs.000` 是 `root.pfs` 的**续包**不是补丁——本作的图都在它里面——所以两者并列传，
+补丁排在最后。）
+
+**必须在部署时让两个树用不同的 `SAVEPATH`。** `SAVEPATH` 是 IndexedDB 缓存的键，
+日文树与中文树共用同一个键时，引擎会把日文那棵树缓存的字节喂给中文部署——
+即 9.x 那类「改了没生效」的静默故障。故中文部署用
+`--savepath artemis_e1ca47e694_chs`（`--asyncify-url` 也要指向 `game-chs/`）。
+
+**验证（三路证据）**：
+
+| 检查 | 日文树 | 中文树 |
+| --- | --- | --- |
+| `pc/ja/title/logo.png` | 122,608 B / `40bb03f1…` | 166,780 B / `96e2ffb9…` |
+| `script/あすみ-01.ast` | 111,230 B / `174df445…` | 103,725 B / `8af96494…` |
+| `script/共通-01.ast` 的汉字数 | 1,065 | **2,169** |
+
+最后一行是决定性的一条：同一句 `{"savetitle", text=…}` 在日文树里是
+`本日より新ガチャ開催です`，在中文树里是`今日起新卡开抽`。
+（另：`pc/ja/save/char.ipt` 只有一个补丁带，属该补丁自己的界面资源。）
+
+部署 `.../deploy-chs/web/artemis.html` 后：canvas **2251×1351**、`calledRun: true`、
+**110 个 `/game-chs/` 请求**、非黑像素 **2,851,932 / 3,041,101 = 93.780%**、
+`maxLum 255`；ASCII 亮度图能看出标题 logo 带、人物立绘、对话框与右侧菜单。
+
 
 
 
