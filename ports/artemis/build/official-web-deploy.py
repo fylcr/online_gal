@@ -45,10 +45,13 @@ and `make-min-pack.py` documents.
 
 ## Licensing
 
-The official SDK is not GPL and not redistributable: its `Copyright.txt` grants
-use only to parties who obtained permission from the author, with a licence fee
-for commercial use. `.ref/` is gitignored and this script only *reads* from there
-to assemble a local test deployment; nothing from the SDK may be committed.
+The official SDK is proprietary: its `Copyright.txt` grants use only to parties who
+obtained permission from the author, with a licence fee for commercial use. It is
+nevertheless committed under `ports/artemis/vendor/artemis-sdk/`, deliberately, so
+that this deployment is reproducible from a clone and so the port's claims about the
+official build can be checked. That is a considered decision, not an oversight --
+see `docs/artemis-web-port.md` §15. A licensed `.ref/artemis` takes precedence when
+one is present.
 """
 
 import argparse
@@ -63,6 +66,17 @@ import uuid
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+
+# The tracked copy of the official SDK. A licensed `.ref/artemis` is preferred when
+# present, because that is the tree a reader following the SDK's own readme has.
+VENDORED_SDK = os.path.join(REPO, "ports", "artemis", "vendor", "artemis-sdk")
+
+
+def default_sdk():
+    preferred = os.path.join(REPO, ".ref", "artemis")
+    if os.path.isdir(os.path.join(preferred, "WebAssembly")):
+        return preferred
+    return VENDORED_SDK
 
 
 def write_pf8(path, files, version="6"):
@@ -393,8 +407,9 @@ def main():
     parser.add_argument("--savepath", default=None, help="override the derived [WASM] SAVEPATH")
     parser.add_argument("--asyncify-url", default=None,
                         help="explicit ASYNCIFY_URL; default is http://127.0.0.1:<port>/game/")
-    parser.add_argument("--sdk", default=os.path.join(REPO, ".ref", "artemis"),
-                        help="path to the official Artemis SDK checkout")
+    parser.add_argument("--sdk", default=None,
+                        help="path to the official Artemis SDK checkout "
+                             "(default: .ref/artemis if present, else the vendored copy)")
     parser.add_argument("--flavour", choices=("asyncify", "plain"), default="asyncify",
                         help="official build to deploy; asyncify reads loose files, plain loads the whole pack")
     parser.add_argument("--hashlist", action="store_true",
@@ -407,12 +422,12 @@ def main():
     if not os.path.isfile(ini):
         raise SystemExit(f"{ini} not found; run ports/artemis/tools/extract-pfs.mjs first")
 
-    sdk = os.path.abspath(args.sdk)
+    sdk = os.path.abspath(args.sdk) if args.sdk else default_sdk()
     if not os.path.isdir(os.path.join(sdk, "WebAssembly")):
         raise SystemExit(
             f"{sdk}/WebAssembly not found.\n"
-            "The official Artemis SDK is not redistributable and is not committed; place your "
-            "licensed copy under .ref/artemis or pass --sdk."
+            "Neither a licensed `.ref/artemis` nor the vendored copy under "
+            "ports/artemis/vendor/artemis-sdk is usable; pass --sdk to point at one."
         )
 
     print(f"== deploying the official {args.flavour} build to {out} ==")

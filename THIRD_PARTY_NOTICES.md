@@ -134,3 +134,38 @@ against a real shipping artefact instead of a hand-written fixture.
 | --- | --- | --- |
 | [Tyranor-Next](https://github.com/Weiss-UltimateSavior/Tyranor-Next) | **GPL-2.0-or-later** | Engine marker names and file-layout facts only — no code is copied. Its `GPL-2.0-or-later` grant is compatible with this repository's GPL-3.0-or-later, so folding it in is permissible; the engine fingerprint table (`root.pfs`, `startup.tjs`, `nscript.dat`, `tyrano/`, `js/rmmz_core.js` …) is what is actually used, and the scored probe over it is an independent TypeScript implementation. |
 | [siglus_rs](https://github.com/xmoezzz/siglus_rs) | MPL-2.0 | Not included. Referenced for the Siglus capability list; MPL-2.0 §3.3 would permit combination if it is ever ported, subject to retaining its notices. |
+
+---
+
+## Artemis Engine SDK — **proprietary, committed deliberately**
+
+**Files:** `ports/artemis/vendor/artemis-sdk/` (9 files, 24 MB)
+
+| File | Bytes |
+| --- | --- |
+| `Copyright.txt` | 20,717 |
+| `WebAssembly/artemis.{html,js,wasm}` | 3,912 / 264,298 / 2,682,787 |
+| `WebAssembly/asyncify/artemis.{html,js,wasm}` | 3,912 / 276,695 / 5,998,665 |
+| `Android/arm64-v8a/libartemis.so` | 8,149,024 |
+| `Android/armeabi-v7a/libartemis.so` | 7,395,052 |
+
+**Upstream:** the official Artemis Engine SDK, by Mikage. Its own `Copyright.txt`
+is reproduced verbatim at `ports/artemis/vendor/artemis-sdk/Copyright.txt`. It is
+**not** a free licence: it grants use only to parties who obtained permission from
+the author, and it charges a fee for commercial use. It is incompatible with this
+repository's GPL-3.0-or-later.
+
+**This is a known, accepted licence violation, not an oversight.** The material is
+included because the port's central claims cannot be checked without it: the
+official-wasm deployment route (`ports/artemis/build/official-web-deploy.py`)
+reads these exact bytes as a drop-in for a licensed `.ref/artemis`, and the
+reverse-engineering recipes under `ports/artemis/reverse/` assert byte-identity
+and export-surface equality *against these files*. Removing them would turn those
+assertions into unverifiable statements.
+
+The decision and its reasoning are recorded in
+[`docs/artemis-web-port.md`](docs/artemis-web-port.md) §15. A licensed
+`.ref/artemis` takes precedence whenever one is present, so a properly licensed
+user still builds against their own tree. Anyone redistributing this repository
+should remove `ports/artemis/vendor/` unless they hold a licence from the author.
+

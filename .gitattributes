@@ -18,3 +18,10 @@
 *.ttf binary
 *.otf binary
 *.zip binary
+
+# The vendored official SDK is committed byte-for-byte, because the recipes under
+# `ports/artemis/reverse/` assert byte-identity and export-surface equality against
+# exactly these files.  `Copyright.txt` in that tree is CRLF, so the blanket
+# `text=auto eol=lf` above would rewrite it on commit and break the identity the
+# recipes check.  Nothing in this subtree is ours to normalise.
+ports/artemis/vendor/** -text -diff

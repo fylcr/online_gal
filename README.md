@@ -725,6 +725,7 @@ patch——最初全都躺在 `.test/` 里，结果**没有任何东西能推送
 | [Kirikiroid2](https://github.com/zeas2/Kirikiroid2)（TJS2 操作码与字节码格式表） | BSD 风格 | ✅ 已使用，声明保留在 `THIRD_PARTY_NOTICES.md` |
 | [Tyranor-Next](https://github.com/Weiss-UltimateSavior/Tyranor-Next) | **GPL-2.0-or-later** | ✅ 可升到 GPL-3.0；目前只用了其文档化的引擎特征表 |
 | [siglus_rs](https://github.com/xmoezzz/siglus_rs)（Siglus 引擎，尚未引入） | MPL-2.0 | ⚠️ 可通过 §3.3 二次许可与 GPL-3.0 组合，须保留 MPL 声明 |
+| 官方 Artemis Engine SDK（`ports/artemis/vendor/artemis-sdk/`） | **专有**（非自由许可，商业需付费） | ❌ **与 GPL-3.0 不兼容，但仍已入库**——这是有意承担的风险，理由见 [`docs/artemis-web-port.md`](docs/artemis-web-port.md) §15 与 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。再分发本仓库前应先删除该目录，除非持有作者授权 |
 
 关键判定依据：
 

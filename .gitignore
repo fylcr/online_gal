@@ -47,6 +47,30 @@ ports/**/build-final/
 ports/**/*.wasm
 ports/**/*.o
 
+# ...except `ports/artemis/vendor/`, which holds the official Artemis SDK binaries.
+# Those are inputs to the port, not output from it: the reverse-engineering recipes
+# under `ports/artemis/reverse/` verify themselves against exactly these bytes, and
+# the official-wasm deployment reads them as a drop-in for `.ref/artemis`. The
+# ignore rules above are about build products, so they are switched off here.
+#
+# The SDK is proprietary and this is committed deliberately (decision recorded in
+# `docs/artemis-web-port.md`): the port cannot be reproduced, and its claims about
+# the official build cannot be checked, without the reference binaries present.
+!ports/artemis/vendor/**
+
+# Downloaded third-party toolchains. These are fetched, not authored: wabt is the
+# wasm disassembler/transpiler and Zig supplies the AArch64 cross-linker that the
+# `so` half of `ports/artemis/reverse/rebuild.sh` needs. Both are pinned by the
+# `fetch-*.sh` scripts next to the recipes that use them, so committing a copy
+# would only add ~570 MB of binaries that the fetchers restore exactly.
+ports/artemis/build/wabt/
+ports/artemis/reverse/build/
+
+# Intermediates from the same recipes: the .wat/.c dumps are derivative works of
+# the proprietary SDK, hundreds of MB of them, and `rebuild.sh` regenerates each
+# from the vendored binaries in minutes.
+ports/artemis/reverse/out/
+
 # Python tooling bytecode. The deploy/analysis recipes are tracked; the caches
 # their interpreter drops beside them are not.
 __pycache__/

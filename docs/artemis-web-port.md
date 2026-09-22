@@ -996,8 +996,9 @@ cd .test/artemis-official-async/deploy && python -m http.server 4700 --bind 127.
 | `GeneratePackFile2.exe` | `write_pf8()` | 官方 packer 是 Windows-only 专有二进制；asyncify 模式下 pack 只需含 `system.ini`，自己写是 30 行的事 |
 | `ApplyWasmData.exe` | `embed_package_size()` | 只是把包长度写回 `artemis.js` 的元数据 |
 
-`.ref/` 与 `.test/` 都在 `.gitignore` 里，SDK 与本作数据都不会被提交；脚本只**读** `.ref/`。
-（许可：官方 `Copyright.txt` 只授权给向 Mikage 申请过的人，商业需付费——**不是 GPL，不得入仓**。）
+`.ref/` 与 `.test/` 都在 `.gitignore` 里；脚本只**读** SDK。许可见 §15——官方
+`Copyright.txt` 只授权给向 Mikage 申请过的人，商业需付费，**不是 GPL**；但这份 SDK 的二进制
+现在**是入库的**（`ports/artemis/vendor/artemis-sdk/`），那是一个有意的决定，理由与代价写在 §15。
 
 ### 12.3 自写 pf8 与官方 packer 逐字节相同
 
@@ -1413,11 +1414,137 @@ if (!drew || !renderer.SwapPaced())
 新加的诊断字符串必须先加进那个正则，否则「没有输出」会被误读成「代码没跑」。
 这一条是本轮最容易骗到自己的陷阱。
 
+## 十五、官方 SDK 入库：一个被推翻的决定
 
+此前对官方 SDK 的裁定是**「专有，不得入仓」**——`official-web-deploy.py` 的 docstring 写着
+"nothing from the SDK may be committed"，README 写着 not redistributable。这个决定现在**推翻了**，
+依据是用户原话：
 
+> 直接将之前使用官方wasm的那个版本推送到github上，暂时不考虑法律问题
 
+推翻之后新增 `ports/artemis/vendor/artemis-sdk/`（24 MB，9 个文件）：
 
+```
+Copyright.txt                                   (20717 B)
+WebAssembly/artemis.{html,js,wasm}              (3912 / 264298 / 2682787)
+WebAssembly/asyncify/artemis.{html,js,wasm}     (3912 / 276695 / 5998665)
+Android/arm64-v8a/libartemis.so                 (8149024)
+Android/armeabi-v7a/libartemis.so               (7395052)
+```
 
+**布局刻意镜像官方 SDK 本身**，所以 `official-web-deploy.py` 能把它原样当 `--sdk` 用，
+不需要任何适配代码。注意 plain 版的三个文件**直接放在 `WebAssembly/` 下**，没有 `plain/` 子目录
+——官方 SDK 就是这样。
 
+九份文件都 `cmp` 过与 `.ref/artemis` 对应文件**逐字节相同**。
 
+### `.gitignore` 必须开一个口子
 
+`ports/**/*.wasm` 这条规则会吃掉 vendor 里的 wasm（还有 `ports/**/out/`、`ports/**/*.o`
+分别吃掉 `reverse/out/` 与 `reverse/build/*.o`）。已在 `.gitignore` 末尾加了
+`!ports/artemis/vendor/**` 并写明理由：这些是**移植的输入**而不是产物，
+`ports/artemis/reverse/` 的逆向配方正是拿这些字节做校验，`official-web-deploy.py` 也拿它当
+`.ref/artemis` 的替代品。
+
+### 为什么值得承担
+
+两条：**可复现**（一个 clone 就能跑起官方 wasm 那条路线，不必先向 Mikage 申请授权）与
+**可核对**（逆向脚本声明的字节与官方发布一致，否则那些声明无从检查）。
+
+代价同样明确：这个 GPL-3.0-or-later 仓库里现在有专有二进制。这是**已知的、有意承担的风险**，
+不是疏忽。`default_sdk()` 的逻辑是「存在 licensed `.ref/artemis` 就用它，否则退回 vendor」，
+所以有授权的使用者仍然走自己的树。
+
+## 十六、逆向：把官方二进制变成可读、可校验的源码
+
+用户要求「把官方sdk的wasm和andriod全部逆向成伪C代码并**确保能够正确构建出同样二进制文件**」。
+「确保」不是声明，是**检查**——所以 `ports/artemis/reverse/` 里每一半都带一个会失败的断言。
+用法与产出见该目录的 [`README.md`](../ports/artemis/reverse/README.md)。
+
+```
+fetch-wabt.sh   （一次性）wabt 1.0.42    — wasm 侧
+fetch-zig.sh    （一次性）zig 0.16.0     — so 侧
+reverse.sh      wasm | so [arch] | so-all
+rebuild.sh      wasm | so [arch] | all   ← 校验；非零退出即断言失败
+```
+
+### 两条线问的不是同一个问题
+
+| | 输入 | 产出 | 断言 |
+| --- | --- | --- | --- |
+| **wasm** | `artemis.wasm` 2.68 MB（plain）+ `asyncify/artemis.wasm` 6.00 MB | `.wat` 48 MB / 180 MB；`wasm2c` 的 C 48 MB / 108 MB | `wat2wasm(wasm2wat(bin))` **逐字节相同**，且那份 C **能编译** |
+| **so** | `libartemis.so` arm64-v8a 8.15 MB + armeabi-v7a 7.40 MB | 9042 / 9175 个「一函数一 `.c`」 | 重建出的**导出符号面完全相同** |
+
+两个目标都必要的第二个理由：**wasm 产物无 name section**，函数名就是 `a.b`、`a.c`、`a.aa`…；
+而安卓 native 有 **13k 个真实动态符号**，是那些名字的对照表。
+
+### wasm：往返是精确的，而这不是运气
+
+```
+OK   plain:    wat2wasm(wasm2wat(bin)) == bin (2682787 bytes, sha256 f05ae1cb25eaaff8…)
+OK   asyncify: wat2wasm(wasm2wat(bin)) == bin (5998665 bytes, sha256 7ceabed28b84e768…)
+```
+
+官方产物是 stock Emscripten release build，section 布局本就规范，wabt 的 writer 能精确复现。
+检查仍然要跑：一旦两侧用不同方式构建，往返立刻不再相同，脚本会**说出来**而不是静默通过。
+
+**wabt 必须钉版本（1.0.42），理由就在这**：`.wat` 不是规范形式，换一个 wabt 可能选另一种
+等价拼写，于是 `wat2wasm` 拿不回原始字节——一个与 SDK 无关的失败。
+
+后半段断言「那份 C 是真 C」：gcc 要吃下 119 万行（plain）与 250 万行（asyncify），
+产出 18.5 MB 与 37.1 MB 的目标文件。**编译得过，才让伪 C 成为「可用的源码」而不只是「可读的文本」。**
+
+### so：导出面逐个符号重建
+
+```
+OK   arm64-v8a:   rebuilt export surface is identical (13051 symbols)
+OK   armeabi-v7a: rebuilt export surface is identical (13196 symbols)
+```
+
+共享库**无法**从反编译伪 C 逐字节重建——反编译丢类型，也没有编译器能复现 NDK release 的
+指令选择。能检查的是互操作依赖的那部分：`build-so-stub.sh` 生成一个导出名与弱/强绑定都相同的
+翻译单元，为目标 ABI 编成 `.so`，`rebuild.sh` 用 `llvm-nm -D` 双向 diff 两份名单。
+
+**两个方向都要查，失败含义不同**：只在官方侧的名字 = 调用者解析不到；
+只在我们侧的名字 = 这个配方**凭空发明**了一个符号，调用者可能意外绑定到它、拿到桩而非真实现。
+
+`A`（absolute）符号两侧都剔除：它们是 `__bss_start`、`_end`、`__bss_end__` 那七个，
+由链接器脚本合成，任何翻译单元都定义不出来，缺席不说明配方有问题。
+它们正是原始 13058 与可比 13051 之间的**全部**差异；armeabi-v7a 的 13252 与 13196 同理。
+`W`/`V`（weak 与模板 guard 变量）只比**名字集合**，不比绑定强度：官方弱、我们强，调用者一样解析得到。
+
+### 交叉编译器：两个不行的，一个行的
+
+- **MinGW 的 gcc 不行**：它永远链 x86-64 COFF，`-shared -fPIC` 产出的文件**没有动态符号表**，
+  而且把每个弱符号改名成 `.weak.<name>.<anchor>`。两种失败都**看起来像配方坏了，其实不是**。
+- **emsdk 的 clang 也不行**：它的 LLVM 只编了 `wasm32 wasm64 x86 x86-64`，
+  `--target=aarch64-linux-android` 直接 `unable to create target`；目录里也没有 `ld.lld.exe` / `llvm-mc`。
+- **本机没有 AArch64 工具链、没有 NDK**，`rustup target add aarch64-linux-android` 超时未完成。
+  改用 **Zig**：一次下载覆盖两个 ABI，不需要 NDK。
+
+```
+zig cc --target=aarch64-linux-gnu    -shared -fPIC -O0 -nostdlib stub.c -o out.so
+zig cc --target=arm-linux-gnueabihf  -shared -fPIC -O0 -nostdlib stub.c -o out.so
+```
+
+`-nostdlib` 让产物只剩那个翻译单元——导出面要看的正是它。`fetch-zig.sh` 也钉版本，
+理由与 wabt 相同。
+
+### Ghidra 两个坑
+
+- **Ghidra 12.1.4 删掉了 `DecompInterface.getDefaultOptions()`**。调它编译不过，
+  而**可见症状是** `ERROR REPORT SCRIPT ERROR: DecompileAll.java : The class could not be found`
+  ——报的是「找不到类」，不是「找不到方法」，很容易往错方向查。
+- **headless 不会自建项目目录**，会 `Abort due to Headless analyzer error: Directory not found`；
+  `reverse.sh` 先 `mkdir`。项目路径还不能含 `.` 开头的组件。
+
+结果 9039 ok / 3 failed 与 9173 ok / 2 failed。命名函数带得出真实签名，例如
+`CommandTag__0060f8c0.c` → `void __thiscall artemis::CArtemis::CommandTag(CArtemis *this, CScriptBlock *param_1, bool param_2)`，
+函数体就是那张标签注册表本身。`Windows/Artemis.exe` 是加壳的（131 函数、0 指令），
+**所以授权判据用 `.so`，不用它**。
+
+### 两种 SDK 布局都验过
+
+`reverse.sh` 与 `rebuild.sh` 用同一套解析：`$ARTC_SDK` → 存在则用 `.ref/artemis` → 否则用
+vendor。native 的位置两种树不同（完整 SDK 是 `Android/app/src/main/jniLibs/<abi>/`，
+vendor 是 `Android/<abi>/`），`so_path()` 两个都试。**两条线在两套布局下都跑过，结果相同。**

@@ -27,6 +27,14 @@ ranged stream fails is still the reference for that problem — see
         harness/                    the page + worker that drive the built engine in a browser
         engine/                     patches to apply to the upstream checkout (artemis only)
         tools/                      analysis helpers that read real game data (artemis only)
+        reverse/                    recipes that reverse the official binaries (artemis only)
+        vendor/                     the official SDK's binaries, committed on purpose (artemis only)
+
+`artemis/reverse/` turns the official WebAssembly builds and Android natives into pseudo-C and
+checks its own claims against the shipped bytes; `artemis/vendor/` is what those checks verify
+against. Both, and the licensing decision behind the second one, are documented in
+[`docs/artemis-web-port.md`](../docs/artemis-web-port.md) §15–16 and
+[`artemis/reverse/README.md`](artemis/reverse/README.md).
 
 ## Getting the upstream checkouts
 
@@ -48,6 +56,9 @@ and four real bug fixes:
     cd .ref/artemis-compat
     git checkout -- . && rm -f src/host/web_{main.cpp,page.html,worker.js}
     git apply /path/to/ports/artemis/engine/0001-web-host.patch
+
+The official-wasm route (`artemis/build/official-web-deploy.py`) needs no checkout at all: it
+reads the binaries from `artemis/vendor/artemis-sdk/` when `.ref/artemis` is absent.
 
 ## The Emscripten SDK
 
@@ -71,3 +82,10 @@ tabulated in the root [`README.md`](../README.md) and [`THIRD_PARTY_NOTICES.md`]
 the short version is that upstream GPL-3.0-or-later sources may be reused, GPL-2.0-**or-later**
 sources (OnscripterYuri, Tyranor-Next) fold into GPL-3.0 as well, and MPL-2.0 components
 (siglus_rs) may be combined with their notice kept.
+
+**One deliberate exception**: the official Artemis Engine SDK is proprietary and is committed
+anyway, under `artemis/vendor/artemis-sdk/`. Its `Copyright.txt` grants use only to parties who
+obtained permission from the author, with a fee for commercial use. Committing it makes the
+official-wasm deployment reproducible from a clone and makes the reverse-engineering recipes'
+claims checkable — see [`docs/artemis-web-port.md`](../docs/artemis-web-port.md) §15 for the
+reasoning and the accepted risk. A licensed `.ref/artemis` takes precedence when present.
