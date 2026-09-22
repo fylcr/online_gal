@@ -26,7 +26,7 @@ const ISOLATION_HEADERS = {
 /* The KiriKiri WebAssembly build                                      */
 /* ------------------------------------------------------------------ */
 //
-// The real KiriKiri engine is a build, not a package: `.test/krkr2-web-build/run-build.sh`
+// The real KiriKiri engine is a build, not a package: `ports/krkr/kirikiroid2/run-build.sh`
 // produces `out/web/release/` inside the reference checkout, and the launcher has to
 // serve that page from *its own origin* for two reasons. The framed page needs the same
 // cross-origin isolation the app has (the engine uses `SharedArrayBuffer` through JSPI),
@@ -76,7 +76,7 @@ function serveBuildFile(request, response, next) {
     response.setHeader('Content-Type', 'text/plain; charset=utf-8');
     response.end(
       'The KiriKiri WebAssembly build is not present. Run ' +
-        '.test/krkr2-web-build/run-build.sh to produce it.',
+        'ports/krkr/kirikiroid2/run-build.sh to produce it.',
     );
     return;
   }

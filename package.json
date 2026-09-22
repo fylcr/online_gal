@@ -13,8 +13,9 @@
     "build": "npm run build:packages && pnpm --filter @online-gal/app build",
     "dev": "npm run build:packages && pnpm --filter @online-gal/app dev",
     "preview": "pnpm --filter @online-gal/app preview",
-    "check": "tsc -b tsconfig.packages.json && pnpm --filter @online-gal/app check",
-    "test": "npm run build:packages && node scripts/run-tests.mjs"
+    "check": "npm run check:layout && tsc -b tsconfig.packages.json && pnpm --filter @online-gal/app check",
+    "check:layout": "node scripts/check-layout.mjs",
+    "test": "npm run check:layout && npm run build:packages && node scripts/run-tests.mjs"
   },
   "devDependencies": {
     "@types/jsdom": "^30.0.0",

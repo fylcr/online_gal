@@ -640,7 +640,9 @@ TyranoBuilder 额外注入一个 shim，让桌面导出回退到 Web 存储路�
 ├── session-launch.test.ts # 应用启动路径：运行时选择、不可用引擎、存档往返、真实出帧
 ├── real-game.test.ts     # 真实游戏目录：识别、启动、绘制真实对话
 ├── kag-runtime.test.ts   # 端到端：KAG 会话（含跨脚本控制流与拒绝字节码）
-└── ons-runtime.test.ts   # 端到端：ONScripter 会话
+├── ons-runtime.test.ts   # 端到端：ONScripter 会话
+├── harness/              # 模拟浏览器（jsdom + canvas 桩 + 假时钟），只服务测试
+└── test-games/           # 真实游戏数据（~13 GB），只读输入，永不提交
 ```
 
 > 上表是完整的本地套件，但**不是每个用例都能在任何机器上跑**。因缺少 `.ref/` 检出而
@@ -679,8 +681,22 @@ ports/                       把上面的运行时接到真实引擎的构建配
 ├── krkr/kirikiroid2/        KiriKiri（现行）：构建配方 + vcpkg overlay ports + 浏览器测试
 ├── krkr/krkrsdl2/           KiriKiri（早期方案，已被取代，保留其诊断结论）
 └── artemis/                 Artemis：构建配方 + Android shim + engine patch + 页面 harness
+scripts/                     仓库自身的检查脚本（布局约定、测试入口）
 .test/                       跨包测试套件（含 harness/ 模拟浏览器，已被 gitignore）
 ```
+
+### 代码放在哪里（约定）
+
+**模拟/移植代码一律放在仓库根下的对应位置**（`packages/`、`apps/`、`ports/`），**只有测试代码
+放在 `.test/`**。`.test/` 被 gitignore，所以放进去的代码既推不到 GitHub，克隆也拿不到。
+
+这条约定来自一次真实的代价：整套 WASM 移植——构建脚本、Android shim、harness，甚至引擎
+patch——最初全都躺在 `.test/` 里，结果**没有任何东西能推送**，新克隆也根本构建不出来。后来把
+它们移进了 `ports/`。
+
+`npm run check:layout`（也挂在 `npm test` 前面）会扫描所有**已跟踪**的 `packages/`、`apps/`、
+`ports/` 代码文件，若出现对 `.test/` 的引用就失败。它只看代码，注释会先被剥掉，因此正文里
+解释这条约定的文字不会误报。
 
 `ports/` 下的每个配方都驱动一份**上游引擎检出**与一套 Emscripten SDK，两者都不在仓库内：
 上游检出放在被忽略的 `.ref/`，SDK 由 `ports/env.sh` 按 `emcc` 是否存在来搜索。因此
