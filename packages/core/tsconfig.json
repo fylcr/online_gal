@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../engine-api" },
+    { "path": "../vfs" },
+    { "path": "../image-codec" },
+    { "path": "../player-host" },
+    { "path": "../runtime-kag" },
+    { "path": "../runtime-ons" },
+    { "path": "../runtime-tyrano" },
+    { "path": "../runtime-web" }
+  ]
+}

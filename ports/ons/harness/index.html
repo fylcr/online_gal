@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ONS worker host</title>
+    <style>
+      html, body { margin: 0; background: #111; color: #ddd; font: 13px/1.5 monospace; }
+      /*
+        The canvas is centred, and its CSS box is set to the game's own aspect ratio.
+
+        Two earlier attempts failed for the same underlying reason: the element's box
+        and the drawing's aspect ratio disagreed, so something had to reconcile them.
+
+        - `width: 100%; height: 100%` made the box `1036x652` (1.589) while the game is
+          `793x446` (1.778), and `object-fit: contain` then letterboxed the game inside
+          a box that was too tall — which is the off-centre picture this replaced.
+        - `max-width: 100%` on an element with no intrinsic CSS size resolved against
+          the HTML default of 300x150 and collapsed the display entirely.
+
+        The host now sets `width` and `height` to the drawn size directly, so the box
+        *is* the game's rectangle, flex centring puts it in the middle, and
+        `object-fit` is not needed at all. One rectangle, no reconciliation.
+      */
+      #viewport {
+        position: relative;
+        width: 100vw;
+        height: 72vh;
+        background: #000;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      canvas {
+        display: block;
+        /*
+          Pre-sized to the game's own resolution (793x446), not to the window.
+
+          The engine takes its device size from the renderer
+          (`SDL_GetRendererOutputSize`) and then calls `alignAspectRatio`, which **fits
+          inside and never stretches**:
+
+              if (swdh > dwsh) dh = ceil(sh * dw / sw); else dw = ceil(sw * dh / sh);
+
+          So a canvas whose aspect ratio differs from the script's is letterboxed inside
+          itself — one black band, with the game not filling the element. Sizing the canvas
+          to the script resolution removes the mismatch, and the page then scales it up with
+          `object-fit: fill` to fill the viewport.
+
+          `fill` rather than `contain` is deliberate: the user asked for the display to be
+          stretched to fill the window. Because the element and the game share an aspect
+          ratio, `fill` and `contain` coincide here — but `fill` is what guarantees the
+          viewport is covered even if they ever differ.
+
+          It also makes the coordinate mapping a no-op: canvas space and screen space become
+          the same 793x446 rectangle, so `screen_scale_ratio` is 1 and the host forwards
+          pixels unchanged.
+        */
+        width: 100%;
+        height: 100%;
+        object-fit: fill;
+      }
+      #log { padding: 8px; white-space: pre-wrap; height: 26vh; overflow: auto; }
+      .err { color: #ff7b72; }
+      .warn { color: #d29922; }
+    </style>
+  </head>
+  <body>
+    <!--
+      The engine runs in a worker, so this page owns only the DOM: a canvas whose
+      control is transferred away, and the input events forwarded to the engine.
+    -->
+    <div id="viewport"><canvas id="canvas" width="793" height="446" tabindex="0"></canvas></div>
+    <div id="log"></div>
+
+    <script type="module">
+      import { startOnsHost } from './host.mjs';
+
+      const logElement = document.getElementById('log');
+      /*
+        The log is capped.
+
+        It grew to many thousands of nodes, and every protocol request then timed out —
+        `evaluate_script` and the console API alike — because the main thread was busy
+        laying out and repainting that list while the engine drove it. Copying the whole
+        log out to read one line is not a workable diagnostic loop. Keeping the last few
+        hundred lines leaves the recent history readable and the thread responsive.
+      */
+      const LOG_LIMIT = 300;
+      const append = (text, className) => {
+        const line = document.createElement('div');
+        if (className) line.className = className;
+        line.textContent = text;
+        logElement.appendChild(line);
+        while (logElement.childElementCount > LOG_LIMIT) logElement.removeChild(logElement.firstElementChild);
+        logElement.scrollTop = logElement.scrollHeight;
+      };
+
+      append('crossOriginIsolated: ' + crossOriginIsolated);
+      append('SharedArrayBuffer:   ' + typeof SharedArrayBuffer);
+
+      const canvas = document.getElementById('canvas');
+
+      const host = startOnsHost({
+        canvas,
+        indexUrl: './onsyuri_index.json',
+        wasmJsUrl: './onsyuri.js',
+        engineBase: './',
+        onLog: (text) => append(text),
+        onError: (text) => append(text, 'err'),
+        onWarn: (text) => append(text, 'warn'),
+        onExited: (stats) =>
+          append(
+            `engine exited: ${stats.rangesServed} range reads, ` +
+              `${(stats.bytesServed / 1024 / 1024).toFixed(1)} MB fetched`,
+          ),
+      });
+
+      // Expose the host for the verification harness to inspect.
+      window.__host = host;
+
+      canvas.focus();
+
+      /*
+        Self-driving input test — DISABLED, and why it stays that way.
+
+        It clicks the title screen automatically, which advances the game before anyone can
+        measure the title screen's own state. That is what invalidated several readings
+        here: a probe would report `hits: 0` and the conclusion drawn was "no buttons exist",
+        when in fact the clicks had already moved past the screen that had them.
+
+        Measurement has to happen on a freshly loaded page, before anything clicks. Set
+        `RUN_SELF_TEST` to true only when the goal really is to drive the game, not to
+        observe it.
+      */
+      const RUN_SELF_TEST = false;
+      const TEST_POINTS = [
+        { name: 'Start', fx: 0.18, fy: 0.78 },
+        { name: 'Load', fx: 0.38, fy: 0.78 },
+      ];
+      if (RUN_SELF_TEST) {
+        let testIndex = 0;
+        const clickOnce = () => {
+          if (testIndex >= TEST_POINTS.length) {
+            append('## self-test: done');
+            return;
+          }
+          const point = TEST_POINTS[testIndex];
+          const rect = canvas.getBoundingClientRect();
+          const x = rect.left + rect.width * point.fx;
+          const y = rect.top + rect.height * point.fy;
+          append(`## self-test: clicking ${point.name} at (${Math.round(x)},${Math.round(y)})`);
+          for (const type of ['mousemove', 'mousedown', 'mouseup']) {
+            canvas.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y }));
+          }
+          testIndex += 1;
+          if (testIndex < TEST_POINTS.length) setTimeout(clickOnce, 6000);
+          else append('## self-test: done');
+        };
+        setTimeout(clickOnce, 24000);
+      }
+    </script>
+  </body>
+</html>

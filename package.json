@@ -1,0 +1,25 @@
+{
+  "name": "online-gal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser-hosted multi-runtime visual novel platform",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build:packages": "tsc -b tsconfig.packages.json",
+    "build": "npm run build:packages && pnpm --filter @online-gal/app build",
+    "dev": "npm run build:packages && pnpm --filter @online-gal/app dev",
+    "preview": "pnpm --filter @online-gal/app preview",
+    "check": "tsc -b tsconfig.packages.json && pnpm --filter @online-gal/app check",
+    "test": "npm run build:packages && node --test \".test/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "jsdom": "^30.1.0",
+    "typescript": "^5.6.3"
+  },
+  "packageManager": "pnpm@9.14.2"
+}

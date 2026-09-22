@@ -1,0 +1,17 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/engine-api" },
+    { "path": "packages/vfs" },
+    { "path": "packages/image-codec" },
+    { "path": "packages/player-host" },
+    { "path": "packages/runtime-kag" },
+    { "path": "packages/tjs2-bytecode" },
+    { "path": "packages/runtime-ons" },
+    { "path": "packages/runtime-siglus" },
+    { "path": "packages/runtime-artemis" },
+    { "path": "packages/runtime-web" },
+    { "path": "packages/runtime-tyrano" },
+    { "path": "packages/core" }
+  ]
+}

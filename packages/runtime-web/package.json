@@ -1,0 +1,21 @@
+{
+  "name": "@online-gal/runtime-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@online-gal/engine-api": "workspace:*",
+    "@online-gal/vfs": "workspace:*"
+  }
+}

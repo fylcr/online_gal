@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+apps/app/dist/
+packages/*/dist/
+*.tsbuildinfo
+
+# Astro
+apps/app/.astro/
+
+# Local scratch
+buildlog.txt
+*.log
+
+# Reference material (read-only upstream checkouts used for porting and for the
+# real-game tests). Not ours to redistribute, and large: fetch these yourself.
+# The list of what the ports need is in `ports/README.md`.
+#
+#   .ref/ak               AetherKiri (GPL-3.0-or-later) — bridge/ and the KAG3 demo
+#   .ref/kirikiroid2      Kirikiroid2 (BSD-style)       — TJS2 opcode/bytecode tables
+#   .ref/tynext           Tyranor-Next (GPL-2.0-only)   — engine marker facts only
+#   .ref/onscripter-yuri  OnscripterYuri                — the ONScripter web build
+#   .ref/kirikiroid2-web  kirikiroid2-web               — the KiriKiri web build
+#   .ref/krkrsdl2         krkrsdl2 + krkrz              — the earlier KiriKiri attempt
+#   .ref/artemis-compat   artemis-compat                — the Artemis engine
+#   .ref/vcpkg            vcpkg                         — KiriKiri's dependency manager
+#   .ref/emsdk            Emscripten SDK                — optional; /d/emsdk also works
+#   .ref/*-game           real game data                — never redistributable
+#
+# `.test/real-game.test.ts` runs against `.ref/ak/demos/aetherkiri-kag3/data`
+# and skips cleanly when it is absent.
+.ref/
+
+# Test suite. Deliberately untracked: the tests are a local workbench.
+#
+# If tests should be committed, they belong in a tracked `test/` directory —
+# `test/` is not ignored, `.test/` is. Keeping the two names distinct means a
+# clone can ship its own `test/` without colliding with this local suite.
+.test/
+
+# Port build output. The recipes in `ports/` are tracked; what they produce is not.
+# Each `build-emscripten.sh` / `run-*.sh` writes into its own `out/` directory.
+ports/**/out/
+ports/**/build-final/
+ports/**/*.wasm
+ports/**/*.o
+
+# Editor and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

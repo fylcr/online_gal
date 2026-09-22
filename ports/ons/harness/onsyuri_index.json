@@ -1,0 +1,48 @@
+{
+  "title": "onscript",
+  "gamedir": "/onsyuri/onscript",
+  "savedir": "/onsyuri_save/onscript",
+  "files": [
+    {
+      "path": "0.txt",
+      "url": "/game/0.txt",
+      "size": 12225
+    },
+    {
+      "path": "1.txt",
+      "url": "/game/1.txt",
+      "size": 4237099
+    },
+    {
+      "path": "2.txt",
+      "url": "/game/2.txt",
+      "size": 1675254
+    },
+    {
+      "path": "arc.nsa",
+      "url": "/game/arc.nsa",
+      "size": 1866409698
+    },
+    {
+      "path": "arc1.nsa",
+      "url": "/game/arc1.nsa",
+      "size": 1207107286
+    },
+    {
+      "path": "default.ttf",
+      "url": "/game/default.ttf",
+      "size": 9753388
+    },
+    {
+      "path": "ONScripter.exe",
+      "url": "/game/ONScripter.exe",
+      "size": 1384960
+    },
+    {
+      "path": "Readme.txt",
+      "url": "/game/Readme.txt",
+      "size": 8
+    }
+  ],
+  "args": []
+}

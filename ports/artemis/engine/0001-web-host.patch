@@ -1,0 +1,1691 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index e2290fa..1afb2d3 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -139,3 +139,180 @@ if(ARTC_BUILD_MAC_HOST AND APPLE)
+     target_link_libraries(artemis-mac PRIVATE artemis_deps
+         "-framework Cocoa" "-framework OpenGL")
+ endif()
++
++# ---- web host (Emscripten: canvas + WebGL2 through the GLES2 entry points) ----
++#
++# Same shape as the macOS host above: the core is recompiled into this target with `ARTC_HAS_GLES=1`
++# so the compositor and layer shaders take the real GL path, while `artemis_core` stays GL-free for
++# the CLI and the regression suite.
++#
++# Flag rationale:
++#   -sMIN/-sMAX_WEBGL_VERSION=2   the compositor targets GLES2, which is a subset of ES3; pinning
++#                                 WebGL2 keeps the driver from choosing WebGL1 and dropping the ES2
++#                                 entry points the compositor relies on
++#   -sFULL_ES2=1                  link the full GLES2 entry points rather than the trimmed default set
++#   -sALLOW_MEMORY_GROWTH=1       Emscripten 6.x leaves growth off, so the heap is fixed at
++#                                 INITIAL_MEMORY and booting a real title aborts with `Aborted(OOM)`
++#                                 on the first sizeable allocation
++#   -sSTACK_SIZE=4MB              the boot chain recurses through Lua and the .asb runner; the default
++#                                 64 KB stack is not enough
++#
++# There is deliberately no `--shell-file`: the page (`src/host/web_page.html`) owns the canvas element
++# and the input, and the module is loaded by a worker that the page starts, so Emscripten's shell would
++# be dead weight. `#canvas` is the selector the host creates its GL context against — see
++# `kCanvasTarget` in `src/host/web_main.cpp` for why a target string rather than `0`.
++if(EMSCRIPTEN)
++    option(ARTC_BUILD_WEB_HOST "Build the Emscripten web host" ON)
++endif()
++if(ARTC_BUILD_WEB_HOST AND EMSCRIPTEN)
++    add_executable(artemis-web ${ARTC_CORE_SOURCES}
++        ${CMAKE_CURRENT_SOURCE_DIR}/src/host/web_main.cpp)
++    target_include_directories(artemis-web PRIVATE
++        ${CMAKE_CURRENT_SOURCE_DIR}/src/render
++        ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
++    target_compile_definitions(artemis-web PRIVATE ARTC_HAS_GLES=1)
++    target_link_options(artemis-web PRIVATE
++        # No `main`: the page drives the host through the exported `artc_web_*` entry points.
++        --no-entry
++        -sINVOKE_RUN=0
++        # The module runs in a **worker**, which is what makes its byte source legal as well as cheap:
++        # `XMLHttpRequest` with async=false throws on the main thread but is fine in a worker, so the
++        # pack reads simply complete instead of suspending anything.
++        -sENVIRONMENT=worker
++        -sMIN_WEBGL_VERSION=2
++        -sMAX_WEBGL_VERSION=2
++        -sFULL_ES2=1
++        -sALLOW_MEMORY_GROWTH=1
++        -sINITIAL_MEMORY=64MB
++        -sMAXIMUM_MEMORY=4GB
++        -sSTACK_SIZE=4MB
++        # On by default, unlike in a typical build. Without it a wasm trap surfaces as a bare
++        # `RuntimeError: Aborted()` with no reason at all — the message is literally what Emscripten
++        # prints and its own advice is "build with -sASSERTIONS for more info". During a port the
++        # difference between `Aborted()` and `Aborted(OOM)` is the difference between a mystery and a
++        # fix, and that is worth the size.
++        -sASSERTIONS=1
++        -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,HEAPU8,FS,UTF8ToString
++        -sEXPORTED_FUNCTIONS=_malloc,_free)
++    target_link_libraries(artemis-web PRIVATE artemis_deps)
++    set_target_properties(artemis-web PROPERTIES SUFFIX ".js")
++
++    # A second, diagnostic build of the same host.
++    #
++    # Emscripten reports a wasm trap as a bare `Aborted()` and its own advice is "build with
++    # -sASSERTIONS for more info" — which is the difference between a stack trace naming the function
++    # and an offset with no attribution. `-g` is what puts function names in the wasm for that trace.
++    #
++    # Off by default because none of it belongs in a shipping build: assertions add checks and messages
++    # to every call, and `-g` grows the binary several-fold. Used via a separate build directory so the
++    # shipping artefacts are never overwritten by a diagnostic one.
++    option(ARTC_WEB_DIAGNOSTICS "Build the web host with assertions, stack checks and debug info" OFF)
++    if(ARTC_WEB_DIAGNOSTICS)
++        target_compile_options(artemis-web PRIVATE -g)
++        target_link_options(artemis-web PRIVATE -g -sASSERTIONS=2 -sSTACK_OVERFLOW_CHECK=2)
++    endif()
++endif()
++
++# ---------------------------------------------------------------------------
++# The engine's *Android* host, retargeted at wasm.
++#
++# Why a second web target: `src/jni/native_activity.cpp` is the host where this engine is known to
++# render correctly, and re-implementing it by hand (the `artemis-web` target) is how a whole class of
++# "the host behaves subtly differently" bugs got introduced. This target compiles that host and its
++# EGL/GLES2 renderer **unmodified**, against the thin NDK/JNI shim in `ARTC_ANDROID_SHIM`.
++#
++# `__ANDROID__` is set **only for renderer.cpp**: it selects the real EGL implementation there while
++# leaving audio.cpp on its non-OpenSL path.
++# ---------------------------------------------------------------------------
++option(ARTC_BUILD_WEB_ANDROID_HOST "Build the Android NativeActivity host for wasm" OFF)
++set(ARTC_ANDROID_SHIM "" CACHE PATH "Directory holding the android/ + jni.h shims")
++if(ARTC_BUILD_WEB_ANDROID_HOST AND EMSCRIPTEN)
++    add_executable(artemis-web-android ${ARTC_CORE_SOURCES}
++        ${CMAKE_CURRENT_SOURCE_DIR}/src/jni/native_activity.cpp
++        ${CMAKE_CURRENT_SOURCE_DIR}/src/render/renderer.cpp
++        ${ARTC_ANDROID_SHIM}/src/shim.cpp)
++    target_include_directories(artemis-web-android PRIVATE
++        ${ARTC_ANDROID_SHIM}/include
++        ${CMAKE_CURRENT_SOURCE_DIR}/src/render
++        ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
++    target_compile_definitions(artemis-web-android PRIVATE ARTC_HAS_GLES=1)
++    target_compile_options(artemis-web-android PRIVATE -pthread)
++    # `-pthread` makes the link use `--shared-memory`, which requires **every** object to be built
++    # with atomics. `lua51` is a separate static library, so it needs the flag too or wasm-ld
++    # rejects it: "--shared-memory is disallowed by ldo.c.o ... not compiled with 'atomics'".
++    # Declared here rather than beside `add_library(lua51)` because this option does not exist yet
++    # at that point in the file, which silently makes the condition false.
++    target_compile_options(lua51 PRIVATE -pthread)
++    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/render/renderer.cpp
++        PROPERTIES COMPILE_DEFINITIONS "__ANDROID__=1")
++    target_link_options(artemis-web-android PRIVATE
++        --no-entry -sINVOKE_RUN=0
++        # The engine's host spawns its own std::thread and renders from it, so threads are not optional.
++        # `PTHREADS` is an internal setting in this Emscripten version; threads are requested with
++        # the compiler/linker flag `-pthread` instead.
++        -sENVIRONMENT=worker -pthread
++        # The Android host spawns two threads (the engine/render loop and the input looper) from
++        # inside `ANativeActivity_onCreate`. With the default pool size of 0 every spawn is queued
++        # rather than run and the engine simply never starts:
++        #   "Tried to spawn a new thread, but the thread pool is exhausted."
++        -sPTHREAD_POOL_SIZE=6
++        # `ListPacks` finds the pack chain by LISTING the app data directory (opendir + a `.pfs`
++        # suffix test). That happens on the engine's own pthread, where Emscripten's MEMFS is a
++        # separate empty instance, so no filesystem populated from the page can reach it. The shim
++        # answers those three calls from memory shared across threads instead; wrapping at link time
++        # keeps the engine unmodified. See android-shim/src/shim.cpp.
++        -Wl,--wrap=opendir,--wrap=readdir,--wrap=closedir
++        # Boundary instrumentation for the same problem: the engine prints nothing between
++        # `Renderer::Init` entry and its final "GLES2 ready" line, so when it goes silent we cannot
++        # tell *which* EGL step blocked. Wrapping the EGL symbols puts a log line on either side of
++        # each real call, logged from the engine thread, so an "enter" without a matching "leave"
++        # names the exact blocking call. See android-shim/src/shim.cpp.
++        -Wl,--wrap=eglGetDisplay,--wrap=eglInitialize,--wrap=eglChooseConfig,--wrap=eglCreateContext,--wrap=eglCreateWindowSurface,--wrap=eglMakeCurrent,--wrap=eglSwapBuffers,--wrap=eglSwapInterval
++        # Same idea one layer down: the EGL trace staying silent means the thread never reaches
++        # `Renderer::Init`, so the next question is whether it reaches GL at all (the first GL call in
++        # the host is `Compositor::ReleaseGl` at native_activity.cpp:418, before any `Start()`).
++        -Wl,--wrap=glDeleteTextures,--wrap=glDeleteProgram,--wrap=glDeleteFramebuffers,--wrap=glGenTextures,--wrap=glCreateProgram,--wrap=glCreateShader,--wrap=glBindFramebuffer,--wrap=glBindTexture,--wrap=glTexImage2D
++        # The one GL call that must be synchronous: see the long note in android-shim/src/shim.cpp.
++        # The engine draws exclusively from client-side vertex arrays, whose pointer stays live until
++        # the draw reads it on the main thread — and OFFSCREEN_FRAMEBUFFER compiles glDrawArrays as an
++        # *async* proxy, so the engine thread would overwrite that memory before it is ever read.
++        -Wl,--wrap=glDrawArrays
++        # And the host loop itself, by mangled name: `Renderer::Init` is the only way into EGL, and
++        # `Compositor::ReleaseGl` is the first GL call the very first loop iteration makes.
++        # -Wl,--wrap=_ZN4artc8Renderer4InitEPv,--wrap=_ZN4artc10Compositor9ReleaseGlEv,--wrap=_ZN4artc10Compositor6UpdateEd
++        -Wl,--wrap=_ZN4artc8Renderer4InitEPv,--wrap=_ZN4artc10Compositor9ReleaseGlEv,--wrap=_ZN4artc10Compositor4DrawEv
++        # NOTE: `--wrap=_ZN4artc10Compositor6UpdateEd` (and its wrapper) is deliberately absent: with
++        # that third symbol in the list, `wasm-ld` emits a module that binaryen rejects
++        # ("Fatal: error parsing wasm", "[parse exception: popping from empty stack]") and the link
++        # fails. The two symbols above are enough to place the boundary.
++        -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2 -sFULL_ES2=1
++        # The engine renders from its own std::thread, and its renderer.cpp talks **EGL**. In this
++        # Emscripten version every EGL entry point (eglGetDisplay … eglSwapBuffers) is `__proxy: 'sync'`
++        # from a pthread, so the WebGL context is created on — and owned by — the main runtime thread.
++        # Without OFFSCREEN_FRAMEBUFFER the raw `gl*` calls are plain `GLctx.x()` on the *calling*
++        # thread, and a pthread's `GLctx` is undefined because the context lives on the main thread:
++        # the first `glViewport()` in `Renderer::Init` then dereferences undefined.
++        # OFFSCREEN_FRAMEBUFFER compiles system/lib/gl/webgl{1,2}.c into the pthread-proxying form, so
++        # each GL call is routed to the thread that owns the context. This is the Emscripten-sanctioned
++        # way to run GL from a pthread and it is what the upstream pthread+GL tests use.
++        -sOFFSCREEN_FRAMEBUFFER=1
++        -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=64MB -sMAXIMUM_MEMORY=4GB -sSTACK_SIZE=4MB
++        -sASSERTIONS=1
++        # The sync-proxy queue is pumped by the host worker rather than by the SDK. In the SDK the only
++        # caller is `emscripten_yield.c:50`, reached from the main thread's futex busy-wait loop — i.e.
++        # only while the main thread is blocked. Here the main runtime thread is an idle Web Worker
++        # event loop, so nothing drains it and a pthread blocks forever in its first proxied call.
++        #
++        # `_emscripten_check_mailbox` is the pump that also keeps the SDK's own wake-up path alive:
++        # `emscripten_current_thread_process_queued_calls` (`library_pthread.c:94`) calls
++        # `emscripten_proxy_execute_queue` directly, which runs the queued tasks but never runs
++        # `receive_notification` — the only code that resets the queue's `notification` state to
++        # `NOTIFICATION_NONE` (proxying.c:178, em_task_queue.c:209). Left `PENDING` by a direct drain, it
++        # makes `em_task_queue_send` skip `emscripten_thread_mailbox_send` forever, so no further mailbox
++        # notification is ever delivered. `__emscripten_check_mailbox` runs the mailbox task instead and
++        # therefore both drains the queue and restores the notification handshake.
++        -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,HEAPU8,FS,UTF8ToString
++        -sEXPORTED_FUNCTIONS=_artc_android_boot,_artc_shim_push_motion,_artc_shim_push_key,_artc_shim_add_pack,_emscripten_main_thread_process_queued_calls,__emscripten_check_mailbox,_malloc,_free)
++    target_link_libraries(artemis-web-android PRIVATE artemis_deps)
++    set_target_properties(artemis-web-android PROPERTIES SUFFIX ".js")
++endif()
+diff --git a/src/host/web_main.cpp b/src/host/web_main.cpp
+new file mode 100644
+index 0000000..ab5d346
+--- /dev/null
++++ b/src/host/web_main.cpp
+@@ -0,0 +1,525 @@
++//---------------------------------------------------------------------------
++// Web (Emscripten) host for artemis-compat.
++//
++// Modelled directly on `src/host/mac_main.mm`. The boot sequence, the queued-input model and the
++// per-frame order are the same, deliberately: reset/exit gate -> boot -> drain input -> EnterFrame ->
++// drain queued tags -> Step -> compositor update -> gated Present -> EndFrame. Keeping the order
++// identical means a bug found on one host is a bug on the other, rather than a difference in hosts.
++//
++// Only the platform surface differs:
++//
++//   Cocoa window + legacy OpenGL 2.1   ->  a canvas + a WebGL2 context through Emscripten's GLES2
++//   NSTimer at the display refresh     ->  requestAnimationFrame (`emscripten_set_main_loop(fn, 0, 1)`)
++//   NSEvent                            ->  browser events, via the exported C entry points below
++//
++// The redraw gate is kept as-is. It matters more here than on the desktop: a browser compositor
++// charges for every presented frame, and an ADV scene is static most of the time, so skipping
++// clear+draw when the layer revision has not moved and nothing is animating is the difference
++// between a warm laptop and a hot one.
++//---------------------------------------------------------------------------
++
++#include <emscripten.h>
++#include <emscripten/html5.h>
++
++#include <GLES2/gl2.h>
++
++#include "config/ini.h"
++#include "core/engine_context.h"
++#include "log/logger.h"
++#include "pack/pack_manager.h"
++#include "render/compositor.h"
++#include "script/asb_parser.h"
++#include "script/dialog_request.h"
++#include "script/iet_interpreter.h"
++#include "script/lua_engine.h"
++
++#include <algorithm>
++#include <cstdio>
++#include <cstdlib>
++#include <deque>
++#include <memory>
++#include <string>
++#include <vector>
++
++/**
++ * Bridges a `[dialog]` request to the page, **synchronously**.
++ *
++ * The Android host does the same thing with a poll loop (`ShowNativeInput`): it posts the request to
++ * the UI thread and waits. In a browser the wait is free, because `confirm`/`prompt` block the
++ * calling thread by design — so the tag's synchronous request/response contract survives with no
++ * async plumbing, and the engine does not need to be resumable.
++ *
++ * Returns a string the caller must `free`. `stringToNewUTF8` puts it on the wasm heap, which is the
++ * only way a JS string can outlive the call; a JS-side string is garbage after the call returns.
++ * Returns 0 when the page installed no handler, which the caller treats as "declined".
++ *
++ * `kind`: 0 = message-only, 1 = yes/no confirm, 2 = text input.
++ */
++EM_JS(char *, artc_js_dialog, (const char *title, const char *message, int kind), {
++    if (typeof window === 'undefined' || typeof window.__artcDialog !== 'function') {
++        return 0;
++    }
++    try {
++        const result = window.__artcDialog(kind, UTF8ToString(title), UTF8ToString(message));
++        return stringToNewUTF8(result === null || result === undefined ? '' : String(result));
++    } catch (error) {
++        console.error('[artc] dialog handler threw', error);
++        return 0;
++    }
++});
++
++using namespace artc;
++
++namespace {
++
++constexpr int kKeyTap = 1;
++
++/**
++ * How the GL canvas is named to Emscripten.
++ *
++ * Every `emscripten_*` entry point that takes a canvas takes a **target string**, and resolution is
++ * `document.querySelector(target)` — so the target has to be a selector the host can answer. The canvas
++ * is `#canvas` in the page, and the worker's `document` shim answers the same selector with the
++ * `OffscreenCanvas` it was handed, which keeps one name working on both hosts.
++ *
++ * Worth stating because the obvious spelling is wrong: `0` is not "the default canvas" here.
++ * Emscripten looks a numeric target up in `specialHTMLTargets`, whose slot 0 is the literal `0` (the
++ * document sits in slot 1), so a `0` target falls through to `document.querySelector(0)` and resolves
++ * nothing — on the main thread as much as in a worker. That produced a `create_context` failure with no
++ * GL error and no explanation, because the call never reached WebGL.
++ */
++constexpr const char *kCanvasTarget = "#canvas";
++
++struct RawInput {
++    bool is_key = false;
++    bool is_move = false;
++    bool down = false;
++    int key = 0;
++    float x = 0, y = 0;
++};
++
++class WebEngine {
++public:
++    bool Open(const std::string &game_path, const std::string &os) {
++        ctx = std::make_unique<EngineContext>();
++        if (!ctx->Open(game_path, os)) {
++            ctx.reset();
++            return false;
++        }
++        stage_w = ctx->stageW();
++        stage_h = ctx->stageH();
++        Log(kLogInfo, "web host: stage=" + std::to_string(stage_w) + "x" + std::to_string(stage_h));
++        return true;
++    }
++
++    bool Boot() {
++        if (!ctx || !ctx->Start()) return false;
++
++        // The `[dialog]` host box.
++        //
++        // The Android host (`src/jni/native_activity.cpp`, `ShowNativeInput`) answers these
++        // **synchronously**: it posts the request to the UI thread and polls until the box is
++        // dismissed, with the engine paused meanwhile. The browser can do the same thing more
++        // directly, because `window.confirm` and `window.prompt` are themselves synchronous and block
++        // the calling thread — so the tag's request/response contract is preserved with no async
++        // plumbing at all.
++        //
++        // Answering with a fabricated value would be worse than refusing: accepting a `[confirm]` the
++        // player never saw tells the game to take a branch on its own.
++        ctx->lua().SetDialogHandler([](DialogRequest &req) -> bool {
++            const int kind = req.has_input ? 2 : (req.has_result ? 1 : 0);
++            char *answer = artc_js_dialog(req.title.c_str(), req.message.c_str(), kind);
++            if (!answer) {
++                req.accepted = false;
++                return false;
++            }
++            const std::string text = answer;
++            free(answer);
++            if (kind == 2) {
++                // A prompt returns the typed text, or null when cancelled; the page encodes cancel as
++                // an empty answer, which is also a legitimate empty entry, so acceptance is decided by
++                // the page and reported through `accepted`.
++                req.accepted = !text.empty() || req.has_input;
++                req.text = text;
++                if (req.textfieldsize > 0 && req.text.size() > (size_t)req.textfieldsize) {
++                    req.text.resize(req.textfieldsize);
++                }
++                return req.accepted;
++            }
++            req.accepted = text == "1";
++            return req.accepted;
++        });
++
++        if (!ctx->BootFramework()) return false;
++        booted = true;
++        return true;
++    }
++
++    void Enqueue(const RawInput &ev) {
++        events.push_back(ev);
++        if (events.size() > 512) events.pop_front();
++    }
++
++    void Pointer(float x, float y, bool move, bool down) {
++        RawInput ev;
++        ev.x = x;
++        ev.y = y;
++        ev.is_move = move;
++        ev.down = down;
++        ev.key = kKeyTap;
++        Enqueue(ev);
++    }
++
++    void Key(int key, bool down) {
++        RawInput ev;
++        ev.is_key = true;
++        ev.key = key;
++        ev.down = down;
++        Enqueue(ev);
++    }
++
++    void Resize(int w, int h) {
++        css_w = w;
++        css_h = h;
++    }
++
++    bool ExitRequested() const { return exit_requested; }
++    bool Started() const { return ctx && ctx->Started(); }
++    int StageWidth() const { return stage_w; }
++    int StageHeight() const { return stage_h; }
++    unsigned long long Revision() const {
++        return (ctx && ctx->Started()) ? ctx->compositor().Revision() : 0ull;
++    }
++    unsigned long long Presented() const { return presented; }
++    const char *LastError() const { return last_error.c_str(); }
++
++    /**
++     * Record why a host entry point refused.
++     *
++     * `artc_web_open` has two independent reasons to fail — no GL context, or no pack — and the page
++     * can only see the combined answer. Without a reason string here both collapse into the same
++     * "open failed" with no detail, which is indistinguishable from the boot chain having died.
++     */
++    void SetLastError(const std::string &message) { last_error = message; }
++
++    /**
++     * One frame. Mirrors `mac_main.mm`'s `Tick` step for step.
++     *
++     * The backing-store size is read every frame rather than cached: a browser resizes a canvas by
++     * changing its attributes, and a stale viewport shows up as a stretched or cropped picture rather
++     * than as an error.
++     */
++    void Tick() {
++        int fb_w = stage_w, fb_h = stage_h;
++        emscripten_get_canvas_element_size(kCanvasTarget, &fb_w, &fb_h);
++        if (fb_w <= 0 || fb_h <= 0) {
++            fb_w = stage_w;
++            fb_h = stage_h;
++        }
++
++        if (ctx && ctx->Started() && ctx->lua().ConsumeResetRequest()) {
++            Log(kLogInfo, "web host: reset requested; re-running the boot chain");
++            ctx->ResetSession();
++            booted = false;
++            drawn_rev = ~0ull;
++        }
++        if (ctx && ctx->Started() && ctx->lua().ConsumeExitRequest()) {
++            Log(kLogInfo, "web host: exit requested");
++            exit_requested = true;
++            return;
++        }
++        if (!booted && !Boot()) {
++            last_error = "boot failed";
++            exit_requested = true;
++            return;
++        }
++
++        DrainInput();
++        if (ctx && ctx->Started()) {
++            ctx->lua().RunEnterFrame();
++            DrainQueued();
++        }
++        Step();
++        if (ctx && ctx->Started()) {
++            ctx->compositor().Update(ctx->lua().NowMs());
++            const double now = ctx->lua().NowMs();
++            const bool animating = ctx->compositor().PendingAnimationMs(now) > 0 ||
++                                   ctx->compositor().TransitionActive() ||
++                                   ctx->compositor().PendingTextMs(now) > 0;
++            if (drawn_rev != ctx->compositor().Revision() || animating) {
++                Present((float)fb_w, (float)fb_h);
++                drawn_rev = ctx->compositor().Revision();
++            }
++            ctx->lua().EndFrame();
++        }
++    }
++
++private:
++    void MapPoint(float px, float py, float *sx, float *sy) const {
++        const float s = std::min((float)css_w / (float)stage_w, (float)css_h / (float)stage_h);
++        const float vw = (float)stage_w * s, vh = (float)stage_h * s;
++        const float vx = ((float)css_w - vw) * 0.5f, vy = ((float)css_h - vh) * 0.5f;
++        *sx = (px - vx) / vw * (float)stage_w;
++        *sy = (py - vy) / vh * (float)stage_h;
++    }
++
++    void DrainInput() {
++        std::deque<RawInput> batch;
++        batch.swap(events);
++        if (!ctx || !ctx->Started()) return;
++
++        LuaEngine *lua = &ctx->lua();
++        int touch = 0;
++        bool tapped = false;
++        float tap_x = 0, tap_y = 0;
++        for (const auto &ev : batch) {
++            if (ev.is_key) {
++                if (ev.down) lua->PushKeyDown(ev.key);
++                else lua->PushKeyUp(ev.key);
++                continue;
++            }
++            float sx = 0, sy = 0;
++            MapPoint(ev.x, ev.y, &sx, &sy);
++            if (ev.is_move) {
++                lua->SetMousePoint(sx, sy);
++                lua->DragMove(sx, sy);
++                continue;
++            }
++            lua->SetMousePoint(sx, sy);
++            if (ev.down) {
++                lua->PushKeyDown(kKeyTap);
++                touch = 1;
++                lua->BeginDrag(sx, sy);
++            } else {
++                lua->PushKeyUp(kKeyTap);
++                touch = 0;
++                const bool dragging = lua->DragMoved();
++                lua->EndDrag();
++                if (!dragging) {
++                    tapped = true;
++                    tap_x = sx;
++                    tap_y = sy;
++                }
++            }
++            lua->SetTouchCount(touch);
++        }
++        if (tapped) lua->ClickAt(tap_x, tap_y);
++    }
++
++    void DrainQueued() {
++        if (!ctx || !ctx->Started()) return;
++        LuaEngine &lua = ctx->lua();
++        AsbRunner &runner = ctx->runner();
++        while (!lua.IsWaiting() && lua.HasQueuedTag()) {
++            std::string name;
++            std::vector<std::pair<std::string, std::string>> attrs;
++            if (!lua.PopQueuedTag(&name, &attrs)) break;
++            if (name == "jump" || name == "call") {
++                std::string file, label;
++                for (const auto &kv : attrs) {
++                    if (kv.first == "file") file = kv.second;
++                    else if (kv.first == "label") label = kv.second;
++                }
++                if (name == "call") runner.Call(file, label);
++                else runner.Jump(file, label);
++            } else {
++                lua.DispatchTag(name, attrs, false);
++            }
++        }
++    }
++
++    void Step() {
++        if (!ctx || !ctx->Started()) return;
++        LuaEngine &lua = ctx->lua();
++        AsbRunner &runner = ctx->runner();
++        if (runner.Loaded() && !runner.Halted() && !lua.IsWaiting()) {
++            for (int i = 0; i < 4 && runner.Loaded() && !runner.Halted(); ++i) {
++                runner.ExecuteLine(lua);
++                DrainQueued();
++                if (lua.IsWaiting()) break;
++            }
++        } else if (!lua.IsWaiting() && lua.HasQueuedTag()) {
++            DrainQueued();
++        }
++    }
++
++    void Present(float fb_w, float fb_h) {
++        glBindFramebuffer(GL_FRAMEBUFFER, 0);
++        glDisable(GL_SCISSOR_TEST);
++        glDisable(GL_DEPTH_TEST);
++        glDisable(GL_CULL_FACE);
++        glViewport(0, 0, (GLsizei)fb_w, (GLsizei)fb_h);
++        glClearColor(0.f, 0.f, 0.f, 1.f);
++        glClear(GL_COLOR_BUFFER_BIT);
++
++        // Letterbox: fit the stage into the canvas and centre it. The stage never stretches, which is
++        // what keeps circles round when the window's aspect ratio differs.
++        const float s = std::min(fb_w / (float)stage_w, fb_h / (float)stage_h);
++        const int vw = (int)((float)stage_w * s), vh = (int)((float)stage_h * s);
++        const int vx = ((int)fb_w - vw) / 2, vy = ((int)fb_h - vh) / 2;
++        glViewport(vx, vy, vw, vh);
++
++        ctx->compositor().Draw();
++        presented += 1;
++    }
++
++    std::unique_ptr<EngineContext> ctx;
++    int stage_w = 1280, stage_h = 720;
++    int css_w = 1280, css_h = 720;
++    bool booted = false;
++    bool exit_requested = false;
++    unsigned long long drawn_rev = ~0ull;
++    unsigned long long presented = 0;
++    std::string last_error;
++    std::deque<RawInput> events;
++};
++
++WebEngine g_engine;
++EMSCRIPTEN_WEBGL_CONTEXT_HANDLE g_gl = 0;
++bool g_loop_started = false;
++
++bool CreateGlContext() {
++    EmscriptenWebGLContextAttributes attrs;
++    emscripten_webgl_init_context_attributes(&attrs);
++    attrs.alpha = false;
++    attrs.depth = false;
++    // Stencil stays on: the compositor masks layers, and a missing stencil buffer shows up as
++    // masks that simply do not apply rather than as a GL error.
++    attrs.stencil = true;
++    attrs.antialias = false;
++    attrs.premultipliedAlpha = true;
++    attrs.preserveDrawingBuffer = false;
++    attrs.majorVersion = 2; // WebGL2. The engine targets GLES2; ES2 calls are a subset of ES3.
++    attrs.minorVersion = 0;
++    attrs.powerPreference = EM_WEBGL_POWER_PREFERENCE_HIGH_PERFORMANCE;
++    attrs.failIfMajorPerformanceCaveat = false;
++
++    g_gl = emscripten_webgl_create_context(kCanvasTarget, &attrs);
++    if (!g_gl) return false;
++    emscripten_webgl_make_context_current(g_gl);
++    // A tainted or lost context is silent otherwise: every later GL call becomes a no-op and the
++    // canvas stays black, which reads like "the engine drew nothing".
++    Log(kLogInfo, std::string("web host: GL ") + (const char *)glGetString(GL_VERSION));
++    return true;
++}
++
++void Frame() {
++    g_engine.Tick();
++    if (g_engine.ExitRequested()) {
++        emscripten_cancel_main_loop();
++    }
++}
++
++} // namespace
++
++//---------------------------------------------------------------------------
++// Entry points for the page.
++//
++// Everything the page needs is an exported C function rather than a raw `ccall` into C++: the
++// signature stays stable, and a mistake in the page surfaces as a failed call instead of as a silent
++// no-op.
++//---------------------------------------------------------------------------
++
++extern "C" {
++
++/** Creates the GL context and opens `pack` (a path inside the Emscripten filesystem). */
++EMSCRIPTEN_KEEPALIVE int artc_web_open(const char *pack, const char *os_id) {
++    if (!CreateGlContext()) {
++        // Naming the target is not decoration: resolution goes through `querySelector(kCanvasTarget)`,
++        // so "no context" here usually means the host could not answer for that selector — which has
++        // nothing to do with WebGL being available.
++        const std::string why = std::string("could not create a WebGL2 context on ") + kCanvasTarget +
++                                " (the host must be able to resolve that selector to its canvas)";
++        Log(kLogError, "web host: " + why);
++        g_engine.SetLastError(why);
++        return 0;
++    }
++    const std::string os = (os_id && *os_id) ? os_id : "windows";
++    if (!g_engine.Open(pack ? pack : "", os)) {
++        const std::string why = std::string("could not open pack: ") + (pack ? pack : "(null)");
++        Log(kLogError, "web host: " + why);
++        g_engine.SetLastError(why);
++        return 0;
++    }
++    return 1;
++}
++
++/**
++ * One frame, driven by the page.
++ *
++ * This is the entry point JSPI needs, and it exists as an **export** rather than as an
++ * `emscripten_set_main_loop` callback on purpose. Emscripten decides which functions to wrap in
++ * `WebAssembly.promising` by comparing `wasmTable.get(ptr)` against `instance.exports.f`; V8 satisfies
++ * that identity by spec but **JavaScriptCore does not**, and where it fails the first suspending read
++ * throws `SuspendError: Suspending() wrapper called outside of a promising() context`. Calling the
++ * export directly sidesteps the comparison entirely, so the same build behaves the same on both
++ * engines. (The reference kirikiroid2-web port found this the hard way and ships
++ * `jspi_jsc_mainloop_fix.js` to force the wrap.)
++ *
++ * Returns 1 to keep running, 0 when the engine has asked to exit.
++ */
++EMSCRIPTEN_KEEPALIVE int artc_web_frame(void) {
++    g_engine.Tick();
++    return g_engine.ExitRequested() ? 0 : 1;
++}
++
++/**
++ * Starts an `emscripten_set_main_loop` frame loop.
++ *
++ * Only for builds without `-sJSPI`; with JSPI the page must drive {@link artc_web_frame} itself and
++ * await it, because a suspend through the main-loop path hits the identity comparison described
++ * above. `fps = 0` means "follow the display refresh".
++ */
++EMSCRIPTEN_KEEPALIVE void artc_web_start(void) {
++    if (g_loop_started) return;
++    g_loop_started = true;
++    emscripten_set_main_loop(Frame, 0, 1);
++}
++
++EMSCRIPTEN_KEEPALIVE void artc_web_stop(void) {
++    if (!g_loop_started) return;
++    g_loop_started = false;
++    emscripten_cancel_main_loop();
++}
++
++/** Pointer input in **CSS pixels** relative to the canvas; the host letterboxes them to the stage. */
++EMSCRIPTEN_KEEPALIVE void artc_web_pointer(float x, float y, int down) {
++    g_engine.Pointer(x, y, 0, down != 0);
++}
++
++EMSCRIPTEN_KEEPALIVE void artc_web_pointer_move(float x, float y) {
++    g_engine.Pointer(x, y, 1, 0);
++}
++
++EMSCRIPTEN_KEEPALIVE void artc_web_key(int key, int down) {
++    g_engine.Key(key, down != 0);
++}
++
++EMSCRIPTEN_KEEPALIVE void artc_web_resize(int css_w, int css_h) {
++    g_engine.Resize(css_w, css_h);
++}
++
++EMSCRIPTEN_KEEPALIVE int artc_web_started(void) { return g_engine.Started() ? 1 : 0; }
++EMSCRIPTEN_KEEPALIVE int artc_web_stage_width(void) { return g_engine.StageWidth(); }
++EMSCRIPTEN_KEEPALIVE int artc_web_stage_height(void) { return g_engine.StageHeight(); }
++EMSCRIPTEN_KEEPALIVE int artc_web_revision(void) { return (int)g_engine.Revision(); }
++EMSCRIPTEN_KEEPALIVE int artc_web_presented(void) { return (int)g_engine.Presented(); }
++EMSCRIPTEN_KEEPALIVE int artc_web_exit_requested(void) { return g_engine.ExitRequested() ? 1 : 0; }
++EMSCRIPTEN_KEEPALIVE const char *artc_web_last_error(void) { return g_engine.LastError(); }
++
++/**
++ * Log sink so page-side code can surface engine output where it likes.
++ *
++ * `SetLogSink` takes a `std::function<void(int, const std::string &)>`, so the C callback is wrapped
++ * rather than bound directly — passing a raw function pointer into a `std::function` by signature
++ * alone does not compile, and the wrapper is where the `const char *` becomes a `std::string`.
++ */
++EMSCRIPTEN_KEEPALIVE void artc_web_log_sink(void (*sink)(int level, const char *message)) {
++    if (!sink) {
++        artc::SetLogSink(artc::LogSink{});
++        return;
++    }
++    artc::SetLogSink([sink](int level, const std::string &message) { sink(level, message.c_str()); });
++}
++
++} // extern "C"
+diff --git a/src/host/web_page.html b/src/host/web_page.html
+new file mode 100644
+index 0000000..453a8cd
+--- /dev/null
++++ b/src/host/web_page.html
+@@ -0,0 +1,183 @@
++<!doctype html>
++<html lang="en">
++<head>
++<meta charset="utf-8">
++<meta name="viewport" content="width=device-width,initial-scale=1">
++<title>Artemis (web host)</title>
++<style>
++  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
++  #canvas { display: block; width: 100%; height: 100%; background: #000; touch-action: none; }
++  #overlay {
++    position: fixed; left: 8px; top: 8px; color: #ddd; font: 12px/1.5 ui-monospace, monospace;
++    background: rgba(0,0,0,.6); padding: 6px 8px; border-radius: 4px; white-space: pre;
++    pointer-events: none; max-width: 70ch;
++  }
++</style>
++</head>
++<body>
++<canvas id="canvas" tabindex="0"></canvas>
++<div id="overlay">loading…</div>
++<script>
++  // The page owns the canvas and the input; the engine runs in a worker (see web_worker.js for why).
++  // Transferring the canvas as an OffscreenCanvas is what lets the worker draw at all.
++  const overlay = document.getElementById('overlay');
++  const canvas = document.getElementById('canvas');
++  const params = new URLSearchParams(location.search);
++  const lines = [];
++  let status = {};
++
++  function say(text) {
++    lines.push(text);
++    if (lines.length > 8) lines.shift();
++    render();
++  }
++
++  function render() {
++    overlay.textContent = [
++      ...lines,
++      '',
++      'stage ' + (status.stage || '?'),
++      'frames ' + (status.frames ?? 0) + '  presented ' + (status.presented ?? 0) +
++        '  revision ' + (status.revision ?? 0),
++      'started ' + (status.started ?? 0) + '  heap ' + (status.heapMb ?? '?') + ' MB',
++      'last error ' + (status.error || '(none)'),
++    ].join('\n');
++  }
++
++  // The pack files sit beside the page; `?base=` overrides where they are fetched from.
++  const base = params.get('base') || location.pathname.replace(/[^/]*$/, '');
++  const pack = params.get('pack') || '/game/root.pfs';
++  const os = params.get('os') || 'windows';
++
++  const worker = new Worker('web_worker.js');
++  // Tween resolutions are kept aside rather than only shown. They are the record of what the engine
++  // actually parsed for each animation (`from`, `to`, `from_current`, duration), and the overlay only
++  // holds the last few lines — so a browser check can read `window.__artcTweens` and get all of them
++  // instead of paging through the console, which carries thousands of `tag[trace]` lines a minute.
++  window.__artcTweens = [];
++  window.__artcDraws = [];
++  window.__artcLayer = [];
++  const tweenLog = window.__artcTweens;
++  const drawLog = window.__artcDraws;
++  const layerLog = window.__artcLayer;
++
++  worker.onmessage = function (event) {
++    const data = event.data || {};
++    if (data.type === 'log') {
++      say(data.text);
++      // One ordered stream with a page timestamp. The per-kind buffers below are convenient, but they
++      // destroy interleaving — and the open question is *when* a `lyprop` that moves a parent or changes
++      // an anchor lands relative to the tween that is about to start. postMessage is a single ordered
++      // channel, so this preserves the real sequence.
++      window.__artcSeq = window.__artcSeq || [];
++      window.__artcSeq.push([Math.round(performance.now()), data.text]);
++      if (window.__artcSeq.length > 1500) window.__artcSeq.shift();
++      if (/lytween /i.test(data.text)) {
++        tweenLog.push(data.text);
++        if (tweenLog.length > 500) tweenLog.shift();
++      } else if (/draw\[/i.test(data.text)) {
++        // The draw[] line lists every visible layer with its resolved rect. Keeping it is what makes a
++        // wrong position measurable rather than arguable.
++        drawLog.push(data.text);
++        if (drawLog.length > 400) drawLog.shift();
++      } else if (/bgchain/i.test(data.text)) {
++        // One line per change: a layer's ancestor chain inputs beside the rect they resolve to.
++        window.__artcChain = window.__artcChain || [];
++        window.__artcChain.push(data.text);
++        if (window.__artcChain.length > 200) window.__artcChain.shift();
++      } else if (/lyprop |lyc /i.test(data.text)) {
++        // What created the layer and what its properties were set to — the other half of any question
++        // about a layer that is the wrong size or in the wrong place.
++        layerLog.push(data.text);
++        if (layerLog.length > 500) layerLog.shift();
++      }
++    } else if (data.type === 'status') { status = data; render(); }
++  };
++  worker.onerror = function (event) {
++    say('worker error: ' + (event.message || '(no message)'));
++    console.error('[artc] worker error', event);
++  };
++
++  function cssSize() {
++    return { width: canvas.clientWidth || window.innerWidth, height: canvas.clientHeight || window.innerHeight };
++  }
++
++  let dpr = window.devicePixelRatio || 1;
++
++  // The backing store is sized **before** the canvas is transferred, and never again from the page:
++  // `transferControlToOffscreen` hands ownership away, and touching `canvas.width` afterwards throws
++  //   InvalidStateError: Cannot resize canvas after call to transferControlToOffscreen().
++  // Later resizes are therefore sent to the worker, which resizes the OffscreenCanvas it owns.
++  function sizeBackingStore() {
++    const size = cssSize();
++    canvas.width = Math.max(1, Math.round(size.width * dpr));
++    canvas.height = Math.max(1, Math.round(size.height * dpr));
++    return size;
++  }
++
++  window.addEventListener('resize', function () {
++    dpr = window.devicePixelRatio || 1;
++    const size = cssSize();
++    worker.postMessage({ type: 'resize', width: size.width, height: size.height, dpr: dpr });
++  });
++
++  // Engine key ids, mapped in one place rather than spread through the C++ entry point.
++  const KEY_MAP = {
++    Escape: 8, Backspace: 8, Enter: 1, ' ': 1,
++    ArrowUp: 2, ArrowDown: 3, ArrowLeft: 4, ArrowRight: 5,
++    Control: 6, Shift: 7, Tab: 9, PageUp: 10, PageDown: 11,
++  };
++
++  function point(event) {
++    // CSS pixels relative to the canvas; the worker letterboxes them to the stage.
++    const rect = canvas.getBoundingClientRect();
++    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
++  }
++
++  canvas.addEventListener('pointerdown', function (e) {
++    // Guarded, because the throw would land *before* the postMessage: a synthetic pointer — browser
++    // automation, or any pointer id the browser does not consider currently active — makes
++    // `setPointerCapture` raise `NotFoundError`, and the host then never sees the press at all. The
++    // press is what matters; the capture is only a nicety for drags that leave the element.
++    try { canvas.setPointerCapture(e.pointerId); }
++    catch (error) { /* not an active pointer; the press still counts */ }
++    const p = point(e);
++    worker.postMessage({ type: 'pointer', x: p.x, y: p.y, down: 1 });
++  });
++  canvas.addEventListener('pointerup', function (e) {
++    const p = point(e);
++    worker.postMessage({ type: 'pointer', x: p.x, y: p.y, down: 0 });
++  });
++  canvas.addEventListener('pointermove', function (e) {
++    const p = point(e);
++    worker.postMessage({ type: 'pointermove', x: p.x, y: p.y });
++  });
++  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
++  window.addEventListener('keydown', function (e) {
++    const key = KEY_MAP[e.key];
++    if (key === undefined) return;
++    e.preventDefault();
++    worker.postMessage({ type: 'key', key: key, down: 1 });
++  });
++  window.addEventListener('keyup', function (e) {
++    const key = KEY_MAP[e.key];
++    if (key === undefined) return;
++    e.preventDefault();
++    worker.postMessage({ type: 'key', key: key, down: 0 });
++  });
++
++  const size = sizeBackingStore();
++  const offscreen = canvas.transferControlToOffscreen();
++  worker.postMessage({
++    type: 'canvas',
++    canvas: offscreen,
++    pack: pack,
++    os: os,
++    base: base,
++    width: size.width,
++    height: size.height,
++    dpr: dpr,
++  }, [offscreen]);
++</script>
++</body>
++</html>
+diff --git a/src/host/web_worker.js b/src/host/web_worker.js
+new file mode 100644
+index 0000000..bdbebfa
+--- /dev/null
++++ b/src/host/web_worker.js
+@@ -0,0 +1,272 @@
++/**
++ * The artemis-compat web host, running **inside a worker**.
++ *
++ * Why a worker rather than the page: the engine's pack reads are synchronous by design
++ * (`Pf8Reader::ReadAt` is a blocking, positional read), and the only way to serve bytes synchronously in
++ * a browser is `XMLHttpRequest` with `async = false` — which the main thread forbids with
++ * `InvalidAccessError` and a worker allows.
++ *
++ * Two earlier attempts failed by trying to keep the engine on the main thread and make the read
++ * *appear* synchronous instead: JSPI suspends the wasm stack, and its switch did not preserve the
++ * caller's frames (`PackManager::OpenChain`'s `base_path` came back as a fragment of unrelated memory);
++ * Asyncify saves and restores the stack itself, but the write it performs after its `await` was
++ * measured landing **after** the wasm had resumed, so `ReadAt` returned with its buffer still zero. A
++ * read that simply completes needs neither mechanism.
++ *
++ * The canvas arrives as an `OffscreenCanvas` transferred from the page; input arrives as messages.
++ */
++/* global importScripts, self */
++
++// Where the pack files are served from, and the engine inputs. Filled in when the canvas arrives.
++let packBase = './';
++let frames = 0;
++let running = false;
++// Set once Emscripten's runtime is initialised. See the guard in `self.onmessage` for why input has to
++// wait for it.
++let ready = false;
++
++function describe(error) {
++  if (error === null) return 'null';
++  if (error === undefined) return 'undefined';
++  if (typeof error === 'string') return error;
++  if (error.message) return error.message;
++  if (error.name) return error.name;
++  try { return JSON.stringify(error); } catch (e) { return String(error); }
++}
++
++function say(text) {
++  self.postMessage({ type: 'log', text: String(text) });
++}
++
++// What the page should be told about, shared by both output streams. `draw[` carries each layer's
++// resolved rect, which is the only way to see where a layer was actually drawn over time — the tween
++// log says what the engine intended, not what came out. `lyprop`/`lyc` are what set a layer up in the
++// first place, so they are what explains a layer whose *size* (not position) is wrong.
++//
++// `bgchain` is deliberately NOT here. It is a per-frame probe, and because it changes on every frame of
++// a pan it filled the page's whole ordered buffer and evicted exactly the `lyprop` lines it was meant to
++// be read alongside. A probe that runs every frame must not share a transport with the events being
++// correlated against it.
++// `trans`/`wait`/`anime` are here because the 320 ms between the pan being set up and the texture being
++// swapped to the 1x variant is unaccounted for, and a cross-fade is exactly what would live there. A
++// gap in a trace is a gap in the evidence, not an absence of events.
++// `asb:` lines carry the script flow (which label is running, where a call returns). The engine's .asb
++// runner is re-entrant across files, so "two labels interleaved" is a real way for the tag order to
++// differ from the script's — and the trace has to show the flow, not just the tags, to see it.
++const MIRROR = /ERROR|WARN|Aborted|abort|assert|exception|unreachable|lytween |draw\[|lyprop |lyc |trans |wait |anime |asb: |\biet\b/i;
++
++// The engine's frame budget, matching the Android host.
++//
++// `system.ini` declares `FPS = 60`, and the Android host paces its engine thread to one frame per
++// ~16 ms — it sleeps 16 ms whenever a swap did not already block on vsync. Driving the tick from
++// `requestAnimationFrame` alone instead runs at the display's refresh rate, which here measured
++// ~160 Hz. That is not a cosmetic difference: the script runner executes at most **four script lines
++// per frame**, so a 2.7x faster tick advances the script against the animation clock 2.7x faster, which
++// changes how a scene's tag lines interleave with a tween that was just started. The frames a tween
++// spends "starting" are exactly where a wrong-looking start position shows up.
++const FRAME_MS = 1000 / 60;
++let last_frame = 0;
++
++function loop(now) {
++  if (!running) return;
++  // Scheduled first so every exit path keeps the loop alive.
++  requestAnimationFrame(loop);
++  if (typeof now === 'number' && now - last_frame < FRAME_MS - 0.5) return;
++  if (typeof now === 'number') last_frame = now;
++  // The call is wrapped rather than left to the promise chain, because a wasm trap inside an exported
++  // function throws **synchronously**: `_artc_web_frame()` raises before `Promise.resolve` is ever
++  // called, so the throw leaves `loop()` entirely and surfaces as a worker-level
++  // `Uncaught RuntimeError: Aborted()` with no frame and no context. Catching here keeps the failing
++  // frame's stack and reports it through the same channel as every other message.
++  let pending;
++  try {
++    pending = Promise.resolve(self.Module._artc_web_frame());
++  } catch (error) {
++    running = false;
++    say('frame ' + frames + ' threw: ' + describe(error));
++    if (error && error.stack) say(String(error.stack));
++    console.error('[artc] frame threw synchronously', error);
++    return;
++  }
++  pending.then(function () {
++    frames += 1;
++    // Continuation is decided by `exit_requested`, never by the export's return value: an instrumented
++    // export does not return the function's value, and switching on it once stopped the loop after a
++    // single frame — a black canvas that reads exactly like a renderer fault.
++    if (self.Module._artc_web_exit_requested()) {
++      running = false;
++      say('frame loop stopped at frame ' + frames + ' (engine requested exit)');
++    }
++  }, function (error) {
++    running = false;
++    say('frame failed: ' + describe(error));
++    if (error && error.stack) say(String(error.stack));
++    console.error('[artc] frame failed', error);
++  });
++}
++
++self.onmessage = function (event) {
++  const data = event.data || {};
++
++  // Input is dropped until the runtime is initialised.
++  //
++  // `Module._artc_web_*` is assigned as soon as the wasm is **instantiated**, but Emscripten only calls
++  // `initRuntime()` a moment later — there is an `await` between the two inside its own `run()`.
++  // Calling an export inside that window is undefined behaviour: with assertions it aborts as
++  //   "call to '_artc_web_pointer_move' via reference taken before Wasm module initialization"
++  // and without them it aborted as a bare `Aborted()`, which is the report this was chased from.
++  //
++  // A real mouse resting on the page during load is enough to trigger it, because the page wires
++  // `pointermove` up before the module is ready. Nothing is lost by dropping those events: the engine
++  // has not booted, so there is no state for them to act on. The `canvas` message is exempt — it is
++  // what loads the module in the first place.
++  if (data.type !== 'canvas' && !ready) return;
++
++  if (data.type === 'pointer') {
++    if (self.Module && self.Module._artc_web_pointer) {
++      self.Module._artc_web_pointer(data.x, data.y, data.down ? 1 : 0);
++    }
++    return;
++  }
++  if (data.type === 'pointermove') {
++    if (self.Module && self.Module._artc_web_pointer_move) {
++      self.Module._artc_web_pointer_move(data.x, data.y);
++    }
++    return;
++  }
++  if (data.type === 'key') {
++    if (self.Module && self.Module._artc_web_key) self.Module._artc_web_key(data.key, data.down ? 1 : 0);
++    return;
++  }
++  if (data.type === 'resize') {
++    // The worker owns the OffscreenCanvas, so it is the only side that may resize it — the page gave up
++    // that right when it transferred control.
++    const dpr = data.dpr || 1;
++    if (self.Module && self.Module.canvas) {
++      self.Module.canvas.width = Math.max(1, Math.round((data.width || 1280) * dpr));
++      self.Module.canvas.height = Math.max(1, Math.round((data.height || 720) * dpr));
++    }
++    if (self.Module && self.Module._artc_web_resize) {
++      self.Module._artc_web_resize(data.width, data.height);
++    }
++    return;
++  }
++  if (data.type !== 'canvas') return;
++
++  packBase = data.base || './';
++  self.__artcBase = packBase;
++  self.__artcPacks = {};
++
++  // Emscripten resolves the GL canvas through its HTML-target table, whose first slot is the literal
++  // `0` rather than the document:
++  //
++  //     var specialHTMLTargets = [0, globalThis.document ?? 0, globalThis.window ?? 0];
++  //     var findEventTarget = target => {
++  //       target = target > 2 ? UTF8ToString(target) : target;      // a pointer is decoded, 0 is not
++  //       return specialHTMLTargets[target] || globalThis.document?.querySelector(target);
++  //     };
++  //
++  // So `create_context(0, ...)` matches slot 0 — the number `0`, which is falsy — and then asks
++  // `document.querySelector(0)`. **Passing 0 never resolved a canvas on any thread**; the host has to
++  // name the element, `"#canvas"`, and resolution happens by asking `document`. A worker has no
++  // `document` at all, which is why the call failed with "querySelector is not a function" once this
++  // file started publishing one, and returned a bare `0` before that. The shim answers the only
++  // question Emscripten asks of it, and answers it with the OffscreenCanvas the page transferred.
++  self.document = {
++    querySelector: function (selector) {
++      return selector === '#canvas' ? data.canvas : null;
++    },
++  };
++  // `GL.createContext` wraps `getContext` with a Safari fix-up whose return test reads
++  // `gl instanceof WebGLRenderingContext`. That constructor does not exist in a worker, and an
++  // `instanceof` against `undefined` throws rather than answering false. The wrapper only ever wants
++  // "is this not a WebGL1 context", so a placeholder that no WebGL2 context is an instance of is
++  // enough to make the test come out the way a page's does.
++  if (typeof self.WebGLRenderingContext === 'undefined') {
++    self.WebGLRenderingContext = function WebGLRenderingContext() {};
++  }
++
++  // `self.Module` is built **before** `importScripts`, on purpose. Emscripten's glue opens with
++  // `var Module = typeof Module != 'undefined' ? Module : {}`, so a `Module` that already exists in the
++  // worker's global scope is adopted and its `canvas` / `onRuntimeInitialized` are honoured. Setting
++  // them after `importScripts` is both racy and, for `canvas`, too late: `Module` would not exist yet
++  // and the reference throws `ReferenceError: Module is not defined`.
++  self.Module = {
++    canvas: data.canvas,
++    // Engine output goes to the page as well as the console when it looks like a complaint.
++    //
++    // The abort reason is the whole point: Emscripten prints "terminating with uncaught exception" and
++    // any assertion message through `err`, which reaches the console and nothing else. So a crash shows
++    // up on screen as a bare `Aborted()` while its explanation sits in a DevTools window nobody has
++    // open. Everything at INFO stays on the console, because the engine traces every tag it executes
++    // and mirroring that would bury the one line that matters.
++    // Mirrored to the page for two reasons. Abort reasons only ever reached the console, which is why a
++    // crash surfaced as a bare `Aborted()` whose explanation sat in a DevTools window nobody had open.
++    // And the `lytween` resolutions are the diagnostic that identifies a wrong animation, but they are
++    // buried under thousands of `tag[trace]` lines a minute — the page keeps them in
++    // `window.__artcTweens` so they can be read back without paging through that.
++    //
++    // Both streams share the filter on purpose. Which one the engine's logger uses for INFO is an
++    // implementation detail that changed under us once already: `lytween` was added to `print` only and
++    // the mirror produced nothing, because the lines were arriving on `printErr`.
++    print: function (text) {
++      console.log('[artc]', text);
++      if (MIRROR.test(String(text))) say(text);
++    },
++    printErr: function (text) {
++      console.warn('[artc]', text);
++      if (MIRROR.test(String(text))) say(text);
++    },
++    onRuntimeInitialized: function () {
++      const M = self.Module;
++      // The runtime is up, so the input handlers may now reach into the module.
++      ready = true;
++      // Deliberately **not** probing `M.canvas.getContext('webgl2')` here. A canvas can only be asked for
++      // a context once, and the attributes are fixed by that first call; probing it with default
++      // attributes claims the context and makes Emscripten's own `emscripten_webgl_create_context` fail
++      // for the rest of the page's life. That is what a "diagnostic" line did here, and it looked exactly
++      // like a host bug.
++      console.log('[artc] canvas: ctor=' +
++                  (M.canvas && M.canvas.constructor && M.canvas.constructor.name) +
++                  ' size=' + (M.canvas ? M.canvas.width + 'x' + M.canvas.height : 'n/a'));
++      M._artc_web_resize(data.width || 1280, data.height || 720);
++      // `ccall` marshals strings to C pointers; calling the export directly passes a JS string where a
++      // pointer is expected, and the host then reports an empty pack path — which reads like a missing
++      // file rather than a marshalling mistake.
++      const open = M.cwrap('artc_web_open', 'number', ['string', 'string']);
++      let ok = false;
++      try {
++        ok = open(data.pack || '/game/root.pfs', data.os || 'windows');
++      } catch (error) {
++        say('open threw: ' + describe(error));
++        console.error('[artc] open threw', error);
++        return;
++      }
++      if (!ok) {
++        say('open failed: ' + (M.UTF8ToString(M._artc_web_last_error()) || '(no detail)'));
++        return;
++      }
++      say('opened ' + data.pack + ' (' + M._artc_web_stage_width() + 'x' +
++          M._artc_web_stage_height() + ')');
++      running = true;
++      requestAnimationFrame(loop);
++      setInterval(function () {
++        // `heapMb` is reported because the engine streams textures and never frees them, so a wasm heap
++        // that only grows is the leading candidate for an abort after minutes of play. A trend line
++        // answers that; a crash alone does not.
++        self.postMessage({
++          type: 'status',
++          stage: M._artc_web_stage_width() + 'x' + M._artc_web_stage_height(),
++          frames: frames,
++          started: M._artc_web_started(),
++          presented: M._artc_web_presented(),
++          revision: M._artc_web_revision(),
++          heapMb: Math.round(M.HEAPU8.length / 1048576),
++          error: M.UTF8ToString(M._artc_web_last_error()),
++        });
++      }, 500);
++    },
++  };
++
++  importScripts('artemis-web.js');
++};
+diff --git a/src/pack/pf8_reader.cpp b/src/pack/pf8_reader.cpp
+index e3d9900..d071f40 100644
+--- a/src/pack/pf8_reader.cpp
++++ b/src/pack/pf8_reader.cpp
+@@ -5,6 +5,10 @@
+ 
+ #include <cstdio>
+ #include <cstring>
++#if defined(__EMSCRIPTEN__)
++#include <emscripten.h>
++#include <emscripten/em_js.h>
++#endif
+ #if !defined(_WIN32)
+ #include <fcntl.h>
+ #include <unistd.h>
+@@ -12,10 +16,104 @@
+ 
+ namespace artc {
+ 
++#if defined(__EMSCRIPTEN__)
++// Ids are handed out in sequence rather than derived from `path_`, so two readers over the same path
++// (a pack and its patch chain are opened separately) stay distinguishable to the page.
++int AllocatePackId() {
++    static int next = 1;
++    return next++;
++}
++#endif
++
++#if defined(__EMSCRIPTEN__)
++// Registers a pack's path with the page, once, **synchronously**.
++//
++// The path deliberately does not travel through the async call below. Passing a `const char *` into
++// `EM_ASYNC_JS` did not survive marshalling: the JS side received a pointer that was not the string, so
++// `UTF8ToString` decoded whatever lay at that address and the page was asked for a path like
++// `/%05y%EF%BF%BDqY%EF%BF%BD...` — binary garbage, `%EF%BF%BD` being the replacement character a
++// decoder emits for bytes that are not UTF-8. The failure surfaces as a 404 for a nonsense file name,
++// which reads like a routing problem rather than an ABI one.
++//
++// A synchronous `EM_JS` call has no such trouble, and the registration happens once per reader, so
++// nothing is lost by splitting it out. The async call then carries only integers and a double.
++// The path reaches JavaScript as an **integer address**, never as a `const char *` parameter.
++//
++// Both `EM_JS` and `EM_ASYNC_JS` failed to marshal a string argument in this SDK (6.0.9): the JS side
++// received a pointer that was not the string, and `UTF8ToString` decoded whatever happened to be at
++// that address. Because the mis-read pointer landed in `fprintf`'s output buffer, the page was asked
++// for a URL like `/extra_28.rft'` — a fragment of a diagnostic message — and the resulting 404 reads
++// like a routing problem rather than an ABI one.
++//
++// Passing the address as an `int` avoids the argument marshalling entirely: the only thing crossing
++// the boundary is a number, and the string is read out of a buffer whose lifetime this file controls.
++static char g_pack_path[64][512];
++
++EM_JS(void, artc_host_register_pack, (int id, int path_addr), {
++    if (typeof self === 'undefined') return;
++    if (!self.__artcPacks) self.__artcPacks = {};
++    self.__artcPacks[id] = UTF8ToString(path_addr);
++});
++
++// Host byte source for the browser build.
++//
++// `ReadAt` is the **only** place this reader touches storage — already positional and stateless
++// (`pread` with an explicit offset, no seek state) — so it is the whole seam. On the web the bytes come
++// from the page, and `EM_ASYNC_JS` is what makes that affordable: with JSPI the read **suspends** the
++// wasm stack and resumes when the fetch settles, rather than blocking a thread.
++//
++// Blocking instead is the thing to avoid. A synchronous ranged fetch is legal only in a worker, and
++// putting the engine in a worker to get one takes the page's globals out of its reach. Suspending
++// removes the requirement altogether.
++//
++// Requires `-sJSPI=1` and that every entry point the frame can be reached through is listed in
++// `-sJSPI_EXPORTS`; a suspend through an unlisted export throws
++// `SuspendError: Suspending() wrapper called outside of a promising() context`.
++//
++// Returns the bytes written, or -1 when the page cannot supply them. A short read is a failure: callers
++// treat `ReadAt` as all-or-nothing.
++EM_JS(int, artc_host_read_range, (int id, int offset, void *buf, int len), {
++    if (typeof self === 'undefined' || !self.__artcPacks) return -1;
++    const path = self.__artcPacks[id];
++    if (!path) return -1;
++    // Only the basename picks the URL, so the patch chain (`root.pfs.000`) resolves beside the base pack.
++    const url = (self.__artcBase || '') + path.replace(/^.*[\\/]/, '');
++    const from = offset >>> 0;
++    const xhr = new XMLHttpRequest();
++    // `false` — synchronous. Legal **in a worker**, which is the whole reason the module runs in one.
++    // On the main thread this throws InvalidAccessError, and that is what made an earlier attempt at
++    // exactly this arrangement fail: the approach was sound, the placement was not.
++    //
++    // Synchronous completion removes the two failure classes met on the way here: JSPI's stack switch
++    // did not preserve the caller's frames, and Asyncify's write after its `await` was measured landing
++    // after the wasm had resumed, so `ReadAt` returned with its buffer still zero. Neither mechanism is
++    // needed when the read simply finishes.
++    xhr.open('GET', url, false);
++    xhr.responseType = 'arraybuffer';
++    xhr.setRequestHeader('Range', 'bytes=' + from + '-' + (from + len - 1));
++    try {
++        xhr.send(null);
++    } catch (error) {
++        console.error('[artc] sync range request failed', url, error);
++        return -1;
++    }
++    if (xhr.status !== 206) {
++        // 200 means the server ignored Range and is sending the whole file, which for a multi-gigabyte
++        // pack has to be refused rather than sliced down silently.
++        console.error('[artc] range ' + url + ' -> ' + xhr.status + ' (expected 206)');
++        return -1;
++    }
++    const bytes = new Uint8Array(xhr.response);
++    const n = Math.min(bytes.length, len);
++    HEAPU8.set(bytes.subarray(0, n), buf);
++    return n;
++});
++#endif
++
+ Pf8Reader::~Pf8Reader() { Close(); }
+ 
+ void Pf8Reader::Close() {
+-#if !defined(_WIN32)
++#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+     if (fd_ >= 0) {
+         ::close(fd_);
+         fd_ = -1;
+@@ -23,15 +121,41 @@ void Pf8Reader::Close() {
+ #endif
+     entries_.clear();
+     index_.clear();
++#if defined(__EMSCRIPTEN__)
++    // Cleared so a reused reader registers again under its (possibly new) path.
++    pack_id_ = 0;
++#endif
+ }
+ 
+ // Positional read off the retained pack handle. POSIX keeps one fd for the
+ // reader lifetime and uses pread (explicit offsets → safe for concurrent
+ // reads, no per-call fopen); Windows falls back to the legacy open-seek-
+-// read-close path.
++// read-close path; Emscripten defers to the page's byte source, which is the
++// placement that makes a multi-gigabyte package usable in a browser at all.
+ bool Pf8Reader::ReadAt(uint64_t offset, void *buf, size_t len) const {
+     if (len == 0) return true;
+-#if !defined(_WIN32)
++#if defined(__EMSCRIPTEN__)
++    // Registered lazily, on the first read, not in `Open`.
++    //
++    // `PackManager::OpenChain` probes 64 candidate patch names (`<base>.000` … `<base>.063`) and skips
++    // the ones that do not exist, so registering in `Open` created 64 byte-source entries for packs
++    // that never read a byte — and, worse, it registered them **before** the reads that reject them.
++    // Registering here means only readers that actually read are visible to the page, and the
++    // registration sits immediately next to its use with nothing in between.
++    if (pack_id_ == 0) {
++        const int id = AllocatePackId();
++        const_cast<Pf8Reader *>(this)->pack_id_ = id;
++        char *slot = g_pack_path[id % 64];
++        std::snprintf(slot, sizeof(g_pack_path[0]), "%s", path_.c_str());
++        artc_host_register_pack(id, (int)(intptr_t)slot);
++    }
++    // The offset crosses as a **uint32**, not a double. Packs here are under 4 GiB, so 32 bits are
++    // exactly sufficient, and keeping a floating-point argument out of the marshalling removes a
++    // suspect: `system/first.iet` sits at 2,688,417,092 — past 2^31 — and its payload arrived as
++    // gibberish while every read below 2 GiB was byte-correct.
++    const int got = artc_host_read_range(pack_id_, (int)(uint32_t)offset, buf, (int)len);
++    return got == (int)len;
++#elif !defined(_WIN32)
+     if (fd_ < 0) return false;
+     auto *p = static_cast<uint8_t *>(buf);
+     size_t done = 0;
+@@ -60,11 +184,14 @@ bool Pf8Reader::Open(const std::string &path, const std::vector<uint8_t> &key) {
+     path_ = path;
+     key_ = key;
+     encrypted_ = true;
+-
+-#if !defined(_WIN32)
++#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+     fd_ = ::open(path.c_str(), O_RDONLY);
+     if (fd_ < 0) return false;
+ #endif
++    // On Emscripten there is deliberately no open: the bytes are fetched through the page's byte
++    // source by `ReadAt`, so requiring the package to exist in the Emscripten filesystem would force
++    // the whole archive to be resident — which is the thing this port exists to avoid. The path stays
++    // as the identity the byte source resolves.
+ 
+     uint8_t header[11];
+     if (!ReadAt(0, header, sizeof(header)) ||
+diff --git a/src/pack/pf8_reader.h b/src/pack/pf8_reader.h
+index f18d5d6..9b49a08 100644
+--- a/src/pack/pf8_reader.h
++++ b/src/pack/pf8_reader.h
+@@ -88,6 +88,10 @@ private:
+     std::unordered_map<std::string, size_t> index_;
+ #if !defined(_WIN32)
+     int fd_ = -1;
++#if defined(__EMSCRIPTEN__)
++    // Which registered pack this reader reads through; see `artc_host_register_pack`.
++    mutable int pack_id_ = 0;   // assigned lazily from the const `ReadAt`
++#endif
+ #endif
+ };
+ 
+diff --git a/src/render/compositor.cpp b/src/render/compositor.cpp
+index 72862a4..b3d8b0c 100644
+--- a/src/render/compositor.cpp
++++ b/src/render/compositor.cpp
+@@ -5,6 +5,12 @@
+ #include "pack/pf8_reader.h"
+ #include "log/logger.h"
+ 
++// The numeric attribute parsers below use `strtof`/`strtol`/`strtoll` rather than `std::stof` and friends
++// precisely because the throwing forms cannot be used here (see the note on `ToF`). Stated explicitly
++// rather than relied on transitively.
++#include <cerrno>
++#include <cstdlib>
++
+ // KrKr2-Next: the GLES2 compositor is also used on OpenHarmony (the host
+ // bridge makes an EGL context current before driving it). ARTC_HAS_GLES is
+ // set by cpp/artemis/CMakeLists.txt for every platform with a GLES2 sysroot.
+@@ -63,7 +69,12 @@ int ZCmp(const std::string &a, const std::string &b) {
+         while (i < s.size() && s[i] >= '0' && s[i] <= '9') ++i;
+         if (i == 0) return -1;                 // no leading number
+         long long v = 0;
+-        try { v = std::stoll(s.substr(0, i)); } catch (...) { v = 0; }
++        // Same reason as `ToF` below: a `try`/`catch` around a libc++ throwing parse is dead code under
++        // `-fno-exceptions` — an out-of-range id would abort the engine rather than be caught.
++        errno = 0;
++        char *end = nullptr;
++        v = std::strtoll(s.c_str(), &end, 10);
++        if (end == s.c_str() || errno == ERANGE) v = 0;
+         *start = static_cast<int>(i);
+         return v;
+     };
+@@ -90,6 +101,21 @@ int SectionCount(const std::string &id) {
+     return n;
+ }
+ 
++/**
++ * Layer order: `ZCmp` — leading z, then the whole id text.
++ *
++ * A depth-first tiebreak was tried here ("same z, deeper on top" — which the surrounding comment on the
++ * old call sites claimed was the engine's rule). It is **not**, and it actively inverted the title
++ * screen: the button layers `500.b.*` are one level deeper than the character layers `500.ch.*`, so
++ * depth-first drew the buttons **over the characters**. Ordering by id text — `'b' < 'c'`, buttons
++ * below characters — is what renders correctly.
++ *
++ * So the tiebreak those call sites wrote after `ZCmp` never ran, and the ordering they therefore got is
++ * the right one. Kept as a named function so the four call sites read uniformly and so this is not
++ * "fixed" a second time.
++ */
++int ZOrder(const std::string &a, const std::string &b) { return ZCmp(a, b); }
++
+ void Compositor::EffectiveRect(const Layer &l, float *ex, float *ey,
+                                float *ea, bool *ev) const {
+     float w, h;
+@@ -176,13 +202,7 @@ std::string Compositor::HitLayer(float x, float y) const {
+     for (const auto &l : layers_) {
+         if (!ContainsPoint(l,x,y)) continue;
+         if (!best) best = &l;
+-        else {
+-            const int c = ZCmp(l.id, best->id);
+-            const bool lFront = c > 0 ||
+-                                (c == 0 &&
+-                                 SectionCount(l.id) > SectionCount(best->id));
+-            if (lFront) best = &l;
+-        }
++        else if (ZOrder(l.id, best->id) > 0) best = &l;
+     }
+     return best ? best->id : std::string();
+ }
+@@ -286,9 +306,54 @@ float ApplyEase(int ease, float t) {
+                     : 1 - EaseIn(fam, (1 - t) * 2) / 2;
+ }
+ 
++// Numeric attribute parsing that **cannot abort**.
++//
++// The obvious implementation is `std::stof` in a `try`/`catch`, and that is what used to be here. It is
++// not usable on this target: the Emscripten build compiles `-fno-exceptions`, and libc++ compiled that
++// way does not propagate a throw — it calls `std::terminate`/`abort()` directly. So the `catch (...)`
++// never ran, and a game script writing `from=off` (or `top=off`, which this title does write) took the
++// whole engine down with
++//     invalid_argument was thrown in -fno-exceptions mode with message "stof: no conversion"
++//     Aborted(native code called abort())
++//
++// These parse with `strtof`/`strtol` instead, which report failure through the end pointer and the
++// errno rather than by throwing. That is the tolerant behaviour the old `try`/`catch` was written to
++// express, spelled in a way that means the same thing on every target.
+ float ToF(const std::string &s, float def = 0) {
+-    try { return s.empty() ? def : std::stof(s); } catch (...) { return def; }
+-}
++    if (s.empty()) return def;
++    const char *begin = s.c_str();
++    char *end = nullptr;
++    errno = 0;
++    const float v = std::strtof(begin, &end);
++    if (end == begin || errno == ERANGE) return def;
++    return v;
++}
++
++int ToI(const std::string &s, int def = 0) {
++    if (s.empty()) return def;
++    const char *begin = s.c_str();
++    char *end = nullptr;
++    errno = 0;
++    const long v = std::strtol(begin, &end, 10);
++    if (end == begin || errno == ERANGE) return def;
++    return static_cast<int>(v);
++}
++
++// NOTE: there is deliberately **no** `off` special case here.
++//
++// `ToF` already matches the reference build exactly, and it is worth writing down why, because the
++// obvious "improvement" is wrong twice over. The reference used
++//
++//     try { return s.empty() ? def : std::stof(s); } catch (...) { return def; }
++//
++// With exceptions enabled (the Android/NDK build) `std::stof("off")` throws, the catch runs, and the
++// value is `def`. `strtof` reports the same failure through its end pointer and returns `def` too — so
++// the two agree on every input, including `off`, which is simply **0**.
++//
++// Adding an `off` case that returned the off-stage coordinate made this title's ADV panel slide in from
++// below the stage, where the reference has it appear in place. A divergence invented rather than
++// observed, and one that survived several rounds of "the numbers look self-consistent" because a
++// self-consistent tween is exactly what a wrong `from` also produces.
+ } // namespace
+ 
+ bool Compositor::IsProhibitHead(uint32_t cp) const {
+@@ -657,9 +722,7 @@ std::string Compositor::DescribeDrawList(size_t max_layers) const {
+     std::vector<const Layer *> sorted;
+     for (const auto &l : layers_) sorted.push_back(&l);
+     std::stable_sort(sorted.begin(), sorted.end(), [](const Layer *a, const Layer *b) {
+-        const int c = ZCmp(a->id, b->id);
+-        if (c != 0) return c < 0;
+-        return SectionCount(a->id) < SectionCount(b->id);
++        return ZOrder(a->id, b->id) < 0;
+     });
+     std::string out = "layers=" + std::to_string(layers_.size()) +
+                       " tweens=" + std::to_string(tweens_.size()) +
+@@ -684,11 +747,9 @@ std::vector<std::string> Compositor::HitLayers(float x, float y) const {
+         if (!ContainsPoint(l,x,y)) continue;
+         hits.push_back(&l);
+     }
+-    // topmost first: higher z (ZCmp) then deeper id wins
++    // topmost first: higher z, then deeper id
+     std::stable_sort(hits.begin(), hits.end(), [](const Layer *a, const Layer *b) {
+-        const int c = ZCmp(a->id, b->id);
+-        if (c != 0) return c > 0;
+-        return SectionCount(a->id) > SectionCount(b->id);
++        return ZOrder(a->id, b->id) > 0;
+     });
+     std::vector<std::string> ids;
+     ids.reserve(hits.size());
+@@ -1365,24 +1426,24 @@ void Compositor::SetProps(const std::string &id,
+         if (const auto zoom=attrs.find("zoom"); zoom!=attrs.end())
+             l.sx=l.sy=ToF(zoom->second,100)/100.f;
+         for (const auto &kv : attrs) {
+-            if (kv.first == "x" || kv.first == "left") { l.x = std::stof(kv.second); l.own_pos = true; }
+-            else if (kv.first == "y" || kv.first == "top") { l.y = std::stof(kv.second); l.own_pos = true; }
+-            else if (kv.first == "w") l.w = std::stof(kv.second);
+-            else if (kv.first == "h") l.h = std::stof(kv.second);
++            if (kv.first == "x" || kv.first == "left") { l.x = ToF(kv.second); l.own_pos = true; }
++            else if (kv.first == "y" || kv.first == "top") { l.y = ToF(kv.second); l.own_pos = true; }
++            else if (kv.first == "w") l.w = ToF(kv.second);
++            else if (kv.first == "h") l.h = ToF(kv.second);
+             else if (kv.first == "alpha") {
+-                const float a = std::stof(kv.second);
++                const float a = ToF(kv.second);
+                 l.alpha = std::clamp(a / 255.0f, 0.0f, 1.0f);   // script uses 0-255
+             }
+             else if (kv.first == "rotate") l.rotate = ToF(kv.second);
+             else if (kv.first == "reversex") l.reverse_x = ToF(kv.second)!=0;
+             else if (kv.first == "reversey") l.reverse_y = ToF(kv.second)!=0;
+-            else if (kv.first == "anchorx") l.ax = std::stof(kv.second);
+-            else if (kv.first == "xscale") { const float v = std::stof(kv.second); l.sx = v / 100.0f; }
+-            else if (kv.first == "yscale") { const float v = std::stof(kv.second); l.sy = v / 100.0f; }
++            else if (kv.first == "anchorx") l.ax = ToF(kv.second);
++            else if (kv.first == "xscale") { const float v = ToF(kv.second); l.sx = v / 100.0f; }
++            else if (kv.first == "yscale") { const float v = ToF(kv.second); l.sy = v / 100.0f; }
+             else if (kv.first == "ownpos") l.own_pos = true;
+-            else if (kv.first == "anchory") l.ay = std::stof(kv.second);
++            else if (kv.first == "anchory") l.ay = ToF(kv.second);
+             else if (kv.first == "visible") l.visible = (kv.second != "0");
+-            else if (kv.first == "z") l.z = std::stoi(kv.second);
++            else if (kv.first == "z") l.z = ToI(kv.second);
+             else if (kv.first == "draggable") l.draggable = (kv.second != "0");
+             else if (kv.first == "dragarea") {
+                 // {left, top, right, bottom} — offsets in stage units
+@@ -1539,9 +1600,8 @@ void Compositor::Draw() {
+     for (const auto &l : layers_) sorted.push_back(&l);
+     std::stable_sort(sorted.begin(), sorted.end(),
+                      [](const Layer *a, const Layer *b) {
+-                         const int c = ZCmp(a->id, b->id);
+-                         if (c != 0) return c < 0;   // ascending: lower z first
+-                         return SectionCount(a->id) < SectionCount(b->id);
++                         // ascending: lower z first, deeper on top within the same z
++                         return ZOrder(a->id, b->id) < 0;
+                      });
+ 
+     glUseProgram(prog_.program);
+@@ -1834,24 +1894,24 @@ void Compositor::SetProps(const std::string &id,
+         if (const auto zoom=attrs.find("zoom"); zoom!=attrs.end())
+             l.sx=l.sy=ToF(zoom->second,100)/100.f;
+         for (const auto &kv : attrs) {
+-            if (kv.first == "x" || kv.first == "left") { l.x = std::stof(kv.second); l.own_pos = true; }
+-            else if (kv.first == "y" || kv.first == "top") { l.y = std::stof(kv.second); l.own_pos = true; }
+-            else if (kv.first == "w") l.w = std::stof(kv.second);
+-            else if (kv.first == "h") l.h = std::stof(kv.second);
++            if (kv.first == "x" || kv.first == "left") { l.x = ToF(kv.second); l.own_pos = true; }
++            else if (kv.first == "y" || kv.first == "top") { l.y = ToF(kv.second); l.own_pos = true; }
++            else if (kv.first == "w") l.w = ToF(kv.second);
++            else if (kv.first == "h") l.h = ToF(kv.second);
+             else if (kv.first == "alpha") {
+-                const float a = std::stof(kv.second);
++                const float a = ToF(kv.second);
+                 l.alpha = std::clamp(a / 255.0f, 0.0f, 1.0f);
+             }
+             else if (kv.first == "rotate") l.rotate = ToF(kv.second);
+             else if (kv.first == "reversex") l.reverse_x = ToF(kv.second)!=0;
+             else if (kv.first == "reversey") l.reverse_y = ToF(kv.second)!=0;
+-            else if (kv.first == "anchorx") l.ax = std::stof(kv.second);
+-            else if (kv.first == "xscale") { const float v = std::stof(kv.second); l.sx = v / 100.0f; }
+-            else if (kv.first == "yscale") { const float v = std::stof(kv.second); l.sy = v / 100.0f; }
++            else if (kv.first == "anchorx") l.ax = ToF(kv.second);
++            else if (kv.first == "xscale") { const float v = ToF(kv.second); l.sx = v / 100.0f; }
++            else if (kv.first == "yscale") { const float v = ToF(kv.second); l.sy = v / 100.0f; }
+             else if (kv.first == "ownpos") l.own_pos = true;
+-            else if (kv.first == "anchory") l.ay = std::stof(kv.second);
++            else if (kv.first == "anchory") l.ay = ToF(kv.second);
+             else if (kv.first == "visible") l.visible = (kv.second != "0");
+-            else if (kv.first == "z") l.z = std::stoi(kv.second);
++            else if (kv.first == "z") l.z = ToI(kv.second);
+             else if (kv.first == "draggable") l.draggable = (kv.second != "0");
+             else if (kv.first == "dragarea") {
+                 if (std::sscanf(kv.second.c_str(), "%f,%f,%f,%f",
+diff --git a/src/script/lua_engine.cpp b/src/script/lua_engine.cpp
+index 851ee67..2c44e26 100644
+--- a/src/script/lua_engine.cpp
++++ b/src/script/lua_engine.cpp
+@@ -514,9 +514,11 @@ LuaEngine *LuaEngine::Self(lua_State *L) {
+ LuaEngine::~LuaEngine() {
+     videos_.clear(); // players release their output before Audio is destroyed
+     emotes_.clear();
+-    delete sounds_;
++    // `audio_`/`sounds_` are **non-owning**: the header states it ("non-owning (EngineContext owns)")
++    // and `EngineContext` holds them in `unique_ptr`s. Deleting them here would be a double free, so
++    // the destructor only drops the pointers.
+     sounds_ = nullptr;
+-    if (audio_) { delete audio_; audio_ = nullptr; }
++    audio_ = nullptr;
+     if (L_) lua_close(L_);
+ }
+ void LuaEngine::PauseAudio() { if (audio_) audio_->PauseAll(); }
+@@ -602,13 +604,17 @@ void ApplyLuaStdlibBlockList(lua_State *L) {
+ 
+ bool LuaEngine::Init(PackManager *packs, const Ini &systemIni,
+                      const std::string &osName, int screenWidth, int screenHeight,
+-                     Compositor *compositor) {
++                     Compositor *compositor, Audio *audio, AudioChannels *sounds) {
+     packs_ = packs;
+     compositor_ = compositor;
+     if(compositor_)compositor_->SetSaveDirectory(save_dir_);
+-    audio_ = new Audio();
+-    audio_->Init(packs);
+-    sounds_ = new AudioChannels(*audio_);
++    // `audio`/`sounds` arrive **non-owning** from `EngineContext`, which constructs, initialises
++    // (`audio_->Init(packs)`) and owns them. This definition previously matched neither the header
++    // nor that call site — it took only six of the eight declared parameters and allocated its own
++    // `Audio`/`AudioChannels`, which is where the ownership argument came from. A null pair is
++    // legal and makes the audio tags no-op, which is what a headless/CLI host passes.
++    audio_ = audio;
++    sounds_ = sounds;
+     // Optional project tag.ini: positional parameter names for line tags.
+     {
+         std::vector<uint8_t> tag_ini;
+@@ -1801,7 +1807,13 @@ bool LuaEngine::LoadSnapshot(const std::string& file) {
+     advance(LoadPhase::RestoreData);
+     tag_queue_.clear();SuspendWait();SetAutoMode(false);
+     save_image_={};
+-    videos_.clear();emotes_.clear();audio_->StopAll();delete sounds_;sounds_=new AudioChannels(*audio_);
++    // The channel state is thrown away on restore. This used to be `delete sounds_` followed by a
++    // fresh `AudioChannels`, which only worked while `LuaEngine` allocated its own — with the
++    // non-owning model that would free memory `EngineContext` still owns. `AudioChannels::Reset()`
++    // is the same intent without the ownership change.
++    videos_.clear();emotes_.clear();
++    if(audio_)audio_->StopAll();
++    if(sounds_)sounds_->Reset();
+     onsoundfinish_.clear();pending_click_=false;drag_id_.clear();lyevents_.clear();
+     if(script_runner_)script_runner_->DiscardFlow();
+     advance(LoadPhase::SnapshotScene);
+diff --git a/src/script/lua_tag_dispatch.cpp b/src/script/lua_tag_dispatch.cpp
+index 5c8b1c5..5d1030e 100644
+--- a/src/script/lua_tag_dispatch.cpp
++++ b/src/script/lua_tag_dispatch.cpp
+@@ -47,7 +47,18 @@ LuaEngine::TagAttrs LuaEngine::TraceAndCollectAttrs(lua_State *L,
+             lua_pop(L, 1);
+         }
+         if (!first) summary += "}";
+-        if (seen_tags_.insert(summary).second) Log(kLogInfo, "tag[trace]: " + summary);
++        // Layer and transition tags are logged on **every** occurrence, not only the first.
++        //
++        // `seen_tags_` exists so this cannot flood at frame rate, and for most tags that is right. But it
++        // also made the trace unusable as an execution-order record: a `lyc` that replaces a texture in
++        // the middle of an animation is only ever printed the first time, so correlating tags against a
++        // tween by timestamp produced a sequence that reflected *when each tag was first seen in the
++        // session* rather than what ran when. Conclusions were drawn from that, and they were wrong.
++        // These tags are low-frequency, so printing all of them costs nothing.
++        const bool always = tagname == "lyc" || tagname == "lyprop" || tagname == "lytween" ||
++                            tagname == "lydel" || tagname == "trans" || tagname == "anime" ||
++                            tagname == "wait";
++        if (always || seen_tags_.insert(summary).second) Log(kLogInfo, "tag[trace]: " + summary);
+     }
+     TagAttrs m;
+     lua_pushnil(L);

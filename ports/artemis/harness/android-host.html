@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Artemis (Android host on wasm)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #canvas { display: block; width: 100%; height: 100%; background: #000; touch-action: none; }
+  #overlay {
+    position: fixed; left: 8px; top: 8px; color: #ddd; font: 12px/1.5 ui-monospace, monospace;
+    background: rgba(0,0,0,.6); padding: 6px 8px; border-radius: 4px; white-space: pre;
+    pointer-events: none; max-width: 70ch;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas" tabindex="0"></canvas>
+<div id="overlay">loading…</div>
+<script>
+  // The page owns the canvas and the input; the engine runs in a worker (see web_worker.js for why).
+  // Transferring the canvas as an OffscreenCanvas is what lets the worker draw at all.
+  const overlay = document.getElementById('overlay');
+  const canvas = document.getElementById('canvas');
+  const params = new URLSearchParams(location.search);
+  const lines = [];
+  let status = {};
+
+  function say(text) {
+    lines.push(text);
+    if (lines.length > 8) lines.shift();
+    render();
+  }
+
+  function render() {
+    overlay.textContent = [
+      ...lines,
+      '',
+      'stage ' + (status.stage || '?'),
+      'frames ' + (status.frames ?? 0) + '  presented ' + (status.presented ?? 0) +
+        '  revision ' + (status.revision ?? 0),
+      'started ' + (status.started ?? 0) + '  heap ' + (status.heapMb ?? '?') + ' MB',
+      'last error ' + (status.error || '(none)'),
+    ].join('\n');
+  }
+
+  // The pack files sit beside the page; `?base=` overrides where they are fetched from.
+  const base = params.get('base') || location.pathname.replace(/[^/]*$/, '');
+  const pack = params.get('pack') || '/game/root.pfs';
+  const os = params.get('os') || 'windows';
+
+  const worker = new Worker('artemis-web-android-worker.js');
+  // Tween resolutions are kept aside rather than only shown. They are the record of what the engine
+  // actually parsed for each animation (`from`, `to`, `from_current`, duration), and the overlay only
+  // holds the last few lines — so a browser check can read `window.__artcTweens` and get all of them
+  // instead of paging through the console, which carries thousands of `tag[trace]` lines a minute.
+  window.__artcTweens = [];
+  window.__artcDraws = [];
+  window.__artcLayer = [];
+  const tweenLog = window.__artcTweens;
+  const drawLog = window.__artcDraws;
+  const layerLog = window.__artcLayer;
+
+  worker.onmessage = function (event) {
+    const data = event.data || {};
+    if (data.type === 'log') {
+      say(data.text);
+      // One ordered stream with a page timestamp. The per-kind buffers below are convenient, but they
+      // destroy interleaving — and the open question is *when* a `lyprop` that moves a parent or changes
+      // an anchor lands relative to the tween that is about to start. postMessage is a single ordered
+      // channel, so this preserves the real sequence.
+      window.__artcSeq = window.__artcSeq || [];
+      window.__artcSeq.push([Math.round(performance.now()), data.text]);
+      if (window.__artcSeq.length > 1500) window.__artcSeq.shift();
+      if (/lytween /i.test(data.text)) {
+        tweenLog.push(data.text);
+        if (tweenLog.length > 500) tweenLog.shift();
+      } else if (/draw\[/i.test(data.text)) {
+        // The draw[] line lists every visible layer with its resolved rect. Keeping it is what makes a
+        // wrong position measurable rather than arguable.
+        drawLog.push(data.text);
+        if (drawLog.length > 400) drawLog.shift();
+      } else if (/bgchain/i.test(data.text)) {
+        // One line per change: a layer's ancestor chain inputs beside the rect they resolve to.
+        window.__artcChain = window.__artcChain || [];
+        window.__artcChain.push(data.text);
+        if (window.__artcChain.length > 200) window.__artcChain.shift();
+      } else if (/lyprop |lyc /i.test(data.text)) {
+        // What created the layer and what its properties were set to — the other half of any question
+        // about a layer that is the wrong size or in the wrong place.
+        layerLog.push(data.text);
+        if (layerLog.length > 500) layerLog.shift();
+      }
+    } else if (data.type === 'status') { status = data; render(); }
+  };
+  worker.onerror = function (event) {
+    say('worker error: ' + (event.message || '(no message)'));
+    console.error('[artc] worker error', event);
+  };
+
+  function cssSize() {
+    return { width: canvas.clientWidth || window.innerWidth, height: canvas.clientHeight || window.innerHeight };
+  }
+
+  let dpr = window.devicePixelRatio || 1;
+
+  // The backing store is sized **before** the canvas is transferred, and never again from the page:
+  // `transferControlToOffscreen` hands ownership away, and touching `canvas.width` afterwards throws
+  //   InvalidStateError: Cannot resize canvas after call to transferControlToOffscreen().
+  // Later resizes are therefore sent to the worker, which resizes the OffscreenCanvas it owns.
+  function sizeBackingStore() {
+    const size = cssSize();
+    canvas.width = Math.max(1, Math.round(size.width * dpr));
+    canvas.height = Math.max(1, Math.round(size.height * dpr));
+    return size;
+  }
+
+  window.addEventListener('resize', function () {
+    dpr = window.devicePixelRatio || 1;
+    const size = cssSize();
+    worker.postMessage({ type: 'resize', width: size.width, height: size.height, dpr: dpr });
+  });
+
+  // ANDROID keycodes, not engine key ids. The Android host translates them itself in
+  // `native_activity.cpp KeyEventToId()` (AKEYCODE_ENTER 66 -> engine 13, BACK 4 -> 8, ...) and drops
+  // anything it does not know (`default: return -1`). Sending engine ids directly made every key
+  // vanish, which is why the menu never responded.
+  const KEY_MAP = {
+    Escape: 4, Backspace: 4, Enter: 66, ' ': 66, ArrowUp: 19, ArrowDown: 20,
+    ArrowLeft: 21, ArrowRight: 22, PageUp: 24, PageDown: 25, Tab: 82, Control: 23,
+    Shift: 23, F1: 82,
+  };
+
+  function point(event) {
+    // CSS pixels relative to the canvas; the worker letterboxes them to the stage.
+    const rect = canvas.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+
+  canvas.addEventListener('pointerdown', function (e) {
+    // Guarded, because the throw would land *before* the postMessage: a synthetic pointer — browser
+    // automation, or any pointer id the browser does not consider currently active — makes
+    // `setPointerCapture` raise `NotFoundError`, and the host then never sees the press at all. The
+    // press is what matters; the capture is only a nicety for drags that leave the element.
+    try { canvas.setPointerCapture(e.pointerId); }
+    catch (error) { /* not an active pointer; the press still counts */ }
+    const p = point(e);
+    worker.postMessage({ type: 'pointer', x: p.x, y: p.y, down: 1 });
+  });
+  canvas.addEventListener('pointerup', function (e) {
+    const p = point(e);
+    worker.postMessage({ type: 'pointer', x: p.x, y: p.y, down: 0 });
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    const p = point(e);
+    worker.postMessage({ type: 'pointermove', x: p.x, y: p.y });
+  });
+  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  window.addEventListener('keydown', function (e) {
+    const key = KEY_MAP[e.key];
+    if (key === undefined) return;
+    e.preventDefault();
+    worker.postMessage({ type: 'key', key: key, down: 1 });
+  });
+  window.addEventListener('keyup', function (e) {
+    const key = KEY_MAP[e.key];
+    if (key === undefined) return;
+    e.preventDefault();
+    worker.postMessage({ type: 'key', key: key, down: 0 });
+  });
+
+  const size = sizeBackingStore();
+  const offscreen = canvas.transferControlToOffscreen();
+  worker.postMessage({
+    type: 'canvas',
+    canvas: offscreen,
+    pack: pack,
+    os: os,
+    base: base,
+    width: size.width,
+    height: size.height,
+    dpr: dpr,
+  }, [offscreen]);
+</script>
+</body>
+</html>
