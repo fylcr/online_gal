@@ -220,12 +220,19 @@ verify_replacement_verdict() {
     fi
 
     if [ "$read" = true ] && [ "$dropin" = false ]; then
-        ok "$flavour: not a drop-in replacement, as expected -- engine logic faithful, loader contract not met"
+        # Not a contradiction: this route's artefact is the wabt round-trip, which is
+        # faithful but is not shaped to be loaded by the official glue. Reaching that
+        # contract is a different build -- see build-bridge-route.sh, where both flavours
+        # pass all four gates.
+        ok "$flavour: engine logic faithful, loader contract not met (not a drop-in --"
+        ok "$flavour:   that is build-bridge-route.sh, which passes all four gates)"
     elif [ "$read" = false ]; then
         bad "$flavour: the rebuilt module is no longer even logic-faithful"
         sed -n 's/.*"g3": *\(.*\)/\1/p' "$json" | head -1 | sed 's/^/        /'
     else
-        bad "$flavour: wasm-replace-test.mjs now reports it as a drop-in replacement -- the tester or the build changed"
+        bad "$flavour: wasm-replace-test.mjs now reports this route's artefact as a drop-in"
+        bad "$flavour:   replacement -- either the tester or this build changed, and the"
+        bad "$flavour:   claim that the wabt round-trip is byte-identical would be suspect"
     fi
 }
 
