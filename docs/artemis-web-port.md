@@ -1472,7 +1472,7 @@ rebuild.sh      wasm | so [arch] | all   ← 校验；非零退出即断言失�
 
 | | 输入 | 产出 | 断言 |
 | --- | --- | --- | --- |
-| **wasm** | `artemis.wasm` 2.68 MB（plain）+ `asyncify/artemis.wasm` 6.00 MB | `.wat` 48 MB / 180 MB；`wasm2c` 的 C 48 MB / 108 MB | `wat2wasm(wasm2wat(bin))` **逐字节相同**，且那份 C **能编译** |
+| **wasm** | `artemis.wasm` 2.68 MB（plain）+ `asyncify/artemis.wasm` 6.00 MB | `.wat` 48 MB / 180 MB；`wasm2c` 的 C 48 MB / 108 MB；**再链回 wasm** | `wat2wasm(wasm2wat(bin))` **逐字节相同**，那份 C **能编译**，且**链回的 wasm 与原模块行为一致** |
 | **so** | `libartemis.so` arm64-v8a 8.15 MB + armeabi-v7a 7.40 MB | 9042 / 9175 个「一函数一 `.c`」 | 重建出的**导出符号面完全相同** |
 
 两个目标都必要的第二个理由：**wasm 产物无 name section**，函数名就是 `a.b`、`a.c`、`a.aa`…；
@@ -1493,6 +1493,82 @@ OK   asyncify: wat2wasm(wasm2wat(bin)) == bin (5998665 bytes, sha256 7ceabed28b8
 
 后半段断言「那份 C 是真 C」：gcc 要吃下 119 万行（plain）与 250 万行（asyncify），
 产出 18.5 MB 与 37.1 MB 的目标文件。**编译得过，才让伪 C 成为「可用的源码」而不只是「可读的文本」。**
+
+### wasm：那份 C 还能链回 wasm，并且行为与原模块一致
+
+编译得过不等于对，所以第三条断言把环闭合：把 `wasm2c` 的 C **再链成一个 wasm 二进制**，
+两个模块用同一套宿主桩实例化、共享的导出逐个以相同实参调用、比较返回值。
+
+```
+OK   plain:    agreement: 16/18, trap-kind-only: 2 -> Yc, _c, differ: 0
+        of the agreements: 15 returned equal values, 1 threw the same trap
+OK   asyncify: agreement: 20/66, trap-kind-only: 46 -> $c, Ad, Bd, … differ: 0
+        of the agreements: 19 returned equal values, 1 threw the same trap
+```
+
+链回的二进制**不可能**与原文件逐字节相同——一个是 Emscripten release build，另一个是 clang 为
+生成 C 做的 codegen——所以比较是**行为**的。两个辅助脚本补上裸模块缺的东西：
+`wasm-import-stubs.py` 为 195（asyncify 198）个 import 各写一个返回零的定义（内存访问器不是桩，
+它真的分配，否则第一次读内存就 fault）；`wasm-export-shims.py` 用
+`__attribute__((export_name(...)))` 把每个 `w2c_*` 恢复原名，于是 differ 不需要名字表。
+
+**plain 是强结果**（18 个里 15 个返回值相等）；**asyncify 是弱证据，脚本自己说出来**：
+66 个里 46 个只是「两边都抛」。这不是配方的缺陷——两个模块的间接调用表**满度不同**
+（官方 5884 项，链回的 4472 项，clang 只填从重建代码可达的槽），同一次 `call_indirect`
+一侧落在有主槽位（`function signature mismatch`）、另一侧落在空槽（`unreachable`）。
+两边都不返回，差异属于链接而不属于 transpile。`--strict` 可把它变回失败。
+
+三个在 harness 里**各自都一度和「重建坏了」无法区分**的坑，动它之前值得先知道：
+
+- **每次比较都要新实例**：导出共享同一块线性内存且会写它，复用实例会让先调用的扰动后调用的，
+  结果就取决于名字的排序。
+- **精确名字优先于裸符号**：链回的模块同时导出恢复后的名字和 `w2c_artemis_*`，两者 un-mangle
+  成同一个 key，而调用裸符号会把实例指针当第一个实参传进去——也就是 `NULL`。
+- **`__wasm_call_ctors()` 必须显式调用**：Emscripten 是从它自己的 JS glue 里调的，这里没有 glue；
+  不调则一个静态初始化都不跑，包括支撑导出 shim 的那个，于是每个导出都在解引用一个清零的实例。
+
+`emcc` 在这条断言里是**软依赖**：缺 `emcc` / `node` / 可用的 Python 3 时脚本带一条说明跳过，
+`rebuild.sh` 其余部分在裸机器上照跑。链接行里的 `--export-all -sEXPORT_ALL` 是承重的：
+没有它 Emscripten 会把 JS glue 没引用的东西全部 dead-strip，产物缩到 4 KB、零导出，
+differ 只会报「0 shared exports」。
+
+### 不依赖 wabt 的构建链：`C++ → em++ → wasm`
+
+上面三条断言走的是 wabt（`wasm2wat` / `wat2wasm` / `wasm2c`）。**wabt 是转换工具，不是构建链的
+一环**，所以 `ports/artemis/reverse/build-cxx-route.sh` 另立一条**完全不用 wabt** 的链：
+
+```
+bash build-cxx-route.sh asyncify   # 或 sync
+```
+
+它把 `wasm2c` 的 C 当 C++ 编（`em++` 一次调用链成 wasm），只做三处让步：
+
+1. **198（sync 195）处 `void*` 转型**。`instance_ptr` 是 `void**`，`*instance_ptr` 因而是
+   `void*`，而被调者要 `struct w2c_a*`——C 里合法、C++ 里非法。**`clang` 的 `-fpermissive`
+   不像 GCC 那样把它降级成警告**，所以必须真改：`*(struct w2c_a**)instance_ptr`。
+   全部落在 `wasm_tailcall_w2c_a_*` 包装器里。
+2. **runtime 保持 C**。`build/wasm-rt-impl.c` 与 `wasm-rt-mem-impl.c` 当 C++ 编各有 2 个错
+   （`wasm-rt-impl-tableops.inc:54` / `:80`，`table->data = calloc(...)` 与 `= new_data`
+   的 `void*` → `void**`）。用 `emcc -c -x c` 单独编，别去改 wabt 的 runtime。
+3. **一行桥接头**。`out/*-import-stubs.c` 里写的是 `#include "artemis.h"`，而生成的头叫
+   `artemis.wasm2c.h`；放一个 `inc/artemis.h` 转发即可，不要改生成物。
+
+结果（两个 flavour 都跑过，脚本自跑行为比对并断言 `differ: 0`）：
+
+```
+asyncify: agreement: 20/66, trap-kind-only: 46, differ: 0   → 41 852 136 B
+sync:     agreement: 16/18, trap-kind-only:  2, differ: 0   → 18 182 343 B
+```
+
+**与上面 wasm2c→emcc 那一轮的数字逐字相同**——C++ 化没有引入任何回归。差别只在体积：
+41.9 MB（②）vs 41.9 MB（③），都是 clang 为生成 C 做的 codegen，与官方 6.0 MB 的
+Emscripten release build 不可比。**所以「必须用 wabt 才能构建」不成立**：构建链是纯粹的
+`C++ → em++ → wasm`。这条链的用途是给转写成可读 C++ 的产物做验收——转写不许改行为，
+改完用同一条命令复核。
+
+排错提示：`em++` 不接受 `-fpermissive` 来代替上面的改动（会报
+`cannot convert argument of incomplete type 'void *' to 'struct w2c_a *'`），
+所以**验收工具是 `em++`，不是 `g++`**——`g++` 会宽容地编过，掩盖真正的类型问题。
 
 ### so：导出面逐个符号重建
 

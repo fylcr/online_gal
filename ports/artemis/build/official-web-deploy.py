@@ -60,6 +60,7 @@ import os
 import re
 import shutil
 import struct
+import subprocess
 import sys
 import uuid
 
@@ -277,7 +278,22 @@ def detect_savepath(ini_text):
     return "artemis_" + hashlib.sha1(original.encode("utf-8")).hexdigest()[:10]
 
 
-def copy_sdk_build(sdk, web, flavour):
+def copy_sdk_build(sdk, web, flavour, engine_wasm=None, engine_js=None):
+    """
+    Copy the official build into the deployment, optionally with a candidate engine.
+
+    `engine_wasm` / `engine_js` exist so that the *real game*, served the way it is
+    actually served (loose files over HTTP, fetched on demand through the asyncify
+    seam), can be the test bench for a rebuilt engine instead of a toy harness. A
+    rebuilt module is claimed to be faithful to the official one, and the honest way
+    to check a claim like that is to put it in front of the same 29,224-file game.
+
+    This does not relabel anything: the candidate is a drop-in only if the glue can
+    instantiate it and read back every name it uses (`ports/artemis/reverse/
+    wasm-replace-test.mjs` decides that from the same two files). Passing a module
+    that fails the loader contract here produces a page that dies at instantiation --
+    which is itself the answer, and a more convincing one than a synthetic harness.
+    """
     src = os.path.join(sdk, "WebAssembly", flavour) if flavour == "asyncify" else os.path.join(sdk, "WebAssembly")
     if not os.path.isdir(src):
         raise SystemExit(f"no such official build: {src}")
@@ -289,7 +305,126 @@ def copy_sdk_build(sdk, web, flavour):
         copied.append((name, os.path.getsize(target)))
     for name, size in copied:
         print(f"  {name}: {size:,} bytes")
+
+    if engine_wasm:
+        # The page loads `artemis.wasm` by name from its own directory, so a candidate
+        # only has to occupy that path; the glue is untouched unless one is supplied.
+        target = os.path.join(web, "artemis.wasm")
+        official = os.path.getsize(target)
+        shutil.copy2(engine_wasm, target)
+        size = os.path.getsize(target)
+        print(f"  artemis.wasm replaced by candidate: {engine_wasm}")
+        print(f"    {official:,} -> {size:,} bytes")
+        if official == size:
+            print("    note: the candidate is the same size as the official build "
+                  "(it may be the same file -- check the digest before reading a result)")
+
+        # A rebuilt engine is not the only tenant of linear memory: the Emscripten runtime
+        # it links shares that buffer and is given its own layout at the top, so the module
+        # needs more than the official 16 MiB. The glue sizes its memory from
+        # `Module["INITIAL_MEMORY"]` -- read before the glue script runs -- so the page has
+        # to set it. Without this the module declares a minimum the glue's buffer does not
+        # satisfy and instantiation fails on the memory import, which looks like a wasm
+        # problem rather than a page one.
+        needed = declared_initial_memory(engine_wasm)
+        if needed and needed > 16777216:
+            if set_initial_memory(os.path.join(web, "artemis.html"), needed):
+                print(f"  artemis.html: INITIAL_MEMORY raised to {needed:,} bytes "
+                      f"({needed // 65536:,} pages), as the module requires")
+            else:
+                print("  warning: the module needs "
+                      f"{needed:,} bytes of initial memory but the page could not be "
+                      "patched; the page will fail on the memory import")
+
+    if engine_js:
+        target = os.path.join(web, "artemis.js")
+        shutil.copy2(engine_js, target)
+        print(f"  artemis.js replaced by candidate: {engine_js} "
+              f"({os.path.getsize(target):,} bytes)")
+
     return src
+
+
+def declared_initial_memory(wasm_path):
+    """
+    Return the module's declared minimum for its imported memory, in bytes, or None.
+
+    Read from the binary rather than guessed: the value has to match what the glue
+    allocates, and a mismatch is a link error at instantiation that says nothing about
+    which side was wrong.
+    """
+    data = open(wasm_path, "rb").read()
+
+    def uleb(offset):
+        result = 0
+        shift = 0
+        while True:
+            byte = data[offset]
+            offset += 1
+            result |= (byte & 0x7F) << shift
+            if not byte & 0x80:
+                return result, offset
+            shift += 7
+
+    offset = 8
+    while offset < len(data):
+        section_id = data[offset]
+        offset += 1
+        size, offset = uleb(offset)
+        start, end = offset, offset + size
+        if section_id == 2:
+            count, cursor = uleb(start)
+            for _ in range(count):
+                name_len, cursor = uleb(cursor)
+                cursor += name_len
+                field_len, cursor = uleb(cursor)
+                cursor += field_len
+                kind = data[cursor]
+                cursor += 1
+                if kind != 2:
+                    # function -> type index; table -> elem type + limits; global -> 2 bytes
+                    if kind == 0:
+                        _, cursor = uleb(cursor)
+                    elif kind == 1:
+                        cursor += 1
+                        flags = data[cursor]
+                        cursor += 1
+                        _, cursor = uleb(cursor)
+                        if flags & 1:
+                            _, cursor = uleb(cursor)
+                    elif kind == 3:
+                        cursor += 2
+                    continue
+                flags = data[cursor]
+                cursor += 1
+                minimum, cursor = uleb(cursor)
+                return minimum * 65536
+        offset = end
+    return None
+
+
+def set_initial_memory(html_path, bytes_needed):
+    """
+    Raise the page's `Module["INITIAL_MEMORY"]` to at least `bytes_needed`.
+
+    The page is a minified Emscripten shell with a single `Module={...}` literal, and the
+    glue reads `Module["INITIAL_MEMORY"]` before it creates the buffer. Inserting the key
+    into that literal is enough; the glue's `||16777216` fallback then never applies.
+
+    Returns False if the page has no `Module={` to patch, which is a fact worth reporting
+    rather than patching blind.
+    """
+    text = open(html_path, encoding="utf-8", errors="replace").read()
+    anchor = "Module={"
+    if anchor not in text:
+        return False
+    if "INITIAL_MEMORY" in text:
+        # Already present: replace the value rather than adding a second key.
+        text = re.sub(r'INITIAL_MEMORY"?\s*:\s*\d+', f'INITIAL_MEMORY:{bytes_needed}', text)
+    else:
+        text = text.replace(anchor, anchor + f'INITIAL_MEMORY:{bytes_needed},', 1)
+    open(html_path, "w", encoding="utf-8", newline="\n").write(text)
+    return True
 
 
 def embed_package_size(web):
@@ -398,6 +533,47 @@ def build_hashlist(game, out):
           f"trailing newline = {blob[-1:] == b'\n'}")
 
 
+def check_engine_candidate(candidate, glue):
+    """
+    Run the replacement tester over the candidate before deploying it.
+
+    Purely advisory: the verdict is printed, never enforced. Deploying a module that
+    fails the loader contract is a legitimate thing to want -- it is how one confirms
+    the failure is real rather than a harness artifact -- and refusing to do it would
+    hide the most useful result. What is *not* acceptable is deploying it silently and
+    then reading a blank page as a game bug.
+    """
+    tester = os.path.join(REPO, "ports", "artemis", "reverse", "wasm-replace-test.mjs")
+    if not os.path.isfile(tester):
+        print("  (no replacement tester at ports/artemis/reverse/wasm-replace-test.mjs; skipping)")
+        return
+    print("== candidate engine ==")
+    try:
+        result = subprocess.run(
+            ["node", tester, "--json", "--glue", glue, candidate],
+            capture_output=True, text=True, timeout=900,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"  tester did not run ({exc}); the deployment is still written")
+        return
+    match = re.search(r'"dropIn":\s*(true|false)', result.stdout)
+    faithful = re.search(r'"logicFaithful":\s*(true|false)', result.stdout)
+    if not match:
+        print("  tester produced no verdict; the deployment is still written")
+        return
+    drop_in = match.group(1) == "true"
+    logic = faithful.group(1) == "true" if faithful else None
+    if drop_in:
+        print("  verdict: viable replacement -- the glue can drive this module")
+    else:
+        print("  verdict: NOT a drop-in replacement -- this page is expected to fail at "
+              "instantiation, before the game is reached")
+        if logic:
+            print("  (but its engine logic is faithful: it is the loader contract that differs)")
+        print("  the failure is the finding; ports/artemis/reverse/wasm-replace-test.mjs "
+              "names which gate it died on")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--game", required=True,
@@ -414,6 +590,14 @@ def main():
                         help="official build to deploy; asyncify reads loose files, plain loads the whole pack")
     parser.add_argument("--hashlist", action="store_true",
                         help="also write hashlist.txt (needs ASYNCIFY_HASH_LIST_URL to be honoured)")
+    parser.add_argument("--engine-wasm", default=None,
+                        help="replace the official artemis.wasm with this candidate module, "
+                             "so the real game is served to it exactly as it is to the official "
+                             "build (see ports/artemis/reverse/wasm-replace-test.mjs for whether "
+                             "a candidate can actually satisfy the glue)")
+    parser.add_argument("--engine-js", default=None,
+                        help="also replace artemis.js; needed with --engine-wasm when the "
+                             "candidate ships its own glue")
     args = parser.parse_args()
 
     game = os.path.abspath(args.game)
@@ -454,9 +638,20 @@ def main():
     print("== system.ini [WASM] ==")
     patch_system_ini(ini, extra)
 
+    if args.engine_wasm:
+        # Say up front whether the candidate can even be instantiated by the glue it is
+        # about to be served with. Skipping this is how a deployment "succeeds" and then
+        # produces a blank page with one console line, which reads like a game problem
+        # rather than a loader-contract problem.
+        check_engine_candidate(args.engine_wasm,
+                               os.path.join(sdk, "WebAssembly",
+                                            "asyncify/artemis.js" if args.flavour == "asyncify"
+                                            else "artemis.js"))
+
     web = os.path.join(out, "web")
     print("== official build ==")
-    copy_sdk_build(sdk, web, args.flavour)
+    copy_sdk_build(sdk, web, args.flavour,
+                   engine_wasm=args.engine_wasm, engine_js=args.engine_js)
 
     print("== artemis.data (system.ini only) ==")
     payload = open(ini, "rb").read()

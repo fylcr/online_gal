@@ -18,6 +18,15 @@
 #          Compiling is what makes the pseudo-C usable as source rather than just
 #          as something to read.
 #
+#          The third part closes the loop: the transpiled C is linked back INTO a
+#          wasm binary, and both modules are then executed export by export and
+#          compared (wasm-diff.mjs). It cannot be byte-identical -- one is a clang
+#          build of generated C -- so the check is behavioural instead, and it is
+#          run only when emcc is on PATH. wasm-import-stubs.py and
+#          wasm-export-shims.py supply the two pieces that a bare module needs:
+#          definitions for the module's imports, and `export_name` wrappers so the
+#          rebuilt module's export list reads like the original's.
+#
 #   so     A shared library cannot be rebuilt byte-identically from decompiled
 #          pseudo-C -- decompilation loses types, and no compiler reproduces an
 #          NDK release build's exact instruction selection. What *can* be checked
@@ -34,6 +43,9 @@
 #
 # Requirements: fetch-wabt.sh and fetch-zig.sh once each; gcc on PATH for the
 # wasm half (MinGW works). No NDK is needed -- see the note above zig_target().
+# The `wasm` half additionally links the transpiled C back into a wasm binary and
+# compares behaviour, which needs emcc (the emsdk) and node; that one assertion is
+# skipped with a note when emcc is not on PATH.
 
 set -euo pipefail
 
@@ -85,6 +97,161 @@ zig_target() {
     esac
 }
 
+# Compile the transpiled C BACK into a wasm binary and compare it against the
+# original by execution. This is the assertion that turns "wasm2c output compiles"
+# into "wasm2c output rebuilds a working module".
+#
+# The two binaries can never be byte-equal -- the original is Emscripten's release
+# build, the rebuild is clang's codegen for generated C -- so the comparison is
+# behavioural: instantiate both, call every export they share with identical
+# arguments, and compare what comes back. wasm-diff.mjs reports a mismatch as a
+# failure and a mere trap-kind difference (indirect call into a table slot that
+# clang left empty) separately, since that one is a property of how full each
+# module's table is rather than of the transpilation.
+#
+# `--export-all -sEXPORT_ALL` is load-bearing: without it Emscripten dead-strips
+# everything the JS glue does not reference and the rebuild comes out 4 KB with no
+# exports at all, which the differ then reports as "0 shared exports".
+verify_wasm_roundtrip() {
+    local flavour="$1" src="$2"
+    local cdir="$OUT/$flavour"
+    local stubs="$OUT/$flavour-import-stubs.c"
+    local shims="$cdir/artemis-export-shims.c"
+    local rebuilt="$OUT/$flavour-rebuilt.wasm"
+
+    if [ -z "$EMCC" ] || [ -z "$NODE" ] || [ -z "$PYTHON" ]; then
+        note "   skipping rebuild-to-wasm for $flavour: needs emcc, node and python3 on PATH"
+        return
+    fi
+    [ -f "$cdir/artemis.h" ] || { bad "$flavour: $cdir/artemis.h missing -- run reverse.sh wasm first"; return; }
+
+    "$PYTHON" "$HERE/wasm-import-stubs.py" "$cdir/artemis.h" "$stubs" >"$OUT/$flavour-stubs.log" 2>&1 || {
+        bad "$flavour: wasm-import-stubs.py failed (see $OUT/$flavour-stubs.log)"
+        sed 's/^/        /' "$OUT/$flavour-stubs.log" | head -5
+        return
+    }
+    "$PYTHON" "$HERE/wasm-export-shims.py" "$cdir/artemis.h" "$shims" >"$OUT/$flavour-shims.log" 2>&1 || {
+        bad "$flavour: wasm-export-shims.py failed (see $OUT/$flavour-shims.log)"
+        sed 's/^/        /' "$OUT/$flavour-shims.log" | head -5
+        return
+    }
+
+    note "   linking the transpiled C back into wasm with emcc"
+    if ! "$EMCC" -O0 -Wno-c23-extensions -Wl,--export-all -sEXPORT_ALL \
+        -I "$HERE/build" -I "$cdir" \
+        "$cdir/artemis.c" "$stubs" "$shims" \
+        "$HERE/build/wasm-rt-impl.c" "$HERE/build/wasm-rt-mem-impl.c" \
+        -o "$OUT/$flavour-rebuilt.js" 2>"$OUT/$flavour-rebuild.log"; then
+        bad "$flavour: could not link the transpiled C back into wasm (see $OUT/$flavour-rebuild.log)"
+        return
+    fi
+    if [ ! -f "$rebuilt" ]; then
+        bad "$flavour: link reported success but $rebuilt is missing"
+        return
+    fi
+
+    if "$NODE" "$HERE/wasm-diff.mjs" "$src" "$rebuilt" >"$OUT/$flavour-diff.txt" 2>&1; then
+        ok "$flavour: $(grep -m1 '^agreement:' "$OUT/$flavour-diff.txt")"
+        # Say plainly how much of that agreement is real. An export that traps on
+        # both sides under zero-value arguments has been checked for "still reaches
+        # the same kind of failure" and nothing more, so a run where most exports
+        # trap is weaker evidence than the number suggests and is worth flagging.
+        local trappy
+        trappy="$(sed -n 's/.*trap-kind-only: \([0-9]*\).*/\1/p' "$OUT/$flavour-diff.txt" | head -1)"
+        if [ -n "$trappy" ] && [ "$trappy" -gt 0 ]; then
+            note "        of which $trappy only match in that both trap under zero arguments"
+        fi
+    else
+        bad "$flavour: rebuilt module does not behave like the original"
+        sed -n '/^agreement:/,$p' "$OUT/$flavour-diff.txt" | sed 's/^/        /'
+        grep '^  DIFFER' "$OUT/$flavour-diff.txt" | head -5 | sed 's/^/        /'
+    fi
+
+    verify_replacement_verdict "$flavour" "$rebuilt"
+}
+
+# The round-trip above answers "is the transpiled code the same code?".  It does not
+# answer "could this file be dropped where the official one is?", and those are genuinely
+# different questions -- a module can be faithfully transpiled and still be unusable,
+# because the official module is only half an engine.  The other half is the JS glue:
+# it supplies 195-198 host functions through an import named `a` and reads a fixed set
+# of short names back off the instance.  wasm-replace-test.mjs walks that loader contract
+# in four gates and reports both questions separately.
+#
+# The expected verdict for a rebuilt module is the one thing that must not drift: it is
+# *supposed* to be "faithful but not a replacement", because the transpile compiles the
+# host ABI in as zero-returning stubs rather than importing it.  So this assertion fails
+# if the verdict changes in either direction -- if a rebuild starts claiming to be
+# drop-in that is a bug in the tester, and if the transpile stops being faithful that is
+# a real regression.  It is checked, not assumed.
+verify_replacement_verdict() {
+    local flavour="$1" rebuilt="$2"
+    local json="$OUT/$flavour-replace.json"
+
+    # The contract has to come from the *matching* official build. The two flavours have
+    # different loader contracts -- plain exports its table as `Ic` and has 196 imports,
+    # asyncify as `Lc` with 199 -- so pointing both at one of them makes the other's
+    # rebuilt module look like it stopped being faithful when nothing changed but the
+    # yardstick. That mistake is what the plain control caught.
+    local sdk wasm js
+    sdk="$SDK"
+    if [ "$flavour" = plain ]; then
+        wasm="$sdk/WebAssembly/artemis.wasm"
+        js="$sdk/WebAssembly/artemis.js"
+    else
+        wasm="$sdk/WebAssembly/asyncify/artemis.wasm"
+        js="$sdk/WebAssembly/asyncify/artemis.js"
+    fi
+    if [ ! -f "$wasm" ] || [ ! -f "$js" ]; then
+        bad "$flavour: no official $flavour build under $sdk to take the contract from"
+        return
+    fi
+
+    "$NODE" "$HERE/wasm-replace-test.mjs" --json --official "$wasm" --glue "$js" \
+        "$rebuilt" >"$json" 2>"$OUT/$flavour-replace.log" || true
+
+    local read verdict faithful dropin
+    read=$(sed -n 's/.*"logicFaithful": *\(true\|false\).*/\1/p' "$json" | head -1)
+    dropin=$(sed -n 's/.*"dropIn": *\(true\|false\).*/\1/p' "$json" | head -1)
+    if [ -z "$read" ] || [ -z "$dropin" ]; then
+        bad "$flavour: wasm-replace-test.mjs produced no verdict (see $OUT/$flavour-replace.log)"
+        sed 's/^/        /' "$OUT/$flavour-replace.log" | head -5
+        return
+    fi
+
+    if [ "$read" = true ] && [ "$dropin" = false ]; then
+        ok "$flavour: not a drop-in replacement, as expected -- engine logic faithful, loader contract not met"
+    elif [ "$read" = false ]; then
+        bad "$flavour: the rebuilt module is no longer even logic-faithful"
+        sed -n 's/.*"g3": *\(.*\)/\1/p' "$json" | head -1 | sed 's/^/        /'
+    else
+        bad "$flavour: wasm-replace-test.mjs now reports it as a drop-in replacement -- the tester or the build changed"
+    fi
+}
+
+# The emsdk and node are only needed by the round-trip assertion above; resolve
+# them once. `emcc` is on PATH only after the user has sourced the emsdk, so this
+# is a soft requirement: the assertion is skipped rather than failed when absent.
+EMCC="$(command -v emcc || true)"
+NODE="$(command -v node || true)"
+
+# `command -v python3` is not enough on Windows: if Python came from the Store, the
+# name resolves to an App Execution Alias under WindowsApps that does nothing at all
+# when run non-interactively -- no output, no error, non-zero status. It passes
+# `command -v` and then fails every invocation, so each candidate is asked for its
+# version as well.
+find_python() {
+    local cand
+    for cand in python3 python; do
+        if command -v "$cand" >/dev/null 2>&1 && "$cand" --version >/dev/null 2>&1; then
+            command -v "$cand"
+            return 0
+        fi
+    done
+    return 1
+}
+PYTHON="$(find_python || true)"
+
 pass=0
 fail=0
 note() { printf '%s\n' "$*"; }
@@ -120,6 +287,8 @@ verify_wasm() {
     else
         bad "$flavour: $cdir/artemis.c missing -- run reverse.sh wasm first"
     fi
+
+    verify_wasm_roundtrip "$flavour" "$src"
 }
 
 verify_so() {
