@@ -290,3 +290,61 @@ memory of size S", which is what identified the two-tenant overlap.
 (asyncify) route with a rebuilt module in place of the official one, so the real game is the
 test bench. It prints the tester's verdict before deploying and raises `INITIAL_MEMORY` in the
 page when the candidate needs more than the official buffer.
+
+## Testing against a real game, and reading what it does
+
+`wasm-replace-test.mjs` proves the module *can* be loaded by the official glue. It cannot
+prove the engine works: that needs a real title, driven through the page, on the on-demand
+route where every asset is fetched as the script asks for it. Two tools close that gap.
+
+    # does it actually run a game?
+    node ports/artemis/tools/real-game-test.mjs \
+      --game .test/artemis-official-async/game-chs \
+      --engine ports/artemis/reverse/out/bridge-asyncify/bridge.wasm \
+      --port 4710 --hashlist --json-out report.json
+
+It deploys the same game twice -- once with the official module, once with the candidate --
+serves both, opens each in its own tab in a real browser, and compares. A run passes only if
+the candidate both **rendered** (a non-black frame) and **fetched the game** (a module that
+draws a welcome screen without reading the game has not run the game). When the two settled
+frames hash identically it says so, which is the strongest form of the claim.
+
+Three things about this bench are not obvious and each cost a wrong answer first:
+
+  * **Sample inside `requestAnimationFrame`.** The engine renders with
+    `preserveDrawingBuffer: false`, so once the compositor takes the frame the buffer is
+    cleared and `readPixels` returns black -- for the *official* build too. Reading outside the
+    frame loop reports a working engine as a black screen.
+  * **Do not stop when the picture holds still.** A cold deployment is stably black *while the
+    game downloads*. A stability-based exit returns during the download. The loop therefore
+    only exits early on a lit frame, and otherwise spends its whole budget.
+  * **Give each run its own cache key.** `SAVEPATH` is the IndexedDB key the asyncify engine
+    files downloads under, and an origin is scheme+host+port -- so reusing a port across runs
+    reuses the cache, and a run can read files an earlier, different engine wrote. The test
+    derives a fresh key per run and clears the origin's storage before loading.
+
+The deployer no longer writes back into the game tree for the same class of reason: it patches
+`system.ini` into the *deployment*, because the input tree belongs to the caller and two
+deployments of one game must not share a `SAVEPATH`.
+
+### What the engine actually runs
+
+    ARTC_PROFILE=1 bash build-bridge-route.sh asyncify out/bridge-asyncify-profile
+    # deploy that module, run real-game-test.mjs --json-out, then:
+    node ports/artemis/tools/profile-report.mjs report.json --tags \
+      .ref/artemis-official/wasm/asyncify/tag-map.json --out worklist.md
+
+A counter per function, injected at the body anchor by `instrument-profile.py`, recorded by
+`artc-profile.c`. Both arrays live in the shared linear memory, so the page reads them as a
+`HEAPU32` view -- no accessor, no copying. `--profile` is independent of `--debug-trap`; the
+shipped build carries neither.
+
+The point is triage, not transcription. Transcribing 5,579 machine-generated functions would
+not make the code readable; knowing which few hundred a real game reaches is what makes it
+readable, and that is what the profiler answers. On the first measured run of this title:
+**2,105 of 5,579 functions entered (37.7%)**, of which 18 exceeded 100K calls and 814 ran
+exactly once. The count-1 tail is where a rewrite buys nothing.
+
+`profile-report.mjs` buckets the reached functions by call count, joins the map's names and the
+tag map's `tag_owner` subsystems, and writes a worklist ordered so the top is where naming
+pays most.

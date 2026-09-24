@@ -16,7 +16,11 @@
  */
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
-import { Cdp, sleep } from '../../krkr/kirikiroid2/browser-test/cdp.mjs';
+// The path is `../../../krkr/...`: browser -> harness -> artemis -> ports, then across to
+// the shared krkr harness. The two-`..` form was left behind when this file moved under
+// `harness/browser/`, and it pointed at a `ports/artemis/krkr/` that has never existed
+// since -- so this module could not be imported at all.
+import { Cdp, sleep } from '../../../krkr/kirikiroid2/browser-test/cdp.mjs';
 
 // Re-exported so a check needs one import for both: the browser it drives and the timer it sleeps on.
 export { sleep };

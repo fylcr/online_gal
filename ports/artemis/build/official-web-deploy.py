@@ -201,7 +201,7 @@ def write_pf8(path, files, version="6"):
     return keyed
 
 
-def patch_system_ini(path, extra):
+def patch_system_ini(path, extra, output=None):
     """
     Set the `[WASM]` keys we manage, removing any of them that we are not setting.
 
@@ -210,16 +210,24 @@ def patch_system_ini(path, extra):
     missing `SAVEPATH`, which the readme makes mandatory. Keys we do not own are
     left alone.
 
-    This edits the file in place, so it has to be *idempotent across option sets*,
-    not merely across repeats of the same options. Merely skipping keys that are
-    in `extra` is not enough: running once with `--hashlist` and then again
-    without it would leave the old `ASYNCIFY_HASH_LIST_URL` behind, silently
-    pointing the engine at a stale list. Every managed key is therefore dropped
-    unless this run sets it.
+    This is *idempotent across option sets*, not merely across repeats of the same
+    options. Merely skipping keys that are in `extra` is not enough: running once
+    with `--hashlist` and then again without it would leave the old
+    `ASYNCIFY_HASH_LIST_URL` behind, silently pointing the engine at a stale list.
+    Every managed key is therefore dropped unless this run sets it.
 
-    Line endings are preserved because the file is CRLF and the engine's INI
-    reader is happy either way, but rewriting them would show up as a whole-file
-    diff for no reason.
+    The result goes to `output` when given, and only then to `path` itself. That
+    matters more than it looks. The input tree belongs to the user, and two
+    deployments of the same game must not interfere: writing back into the game
+    tree made a second deployment inherit the first one's `SAVEPATH`, and since
+    `SAVEPATH` is the IndexedDB key the asyncify engine caches downloaded files
+    under, the two pages shared one cache and the second failed to load. Any caller
+    that deploys twice hits it -- which is exactly what comparing a candidate
+    against the official build does.
+
+    Line endings are preserved because the file is CRLF and the engine's INI reader
+    is happy either way, but rewriting them would show up as a whole-file diff for
+    no reason.
     """
     managed = ("SAVEPATH", "ASYNCIFY_URL", "ASYNCIFY_HASH_LIST_URL")
     raw = open(path, "rb").read()
@@ -242,8 +250,10 @@ def patch_system_ini(path, extra):
 
     body = head + sep + newline + "".join(f"{k} = {v}{newline}" for k, v in extra.items())
     body += newline.join(keep).lstrip(newline)
-    open(path, "wb").write(body.encode("utf-8"))
-    print(f"  patched {path}")
+    target = output or path
+    with open(target, "wb") as handle:
+        handle.write(body.encode("utf-8"))
+    print(f"  patched {path}" + (f" -> {output}" if output else ""))
     for key, value in extra.items():
         print(f"    [WASM] {key} = {value}")
     for key in dropped:
@@ -636,7 +646,12 @@ def main():
             extra["ASYNCIFY_HASH_LIST_URL"] = "hashlist.txt"
 
     print("== system.ini [WASM] ==")
-    patch_system_ini(ini, extra)
+    # Written to the deployment, never back into the game tree: the input belongs to the
+    # caller, and a second deployment of the same game must not inherit the first one's
+    # SAVEPATH (which is the asyncify cache key, so sharing it makes the second load fail).
+    patched_ini = os.path.join(out, "system.ini")
+    os.makedirs(out, exist_ok=True)
+    patch_system_ini(ini, extra, output=patched_ini)
 
     if args.engine_wasm:
         # Say up front whether the candidate can even be instantiated by the glue it is
@@ -654,7 +669,9 @@ def main():
                    engine_wasm=args.engine_wasm, engine_js=args.engine_js)
 
     print("== artemis.data (system.ini only) ==")
-    payload = open(ini, "rb").read()
+    # The patched copy, not the game tree's original: the engine reads system.ini out of
+    # this pack, so packing the unpatched file would silently discard SAVEPATH/ASYNCIFY_URL.
+    payload = open(patched_ini, "rb").read()
     # A `system.ini` that does not start with its own first byte is a sign the
     # caller fed in a captured stdout rather than the file: `pfs-grep --dump`
     # writes progress lines to stdout *before* the payload, so `> system.ini`
@@ -662,7 +679,7 @@ def main():
     # because the symptom otherwise surfaces much later as an unrelated crash
     # inside the engine's INI parser.
     if b"\n" in payload[:200] and not payload.lstrip()[:1] in (b";", b"[", b"#"):
-        raise SystemExit(f"{ini}: does not look like a system.ini (first bytes: {payload[:60]!r})")
+        raise SystemExit(f"{patched_ini}: does not look like a system.ini (first bytes: {payload[:60]!r})")
     write_pf8(os.path.join(web, "artemis.data"), [("system.ini", payload)])
     embed_package_size(web)
 

@@ -53,10 +53,12 @@ REPO_ROOT="$(cd "$PORTS_ROOT/.." && pwd)"
 # The flag is recognised in *any* position, because the second positional argument is the
 # outdir and naming a flag there would otherwise be read as a directory.
 DEBUG_TRAP="${ARTC_DEBUG_TRAP:-0}"
+PROFILE="${ARTC_PROFILE:-0}"
 ARGS=()
 for arg in "$@"; do
   case "$arg" in
     --debug-trap) DEBUG_TRAP=1 ;;
+    --profile) PROFILE=1 ;;
     *) ARGS+=("$arg") ;;
   esac
 done
@@ -211,6 +213,29 @@ if [ "$DEBUG_TRAP" = "1" ]; then
   python "$HERE/instrument-oob.py" "$SRC" || fail "could not instrument RANGE_CHECK"
 fi
 
+# --- 1c. optional: count which functions a real game actually reaches --------
+# A hit counter per function, written into the body by a script for the same reason the
+# OOB probe is: this is a textual edit to 100 MB of machine-written C++, and the anchor
+# (`FUNC_PROLOGUE;`) is a literal that only appears as a first statement.  The point is
+# triage for the readable rewrite: ~5,600 unnamed functions is not a transcription job,
+# it is a question of which few hundred a game actually uses.
+PROFILE_MAP=""
+if [ "$PROFILE" = "1" ]; then
+  PROFILE_MAP="$OUTDIR/profile-map.tsv"
+  NAME_TABLE=""
+  for candidate in "$OFFICIAL_ROOT/wasm/$FLAVOUR/artemis.wasm.functions.tsv" \
+                   "$OFFICIAL_ROOT/wasm/$FLAVOUR/artemis.wasm.warden-index.tsv"; do
+    [ -f "$candidate" ] && NAME_TABLE="$candidate" && break
+  done
+  if [ -n "$NAME_TABLE" ]; then
+    python "$HERE/instrument-profile.py" "$SRC" --map "$NAME_TABLE" \
+      --out-map "$PROFILE_MAP" || fail "could not instrument function entry"
+  else
+    python "$HERE/instrument-profile.py" "$SRC" --out-map "$PROFILE_MAP" \
+      || fail "could not instrument function entry"
+  fi
+fi
+
 # --- 2. host imports are forwarded, not stubbed -----------------------------
 note "2/6  forwarders for the 198 host functions"
 FWD="$OUTDIR/imports-forward.c"
@@ -289,6 +314,14 @@ if [ "$DEBUG_TRAP" = "1" ]; then
   # one linear memory, *which* address was out of range is the whole question.
   echo "     trap probe: on"
 fi
+
+# The hit counter itself, separate from the trap probe so either can be enabled alone.
+# It is only useful in a real run, so `--profile` implies nothing about `--debug-trap`.
+PROFILE_OBJ=""
+if [ "$PROFILE" = "1" ]; then
+  PROFILE_OBJ="$HERE/artc-profile.c"
+  echo "     function profiler: on"
+fi
 INCDIR="$OUTDIR/inc"
 mkdir -p "$INCDIR"
 printf '#include "artemis.wasm2c.h"\n' > "$INCDIR/artemis.h"
@@ -315,7 +348,7 @@ note "5/6  linking with em++ (importing memory as a.a)"
   -sALLOW_UNIMPLEMENTED_SYSCALLS=1 \
   -I "$INCDIR" -I "$RUNTIME_SRC" -I "$(dirname "$GEN_H")" \
   "$SRC" "$FWD" "$SHIMS" \
-  "$OUTDIR/wasm-rt-impl.o" "$OUTDIR/wasm-rt-mem-impl.o" $TRAP_OBJ \
+  "$OUTDIR/wasm-rt-impl.o" "$OUTDIR/wasm-rt-mem-impl.o" $TRAP_OBJ $PROFILE_OBJ \
   -o "$OUTDIR/bridge.raw.wasm" 2> "$OUTDIR/link.log"
 LINK_RC=$?
 if [ "$LINK_RC" -ne 0 ] || [ ! -f "$OUTDIR/bridge.raw.wasm" ]; then
