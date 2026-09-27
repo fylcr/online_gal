@@ -124,7 +124,7 @@ setting no longer functions in the 6.0.9 SDK this project uses, so a build's fun
 data-segment order and the JS `dynCall_*` ordering all depend on the host that compiled it. Real
 numbers: the same ONS sources give `onsyuri.wasm` at 4,660,610 bytes on a Linux runner and 4,660,612
 bytes on a Windows machine, with a different function-index permutation — behaviourally identical
-(same rendered frame, same shim state in a real browser) but a different hash. Three independent
+(same rendered frame, same shim state in a real browser) but a different hash. Four independent
 runner builds were byte-identical to each other, so the runner is the reproducible party and the
 manifest follows it. Pinning a developer's machine instead would make every consumer's verification
 fail and silently fall back to a source build, which is exactly what this feature exists to avoid.
@@ -140,9 +140,21 @@ first thing that looks like a real difference and is not one: a Windows checkout
 `index.html` differs by exactly its 21 carriage returns until you normalise.
 
 The same reasoning puts a constraint on the *build*: any input that varies per run makes the bytes
-unpinnable. `KRKR2_BUILD_VERSION` was such an input (a run id, and upstream's own default of a
-timestamp) — it changes the `?v=` cache-buster in `index.html` and the version compiled into the
-module on every run, so `.github/scripts/build-krkr.sh` passes the checkout's own commit instead.
+unpinnable, and there turned out to be two such inputs, not one. The first was
+`KRKR2_BUILD_VERSION` — a run id, and upstream’s own default of a timestamp. It changes the `?v=`
+cache-buster in `index.html` and the version compiled into the module on every run, so
+`.github/scripts/build-krkr.sh` passes the checkout’s own commit instead. The second was the wall
+clock, and it survived the first fix: two consecutive runs over identical sources produced
+`index.wasm` and `assets.zip` with identical sizes and different sha256. The wasm differed in 17
+bytes, all inside the data segment — OpenCV’s build-info `Timestamp:` (vcpkg compiles OpenCV from
+source during configure) and `__DATE__`/`__TIME__` in `cpp/core/base/MsgIntf.cpp` and
+`cpp/core/tjs2/tjs.cpp` — and the zip differed only in its 75 entry timestamps, because
+`cmake/CreateStoredZip.py` encodes each source file’s mtime and a fresh clone’s mtimes are all the
+checkout time. The script now exports `SOURCE_DATE_EPOCH` (the upstream commit’s own time) along
+with `TZ=UTC` and `VCPKG_KEEP_ENV_VARS=SOURCE_DATE_EPOCH`, and normalises the UI assets’ mtimes.
+Only `krkr` needs any of this: it is the one engine whose tree carries a `string(TIMESTAMP)` or a
+`__DATE__`, the one that ships a zipped asset bundle, and the one whose wasm embeds a port that
+vcpkg builds at configure time.
 
 ## Forcing a build from source
 
