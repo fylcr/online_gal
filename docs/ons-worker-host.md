@@ -1,5 +1,21 @@
 # ONS in a worker: byte-granular loading achieved
 
+> **How to read this document.** It is a chronological record, so its middle chapters hold
+> diagnoses that later work **superseded**. Where a claim below is contradicted, trust the later
+> section, not the earlier one — and trust `docs/项目状态与恢复指南.md` above both.
+>
+> | Chapter | Status |
+> | --- | --- |
+> | `## How it works`, `## The fix that mattered`, `## What the shims cost` | current |
+> | `## Input: why dispatching reaches nobody` / `## Input: SDL registers nothing at all` | **superseded diagnosis.** The conclusion "no input handler is registered anywhere" is true of the DOM route and is *why* the source shim exists; it is not the end of the story. Input is delivered through `ons_host_shim.{h,cpp}` — see the later `WEB`-build coordinate chapter and `docs/ons-source-build.md`. |
+> | `## Scaling and mouse mapping`, `## Input: the WEB build's coordinate contract` | current for the diagnosis; each "still unresolved" note is the honest state (below) |
+> | `## Display: filling the viewport`, `## Audio: real sound` | current |
+> | `## Honest limitations` | **corrected in place** — it had gone stale against the two chapters above it |
+>
+> The three things that are still genuinely open, in one place (see `docs/项目状态与恢复指南.md`):
+> **input** is shim-injected and the engine reacts, but "the click activates the intended control" is
+> not proven; **saves** are session-only; the **audio latency counter** reads high.
+
 ## Result
 
 The engine runs in a worker and reads its archives a window at a time. Same game,
@@ -227,6 +243,16 @@ configure time so input arrives through a host-supplied function rather than
 through SDL's DOM registration (see the comparison below). A prebuilt binary cannot
 be patched that way, which is why this route is blocked and the next step is to
 find the internal function rather than to keep looking for a listener.
+
+> **This is where the story was left at the time, and it is now closed.** Building
+> OnscripterYuri **from source** gives back the ability to patch — which is what
+> `ports/ons/build/ons_host_shim.{h,cpp}` does, replacing `SDL_WaitEvent` with
+> `ons_host_wait_event` and exporting `ons_host_push_key` / `ons_host_push_mouse` /
+> `ons_host_push_event`. So the conclusion above holds only for the **prebuilt**
+> binary route; the source route (and therefore the engine this project ships) does
+> deliver input. See `docs/ons-source-build.md` and the later `WEB`-build coordinate
+> chapter in this file. What remains unproven is narrower: that a click activates the
+> *intended control*.
 
 ### Diagnostic to keep
 
@@ -725,17 +751,34 @@ would make it exact and turn the trimmer into properly informed flow control.
 
 ## Honest limitations
 
-- **Audio is silent.** The context is a stub, because a worker has no Web Audio.
-  Real output needs the mixer's PCM relayed to an `AudioWorklet` on the main
-  thread, where `AudioContext` exists.
-- **Saves do not persist.** They go to `MEMFS` for the session; `IDBFS` would be
-  needed for durability, and `AudioContext`-style globals are not the issue there.
-- **`cannot open system.lua`** and the `uoncur.bmp` family are unchanged and
-  pre-existing — the same lines appear in the shipped main-thread build, so they
-  are properties of this title, not of the worker.
-- **Input is forwarded but not yet delivered.** `host.mjs` converts DOM events and
-  posts them; the worker records them. The engine's own input bridge reads the DOM
-  directly, so it needs the events re-dispatched into its queue.
+**Corrected: this list had gone stale.** It still described the state before the two chapters
+directly above it, and three of its four entries were no longer true. What actually stands:
+
+- **Audio is real, not silent.** The stub-context era ended with `## Audio: real sound`: the
+  worker's PCM is relayed to an `AudioWorklet` on the main thread and the peak reads `0.7744`
+  (it was a permanent `0.0000` while the context was a stub). What is still imperfect is the
+  **latency counter**, which only increments on push and so reports high (`0.82 s` against a
+  `0.25 s` target) — feedback from the worklet would make it exact.
+- **Saves are session-only.** This one is still true as stated, and it is narrow. `IDBFS` *is*
+  linked and exported (the build's export list carries `callMain,UTF8ToString,FS,PATH,IDBFS`), but
+  the worker mounts the `--save-dir` on **`MEMFS`** (`ons-worker.js`, "Saves go to MEMFS:
+  persistent storage would need IDBFS"), so it lives for the session only and import/export is not
+  wired. Note also that `packages/runtime-ons/src/wasm-runtime.ts:225` describes the same directory
+  as `IDBFS`-mounted and `save()` reports `persistence: 'idbfs'` — so the **provider's save contract
+  and the harness's mount disagree**. That mismatch is the open item, not a missing link.
+- **Input is delivered through the source shim, and its last step is unproven.** The DOM route
+  really does reach nobody (the two chapters above are right about *that*), which is why the
+  engine is patched at build time: `ons_host_shim.h` replaces `SDL_WaitEvent` with
+  `ons_host_wait_event`, and `ons_host_push_key` / `ons_host_push_mouse` / `ons_host_push_event`
+  inject events. The engine reacts — a click pulls **6.5 MB of previously unrequested assets
+  from `arc.nsa`** and asks for `sysimg/load023.png`, i.e. it advances the script. But the
+  engine's own hit test has not confirmed that a click **activates the intended control**: the
+  running-game sweep (`runPointerProbe(12, 8)` = 96 cells) read 1 hit that was never where the
+  click was, the smaller/larger sweeps in the display chapter read 0, and every measurement so
+  far ran on a state already advanced past its buttons.
+- **`cannot open system.lua`** and the `uoncur.bmp` family are unchanged and pre-existing — the
+  same lines appear in the shipped main-thread build, so they are properties of this title, not
+  of the worker.
 
 ## Harness
 

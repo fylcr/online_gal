@@ -47,8 +47,15 @@ Two methods are no-ops **on purpose**:
   no frame for the host to blit.
 
 `save()` reports the engine's **own** save directory rather than serialising engine state.
-ONScripter writes saves through its `--save-dir`, which the worker mounts on `IDBFS`;
-inventing a second representation would duplicate it and risk the two diverging.
+ONScripter writes saves through its `--save-dir`; inventing a second representation would
+duplicate it and risk the two diverging.
+
+> **One inaccuracy to be aware of here.** The docstring at `packages/runtime-ons/src/wasm-runtime.ts:225`
+> says the worker mounts that directory on `IDBFS`, and `save()` reports `persistence: 'idbfs'`. The
+> worker actually mounts it on **`MEMFS`** (`packages/runtime-ons/src/wasm/ons-worker.js`, "Saves go to
+> MEMFS: persistent storage would need IDBFS"), so saves are session-only and the reported persistence
+> is aspirational. Import/export is not wired on either side — the open item is that mismatch, not a
+> missing link.
 
 ## Configuration
 
@@ -68,15 +75,23 @@ translation bug here is a freeze, not a crash.
 
 ## Registration order
 
+The full `BUILTIN_PROVIDERS` order as currently registered (`packages/core/src/platform.ts`),
+highest priority first:
+
 ```
+ 105  krkr2-wasm         (the KiriKiri WebAssembly engine — added later, outranks krkr2)
  100  krkr2
   95  onscripter-wasm   ← the engine
   90  onscripter        ← the TypeScript interpreter
-  90  siglus            (unavailable)
-  85  artemis           (unavailable)
+  90  siglus            (unavailable unless a host is registered)
+  85  artemis           (unavailable unless a host is registered)
   80  tyrano
   20  web
 ```
+
+(`siglus` and `artemis` derive `availability` from whether a host has been registered —
+`runtime-siglus/src/runtime.ts:217`, `runtime-artemis/src/runtime.ts:194` — so on a default
+install both read `unavailable`; neither has anything to do with ONScripter's precedence.)
 
 Both ONScripter providers recognise the same games — which games those are is a property of
 the engine family, not the execution strategy, so they **share one probe** rather than keeping

@@ -1,5 +1,10 @@
 # P2 批 4 收口：A 组 23 件 + 局部类型截断根因修复
 
+**Tree location:** the asyncify products these notes count have since moved from
+`.ref/artemis-official/rewrite/src` to **`ports/artemis/src`** (tracked source, alongside
+`ports/artemis/rewrite-names.tsv` and `ports/artemis/REWRITE.md`).  Paths below are the
+ones that were true when each note was written.
+
 状态：**全绿**（四闸 + 双锚 + 3 连跑）
 落盘态：`D:/tmp/src-fixed-b4/src`（81 .cpp）+ `D:/tmp/names-fixed-b4.tsv`（181 行）
 教训入库：`REWRITE.md §7.6`

@@ -1,5 +1,18 @@
 # Building the ONS web target from source
 
+> **How to read this document.** It accumulated over several rounds and was never reordered, so the
+> same story appears twice and the second telling is the older one. The **opening chapter is the
+> current state**; the trailing `## Status: the stock build works; the shimmed build does not yet`
+> is a **superseded snapshot** of the session that had not yet applied the five fixes (they are
+> listed in `## The five build obstacles` above it). The duplicate `## Why` / `## What has to
+> change` pair below `## Drivers` is the earlier draft of the pair already stated at the top.
+> `docs/项目状态与恢复指南.md` is authoritative over this file.
+>
+> Summary of the current state: the **shimmed** build is the working engine — input is injected
+> through `ons_host_shim.{h,cpp}` and the engine reacts (clicking pulls 6.5 MB of previously
+> unrequested assets from `arc.nsa`). What is not proven is that a click activates the *intended*
+> control.
+
 ## Result: working, with input
 
 The build succeeds on Windows and the resulting engine runs the real game in the
@@ -152,12 +165,20 @@ laziness and the input reaction were measured.
 
 ## Remaining limitations
 
-- **Audio is silent.** The context is a stub, because a worker has no Web Audio.
-  Real output needs the mixer's PCM relayed to an `AudioWorklet` on the main thread.
+> **Two of these were later resolved; the list is kept for its history.**
+> `docs/ons-worker-host.md` `## Audio: real sound` supersedes the audio entry — the worker's PCM is
+> now relayed to an `AudioWorklet` on the main thread and the peak reads `0.7744`, where it had been
+> a permanent `0.0000`.
+
+- ~~**Audio is silent.**~~ **Now real.** The context was a stub, because a worker has no Web Audio;
+  the mixer's PCM is now relayed to an `AudioWorklet` on the main thread. Only the latency
+  *counter* still reads high.
 - **Saves do not persist.** They go to `MEMFS` for the session; `IDBFS` would be
-  needed for durability.
-- **Wheel and touch** fall through to the (inert) DOM path — the shim has
-  constructors for key and mouse only.
+  needed for durability. (Note `packages/runtime-ons/src/wasm-runtime.ts:225` reports this
+  directory as `IDBFS`-mounted, which the harness does not do — the two disagree.)
+- **Wheel and touch** fall through to the (inert) DOM path — the shim exports
+  `ons_host_push_key` / `ons_host_push_mouse` / `ons_host_push_event`, so a wheel or touch event
+  can be pushed as a raw `SDL_Event`, but no dedicated constructor exists for either.
 - `cannot open system.lua` and the `uoncur.bmp` family are unchanged and
   pre-existing: the same lines appear in the stock build, so they are properties of
   this title.
@@ -287,6 +308,11 @@ The build is useful when it produces `build_web/onsyuri.{js,wasm}` and:
    building from source at all.
 
 ## Status: the stock build works; the shimmed build does not yet
+
+> **⛔ Superseded snapshot — do not read this as current state.** This chapter was written before the
+> obstacles below were cleared. The shimmed build *does* work now (see the opening chapter): input is
+> injected through `ons_host_shim.{h,cpp}` and the engine reacts. The "three problems remain" below
+> are the remaining obstacles at that moment, kept because each diagnosis is the useful part.
 
 ### The stock build succeeds
 

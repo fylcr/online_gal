@@ -18,12 +18,13 @@
  */
 import { openSync, readSync, closeSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { resolve } from 'node:path';
 
-import { readPfsEntryData, findPfsEntry } from '../../packages/runtime-artemis/dist/pfs.js';
+import { readPfsEntryData, findPfsEntry } from '../../../packages/runtime-artemis/dist/pfs.js';
 
 // The pack chain is real game data and is never committed; point ARTEMIS_GAME_DIR at it.
 // Default stays beside the other reference checkouts, under the gitignored `.ref/`.
-const GAME = process.env.ARTEMIS_GAME_DIR ?? new URL('../../.ref/artemis-game/', import.meta.url).pathname;
+const GAME = process.env.ARTEMIS_GAME_DIR ?? resolve(import.meta.dirname, '..', '..', '..', '.ref', 'artemis-game');
 const PATH = `${GAME}/root.pfs`;
 
 function readAt(fd, offset, length) {

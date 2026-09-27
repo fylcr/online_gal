@@ -1,5 +1,11 @@
 # f1727 巨件结构分析与重写方案（供主线决策）
 
+**Tree location:** the asyncify products these notes describe have since moved from
+`.ref/artemis-official/rewrite/src` to **`ports/artemis/src`** (tracked source, alongside
+`ports/artemis/rewrite-names.tsv` and `ports/artemis/REWRITE.md`).  Paths below are the
+ones that were true when this plan was written; the `rewrite/src/...` spellings in §4.1 and
+§5 are the pre-move form of the same file, which has since landed.
+
 > 分析对象：`.ref/artemis-official/wasm/asyncify/artemis.wasm2c.c:806233–811597`（5,365 行），
 > `u32 w2c_artemis_f1727(w2c_artemis* instance, u32 var_p0, u32 var_p1)`。
 > 结构地图：`.ref/artemis-official/code/f1727.cpp`（5,478 行逐行转写，符号名 `art_refill_record_state`，111 条锚点注释）。
@@ -205,7 +211,7 @@ PascalCase 化」，与 tsv 既有风格（动词开头 PascalCase，如 Realloc
 
 ### 4.1 落位与签名
 
-- **文件**：`rewrite/src/script/refill_record_state.cpp`（f244 的前置声明 :21–27 已按此路径预注，直接对齐）。
+- **文件**：`原 rewrite/src/script/refill_record_state.cpp`（f244 的前置声明 :21–27 已按此路径预注，直接对齐）。
 - **签名**：`uint32_t RefillRecordState(EngineContext* ctx, uint32_t record, uint32_t arg);`
   （与 step_record_resume.cpp:24 的声明、engine_context.h 跳板原型逐字一致，装配器交叉原型块零改动）。
 - **实参语义命名**（函数体内可起别名注释）：
@@ -254,7 +260,7 @@ PascalCase 化」，与 tsv 既有风格（动词开头 PascalCase，如 Realloc
 
 ## 5. 建议落地顺序与前置条件
 
-1. **产品落地** `rewrite/src/script/refill_record_state.cpp`（R1 优先：搬运 + 注释 + 常量命名）。
+1. **产品落地** `原 rewrite/src/script/refill_record_state.cpp`（R1 优先：搬运 + 注释 + 常量命名）。
    前置：本方案定稿；装配器交叉原型块核对 `uint32_t(EngineContext*, uint32_t, uint32_t)`；
    参照 release_container_elements.cpp 头注释文风。
 2. **删跳板** `engine_context.h:78–80` 的 `inline RefillRecordState`。

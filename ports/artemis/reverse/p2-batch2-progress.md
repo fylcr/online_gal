@@ -1,5 +1,10 @@
 # P2 batch 2 — 5 product functions landed
 
+**Tree location:** the asyncify products these notes count have since moved from
+`.ref/artemis-official/rewrite/src` to **`ports/artemis/src`** (tracked source, alongside
+`ports/artemis/rewrite-names.tsv` and `ports/artemis/REWRITE.md`).  Paths below are the
+ones that were true when each note was written.
+
 Status: all four gates green. `agreement: 66/66, trap-kind-only: 0, differ: 0`, exit 0.
 
 ## Products (R1)
@@ -69,7 +74,8 @@ its declaration. Fixed by moving the f1114 forwarder above the alias.
 ## Note on gate (a)
 
 `code-check.sh` requires at least one fragment path and exits 2 with a usage message
-when run bare. It syntax-checks `code/` transcriptions, not `rewrite/src` products,
+when run bare. It syntax-checks `code/` transcriptions, not the rewrite products
+(that tree was `rewrite/src` when this was written; it is `ports/artemis/src` now),
 so it has no role in a product-only batch. Gate (c) compiles every product in the
 real build, which is the stronger check here.
 

@@ -97,6 +97,30 @@ its protocol carries two fixes worth keeping regardless of where it runs:
 
 Both properties are asserted by the tests that can run without threads.
 
+## What was actually chosen
+
+The constraint held, and the three candidate shapes were resolved in two different ways:
+
+- **Option A is what the ONS port does.** The engine, its WASM and its FS live in a worker; the
+  canvas crosses as an `OffscreenCanvas` and input crosses as `postMessage`. There is no synchronous
+  range bridge in the path at all — the archive is read through a ranged `stream_ops.read` on an
+  `FS.createLazyFile` node, which works precisely *because* it runs in the worker
+  (`docs/ons-worker-host.md`, `## The fix that mattered`).
+- **Option C is gone from the shipped engine.** The 1.8 GB archive is served from a few hundred KB of
+  ranged reads. `mount_game` still exists in the upstream page kept at
+  `packages/runtime-ons/assets/onsyuri.html` — it is what this constraint was about — but it is **not**
+  the mounted path: the provider loads `wasm/host.mjs` + `wasm/ons-worker.js`, and the worker does the
+  mounting itself through `FS.createLazyFile`.
+- **KiriKiri found a third way: it does not need the facade either.** JSPI suspends the engine on a
+  cache miss instead of blocking it, so the engine stays on the **main thread** with no worker
+  boundary and no synchronous read (`docs/kirikiri-web-plan.md`, `## The decisive reference` and the
+  status block at its top). That is the outcome that superseded this project's own
+  synchronous-XHR-ranges attempt.
+
+So `sync-bridge.ts` remains the correct *worker-side* implementation of option A, and it is not the
+route either shipped engine takes. Its own constraint is documented here so the next attempt does not
+rediscover it.
+
 ## Verification harness
 
 `.test/bridge-check/` — a page that imports the package's compiled

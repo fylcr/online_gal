@@ -6,8 +6,9 @@
 ones that were true when each note was written.
 
 
-Branch state: `.ref/artemis-official/rewrite/src` = **157 products** + `util/engine_context.h` (771 lines).
-`rewrite/rewrite-names.tsv` = 314 fn rows. Generator `D:/tmp/tx_gen2.py` = 280 PROD rows, METAS for 131 items, ORDER 131.
+Branch state at the time of this note: `.ref/artemis-official/rewrite/src` = **157 products** + `util/engine_context.h` (771 lines;
+774 today).
+`rewrite/rewrite-names.tsv` (now `ports/artemis/rewrite-names.tsv`) = 314 fn rows. Generator `D:/tmp/tx_gen2.py` = 280 PROD rows, METAS for 131 items, ORDER 131.
 
 Batch 4B was decided by the user (m07012) as **route A**: write no product prose in this
 round; instead make the generator's callee closure resolvable by adding inline forwarders,

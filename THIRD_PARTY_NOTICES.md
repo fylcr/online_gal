@@ -57,6 +57,52 @@ required and applies to the transcribed portions in their original form.
 
 ---
 
+## Kirikiroid2-web — architecture and two patched web-platform files
+
+**Files:** `ports/krkr/kirikiroid2/patch-vlfs-host-source.mjs` and the two
+upstream files it patches in place, `platforms/web/vlfs.js` and
+`platforms/web/shell.html`
+
+**Upstream:** <https://github.com/fenghengzhi/kirikiroid2-web> (`web` branch, commit
+`13dda190` — pinned in `docs/kirikiri-web-plan.md`)
+
+Its architecture (JSPI + VLFS) is the basis of this project's KiriKiri
+WebAssembly build, and `ports/krkr/kirikiroid2/run-build.sh` drives its CMake
+preset. The build recipe carries two idempotent in-place patches to those two
+files; no upstream source is redistributed from this repository, because the
+build consumes a `.ref/` checkout that is gitignored.
+
+**Licence:** the upstream `README.md` says "MIT License", but the repository's
+`LICENSE` file is the BSD-style Kirikiri/W.Dee text quoted above for
+Kirikiroid2, followed by the notices of the libraries it bundles. The two are
+not in agreement, so the more restrictive file is the one treated as
+authoritative here. Both are permissive and compatible with this project's
+GPL-3.0-or-later.
+
+---
+
+## vcpkg overlay ports — gettext and libexif
+
+**Files:** `ports/krkr/kirikiroid2/overlay-ports/gettext/**`,
+`ports/krkr/kirikiroid2/overlay-ports/libexif/**`
+
+These are committed patch files and `portfile.cmake` overrides that make two
+vcpkg ports build under Emscripten / MinGW on this machine, so that the
+KiriKiri build is reproducible from a clone. They are not modified upstream
+source bundles — each overlay points at the upstream tarball and applies the
+patches listed beside it.
+
+| Overlay | Upstream licence (declared in its `vcpkg.json`) | Why it exists |
+| --- | --- | --- |
+| `gettext` | `GPL-3.0-only` | Upstream's Windows build fails on a real source defect in `gnulib-lib/localtime.c`; the local `fix-mingw-gcc15-localtime-env-loop.patch` is this machine's fix. See the gettext section of [`docs/项目状态与恢复指南.md`](docs/项目状态与恢复指南.md). |
+| `libexif` | `LGPL-2.1-or-later` | Under an Emscripten target `vcpkg_configure_make` passes no `--host`, so autoconf treats the build as native and runs conftest binaries it cannot run. The overlay sets `VCPKG_MAKE_BUILD_TRIPLET "--host=wasm32-unknown-emscripten"`. |
+
+The patches themselves are trivial build fixes and are distributed under the
+same terms as the ports they modify; the upstream notices remain in the
+upstream tarballs that vcpkg downloads.
+
+---
+
 ## AetherKiri — architecture and adapter-layer knowledge
 
 **Upstream:** <https://github.com/AetherKiri/AetherKiri> — **GPL-3.0-or-later**
@@ -79,6 +125,24 @@ OnscripterYuri's own `GPL-2.0-or-later` grant is what makes folding that layer
 into a GPL-3.0-or-later project permissible.
 
 ---
+
+## artemis-compat — engine structure and house style
+
+**Upstream:** <https://github.com/Weiss-UltimateSavior/artemis-compat> — **GPL-3.0**
+(commit `a4f8a257cf87cb8f65ab4e3f83501ab327a55424`, pinned in `ports/README.md`)
+
+No upstream source is redistributed here, and no file is copied: `ports/artemis/src/`
+is hand-written C++ that was checked against that project's conventions rather than
+lifted from it. What the rewrite takes from artemis-compat is **naming and shape** —
+the file-per-concept layout, the `Class::Method` vocabulary, the `// file.cpp — purpose.`
+header form, and the specific class names it already uses for the subsystems this
+port needed. `ports/artemis/REWRITE.md` calls this "对齐 house style" and states
+explicitly that no "Adapted from artemis-compat" attribution is written into the
+sources.
+
+Both projects are GPL-3.0, so the alignment raises no combination question. The
+notice is recorded because the naming is a deliberate derivation and a reader
+comparing the two trees should find the reason stated rather than inferred.
 
 ---
 
@@ -168,4 +232,38 @@ The decision and its reasoning are recorded in
 `.ref/artemis` takes precedence whenever one is present, so a properly licensed
 user still builds against their own tree. Anyone redistributing this repository
 should remove `ports/artemis/vendor/` unless they hold a licence from the author.
+
+---
+
+## Artemis Engine — `ports/artemis/src/` (rewritten from the official decompile)
+
+**Files:** `ports/artemis/src/` — 159 files, ~71,000 lines of hand-written C++
+(`namespace artc`), beside its style constitution `ports/artemis/REWRITE.md`
+and its rename ledger `ports/artemis/rewrite-names.tsv`
+
+**Derived from:** the proprietary SDK's WebAssembly builds, via the `wasm2c`
+output in `.ref/artemis-official/`. Each product records its source range in its
+own header, e.g. `// src: artemis.wasm2c.c 780308-780308 (f1700); R1 transcribe-keep.`
+
+This is a **descent question, not a copying question**, and it is recorded here
+rather than left implicit. Every file in that tree reproduces the control flow of
+a function the official SDK compiled, so the provenance of the *behaviour* is the
+proprietary binary above. What the rewrite removes is the artefact: it is
+hand-written C++ in `artemis-compat`'s house style, renamed per the ledger,
+with the generated driver's goto graph and pool addresses replaced, held to
+`ports/artemis/REWRITE.md` and checked by `ports/artemis/reverse/style-gate.sh`.
+
+The practical consequence is the same as for the SDK itself: **this tree cannot
+be relicensed by this project, and it inherits the SDK's licensing risk.**
+`ports/artemis/vendor/artemis-sdk/` and `ports/artemis/src/` stand or fall
+together — redistributing one without the other does not remove the problem.
+`REWRITE.md` §4 states the position taken at the time (the products are
+re-expressed original code, not a transliteration of pseudocode, and no
+"Adapted from artemis-compat" attribution is written into the sources); it also
+records that the GPL-3.0 attribution question is left open.
+
+The reverse-engineering recipes that produce and verify this tree live in
+`ports/artemis/reverse/`; §16 of
+[`docs/artemis-web-port.md`](docs/artemis-web-port.md) describes what each one
+asserts.
 

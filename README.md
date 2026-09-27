@@ -17,19 +17,26 @@
 
 | 引擎 | 识别特征 | 运行时 | 状态 |
 | --- | --- | --- | --- |
-| KiriKiri / KAG3 | `data.xp3`、`startup.tjs`、`Config.tjs`、`first.ks`、`System.tjs` | 自研 KAG3 解释器 + TJS2 源码解释器 | ✅ 可运行（明文脚本） |
-| ONScripter | `nscript.dat`、`nscript.___`、`nscr_sec.dat`、`onscript.nt2/nt3`、`.nsa` | 自研 NScripter 命令解释器 | ✅ 可运行 |
+| KiriKiri / KAG3 | `data.xp3`、`startup.tjs`、`Config.tjs`、`first.ks`、`System.tjs` | **KiriKiri2 的 WASM 构建**（优先）+ 自研 KAG3 解释器与 TJS2 源码解释器（回退） | ✅ 可运行（WASM 需构建已发布；明文脚本可回退到解释器） |
+| ONScripter | `nscript.dat`、`nscript.___`、`nscr_sec.dat`、`onscript.nt2/nt3`、`.nsa` | **OnscripterYuri 的 WASM 构建**（优先）+ 自研 NScripter 命令解释器（回退） | ✅ 可运行 |
 | TyranoBuilder | `tyrano/`、`data/scenario/first.ks`、`tyrano/plugins/kag/kag.js` | 内置 Web 运行时 + 桌面导出兼容 shim | ✅ 可运行 |
 | RPG Maker MV / MZ | `js/rpg_core.js`、`js/rmmz_core.js`、`www/` 布局 | 内置 Web 运行时 | ✅ 可运行 |
 | 通用 HTML5 / NW.js | `index.html`、`app.asar` | 内置 Web 运行时 | ✅ 可运行 |
 | SiglusEngine | `Scene.pck`、`Gameexe.ini`/`Gameexe.dat`（含 `Data/` 布局） | 已接入识别与配置读取；执行需 `siglus_rs` 的 WebAssembly 构建 | ⚠️ 仅识别 |
-| ArtemisEngine | `root.pfs`、`system.ini`、`boot.ini`、`system/first.iet`、`root.pfs.NNN` 补丁包 | 已接入识别与 PFS 包目录读取；执行需 RFVP/Artemis 的 WebAssembly 构建 | ⚠️ 仅识别 |
+| ArtemisEngine | `root.pfs`、`system.ini`、`boot.ini`、`system/first.iet`、`root.pfs.NNN` 补丁包 | 官方 SDK 的 WebAssembly 构建已可部署真实游戏（`ports/artemis/build/official-web-deploy.py`），并提供 `root.pfs` 目录读取 | ⚠️ 引擎能跑，但**尚未接入平台**；音频与读缓存未完成 |
 | Ren'Py | `.rpa`、`game/script.rpy`、`renpy/` | — | 仅识别（无探针） |
 
 「仅识别」的引擎会被记录在游戏条目上，导入后**明确提示不可运行**，而不是给出一个点了没反应的启动按钮。
-Siglus 与 Artemis 的提供者会主动声明 `availability: 'unavailable'`，因此游戏库卡片上显示「引擎不可用」而不是「开始」。
+Siglus 与 Artemis 的提供者都不是把 `availability` 写死成 `unavailable`，而是**取决于宿主是否注册了
+引擎宿主**：Siglus 声明 `availability: siglusEngineHosts.length > 0 ? 'runnable' : 'unavailable'`，
+Artemis 同理。仓库里目前**没有任何代码调用 `registerSiglusEngineHost` 或 `registerArtemisEngineHost`**，
+所以由本平台直接启动时两者都落回 `unavailable`，游戏库卡片上显示「引擎不可用」而不是「开始」——
+这是当前的真实行为，而不是硬编码的结论。
 
-### 没有实现的部分（这是本项目最大的限制）
+> Artemis 与 Siglus 的差别在**引擎那一侧**：Siglus 没有可用的 WebAssembly 构建，Artemis 有，
+> 而且已经能跑真实游戏——见下文「ArtemisEngine」一节。
+
+### 自研解释器没有实现的部分（本项目最大的限制之一）
 
 **这不是引擎移植，是脚本层的重新实现。** 这一点必须说清楚：
 
@@ -46,9 +53,10 @@ KiriKiri2 是 C++ 引擎（参考实现 Kirikiroid2 的 `src/` 约 7.2 MB，仅 
 | TJS2 **字节码 VM** | ❌ 无 | 能读、能反汇编，但**不能执行**；编译型 `.ks` 会被明确拒绝 |
 | TJS2 完整对象模型 | ❌ 部分 | 无 `property` 访问器语义、命名空间、完整标准库 |
 | TVP 原生插件（`loadplugin`） | ❌ 无 | 需要 `.dll`/`.so`，浏览器里没有对应物 |
-| 原生引擎的 WASM 移植 | ❌ 无 | KiriKiri2 / ONScripter / Artemis / Siglus 均未移植 |
+| 原生引擎的 WASM 移植 | ✅ 已有 | KiriKiri2、ONScripter、Artemis 三者的上游/官方 WASM 构建都已跑通（见下文各节）；**Siglus 仍无** |
 
-因此**兼容性预期应当是「简单到中等的 KAG3 游戏、且脚本为明文」**。以下情况会失败（且会明确报错，不会静默）：
+因此**下面这条限制针对的是本项目的解释器，而不是平台整体**：解释器的兼容性预期应当是
+「简单到中等的 KAG3 游戏、且脚本为明文」。以下情况会失败（且会明确报错，不会静默）：
 
 - `.ks` 为编译型（TJS2 字节码）——没有 VM，运行时**拒绝加载**而不是当作空脚本播放；
 - 脚本大量依赖 TJS2 高级特性（自定义类层次、`property` 访问器、原生插件）；
@@ -75,7 +83,7 @@ pnpm build        # 构建全部 packages + 静态站点（apps/app/dist）
 pnpm preview
 ```
 
-测试（416 个用例）：
+测试（本机实测 416 个用例，411 通过 / 5 永久跳过）：
 
 ```bash
 pnpm test
@@ -121,7 +129,7 @@ pnpm check        # tsc -b（全部 packages）+ astro check
    ┌────────▼───┐ ┌────▼─────┐ ┌──▼──────┐ ┌─▼───────┐ ┌▼──────────┐
    │ runtime-   │ │ runtime- │ │ runtime-│ │ runtime-│ │ runtime-  │
    │ kag        │ │ ons      │ │ siglus  │ │ artemis │ │ web/tyrano│
-   │ KAG3 + TJS2│ │ NScripter│ │ 识别+INI│ │ 识别+PFS│ │ HTML5 内嵌 │
+   │ KAG3 + WASM│ │ ONS  WASM│ │ 识别+INI│ │ PFS+WASM│ │ HTML5 内嵌 │
    └────────┬───┘ └────┬─────┘ └──┬──────┘ └─┬───────┘ └┬──────────┘
             │          │          │          │          │
             │          │          └──────────┴──────────┘
@@ -222,9 +230,12 @@ Control 回调各报一次」的去重（`attachInput` 只绑一个监听器，�
 **目标**：把所有归档读取（XP3 / NSA / NS2 / SAR / PFS / ZIP）统一到一套**惰性**抽象上，使文件在
 浏览器里也能按需读取，而不是先整体载入内存。
 
-**为什么必须做**：不这么做，WASM 运行时就必须把整个游戏塞进 Emscripten 的虚拟文件系统——正是
-这一点让上游 WASM 路径无法按需加载。对 GB 级归档（你的 ONS 游戏有 1.8 GB 和 1.2 GB 两个）这是
-硬伤。同样地，自研 TS 路径在真实 ONS 游戏上 `load()` 就耗尽 4 GB 内存。
+**为什么必须做**：不这么做，WASM 运行时就必须把整个游戏塞进 Emscripten 的虚拟文件系统。对
+GB 级归档（你的 ONS 游戏有 1.8 GB 和 1.2 GB 两个）这是硬伤。这条判断**已经被两条实测路线修正**：
+KiriKiri 与 ONScripter 现在都通过宿主字节源接缝按 Range 喂数据（ONS 实测只读了 1.8 GB 归档里的
+0.56 MB，KiriKiri 实测真实 XP3 只读了 11.32%）。也就是说**按需加载的关键不在归档读取器，
+而在宿主与 WASM 之间的取数接缝**；这套分层文件系统仍然是平台侧（非 WASM）路径的统一抽象。
+同样地，自研 TS 路径在真实 ONS 游戏上 `load()` 就耗尽 4 GB 内存。
 
 **已有的基础**：`GameSource`（统一目录/文件视图，含 `readRange`）与 `ByteSource`（随机访问）
 两个接口已经在 `engine-api` / `vfs` 里，归档读取器也都能给出条目偏移。缺的是把「压缩/未压缩」的
@@ -350,8 +361,9 @@ Siglus/Artemis 的「宿主 + FFI 契约」是同一形状，只是这里的二�
 许可证方面没有问题：OnscripterYuri 是 GPL-2.0-or-later，可并入本项目的 GPL-3.0-or-later，
 WASM 产物随附其 LICENSE。
 
-**仍未做**：把 WASM 运行时接进平台的 `RuntimeProvider` 契约（iframe 宿主 + `postMessage` 文件
-喂给，参照 `runtime-web` 的既有做法），以及用 `onsyuri_index.json` 的生成替换现有导入流程。
+**仍未做**：接入平台的 `RuntimeProvider` 契约**已经完成**——`@online-gal/runtime-ons` 里的
+`onscripter-wasm` provider（`priority: 95`，高于自研解释器的 90）已注册进 `BUILTIN_PROVIDERS`，
+平台能直接启动这个 WASM 引擎。仍未做的是另一半：用 `onsyuri_index.json` 的生成替换现有导入流程。
 
 ### 用真实游戏验证桥接层（`.test/test-games/`）
 
@@ -364,6 +376,9 @@ WASM 产物随附其 LICENSE。
 | KiriKiri | `krkr2` | 70 / medium | `adult.xp3` |
 | ONScripter | `onscripter` | 120 / **high** | `0.txt` + `arc.nsa`，startup=`0.txt` |
 | Artemis | `artemis` | 90 / medium | `root.pfs` + `root.pfs.000` 补丁包 |
+
+> 表里是**自研解释器**的探针结果。现在命中同一个游戏时，WASM 引擎（`krkr2-wasm` / `onscripter-wasm`）
+> 会因优先级更高而先认领，见「各运行时实现范围」。
 
 Artemis 那条正好验证了补丁包编号规则：说明书里写的「把汉化补丁改名为 `root.pfs.001`」机制被
 正确识别为「基础包 + 编号补丁」。
@@ -472,6 +487,16 @@ Artemis 那条正好验证了补丁包编号规则：说明书里写的「把汉
 
 ### KiriKiri / KAG3（`packages/runtime-kag`）
 
+这个包里有**两条**执行路径，先说的是主线：
+
+- **`krkr2-wasm`（`wasm-provider.ts`，`priority: 105`）**——真正的 KiriKiri2 引擎，编译成
+  WebAssembly 后在 iframe 里跑，归档由宿主字节源接缝按 Range 喂进去。它只在
+  「构建产物已发布 **且** 游戏源里有可挂载的归档」时才认领游戏，否则让给解释器。
+- **自研解释器（`runtime.ts`，`priority: 100`）**——下面这一节讲的都是它。
+
+`krkr2-wasm` 优先级更高：同一个游戏两者都命中时，真引擎胜出。构建配方在
+`ports/krkr/kirikiroid2/`，`bash ports/krkr/kirikiroid2/run-build.sh` 退出码 0。
+
 自研的 TJS2 源码解释器与 KAG3 场景执行器。
 
 **TJS2 覆盖**：词法分析、递归下降语法分析、树遍历求值。支持变量作用域（含 `var` 全局提升）、算术/位/比较/逻辑运算符与正确优先级、`?:`、复合赋值、`++`/`--`、函数声明与表达式、默认参数、`arguments`、对象与数组字面量、`for`/`for-in`/`while`/`do-while`/`switch`、`try`/`catch`/`finally`/`throw`、基于原型链的 `class` 与继承、`typeof`（TJS2 拼写为 `void` 而非 `undefined`）、`instanceof`、`in`、可选链。除法为零时抛错而非返回 `Infinity`。
@@ -522,6 +547,11 @@ TJS2 *源码文本*。因此编译型 `.ks`（`TJS2` 头部的字节码）会被
 
 ### ONScripter（`packages/runtime-ons`）
 
+这个包同样有**两条**执行路径：`onscripter-wasm`（`wasm-provider.ts`，`priority: 95`）跑的是
+从源码构建的 OnscripterYuri 真引擎（见上文「ONScripter：上游 WASM 构建」），
+`runtime.ts` 的 `priority: 90` 解释器是它打不开的游戏的回退。两者共享同一个探针。
+下面讲的是解释器。
+
 NScripter 命令语言解释器，扁平程序计数器 + 整数/字符串变量槽模型。
 
 支持：`goto`/`gosub`/`return`/`jumpf`/`jumpb`、算术与比较（`mov`/`add`/`sub`/`mul`/`div`/`mod`/`inc`/`dec`/`numalias`/`stralias`/`itoa`/`atoi`）、条件（`if`/`notif`）、文本与消息（`clr`/`br`/`page`/`er`/`indent`/`texton`/`textoff`）、图形（`bg`/`ld`/`csp`/`csp2`/`cl`/`quake`）、音频（`play`/`playonce`/`wave`/`mp3`/`mp3loop`/`bgmstop`/`stop`）、选择（`select`/`selnum`）、存档（`save`/`load` 直接写 `savedata/save<NN>.dat`）、`caption`、`*define` 块中的 `mode` 分辨率读取与 `define`/`game` 结构标记。
@@ -560,7 +590,34 @@ wasm 构建、WebGPU 离屏读回、`Scene.pck` 解包、`Gameexe.dat` 解码器
 
 ### ArtemisEngine（`packages/runtime-artemis`）
 
-**同样只识别与读取目录，不执行。** 比 Siglus 多了一层实质能力：能读 PFS 包。
+这个包本身**只做识别与读取目录，不执行**——它比 Siglus 多了一层实质能力：能读 PFS 包。
+但 Artemis 这条线**整个平台**已经不只是「仅识别」了，两件事必须分开讲。
+
+**一、包里的 provider 仍会落回 `unavailable`，但那不是常量。**
+`runtime.ts` 声明的是 `availability: artemisEngineHosts.length > 0 ? 'runnable' : 'unavailable'`：
+只要宿主用 `registerArtemisEngineHost(host)` 注入一个引擎宿主，它就能跑。仓库里**目前没有任何
+代码调用这个函数**，所以由本平台直接启动时它确实报「引擎不可用」——这是诚实的现状，不是结论。
+
+**二、引擎真的跑起来了，而且有两条不同的路线：**
+
+- **官方 SDK 的 WebAssembly 构建**（`ports/artemis/build/official-web-deploy.py`）——
+  把真实游戏部署到官方 asyncify 构建上。这是**唯一验证过能在浏览器里完整跑起真实游戏**的路线
+  （`.ref/artemis/WebAssembly/asyncify/`）。官方只给了二进制，所以它入库属于一个被推翻的
+  许可决定，理由见 [`docs/artemis-web-port.md`](docs/artemis-web-port.md) §15。
+- **`artemis-compat` 的自建移植**（`ports/artemis/build/web-deploy.sh`）——第三方引擎，输入层
+  的工作都在这一条上。`ports/artemis/src/` 是它的**重写产物**：手写 C++，逐个函数替换
+  wasm2c 转译出来的函数体，命名空间 `artc`，共 159 个文件、约 71,000 行，全部是**已跟踪的
+  普通源码**。旁边放着它的风格宪法 `ports/artemis/REWRITE.md` 与逐函数改名台账
+  `ports/artemis/rewrite-names.tsv`（314 个 `fn` 行，其中 157 行已经落到 `src/` 里的真文件）。
+  曾经的旧位置 `.ref/artemis-official/rewrite/` 已删除；同步（sync）那一份产品**没有入库**。
+- **校验不是声明，是会失败的断言**：`ports/artemis/reverse/wasm-replace-test.mjs` 对候选引擎
+  走四道闸、`ports/artemis/reverse/wasm-diff.mjs` 与官方做严格差分、
+  `bash ports/artemis/reverse/style-gate.sh` 检查重写代码的风格（实测 PASS）。
+- **已知缺口**：**音频**（OpenSL ES 那一层还没换到 Web Audio，日志能证明调用到达，但没声音）
+  与**读缓存**（同一段载荷在一次启动里被重复读取，没有缓存层）。这两项与其余未完成项记在
+  [`docs/artemis-web-port.md`](docs/artemis-web-port.md) §十。
+
+下面几条是 `packages/runtime-artemis` 这个包自己的范围：
 
 - **探针与评分**：标记文件与补丁命名规则来自 Tyranor-Next 文档化的指纹表
   （`docs/Artemis自动引擎识别优化计划方案.md` 与 `ArtemisEngineFingerprintDetector.kt`），
@@ -641,11 +698,19 @@ TyranoBuilder 额外注入一个 shim，让桌面导出回退到 Web 存储路�
 ├── real-game.test.ts     # 真实游戏目录：识别、启动、绘制真实对话
 ├── kag-runtime.test.ts   # 端到端：KAG 会话（含跨脚本控制流与拒绝字节码）
 ├── ons-runtime.test.ts   # 端到端：ONScripter 会话
+├── ons-wasm-provider.test.ts # `onscripter-wasm` provider：注册、优先级、缺画布时不半启动
+├── kiri-host-source.test.ts  # 宿主取数通道：URL→key、按 key 缓存、越界短读、缺文件语义
+├── kiri-vlfs-host-source.test.ts # 接缝端到端：vm 载入真实 vlfs.js，断言 fetch 零调用 + 反向对照
+├── kiri-wasm-page.test.ts    # createKiriPage：URL 参数、load 时才注入、dispose 语义
+├── kiri-wasm-provider.test.ts # `krkr2-wasm` provider：优先级、部署门控、挂载推导
+├── lazy-fs.test.ts       # 字节粒度懒加载 VFS
+├── sync-bridge.test.ts   # 同步桥（WASM 需要同步读，而平台接口是异步的）
 ├── harness/              # 模拟浏览器（jsdom + canvas 桩 + 假时钟），只服务测试
 └── test-games/           # 真实游戏数据（~13 GB），只读输入，永不提交
 ```
 
-> 上表是完整的本地套件，但**不是每个用例都能在任何机器上跑**。因缺少 `.ref/` 检出而
+> 上表是完整的本地套件（`npm test` 实测 **416 tests / 411 pass / 0 fail / 5 skipped**），
+> 但**不是每个用例都能在任何机器上跑**。因缺少 `.ref/` 检出而
 > 自行 skip 的有 `real-game.test.ts` 与 `kiri-vlfs-host-source.test.ts`（各自 `existsSync`
 > 判断后才注册用例）。`archives.test.ts` 里另有 5 个 `it.skip`，那是**永久跳过**：XP3 分块
 > 索引读取器还没实现，与其拿夹具把它们凑绿，不如留成待办并写清为什么。当前的 5 skipped 指的就是这 5 个。
@@ -681,6 +746,11 @@ ports/                       把上面的运行时接到真实引擎的构建配
 ├── krkr/kirikiroid2/        KiriKiri（现行）：构建配方 + vcpkg overlay ports + 浏览器测试
 ├── krkr/krkrsdl2/           KiriKiri（早期方案，已被取代，保留其诊断结论）
 └── artemis/                 Artemis：构建配方 + Android shim + engine patch + 页面 harness
+    ├── src/                 重写后的引擎源码（手写 C++，159 个文件，已跟踪）
+    ├── REWRITE.md           重写风格宪法（命名、注释口吻、目录落位）
+    ├── rewrite-names.tsv    逐函数改名台账（wasm2c 名 → artc 名）
+    ├── reverse/             逆向官方二进制并自校验的配方（差分、风格闸、帧锚）
+    └── vendor/              官方 SDK 的二进制，**有意入库**（专有许可，见下）
 scripts/                     仓库自身的检查脚本（布局约定、测试入口）
 .test/                       跨包测试套件（含 harness/ 模拟浏览器，已被 gitignore）
 ```
@@ -725,6 +795,8 @@ patch——最初全都躺在 `.test/` 里，结果**没有任何东西能推送
 | [Kirikiroid2](https://github.com/zeas2/Kirikiroid2)（TJS2 操作码与字节码格式表） | BSD 风格 | ✅ 已使用，声明保留在 `THIRD_PARTY_NOTICES.md` |
 | [Tyranor-Next](https://github.com/Weiss-UltimateSavior/Tyranor-Next) | **GPL-2.0-or-later** | ✅ 可升到 GPL-3.0；目前只用了其文档化的引擎特征表 |
 | [siglus_rs](https://github.com/xmoezzz/siglus_rs)（Siglus 引擎，尚未引入） | MPL-2.0 | ⚠️ 可通过 §3.3 二次许可与 GPL-3.0 组合，须保留 MPL 声明 |
+| [artemis-compat](https://github.com/Weiss-UltimateSavior/artemis-compat) | **GPL-3.0** | ✅ 可（`ports/artemis/src/` 的重写代码对齐它的 house style；同名函数按语义重表达，未逐字直译，故不在源码里加「Adapted from」字样） |
+| [kirikiroid2-web](https://github.com/fenghengzhi/kirikiroid2-web) | 上游 README 写 MIT，但仓库 `LICENSE` 是 Kirikiri 系的 BSD 风格全文 | ✅ 已使用其架构与两处被打补丁的 `platforms/web/` 文件；声明见 `THIRD_PARTY_NOTICES.md` |
 | 官方 Artemis Engine SDK（`ports/artemis/vendor/artemis-sdk/`） | **专有**（非自由许可，商业需付费） | ❌ **与 GPL-3.0 不兼容，但仍已入库**——这是有意承担的风险，理由见 [`docs/artemis-web-port.md`](docs/artemis-web-port.md) §15 与 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。再分发本仓库前应先删除该目录，除非持有作者授权 |
 
 关键判定依据：
@@ -735,5 +807,6 @@ patch——最初全都躺在 `.test/` 里，结果**没有任何东西能推送
 - Tyranor-Next 的价值在于引擎特征表与分层设计；即便其许可证允许，当前也只借用了这些事实性/架构性
   信息，没有复制实现代码。
 
-> 因此：**AetherKiri、Kirikiroid2 与 Tyranor-Next 的代码都可以移植或转录。** 引入任何移植
-> 代码时，必须在本文件与 `THIRD_PARTY_NOTICES.md` 中追加对应的版权声明与来源说明。
+> 因此：**AetherKiri、Kirikiroid2、Tyranor-Next 与 artemis-compat 的代码都可以移植或转录。**
+> 引入任何移植代码时，必须在本文件与 `THIRD_PARTY_NOTICES.md` 中追加对应的版权声明与来源说明。
+> 官方 Artemis SDK **不在此列**：它只能作为校验用的对照物，不能据此再分发。

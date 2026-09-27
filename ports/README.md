@@ -75,7 +75,7 @@ reads the binaries from `artemis/vendor/artemis-sdk/` when `.ref/artemis` is abs
 `.ref/emsdk`, `~/emsdk`, `C:/emsdk`. A directory that merely *exists* is not enough — an
 interrupted `emsdk install` leaves a tree with no compiler in it, and the search skips those.
 
-emmcripten 6.0.9 is the version the KiriKiri build enforces with an exact check.
+emscripten 6.0.9 is the version the KiriKiri build enforces with an exact check.
 
 ## Game data
 

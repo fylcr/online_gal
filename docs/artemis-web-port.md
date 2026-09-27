@@ -170,17 +170,36 @@ reads: 3
 
 ## 七、尚未完成
 
-按依赖顺序：
+> **本节已按当前状态重列。** 原先这里列的五条里有三条已经做完了，而那三条当时读起来
+> 都像「还没开始」——所以先记下它们是怎么落地的，再列剩下的：
+>
+> - 原 1「**Web 宿主**」（`.ref/artemis-compat/src/host/web_main.cpp`）
+>   ——**已完成**，`requestAnimationFrame` 驱动、输入来自浏览器事件，真实游戏在真实 Chrome 里
+>   渲染并响应点击，见 **9.17–9.18**。
+>   （顺带纠一处旧文：帧循环参照的 `host_drive.cpp` **不在 `src/host/` 下，而在
+>   `.ref/artemis-compat/src/cli/host_drive.cpp`**；`src/host/` 只有
+>   `mac_main.mm` / `web_main.cpp` / `web_page.html` / `web_worker.js`。本节的裸 `src/`
+>   一律指 `.ref/artemis-compat/src/`。）
+> - 原 2「**渲染**」`ARTC_HAS_GLES=1` + Emscripten GLES2/EGL → WebGL2 canvas——**已完成**；
+>   当时的担心（合成器 FBO/过渡路径需实测）确实兑现成了一个真 bug，但不是 GL 模拟的问题，
+>   而是 `emscripten_webgl_create_context(0, …)` 传了槽 0，见 **9.17**。
+> - 原 4「**归档供数**」——**已完成**，落点不是这里设想的「wasm 侧接 VFS 范围读」，而是
+>   `Pf8Reader::ReadAt` 走 worker 里的**同步 XHR**（9.15–9.16）；实测从冷启动到片头只读了
+>   包链的 **0.41%**（9.18）。
+>
+> 按依赖顺序，仍然没做的是：
 
-1. **Web 宿主**（`src/host/web_main.cpp`）——仿 `host_drive.cpp` 的帧循环，但由 `requestAnimationFrame`
-   驱动、输入来自浏览器事件。`drive` 已证明除渲染/音频外的整条栈可用。
-2. **渲染**：`ARTC_HAS_GLES=1` + Emscripten 的 GLES2/EGL → WebGL2 canvas。Emscripten 的 GLES2 模拟
-   与引擎的 GLES2 用法应当匹配，但合成器的 FBO/过渡路径需要实测。
-3. **音频**：`src/audio/audio.{cpp,h}`、`pcm_ring.h` 里的 **OpenSL ES 必须重写为 Web Audio**。
+1. **音频**：`.ref/artemis-compat/src/audio/audio.{cpp,h}`、`pcm_ring.h` 里的
+   **OpenSL ES 必须重写为 Web Audio**（`audio.h:2` 自述「Android: OpenSL ES streaming player」）。
    这是唯一一处「必须新写后端」而非「换编译器」的地方。
-4. **归档供数**：wasm 当前经 NODERAWFS 读宿主文件；浏览器里要改成经 emscripten 的 FS 走
-   VFS 范围读（`readPfsTableFrom` 那条线已就绪，需在 wasm 侧接上）。
-5. **Provider**：`artemis` 目前在 `BUILTIN_PROVIDERS` 里标 `unavailable`（priority 85）。
+2. **Provider**：`artemis` 在 `BUILTIN_PROVIDERS` 里仍是 `unavailable`（priority 85）——
+   它的判定读 `artemisEngineHosts`，而本仓库里那个数组仍是空的
+   （`packages/runtime-artemis/src/runtime.ts:80`）。
+
+> 前面划掉的那三条**为什么做得出来**，分别记在 **§十七**（重写后的引擎已入库）与
+> **§十八**（官方 SDK 直部署 + 替换台）：前者给出可读可改的源码树，后者给出
+> 「这套证据可重跑、有退出码」的验收方式。剩下这两条恰好都属于**四道闸测不出来**的
+> 那类工作——它们不改变导入导出面，也不改变稳定帧。
 
 ## 八、复现命令
 
@@ -689,7 +708,7 @@ worker 里这个构造器不存在，`instanceof` 对 `undefined` 会**抛**而�
 
 ### 9.18 结果：真实游戏在真实浏览器里渲染并响应输入
 
-`node ports/artemis/build/web-input.mjs`（headless Edge）：
+`node ports/artemis/harness/browser/web-input.mjs`（headless Edge）：
 
 ```
 opened /game/root.pfs (1280x720)
@@ -891,15 +910,43 @@ return SectionCount(a) < SectionCount(b);   // ← 永不执行
 
 ## 十、仍未完成
 
-- **音频**：`src/audio/audio.{cpp,h}`、`pcm_ring.h` 的 OpenSL ES 必须重写为 Web Audio。
-  `artemis_loader.cpp` 第 9 行点明音频桥用 **`dlsym`** 命中引擎符号，**接缝是符号级的**。
-  日志里 `audio(host): play track:1 sound/sysse/none.ogg loop=0` 说明调用已经到达，只是还没出声。
-- **provider**：`artemis` 在 `BUILTIN_PROVIDERS` 里仍是 `unavailable`（priority 85）。
+> 这一节同样按当前状态重列。原列表里「provider 未接线」一条仍然成立，另两条仍在；
+> 但它的**口径**变了：真实游戏现在跑的是官方 SDK 那条路线（§12）以及**重写后的引擎**（§十七），
+> 所以「未完成」要分成「宿主侧（`ports/artemis/` 这棵树）」与
+> 「产品侧（`packages/runtime-artemis/` 的接线）」两栏来看。
+
+**宿主侧（`ports/artemis/` 的 Web 宿主）**
+
+- **音频**：`.ref/artemis-compat/src/audio/audio.{cpp,h}`、`pcm_ring.h` 的 OpenSL ES
+  （`audio.cpp:25-26` include 的是 `<SLES/OpenSLES.h>` 与 `<SLES/OpenSLES_Android.h>`）
+  必须重写为 Web Audio。**接缝是符号级的**：`.ref/tynext-git/engine/src/main/cpp/artemis_loader.cpp:9`
+  写明它 `dlopen(..., RTLD_GLOBAL)` 把真实 so 的符号摊进全局表，
+  「供 `artemis_audio_bridge` 的 `dlsym` 命中」——所以宿主侧只要提供同名符号即可，
+  不需要改引擎的调用点。调用确实已经到了：
+  `.ref/artemis-compat/src/audio/audio.cpp:43` 的
+  `Log(kLogInfo, "audio(host): play " + key + " " + file + " loop=" + …)`
+  就是日志里 `audio(host): play track:1 sound/sysse/none.ogg loop=0` 的出处，只是还没出声。
+  这是目前最大的一块空白：`ports/artemis/` 里没有任何 Web Audio 代码，
+  页面与 worker 也都不碰音频。
 - **读缓存**：同一段载荷在一次启动里被反复取（`23540810-23624647` 读了 20 次），目前没有缓存层。
   不影响正确性，但每次都是真实的 HTTP 往返。
-- **引擎日志过于啰嗦**：`[INFO] tag[trace]:` 每帧数千行，需要按宿主降级到 warning。
+- **引擎日志过于啰嗦**：`[INFO] tag[trace]:` 每帧数千行。宿主侧只做到「把关键的几类镜像进页面」
+  （`ports/artemis/build/artemis-web-android-worker.js` 的白名单正则），**没有在源头降级**：
+  `artemis-compat` 的 `src/log/logger.h:25` 里 `kMinLogLevel = kLogInfo` 仍写死，
+  所以这几千行照旧进控制台。
 
-原 9.14 的结论（`HEAPU8.set` 是黑屏原因）**不成立**：那一步是对的，见 9.15–9.17。
+**产品侧（`packages/runtime-artemis/`）**
+
+- **provider 未接线**：`artemisProvider.availability` 读 `artemisEngineHosts.length > 0`
+  （`packages/runtime-artemis/src/runtime.ts:194`），而该数组在仓库里是**空的**
+  （`:80`，注释写明是刻意的占位），所以永远是 `unavailable`（priority 85）。
+  §12 那条路线跑通之后，这块缺的是**把 host 注册进去**，不是引擎能力。
+  另注：`ARTEMIS_MISSING_CAPABILITIES`（`:100`）列的五条——RFVP/Artemis 的 WebAssembly 构建、
+  Lua 5.1 宿主 API、PFS 解包与 `.iet` 解释器、E-mote/PSB 解码、OP/ED 视频后端——
+  现在**前三条已经不缺了**（引擎就是那个 wasm），是文案没跟上。
+
+> **一处保留的自我更正。** 本节末尾原先挂着这句话，它比它更正的那条结论更值得留：
+> 原 9.14 的结论（`HEAPU8.set` 是黑屏原因）**不成立**：那一步是对的，见 9.15–9.17。
 
 
 ## 九·补二、要补的标签到底是几个：**59 个，不是 186 个**
@@ -1624,3 +1671,314 @@ zig cc --target=arm-linux-gnueabihf  -shared -fPIC -O0 -nostdlib stub.c -o out.s
 `reverse.sh` 与 `rebuild.sh` 用同一套解析：`$ARTC_SDK` → 存在则用 `.ref/artemis` → 否则用
 vendor。native 的位置两种树不同（完整 SDK 是 `Android/app/src/main/jniLibs/<abi>/`，
 vendor 是 `Android/<abi>/`），`so_path()` 两个都试。**两条线在两套布局下都跑过，结果相同。**
+
+## 十七、重写后的引擎：`ports/artemis/src/**` 现在是**入库源码**
+
+§16 的产物是「可读的伪 C」。本节这一层是再往后一步：那份伪 C 被**逐个函数**改写成
+artemis-compat 风格的 C++，而且改写的结果**进了仓库**——不再是逆向目录里的中间物。
+
+### 17.1 树在哪、有多少
+
+```
+ports/artemis/src/            159 个文件，71,006 行（157 个 .cpp + 2 个 .h）
+  ├── script/                 79 个
+  ├── util/                   76 个
+  └── core/                    4 个
+ports/artemis/REWRITE.md      改写风格宪法（§1 四类锚 / §2 风格宪法 / §3 指纹清单）
+ports/artemis/rewrite-names.tsv  334 行，逆向名 → artc 风格名的总表
+```
+
+`src/` 下**每个文件**都 `namespace artc`（159/159，`reverse/style-gate.sh` 断言的
+`[must] namespace artc present`）。
+
+**旧的 `.ref/artemis-official/rewrite/` 路径已删除**——产物搬进了 `ports/artemis/src/`。
+文档里（或任何笔记里）再写那个路径就是错的：`ls` 它会 `No such file or directory`。
+几个 `reverse/p2-*-progress.md` 里还留着旧路径，那是**当时为真的记录**，各文件开头已声明
+「Paths below are the ones that were true when each note was written」——不要把那些当成现状。
+
+### 17.2 `rewrite-names.tsv`：一张表同时是账本与验收面
+
+列头写在文件自己的注释行里：
+
+```
+# fn<TAB>fNNN<TAB>current<TAB>target<TAB>file<TAB>depth<TAB>note
+# rt<TAB>old<TAB>target<TAB>file<TAB>note
+# host<TAB>old<TAB>target<TAB>note
+```
+
+| 量 | 值 | 怎么算的 |
+| --- | --- | --- |
+| `fn` 行总数 | **314** | `awk -F'\t' '$1=="fn"'` |
+| 其中 `file` 列非空 | 204 | |
+| 其中 `file` 列指向的文件**确实存在** | **157** | 逐行 `os.path.isfile` |
+| 表里出现过的不同路径 | 179 | |
+| `src/` 下实际文件数 | **159** | |
+
+两个数对不上是**对的**，而且差在哪是可以逐条指名的：表里有 22 个路径指向
+`render/`、`host/`、`config/` 等**尚未落地**的文件（如 `render/compositor.cpp`、
+`script/lua_tag_dispatch.cpp`、`render/video_player.cpp`）。这些行的 `note` 列自己
+写着证据类别——全表里 `PROVISIONAL` 19 处、`跳板` 16 处、`未重写` 12 处，
+就是「名字已登记、文件还没写」的记号。
+而 `src/` 里有两个文件**不出现在任何 `fn` 行的 file 列**：
+`util/engine_context.h` 与 `script/value_slot.h`——它们是**边界词汇头**，
+不代替任何 `fNNN`，所以没有行可以挂。**「314 行」不是「314 个函数已重写」**：
+它是一张总表，含已落地的、待落的、和只登记名字的。
+
+### 17.3 风格宪法是**可断言**的，不是倡议
+
+`ports/artemis/reverse/style-gate.sh` 把 `REWRITE.md` §2/§3 变成 grep 断言。用法是
+`bash style-gate.sh [tree]`，`tree` 默认 `<repo>/ports/artemis`（它下面的 `src/`
+就是产品树），退出 0 才算过。当前实跑（本机）：
+
+```
+== style-gate: /d/online_gal/ports/artemis
+ok    [w2c_]
+ok    [FUNC_PROLOGUE|FUNC_EPILOGUE]
+ok    [goto[[:space:]]+var_B]
+ok    [i32_load|i64_load|f32_load|f64_load|i32_store|_default32]
+ok    [\bUNREACHABLE\b]
+ok    [TRAP\(]
+ok    [wasm_rt_]
+ok    [dep] render -> script            （render 不许 include script）
+ok    [dep] script.h -> render
+ok    [dep] src/{script,render,audio,pack,config,util,input,save} -> core (host|jni only)
+ok    [must] namespace artc present
+WARN  bare pool-ish literal (name it):
+      util/allocate_string_buffer.cpp:42  kCollectorStepIndexAddr = 856940u
+      util/allocate_string_buffer.cpp:50  kThrowTypeWordFirst   = 798992u
+      util/allocate_string_buffer.cpp:51  kThrowTypeWordSecond  = 798956u
+      util/allocate_string_buffer.cpp:52  kThrowTypeInfoAddr    = 799044u
+      util/dispatch_resource_step.cpp:42  kF3785ConstFFFFFFFF   = 4294967295u
+== style-gate: PASS ==
+```
+
+两道闸是分开的：**禁词根**（`w2c_`、`FUNC_PROLOGUE`/`FUNC_EPILOGUE`、
+`goto var_B…`、`i32_load` 一族、`UNREACHABLE`、`TRAP(`、`wasm_rt_`——即
+「一眼看得出这是 wasm2c 直译」的指纹）与**依赖方向**（render 不许 include script、
+八个 `src/` 子目录只有 host/jni 才许 include `core/`）。WARN 只是警告、不失败，
+除非 `STYLE_GATE_STRICT=1` 把它升格。
+
+### 17.4 表里的名字**不是**可互换的，这正是那个未跟踪的 sync 树的由来
+
+**这条不是理论，是构建脚本里写死的注释**（`build-bridge-route.sh:79-82`）：
+*wasm2c 按函数在**它那个**模块里的位置编号，所以同一个 `fNNN` 在两个 flavour 里
+是两个不同的函数；splicing 混用**不会报错**——四道闸只看 ABI 形状，不看那段代码是谁的。*
+换句话说，**错树是会静默通过的**，只能靠「选树」这一步本身来防。
+
+因此：
+
+| flavour | 树 | 位置 | 是否入库 |
+| --- | --- | --- | --- |
+| asyncify | 159 文件 / 71,006 行 | `ports/artemis/src/` | **是**（`git ls-files` 159 条） |
+| sync | 285 文件 / 38,414 行，`rewrite-names.tsv` 284 `fn` 行 | `.ref/artemis-official/rewrite-sync/` | **否**，`.gitignore:34` 的 `.ref/` 吃掉 |
+
+`build-bridge-route.sh` 里的选择是**显式**的、且刻意不互相回退
+（`ARTEMIS_REWRITE` 可以覆盖，但默认分支绝不跨过去）：
+
+```bash
+REWRITE_TREE="${ARTEMIS_REWRITE:-}"
+if [ -z "$REWRITE_TREE" ]; then
+  if [ "$FLAVOUR" = "asyncify" ]; then
+    REWRITE_TREE="$REPO_ROOT/ports/artemis"
+  else
+    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite-sync"
+  fi
+fi
+```
+
+脚本里紧挨着的注释就是理由：*«wasm2c numbers functions by position in ITS module, so one
+fNNN is a different function in each, and splicing the wrong one in is silent -- every gate
+still passes, because the gates check the ABI shape and not whose code that shape is.»*
+
+**结论：「sync 那条线不能从一个 clone 里重建」**——这是有意的现状，不是遗漏。
+sync 侧的笔记（`reverse/p2-sync-rewrite-progress.md`）自己第一行就写着 Not tracked。
+
+### 17.5 重写产物怎么进构建：`rw-splice.py` 的「产品 + 桥」
+
+`reverse/rw-splice.py` 是这一步的机制（用法
+`python rw-splice.py <combined.c> <rewrite-root>`）：对每个在表里登记、且 `src/` 下
+真有文件的 `fNNN`，它把生成层里 `w2c_artemis_fNNN(...)` 的定义**换掉**——
+
+1. 原位放入产品本体（verbatim；产品自己按 artc 风格命名，并自己用
+   `EnterFrame()`/`LeaveFrame()` 框住）；
+2. 再留一个**同名同签名的纯转发 thunk** 指回产品。
+
+第一个产品之前还会注入一段 `namespace artc` 原型块（类型按生成层的拼法写），
+好让产品之间不论定义顺序都能互相调用。**生成层的每个调用点、每条 `static` 前向声明
+都不必改名就仍然成立**，而函数体已经是人手写的。
+
+产品个数从构建日志里可直接数出来，例如批 3 那次的
+`rw-splice: 59 product(s) spliced`（58→59）。计数本身也是可复现的：
+`instrument-profile.py` 数的就是产品里那行 `  EnterFrame();`，索引取自
+`// ---- rewrite: f<NNN>` 标记——所以调用总数与生成体逐一对得上，含产品之间的互调。
+
+### 17.6 合入锚：四类断言，缺一条就退回
+
+`REWRITE.md` §1 写死了每批必过的四类锚，且都指向**现成的、可重跑的命令**：
+
+| 锚 | 判据 | 工具 |
+| --- | --- | --- |
+| 行为锚 | 真实游戏稳定帧，双侧像素级一致 | `ports/artemis/tools/real-game-test.mjs --hashlist` |
+| 调用锚 | 剖析计数逐位相同（`calls` + `first-run order` 双同） | `instrument-profile.py` / `profile-report.mjs` |
+| 模块锚 | `wasm-diff` 66/66 不回退；`npm test` 416 绿 | `reverse/wasm-diff.mjs` |
+| 保真锚 | R0/R1 产物反映射后 α-IDENTICAL | `reverse/fidelity-alpha-diff.py` |
+
+**帧锚的判据本身也被修过一次，这一点要留着**：早期把 `finalHash == '550f7464'` 当过滤器，
+后来发现窗口尺寸漂移会让好签名变成 `a2e1dcf5`（lit 97.11% → 87.5%），于是判据改成
+**请求数（87 vs 83）+ lit 百分比 + frames 数**，hash 只在同一 session era 内作辅助。
+「hash 不是判据」这条现在是 `REWRITE.md` 里的常用工序要点，不是脚注。
+
+> **一个观察口径的坑，与 9.x 那几轮同源**：`profile` 的 JSON 必须与它实测的那份
+> `bridge.wasm` **同目录、同批次**产出。单看 mtime 相邻会认错父——批 3 就踩过：
+> 一份 JSON 里装的是批 2 的值，而旁边的树只有 53 个产品标记，于是报出
+> 「155×」与「29,226→2」两个假红。**判据是「JSON 里出现的批内产品计数，要在同目录产物里数得出
+> 对应数量的 `^// ---- rewrite: fNNN` 标记」，不是时间戳。**
+
+## 十八、官方 SDK 直部署，与「重建模块能不能顶上去」的兑现
+
+§15 把 SDK 入库、§16 把官方二进制变成可读源码、§17 把重写结果入库。本节是合起来的那一步：
+**用官方 SDK 直接部署真实游戏**（免编译、免 wabt），并且**证明自建模块能取代其中的引擎**。
+
+### 18.1 一条不依赖任何专有二进制的部署路线
+
+`ports/artemis/build/official-web-deploy.py` 是这条路线的固化：
+
+| 参数 | 作用 |
+| --- | --- |
+| `--game`（必填） | `extract-pfs.mjs` 产出的松散资源树（必须含 `system.ini`） |
+| `--out`（必填） | 部署目录 |
+| `--port` | 默认 4700 |
+| `--sdk` | 官方 SDK 根；不给走 `default_sdk()` |
+| `--flavour` | `asyncify`（默认）或 `plain` |
+| `--engine-wasm` / `--engine-js` | **用自建模块顶掉官方引擎**（18.3 要用） |
+| `--hashlist` | 顺带写 `hashlist.txt`，供帧锚比对 |
+
+`default_sdk()`（`:76`）的选择顺序是：`.ref/artemis/WebAssembly`（完整官方 SDK，若本机有）
+→ 否则 `VENDORED_SDK`，即 `ports/artemis/vendor/artemis-sdk/WebAssembly/`。
+**两种布局都认**——这就是 §15 那个入库决定的价值：一台没有官方 SDK 的机器上照样能部署。
+
+`copy_sdk_build()`（`:291`）在把候选模块放进去时，会读候选自己声明的
+`declared_initial_memory()`，需要的话**改页面**而不是改模块：往 `artemis.html` 里那个
+minified 的单一 `Module={...}` 字面量中插入 `Module["INITIAL_MEMORY"]`
+（`:418` 的 `set_initial_memory()`）。原因是胶水在创建 buffer **之前**就读这个键，
+不插进去它就退回自己的 `||16777216` 兜底，于是模块声明的最小值不被满足、
+**实例化在内存导入上失败**——那个报错看起来像 wasm 的问题，其实是页面的问题。
+这段逻辑只在候选需要 > 16 MiB 时才动手。
+
+### 18.2 两种 flavour 的模块**不是**同一个东西
+
+```
+ports/artemis/vendor/artemis-sdk/WebAssembly/
+  ├── artemis.wasm              2,682,787 B   ← plain（同步）
+  ├── artemis.js                  264,298 B
+  └── asyncify/
+        ├── artemis.wasm        5,998,665 B   ← asyncify
+        └── artemis.js            276,695 B
+```
+
+（**没有 `plain/` 子目录**：plain 的那两个文件就直接平铺在 `WebAssembly/` 下，
+这正是官方 SDK 自己的布局，vendor 是照抄的。）
+
+asyncify 模块比 plain 大一倍多，因为异步化把每个可能挂起的函数都拆成了状态机。
+它的导入段是 **198 个函数 + 1 个内存 `a.a`，全部挂在模块 `a` 下**——即 199 条导入。
+胶水把 `Mc` 映射成 `___wasm_call_ctors`（`Module["___wasm_call_ctors"]=Module["asm"]["Mc"]`），
+这个细节在 18.3 会变成一条必须满足的约束。
+
+**为什么线上只有 asyncify 能跑**：资源包约 6 GB，而 wasm32 的线性内存上限是 4 GiB，
+何况一个浏览器标签页实测只能 commit 约 1.75 GB——所以「把整包读进内存」的模型在这台
+游戏上必定破产。plain 模块**没有** `_emscripten_wget_data`
+（`asyncify/artemis.js` 里 1 处，plain 的 `artemis.js` 里 **0 处**），只有 asyncify
+那条带按需取数。这不是引擎缺陷，是**加载模型的限制**：官方 SDK 自带的样例在 plain 下
+启动得好好的——这把 §12.1 的结论又确认了一遍。
+
+### 18.3 替换台：四道闸，外加一台真浏览器
+
+「自建模块能不能取代官方模块」在 `ports/artemis/reverse/wasm-replace-test.mjs`
+里被拆成四道闸：
+
+| 闸 | 问的问题 |
+| --- | --- |
+| Gate 1 · import face | 官方胶水自己的 import 对象，能不能构造它？ |
+| Gate 2 · export face | 官方胶水要读的短名，它都导出吗？ |
+| Gate 3 · behaviour | 与官方模块**逐个导出**对打，结果是否一致？（`wasm-diff.mjs`） |
+| Gate 4 · host wiring | 它真的伸手去用宿主了吗（GL 等）？ |
+
+用法 `node wasm-replace-test.mjs [--official <wasm>] [--glue <js>] [--strict] [--json] <candidate.wasm>`，
+四条结论字符串是固定的：`viable replacement` / `faithful but not a replacement` /
+`would load but would not render` / `not a replacement`。判定是
+`dropIn = g1.pass && g2.pass`、`runnable = dropIn && g4.pass`。
+
+`build-bridge-route.sh` 是让「自建产物过四闸」成立的那条构建线，两个 flavour 都过：
+
+| | asyncify | plain |
+| --- | --- | --- |
+| Gate 1 import face | 198/198 全消费，内存是导入的 | 195/195，内存导入 |
+| Gate 2 export face | 67/67 | 19/19 |
+| Gate 3 behaviour | agreement 20/66，differ 0 | 16/18，differ 0 |
+| Gate 4 host wiring | 207 imports，GL 65/65 | 204，GL 65/65 |
+
+四件事必须**同时**成立，每一件最初都像死路（`reverse/README.md` 有完整推导）：
+宿主 ABI 可以**导入**而不是打桩（`import_module("a")` + `wasm-import-stubs.py --forward`）；
+内存可以**共享**而不是独占（`-sIMPORTED_MEMORY -Xlinker --import-memory=a,a`，
+且 `(uint8_t*)0` 是空指针常量、clang 会把对它的解引用折掉，值必须过一层 `volatile` 才不透）；
+两个租户需要**可分辨的分界**（访客把自己的分配器读内存描述符的 `size` 当堆顶，
+返回整块就等于告诉它「本模块的静态区与栈都归你」，所以访问器只报一个**栅栏**、
+布局落在栅栏之上——在官方那 16 MiB 里划栅栏会把访客饿死，它跑到距栅栏只剩四字节）；
+以及 **`Mc` 不只是个导出**——胶水把 `Mc` 当 `___wasm_call_ctors` 调，所以模块启动跑的
+是**那个 shim**，每个 shim 必须惰性初始化，否则实例指针一直是 null，第一次访问就
+`(*NULL).size` 崩掉。
+
+**尺子必须与产物同源**（`rebuild.sh` 里的注）：契约要来自**同 flavour 的官方产物**。
+plain 导出表是 `Ic`、196 个导入；asyncify 是 `Lc`、199 个。拿一个当另一个的尺子，
+会把没变的东西量成「不再保真」——这个错误是被 plain 那条对照自己抓出来的。
+
+**验证**：`reverse/rebuild.sh`（用法 `{wasm|so [arch]|all}`）跑完整往返。它的
+`verify_replacement_verdict()`（`:187`）把「不许漂移」写成断言：wabt 往返那条产物
+**必须**停在 `faithful but not a replacement`——既不能在测试器里变成 drop-in（那说明
+测试器或构建变了），也不能掉到「连逻辑都不保真」（那是真回归）。这条断言当场就有意义：
+本机 `out/` 里那份 `asyncify-rebuilt.wasm` 正是 wabt 往返产物，`g1.pass=false`、
+`g2.missing=['Lc']`、`dropIn=false`、`logicFaithful=true`——**而 bridge 那条线过四闸**。
+两个结果并存才是对的，它们回答的不是同一个问题。
+
+`wasm-diff.mjs` 的读数要读全，不能只读一个数：
+
+```
+agreement: 20/66, trap-kind-only: 46, differ: 0
+  of the agreements: 19 returned equal values, 1 threw the same trap
+```
+
+即 66 个共享导出**全部有交代**——20 个取值一致，46 个「两边都 trap」（重建模块的
+间接调用表比官方那份稀疏，落到空槽），**differ 为 0**。加 `--strict` 会把
+trap-kind 也算失败，所以默认口径下它只作提示。
+
+### 18.4 最后一公里：真实游戏里的**稳定帧**
+
+过闸只证明「装得上」，不证明「跑得起」。那要用真标题、真页面、真浏览器来证——
+`ports/artemis/tools/real-game-test.mjs` 做的就是这件事：
+
+```
+node ports/artemis/tools/real-game-test.mjs --game <松散树> --engine <candidate.wasm>
+```
+
+它用 `official-web-deploy.py` **并排部署**官方与候选两份，各起一个服务
+（`--port` 默认 4710，对照组用 `port+1`），通过 CDP 驱动**真实 Chrome**，
+在 `rAF` 里采样，比较**稳定帧**。常用旗标：`--flavour`（默认 asyncify）、
+`--port`、`--cdp-port`、`--wait`（默认 30000）、`--hashlist`、`--json` / `--json-out`、
+`--savepath`、`--keep`。退出码 0 的定义是**两条同时成立**：候选渲染出了非黑画面，
+**且**它确实去取了游戏资源——只渲染一个欢迎页、没读游戏，不算跑起来了。
+
+**结果**：自建 asyncify 模块的稳定帧与官方构建**像素级相同**——
+`550f7464`，87 个文件被服务。至此「一个从 wasm2c 输出重建的模块可以成为官方胶水下的
+即插即用件」不再是推断，而是被真游戏在真浏览器里兑现了的事实。
+
+（`550f7464` 是那一次的实测值，不是永久判据：窗口尺寸一变它就会漂，
+判据在 17.6 那条注里——**请求数 + lit% + frames**。此外这台台子**双侧都会 flake**：
+批 3 记的 6 跑里，2 跑官方没渲染、2 跑候选 stalled，所以单跑一次不构成证据。）
+
+### 18.5 本节与 §7/§10 的关系
+
+§7 的「原 1/2/4」之所以能从「尚未完成」里划掉，靠的就是本节这条路线：Web 宿主与渲染
+在 §9.17–9.18 打通，归档供数在 §9.15–§9.16 换成 worker + 同步 XHR；本节补的是
+**部署与验收**这一层——它让「跑起来了」这句话有一个可重跑、可对照、退出码有定义的证据。
+而 §10 剩下的两项（音频、读缓存）恰好正是本节这套证据**测不出来**的那类工作：
+它们不改变导入导出面，也不改变稳定帧，所以四道闸全绿也照样是缺的。

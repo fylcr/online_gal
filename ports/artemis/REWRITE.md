@@ -3,7 +3,7 @@
 > 本树产物必须长得像 artemis-compat（.ref/artemis-compat，GPL-3.0）的 house style，
 > 而不是 wasm2c 逐句直译。语义仍以 wasm2c 为保真基线（判定顺序一字不动），
 > 词汇、结构、文件落位、注释文风全部对齐 artemis-compat 的真实代码惯例。
-> 本文是重写阶段的唯一规范；转写档案规范见 ../code/TRANSCRIBE.md（历史产物不再动）。
+> 本文是重写阶段的唯一规范；转写档案规范见 `.ref/artemis-official/code/TRANSCRIBE.md`（历史产物不再动）。
 
 ## 0. 先生已拍板的四个决定
 
@@ -14,7 +14,8 @@
 
 ## 1. 不变项（每批合入的锚点）
 
-- 行为锚：真实游戏稳定帧 == `bef44818`（real-game-test.mjs --hashlist 双侧逐字节同）
+- 行为锚：真实游戏稳定帧**双侧像素级一致**（real-game-test.mjs --hashlist，candidate.finalHash ≡ official.hash）。
+  历史记录的绝对哈希（`bef44818`、`550f7464`、`1504b2dc` 等）**随窗口尺寸漂移**，只作同 session 内的辅助，不作判据（§7.3）。
 - 调用锚：剖析计数逐位相同（重写不改变调用行为）
 - 模块锚：wasm-diff 66/66 不回退；`npm test` 416 绿
 - 保真锚：R0/R1 产物反映射后 α-IDENTICAL（fidelity-alpha-diff.py）
@@ -50,7 +51,7 @@
 
 ## 4. 词汇映射
 
-全表在 **rewrite-names.tsv**（kind=fn 47 行现状 + kind=rt 运行时面 + kind=host 宿主导入族）。
+全表在 **rewrite-names.tsv**（kind=fn 314 行现状，其中 **157 行已落产品文件** + kind=rt 11 行运行时面 + kind=host 4 行宿主导入族）。
 原则：
 
 - 能对上 artemis-compat 现成类/文件的**直接用它的**：f3744→`LuaEngine::TagDispatch`（照 l_tag 双阶段
@@ -76,7 +77,7 @@
 ```bash
 bash ports/artemis/reverse/style-gate.sh              # 风格闸（本文 §2/§3，默认扫 ports/artemis/src）
 node ports/artemis/tools/real-game-test.mjs --game .test/artemis-official-async/game-chs \
-  --engine <构建产物> --hashlist                                       # 帧锚 == bef44818
+  --engine <构建产物> --hashlist                                       # 帧锚 == 同 run 的 official.hash
 node ports/artemis/reverse/wasm-diff.mjs <official> <构建产物>           # 66/66 不回退
 bash ports/artemis/reverse/fidelity-alpha-diff.py <产物> <wasm2c> <fnid> # R0/R1 保真
 ```
@@ -182,7 +183,9 @@ instrument-profile.py 计数锚 = 产品体 `  EnterFrame();`（索引取自 rw-
   （calls + first-run order 双同）才算过。
 - **统计计数前必须按 settle 筛 run**：bench 双侧都会 flake —— 实测 6 跑里 2 跑 official
   未渲染（`FAIL: the official build did not render on this bench`）、2 跑 candidate stalled
-  （`frames 1 settled stalled`）。**只有 `candidate.finalHash=='550f7464'` 的 run 才带可用计数。**
+  （`frames 1 settled stalled`）。**只有「双侧都 rendered 且 settled」的 run 才带可用计数** —— 判据
+  是请求数 + lit% + frames（§1、§7.3），不是 hash：`550f7464` 只是当时那个窗口尺寸下的值，
+  窗口一变就漂（实测缩到 1920x945 后变 `a2e1dcf5`）。拿死 hash 过滤会把好 run 也筛掉。
 - 🔴 **profile JSON 必须和它实测的那台 `bridge.wasm` 同目录、同批次产出**。单看 mtime 相邻
   会认错父。判据：JSON 里出现的批内产品计数，必须在同目录 `artemis.cpp` 里数得出对应数量的
   `^// ---- rewrite: fNNN ` 标记；数不上就是孤儿产物。

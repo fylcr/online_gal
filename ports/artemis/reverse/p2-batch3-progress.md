@@ -148,10 +148,10 @@ engine_context.h 19,319 B）还原树 + 删 tsv 的 f3785 行 →
 
 ## Batch 3 close
 
-- 落地 1 件 R1 产品 + 5 条 host 包装；`rewrite/src` 59 cpp；
+- 落地 1 件 R1 产品 + 5 条 host 包装；`rewrite/src` 59 cpp（今 `ports/artemis/src`）；
   `rewrite-names.tsv` 141 行 landed。
 - 批 1+2+3 = 39 件全部有计数、无一件为 0。
-- **备份教训**：批 3 那次 `cp -r rewrite/src D:/tmp/src-backup-batch3` 报 "backup ok: 61 files"，
+- **备份教训**：批 3 那次 `cp -r rewrite/src D:/tmp/src-backup-batch3`（当时树名）报 "backup ok: 61 files"，
   但事后 `diff -u` 无输出 —— 备份是子代理改完之后的快照。可用基线是
   `D:/tmp/src-backup-batch2`；批 3 收官态是 `D:/tmp/src-backup-batch3-good`
   （engine_context.h 21,114 B）。

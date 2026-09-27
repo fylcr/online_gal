@@ -1,5 +1,19 @@
 # ONS emulation: baseline verified, and the byte-granularity gap
 
+> **Status: this document is the *baseline* — the measurement that established the gap. The gap has
+> since been closed.** On-demand loading works: the real 1.8 GB archive is served from **0.56 MB** of
+> ranged reads. The fix is recorded in `docs/ons-worker-host.md` (`## The fix that mattered`) and it is
+> **not** the route proposed in `## Why the fix is not local` below — the engine runs in a **worker**
+> with a ranged `stream_ops.read` on an `FS.createLazyFile` node, rather than a
+> `SharedArrayBuffer`/`Atomics.wait` facade on the main thread. Both are described here because the
+> baseline section still reads correctly as history.
+>
+> The verification harness below (`.ref/onsyuri-web/serve.mjs`, port 4599) is the **pre-fix** harness.
+> It has been superseded by `ports/ons/harness/` (port 4620, `node ports/ons/harness/serve.mjs`), which
+> is where the working engine and the `__served` transfer report now live.
+>
+> `docs/项目状态与恢复指南.md` is authoritative.
+
 ## Emulation works
 
 OnscripterYuri's WASM build runs the real game correctly. Evidence from the
@@ -75,7 +89,20 @@ provides the ranged end — `RangedLazyFile` over a `Blob` or HTTP source, with
 `ArchiveEntryLazyFile` serving entries inside an archive — and the missing piece
 is the synchronous facade over it.
 
+**What actually happened instead.** The synchronous facade was never needed, because the
+requirement to be synchronous disappears **inside a worker** — and the worker is also where
+synchronous XHR and `Atomics.wait` are legal. So the engine runs in a worker and the archive is
+read through a ranged `stream_ops.read` on an `FS.createLazyFile` node
+(`docs/ons-worker-host.md` `## The fix that mattered`). The `SharedArrayBuffer` bridge above exists
+in this repository as `packages/vfs/src/sync-bridge.ts` (`SyncFileBridge`, `rangeFetch`,
+`createBridgeWorker`), and its main-thread constraint is documented in
+`docs/sync-bridge-main-thread-constraint.md`, but the ONS port did not end up using it.
+
 ## Verification harness
+
+> **Pre-fix harness.** This is the setup that measured the 2950.5 MB baseline above. The working
+> engine is now served by `ports/ons/harness/serve.mjs` (port **4620**, `__served` transfer report);
+> see `docs/ons-worker-host.md` `## Harness`.
 
 - server: `.ref/onsyuri-web/serve.mjs` (port 4599, Range-capable, COOP/COEP,
   hardened against client disconnects)

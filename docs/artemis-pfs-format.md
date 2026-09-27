@@ -1,12 +1,17 @@
 # Artemis PFS（pf8）归档格式
 
-本文是 `@online-gal/vfs` 里 pf8 读取器的规格依据。它由**两个独立实现 + 真实归档字节**三方对齐得出：
+本文是 pf8 读取器的规格依据。读取器本体在 **`packages/runtime-artemis/src/pfs.ts`** ——
+**不在** `@online-gal/vfs` 里（`packages/vfs/src/archives/` 只有 `nsa` / `xp3` / `zip` / `asar`，
+没有 pf8）。它由**两个独立实现 + 真实归档字节**三方对齐得出：
 
 | 来源 | 位置 | 作用 |
 | --- | --- | --- |
 | **GARbro** `ArcPFS.cs`（morkt，MIT） | `.ref/garbro/ArcFormats/Artemis/ArcPFS.cs` | 久经考验的描述，含版本分支与编码回退 |
 | **artemis-compat** `pf8_reader.cpp` | `.ref/artemis-compat/src/pack/pf8_reader.cpp` | 自研实现，注解里写明「pad」「original engine behavior」 |
-| 真实归档 | `.ref/artemis-game/root.pfs`（**2,690,454,559 B**） | 用字节裁定分歧 |
+| 真实归档 | `root.pfs`（**2,690,454,559 B**） | 用字节裁定分歧 |
+
+脚本经 `ARTEMIS_GAME_DIR` 定位真实归档，默认落在 `.ref/artemis-game/`（真实游戏数据永不入库）；
+本机实际位于 `.test/test-games/Artemis/`（另有 `root.pfs.000`、两个 `chs_patch_*.pfs`）。
 
 验证脚本：`ports/artemis/build/parse-pf8-index.py`（按 GARbro 布局解析真实归档）。
 
@@ -169,9 +174,20 @@ pc\ja\blog\name\雪.png
 
 **但这并不意味着尾部可以跳过。** 索引**必须整体读取**，因为密钥是 `SHA-1(整个 index)`，那 172,712 字节虽然
 从不被解析，**却要参与哈希**——只哈希前 1,013,063 字节会得到不同的摘要，所有条目都会解成噪声。
-所以按需加载的下限是 **`11 + index_size`**（该归档为 1,189,400 字节），而不是「条目表的大小」。
+所以按需加载的下限是 **`7 + index_size`**（该归档为 **1,185,782 字节**，约 1.13 MB），而不是「条目表的大小」。
 
-（这一条先前写反了，实测后更正。）
+**实测确认**（`readPfsTableFrom` 对真实 `root.pfs` 发出的范围请求，另加随后取 `system.ini` 那一条）：
+
+```
+[[0, 7], [7, 1,185,775]]                        →  表 1,185,782 B
+[[2,690,450,941, 3,618]]                        →  system.ini 条目 3,618 B
+                                          合计  1,189,400 B / 2,690,454,559 B = 0.044%
+```
+
+**两个数不要混**：**1,185,782 = 7 + index_size** 是「按需加载的下限」（表本身，约 1.13 MB）；
+**1,189,400** 是**一次真正跑起来**读掉的总字节数（下限 + 那一条 3,618 B 的 `system.ini`）。
+（这一条先前写反过一次；更正时把 1,189,400 当成了算错的数 —— 它其实是实测总量，只是不等于下限。
+旧文里的 `11 + index_size` = 1,185,786 才是真正对不上的那个。以上均为本次实测值。）
 
 ## 九、按本文核对既有实现时发现并修正的两个缺陷
 
@@ -221,11 +237,29 @@ font/extra_28.rft   解出 72 66 74 33 fc be 07 00   ← "rft3" = RFT 字体自�
 ```
 
 一个是 PNG 魔数、一个是 RFT 的内部签名，**两个都是二进制资源**——即启发式判错的那一类。
-`readPfsTable` 因需整包进内存（>2 GiB 不可能）无法用于该归档，脚本改为按偏移读取并直接组装 archive 对象。
+`readPfsTable` 因需整包进内存（>2 GiB 不可能）无法用于该归档，该脚本改为按偏移读取并直接组装 archive 对象。
 
-### 一条仍然存在的限制
+### 按范围读取已实现（原先的「下一步」已完成）
 
-`readPfsTable(bytes: Uint8Array)` 是**整文件进内存**的 API。对这个 2.69 GB 归档，它在 Node 里连读都读不进来
-（`readFileSync` 在 >2 GiB 时直接 `ERR_FS_FILE_TOO_LARGE`）。要真正服务这个游戏，索引解析必须改为
-**按范围读取**——只需读 `[7, 7 + index_size)`，即约 1.13 MB。这正好是下一步接 `@online-gal/vfs` 的落点。
+`readPfsTable(bytes: Uint8Array)` 是**整文件进内存**的 API，对这个 2.69 GB 归档连读都读不进来
+（`readFileSync` 在 >2 GiB 时直接 `ERR_FS_FILE_TOO_LARGE`）。**这一条已经解决**，同一文件里已有按范围读取的一对：
+
+| 函数 | 作用 |
+| --- | --- |
+| `readPfsTableFrom(source: PfsByteSource)` | 只读头 + 索引；`PfsByteSource` 是 `{ size(): Promise<number>; readRange(offset, length): Promise<Uint8Array> }` —— 与 VFS 的 `ByteSource` 结构相同，所以 `GameSource` 用 `gameSourceByteSource(source, path)` 即可适配 |
+| `readPfsEntryFrom(source, archive, entry)` | 取单条条目，keyed 容器上按 XOR 还原 |
+
+**实测**：对真实 `root.pfs` 调 `readPfsTableFrom`，发出的范围请求只有 `[[0,7],[7,1185775]]`，
+合计 **1,185,782 B ≈ 1.13 MB（0.044%）**；随后 `readPfsEntryFrom` 用**生产函数**取出
+`pc/ja/artemis.png` → `89 50 4e 47 0d 0a 1a 0a`（PNG 魔数）、
+`font/extra_28.rft` → `72 66 74 33 fc be 07 00`（"rft3" 签名）。
+
+调用方：`packages/runtime-artemis/src/probe.ts:186`（探测时按范围读表），以及两个工具
+`ports/artemis/tools/extract-pfs.mjs`、`ports/artemis/tools/pfs-grep.mjs`（两者都从
+`packages/runtime-artemis/dist/pfs.js` 导入 `readPfsTableFrom` / `readPfsEntryFrom`）。
+
+**一处需要注意的边界**：XOR 相位是「相对条目起点」的。`readPfsEntryFrom` 总是从 `entry.offset`
+读整条，所以相位为 0 永远正确；但若将来要做**条目内部**的子范围读取，相位必须改成
+`rangeStart % 20`（GARbro 的 `ByteStringEncryptedStream` 用 `m_base_pos = start_pos % m_key.Length`
+处理同一件事）。当前没有这种调用。`packages/runtime-artemis/src/pfs.ts:244-250` 记了这一点。
 

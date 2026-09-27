@@ -233,6 +233,13 @@ the rebuilt engine now renders the real game through the official glue.
     bash build-bridge-route.sh asyncify          # -> out/bridge-asyncify/bridge.wasm
     bash build-bridge-route.sh sync              # -> out/bridge-sync/bridge.wasm
 
+Each flavour splices its own rewritten products over the generated bodies, and the two trees are
+not interchangeable: wasm2c numbers functions by position in *its* module, so one `fNNN` is a
+different function in each. asyncify's products are tracked source inside this port
+(`ports/artemis/src`, plus `ports/artemis/REWRITE.md` and `ports/artemis/rewrite-names.tsv`);
+sync's stay in a local, untracked `.ref/artemis-official/rewrite-sync/src`, so sync is not
+buildable from a clone. `ARTEMIS_REWRITE` overrides the tree for either flavour.
+
 Both flavours pass all four gates:
 
 | | asyncify | plain |

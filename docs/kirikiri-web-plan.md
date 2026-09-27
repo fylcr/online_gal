@@ -3,6 +3,36 @@
 Goal: run KiriKiri games in a browser — the real engine compiled to WebAssembly, with XP3 archives
 read **byte-granularly on demand** rather than loaded whole.
 
+> **Status: the build succeeded and the real game runs in a real browser.** This document began as
+> the plan; it is now the record of that plan having been carried out, with the build log kept
+> because each obstacle cost real time.
+>
+> The authoritative, current state lives in `docs/项目状态与恢复指南.md`. In short:
+>
+> - **First successful build: `bash ports/krkr/kirikiroid2/run-build.sh` exits 0**, producing
+>   `.ref/kirikiroid2-web/out/web/release/` — `index.html`, `index.js`, `index.wasm`
+>   (22,648,804 B), `vlfs.js`, `assets.zip`. The triplet problem, the `WASM_LEGACY_EXCEPTIONS`
+>   port failure and everything below were all resolved; read the sections below as solved history,
+>   not as a list of open blockers.
+> - **The game really runs.** The harness is `ports/krkr/kirikiroid2/browser-test/`, served by the
+>   reference `coi-server.py` (HTTP 4630 / HTTPS 4631) and driven with Edge's remote debugging.
+>   The KAG3 ZIP demo reaches `Running...` at 756×488 with **0 unconditional archive GETs** and
+>   **252,867 B fetched = 1.8% of the archive**; the real 2.3 GB XP3
+>   (`.test/test-games/kirikiri/data.xp3`) reaches `Running...` at 750×485 with **0 GETs,
+>   0 HEADs, 202 host `readRange` calls, 261,909,742 B = 11.32%**, and 0 exceptions.
+> - **The seam is two patches, not one** (the earlier "all fetching happens in `vlfs.js`" reading was
+>   incomplete — see the correction in the file-system section): bytes through `hostByteSource()`,
+>   and *size* through a new `hostSourceStat(url)` so OPFS / FileSystemAccess / in-archive sources
+>   need no `HEAD`. Both are applied by the single idempotent
+>   `ports/krkr/kirikiroid2/patch-vlfs-host-source.mjs`, which `run-build.sh` calls before
+>   configuring. Source: `platforms/web/vlfs.js`, `platforms/web/shell.html`.
+> - **The runtime provider is `krkr2-wasm`** (`packages/runtime-kag/src/wasm-provider.ts:26`,
+>   priority 105), registered in `BUILTIN_PROVIDERS`.
+>
+> What is *not* claimed: the doc's "Problems found" tables and the krkrsdl2 account remain accurate
+> history. The krkrsdl2 route is superseded but its files are still on disk under
+> `ports/krkr/krkrsdl2/`.
+
 ## The decisive reference: kirikiroid2-web
 
 [fenghengzhi/kirikiroid2-web](https://github.com/fenghengzhi/kirikiroid2-web), branch `web`, commit
@@ -180,6 +210,33 @@ against and because the engine is where a game is actually simulated. The prereq
 mostly in place: Emscripten 6.0.9 is installed and matching, vcpkg is cloned at the pinned commit,
 and what remains is `bison` and getting `ninja.exe` onto `PATH`.
 
+### Correction, from having done it: the seam is **two** patches, not one
+
+The claim above — "**All fetching happens in `platforms/web/vlfs.js`**", and the follow-on "the swap
+is: replace `vlfs.js`'s byte source" — turned out to be **incomplete in an important way**. The seam
+has to cover two things, not one:
+
+1. **Bytes.** `platforms/web/vlfs.js` gained `hostByteSource()`, which reads
+   `window.__onlineGalVfsSource`; when it is installed, all three remote-read paths
+   (`_readSource`'s `case 'remote'`, `_readZipSourceBytes`, `_readZipSourceStream`) go through it
+   instead of calling `fetch` themselves. With nothing installed it behaves exactly like upstream.
+2. **Size.** `platforms/web/shell.html` decides whether it *can* range-load lazily using only
+   `fetch(url, {method:'HEAD'})`. Platform sources (OPFS, FileSystemAccess, a file inside a ZIP) have
+   no URL to HEAD at all, and without the size it degrades to "download the whole archive". So the
+   shell gained `hostSourceStat(url)`: when the installed host object exposes `stat`, the platform
+   answers size and ETag, and only otherwise does it fall back to the `HEAD`.
+
+Both patches are applied by **one idempotent script**,
+`ports/krkr/kirikiroid2/patch-vlfs-host-source.mjs` (each patched file is restored with
+`git checkout` first, so re-running is byte-identical), and `run-build.sh` calls it before
+configuring. The artefacts carry them: `vlfs.js` 60,605 → **64,025 B**, `shell.html`
+100,605 → **102,990 B**, and the generated `index.html` greps for `hostSourceStat`.
+
+The measurement that matters is what it bought: with the host byte-source installed, the same game
+runs in a real browser while the engine reads only what it needs — **252,867 B (1.8%) of the 14 MB
+ZIP demo**, and **261,909,742 B (11.32%) of the real 2.3 GB XP3**, with zero unconditional archive
+`GET`s and zero archive `HEAD`s in both cases.
+
 
 
 The requirement is to use this project's own byte-granular file system rather than loading whole
@@ -269,6 +326,11 @@ have been questioned as soon as it demanded a worker — a reference implementat
 requirement was one search away.
 
 ## Build progress on kirikiroid2-web
+
+> **All of this was resolved — the build now exits 0.** The section is kept as the record of how the
+> blockers were found and fixed, because each one was non-obvious and they recur on any re-build.
+> Read "What is blocking" and everything after it as **solved history**, not as current state.
+> The driver that carries all the fixes is `ports/krkr/kirikiroid2/run-build.sh`.
 
 Prerequisites are **all satisfied now**, and the configure step is the one thing left failing.
 
@@ -438,6 +500,11 @@ kirikiroid2-web ports).
 
 ## Deliverables so far
 
+> **The krkrsdl2 deliverables, i.e. the superseded route.** Its files are still on disk under
+> `ports/krkr/krkrsdl2/`. The **current** deliverables are `ports/krkr/kirikiroid2/run-build.sh`,
+> `ports/krkr/kirikiroid2/patch-vlfs-host-source.mjs` and the harness in
+> `ports/krkr/kirikiroid2/browser-test/`.
+
 ```
 ports/krkr/krkrsdl2/
   run-emscripten-build.sh     build driver; KRKR_RANGED_STORAGE=1 enables the ranged read
@@ -538,6 +605,13 @@ genuinely insists on Vulkan.
 
 ## The krkrsdl2 port
 
+> **Superseded route — this section is history, and it is why the architecture changed.** The
+> synchronous-XHR ranged read on krkrsdl2 is the approach the plan abandoned (see "Revised plan"
+> above); the shipped engine is the kirikiroid2-web build driven by
+> `ports/krkr/kirikiroid2/run-build.sh`. The diagnosis below is still accurate about *that* build —
+> `tTVPLocalFileStream` / `TVPCreateStream` remains the seam — and its "Where it stopped" is where
+> that route was correctly left.
+
 ### What works
 
 - Builds via CMake + `emcmake`; the repository's own `meson.build` cannot configure at all (`ERROR:
@@ -602,6 +676,14 @@ on the thread the engine runs on. The bridge has since been changed to read `Mod
 first (`Module` is shared with the worker) and the launcher sets both, but **that change has not yet
 been observed to produce a range request** — the last test predates it reaching a rebuilt page.
 
+> **How this ends.** The likely cause above turned out to be the right diagnosis, and it is exactly
+> what the JSPI route removes: with the engine on the main thread there is no worker boundary for a
+> page global to fail to cross, so `PROXY_TO_PTHREAD` and the whole ranged-XHR bridge disappear. The
+> working engine reads through VLFS on the main thread — measured in the status block at the top of
+> this file (0 unconditional archive GETs, 0 HEADs, 11.32% of a real 2.3 GB XP3). No further step was
+> taken on this route after that; the two candidate causes were never distinguished because doing so
+> stopped mattering.
+
 ## Problems found, recorded because each cost real time
 
 They share a shape: **the failure pointed somewhere other than its cause.**
@@ -646,6 +728,9 @@ patchers reapply from a pinned revision, so no state carries between runs. Submo
 `platforms/` (11.3 MB).
 
 ## Next
+
+> **All three steps were taken, and the outcome they were designed to reach is the one recorded at the
+> top of this file.** Kept for the method: this is the order in which the ambiguity was resolved.
 
 1. **Read the server log after loading the page.** One glance distinguishes "the page reached the
    archive probe" from "the page never loaded", and either way names the next fix. This is the

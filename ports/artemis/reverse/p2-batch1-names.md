@@ -1,5 +1,11 @@
 # P2 批 1 名表（f265 族 28 件 · 外置防身档案）
 
+**Tree location:** the asyncify products these notes count have since moved from
+`.ref/artemis-official/rewrite/src` to **`ports/artemis/src`** (tracked source, alongside
+`ports/artemis/rewrite-names.tsv` and `ports/artemis/REWRITE.md`).  Paths below are the
+ones that were true when each note was written — the 落位 column's `util/…`/`script/…`
+values are relative to that tree, now `ports/artemis/src/`.
+
 > 用途：批 1 全部 fnid→名→落位→行数 的唯一权威表。任何上下文截断/击杀后，从本文件续跑。
 > 产物形态：R1（判定序一字不动、asyncify 相位机只注释、池址数值不改、机械层词汇走 engine_context.h）。
 > 生成方式：D:/tmp/tx_gen2.py（通用转换器，meta 同文件）；生成后 code-check 逐件 + style-gate + 全链 differ:0 + wasm-diff --strict + 计数锚（双侧同跑）。
@@ -8,7 +14,7 @@
 
 ## 产品 28 件（call-count 降序执行）
 
-| # | fnid | 名 | 落位（rewrite/src/） | 行数（起始行） | 状态 |
+| # | fnid | 名 | 落位（原 rewrite/src/） | 行数（起始行） | 状态 |
 |---|------|----|--------------------|--------------|------|
 | 1 | f265 | AppendStringText | util/append_string_text.cpp | 152 (128731) | 产品✓ tsv✓ 件检✓ |
 | 2 | f5721 | ResizeRawBlock | util/resize_raw_block.cpp | 24 (2756784) | 产品✓ tsv✓ 件检✓ |
@@ -82,5 +88,5 @@
   - f201 424.3K→424.4K/419（first-run 不变）；f4551 41.3K→65.1K/1167（批 1 兄弟件改走 artc 前向器，量级变化可解释，first-run 仍 1167）。
   - 批内 28 件全部有计数、无一件为 0：f265 83.6K/477、f5721 83.5K/746、f910 76.0K/1110、f708 74.4K/1092、f364 69.6K/1114、f645 66.6K/1091、f223 64.2K/751、f476 62.1K/1103、f399 60.2K/747、f4579 59.3K/904、f1116 50.6K/1090、f204 49.4K/573、f207 37.5K/448、f414 36.0K/1107、f970 34.3K/463、f303 31.1K/804、f1233 31.1K/451、f592 30.5K/691、f226 30.5K/450、f1550 30.2K/692、f2801 29.9K/891、f1071 29.3K/955、f3784 29.3K/954、f209 29.7K/768、f902 28.6K/1087、f896 28.5K/770、f221 27.8K/1645、f220 27.6K/593。
 - 剖析构建坑：`ARTC_PROFILE=1 bash ports/artemis/reverse/build-bridge-route.sh asyncify out/bridge-asyncify-profile`（相对路径）报 `OSError: [Errno 22] Invalid argument: 'out/.../artemis.cpp'` / `FAIL: native-trap patch failed`；**必须传绝对路径** `... asyncify ports/artemis/reverse/out/bridge-asyncify-profile`。
-- real-game-test.mjs 不接受位置参数：`--game .test/artemis-official-async/game-chs --engine <wasm> --port 4710 --hashlist --json-out <json>`（用法见 ports/artemis/reverse/README.md:300-304）。控制台 404 `[error] Download file pc/ja/caution failed.` 属良性。
+- real-game-test.mjs 不接受位置参数：`--game .test/artemis-official-async/game-chs --engine <wasm> --port 4710 --hashlist --json-out <json>`（用法见 ports/artemis/reverse/README.md:307-311）。控制台 404 `[error] Download file pc/ja/caution failed.` 属良性。
 - **批 1 收官：28 件产品 + 28 行 tsv + 11 转发表全部合入，53 件在册产品全链绿。** 遗留：比对器 `D:/tmp/verify_batch1.py` v5 未定稿（Layer B 在 v4 已 28/28 绿，v5 重写 arg_filter 时把源侧 callee 名吞掉导致全红，教训=改归一化器必须保住已验证绿的那一层）；批 2（f1119 f346 f1125 f4082 f707）与批 3 巨件 f3785（3,229 行）未启动。

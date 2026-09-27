@@ -1,17 +1,40 @@
-# 把 asyncify wasm 转写成可读代码 — 交接文档
+# 把 asyncify wasm 转写成可读代码 — 交接文档（**已执行完毕**）
 
-> 面向接手这件事的下一个会话。目标、已经查清的事实、现成工具、以及**那个未决的模型路线**，
-> 都在这里。读完之后不需要重新侦察。
+> **状态：这份交接已经被执行，本文档现在是结案记录 + 产物坐标，不再是待办。**
+> 下文的目标、路线对照、tag 命名 oracle 仍然全部有效（它们是这次转写的依据），
+> 但「计划这样做」的部分已经变成了「已经这样做完」。
+>
+> **产物现在在哪（这是接手人最需要的两条）：**
+>
+> | flavour | 产物 | 位置 | git |
+> |---|---|---|---|
+> | asyncify | **157 个产品**（`.cpp`）+ `util/engine_context.h` | **`ports/artemis/src/`**（`core/` `script/` `util/`） | **已入库** |
+> | sync | **284 个产品**（`.cpp`）+ `util/engine_context.h` | **`.ref/artemis-official/rewrite-sync/src/`** | 本机未入库（`.ref/` 被忽略） |
+>
+> 重写规范是 `ports/artemis/REWRITE.md`（可读 C++ 的风格宪法 + 四档工序 R0~R3），
+> 词汇映射表是 `ports/artemis/rewrite-names.tsv`（334 行）。
+> **旧的 `.ref/artemis-official/rewrite/` 路径已删除**，不要再去找它。
+> 验收脚本不变：`bash ports/artemis/reverse/build-cxx-route.sh asyncify|sync`。
+>
+> **还没做完的**（见 §12）：asyncify 侧的 batch-4B 剩余体、`f3744` 的切分、
+> P4 长尾约 3,474 个函数进 `generated/`。sync 侧没有欠账。
 
 ---
 
-## 1. 任务
+## 1. 任务（已完成，以下是当时的定义）
 
 把官方 Artemis 的 **asyncify WebAssembly** 逆向产物**重新写成可读的 C++ 代码**，产出放到
 
 ```
 D:\online_gal\.ref\artemis-official\code
 ```
+
+> ⚠ **上面这个路径是当时写的计划落点，不是最终落点。**实际执行时选择被改了两次：
+> `.ref/artemis-official/code/` 成了**早期历史产物**（64 个 `.cpp`，配套规范是
+> `code/TRANSCRIBE.md`，`ports/artemis/REWRITE.md` 明确写「历史产物不再动」）；
+> 真正的 asyncify 产品搬到了**入库的 `ports/artemis/src/`**（157 个 `.cpp`），
+> sync 产品留在 `.ref/artemis-official/rewrite-sync/src/`（284 个 `.cpp`）。
+> 见文首那张表。
 
 用户的要求（原话要点）：参考引擎 `D:\online_gal\.ref\artemis-compat` **可参考**，但它
 **没有 wasm 版本**；要**尽可能细分任务并并发委托子代理**以加速；子代理模型指定为
@@ -71,7 +94,9 @@ D:\online_gal\.ref\artemis-official\code
 不是构建链的一环。剩下的工作是把 ② 那份机器生成物**改写成人类可读的形态**，
 构建链本身已经是 ③。
 
-`.ref/` 整体在 `.gitignore:34` 里被忽略，所以产物不入 git（与 `artemis-official/` 其余部分一致）。
+`.ref/` 整体在 `.gitignore:34` 里被忽略，所以**留在 `.ref/` 下的产物**不入 git
+（与 `artemis-official/` 其余部分一致）——sync 的 284 个产品就是这种情况。
+**但 asyncify 的 157 个产品不在这里：它们在入库的 `ports/artemis/src/`。**
 
 ### 一个已实测的好消息（以及一个已实测的陷阱）
 
@@ -334,9 +359,15 @@ python ports/artemis/reverse/extract-tag-map.py \
 
 ---
 
-## 6. ⚠ 未决：mimo-v2.6-flash 的委托路线被拒
+## 6. 历史记录：mimo-v2.6-flash 的委托路线被拒（**已不影响任何事**）
 
-**状态：本会话内无解，用户已指示停止排查（m01082「别试了，直接做交接工作」）。**
+**这一节现在只是留档。**当年它是唯一的未决项，但转写并没有被它挡住——
+asyncify 与 sync 两边的产品都已经产出来了（见文首表格），也就是说这件事**当时就该按这个结论处理：
+它是配置层的事，不是转写工作的一部分**。接手人不需要读这节才能开工。
+
+以下是当时穷尽的观察，保留是因为「为什么会被拒」的排查过程本身有复用价值。
+
+**状态（当时）：本会话内无解，用户已指示停止排查（m01082「别试了，直接做交接工作」）。**
 新会话**不要**把它当作必过的前置关卡去反复试探——它属于配置层的事，不是转写工作的一部分。
 带着「按可用路线开工」的姿态进来即可。
 
@@ -407,7 +438,10 @@ allowlist 是**会话启动时载入**的，本会话载入的版本里没有第
 
 ---
 
-## 7. 建议的推进方式
+## 7. 当时的推进方式（**实际就是这样执行的**）
+
+下面这段是当时定下的做法，后来照着做完了。保留全文，因为它是理解
+`ports/artemis/REWRITE.md`（四档工序）和 `ports/artemis/reverse/p2-*.md`（分批进度）的钥匙。
 
 ### 分期
 
@@ -506,8 +540,9 @@ asyncify wasm:  5 998 665 B   sha256 7ceabed28b84e7689fc4b629fa232e2857f15c3b6e6
 就是 wasm 数据段里的字符串字面量**，绑到 **46 个函数**，沿调用图展开就是 **318 个函数 /
 505 768 行**的骨架——这是有据可依的第一期。剩下的用 `.so` 的 492 个 `artemis::` 符号和
 5 404 个字符串锚点起名。工具（`extract-tag-map.py`）和地图（`tag-map.json`）都已就位。
-`mimo-v2.6-flash` 的委托路线是配置层的小事，**不要为它开一轮试探**：能过就用，不能过就换
-`deepseek/deepseek-v4.1-flash`（实测可用），然后把力气全花在转写上。
+
+**这条结论已被执行验证**：两边的产品都产出来了（asyncify 157 / sync 284），
+命名靠的就是这里的 tag oracle 加 `.so` 符号（映射表落在 `ports/artemis/rewrite-names.tsv`）。
 
 ---
 
@@ -578,7 +613,7 @@ trap-kind-only）——说明 C++ 路线与已验证的 C 路线**行为等价**
 同一次 `call_indirect`，一侧落在有主槽位报 `function signature mismatch`，另一侧落在空槽
 报 `unreachable`。两边都不返回，差异属**链接**而非转写。`--strict` 可把它变成失败。
 
-### 由此确定的「可读 C++」工作形态
+### 由此确定的「可读 C++」工作形态（**已按此执行**）
 
 机械层（280 万行）**不需要重写**：它已经能以 C++ 编译并行为一致。真正的工作是
 
@@ -591,21 +626,63 @@ trap-kind-only）——说明 C++ 路线与已验证的 C 路线**行为等价**
 即：**先有一份「能编且行为正确」的基线**（现在有了），再在其上做可读性改造，
 每改一批都用上面的命令重编 + `wasm-diff.mjs` 复核，保证行为不漂。
 
+**实际执行时，验收链多了一层**：单段转写不可能各自去链一次整包 wasm，所以流程落成
+「写片段 → `code-assemble.sh` 把片段拼回生成文件并改名 → 再走 `build-cxx-route.sh` 编译比对」。
+`ports/artemis/reverse/code-assemble.sh` 就是这个拼装器（片段首行是 `// tx: f<NNN> -> <new_name>`，
+巨型函数用 `f<NNN>.partNN.cpp` 分片），它自己最后调用 `build-cxx-route.sh`，
+**所以「每批必须 `differ: 0`」这条闸是自动跑的**。批量命名的规范与四档工序（R0 气味清洗 /
+R1 纯搬运风格化 / R2 结构化改写 / R3）写在 `ports/artemis/REWRITE.md`。
+
+各批的执行结果见 `ports/artemis/reverse/p2-batch1-names.md`、`p2-batch2-progress.md`、
+`p2-batch3-progress.md`、`p2-batch4-progress.md`、`p2-batch4b-progress.md`（asyncify）与
+`p2-sync-rewrite-progress.md`（sync）。
+
 ---
 
-## 11. 给用户的一句话
+## 11. 执行结果（**这次交接的答案**）
 
-交接文档在 `docs/artemis-wasm-transcription-handoff.md`。核心结论有三条：
+三条核心结论，都已经是既成事实：
 
-1. **「只有 wabt 构建出来的才是正常 wasm」这句话已经写进 §1 了**，并且指出它是**误读**：
+1. **「只有 wabt 构建出来的才是正常 wasm」是误读**，§1 当时就写清了这一点：
    ① 的「逐字节相同」只是**校验手段**（证明逆向出的 `.wat` 忠实），② 是**半步**
-   （wasm2c 逐指令展开的机器生成物，不可读，且生成它就要 wabt）。**真正要的是 ③。**
-2. **③ 已经打通并验过行为一致**（§10）：`C++ → em++ → wasm`，**全程不调用 wabt**。
-   改动量只有 198 处 `void*` 转型 + runtime 保持 C 编译 + 一个一行桥接头。
-   **不存在「必须用 wabt 才能构建」这件事**——它只是一个**转换工具**，不是构建链的一部分。
+   （wasm2c 逐指令展开的机器生成物，不可读，且生成它就要 wabt）。**要的是 ③。**
+2. **③ 打通了，并且两条 flavour 都把产品产出来了**（§10）：
+   `C++ → em++ → wasm`，**全程不调用 wabt**。改动量只有 198 处 `void*` 转型 +
+   runtime 保持 C 编译 + 一个一行桥接头。**不存在「必须用 wabt 才能构建」这件事**——
+   它只是一个**转换工具**，不是构建链的一部分。
    验收脚本：`ports/artemis/reverse/build-cxx-route.sh asyncify|sync`。
 3. **这件事比预想的可行得多**：官方 tag 手册就是现成的命名字典，第一期 318 个函数的范围
-   已经算清楚，工具（`extract-tag-map.py`）和地图（`tag-map.json`）都已就位。
+   当时就算清楚了，工具（`extract-tag-map.py`）和地图（`tag-map.json`）都已就位。
    机械层不用重写，力气花在**起名 + 语义还原 + 组织**上。
 
-唯一没解决的是 `mimo-v2.6-flash` 的委托路线——那是配置层的事（§6）。
+**产品落地位置**（本文档开头那张表是权威，这里再点一次）：
+
+| flavour | 产品数 | 位置 | 入库 |
+|---|---:|---|---|
+| asyncify | 157 | `ports/artemis/src/` | ✅ 已入库（含 `REWRITE.md`、`rewrite-names.tsv`） |
+| sync | 284 | `.ref/artemis-official/rewrite-sync/src/` | ❌ 本机保留，`.ref/` 被忽略 |
+
+`mimo-v2.6-flash` 的委托路线**当时没解决，也没有挡住任何事**——那只是配置层的问题（见 §6）。
+它不再是「唯一没解决的」：转写用的是实测可用的那条路线。
+
+---
+
+## 12. 还没做完的部分（**接手人从这里继续**）
+
+按 `ports/artemis/reverse/p2-sync-rewrite-progress.md` 尾节与 `ports/artemis/REWRITE.md` §0：
+
+- **sync 侧无欠账**：284 个产品；四道闸全绿 —— `style-gate.sh` PASS、`code-assemble.sh`
+  18/18 `differ: 0`（284 products spliced，未调用 wabt）、`wasm-diff.mjs --strict` EXIT 0、
+  `build-bridge-route.sh` EXIT 0。（asyncify 侧同样四道全绿，见
+  `ports/artemis/reverse/p2-sync-rewrite-progress.md` §8 的八格闸表。）
+- **asyncify 侧还欠**（这就三件）：
+  1. batch-4B 剩下的产品体（约 **28,417 行**，当时只落了 3 个）；
+  2. `f3744`（99,251 行、认领 103 个 tag 的主分派器）的**切分**；
+  3. P4 长尾约 **3,474 个未触达函数**进 `generated/` 隔离区
+     （生成器所有、盖 generated 戳、风格闸豁免；工单触及时逐个升格 R0/R1）。
+- 每落一个新产品，都要重跑一遍 `ports/artemis/reverse/style-gate.sh` 与行为锚
+  （真实游戏帧哈希 == `bef44818`）。
+
+**注意 flavour 路径**（p2-sync-rewrite-progress.md 明确记下的坑）：asyncify 的基线是
+`.ref/artemis/WebAssembly/**asyncify**/artemis.wasm`，不是 sync 的
+`.ref/artemis/WebAssembly/artemis.wasm`——猜错会得到 `FileNotFoundError`，而不是一个错答案。

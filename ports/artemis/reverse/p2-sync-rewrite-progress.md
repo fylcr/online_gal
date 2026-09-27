@@ -5,8 +5,8 @@ gitignored, and they stay there: only the asyncify flavour is committed as sourc
 (`ports/artemis/src`, see `ports/artemis/REWRITE.md`).  This note is a record of work done,
 not a description of a shipped tree.  Sync is not buildable from a clone.
 
-Branch state: `.ref/artemis-official/rewrite-sync/src` = **284 products** + `util/engine_context.h` (220 lines, 50 inline helpers) = **38,191 lines**
-(38,127 before the provenance block added on user request; see §8).
+Branch state at the time of this note: `.ref/artemis-official/rewrite-sync/src` = **284 products** + `util/engine_context.h` (220 lines, 50 inline helpers) = **38,191 lines**
+(38,127 before the provenance block added on user request; see §8; the header is 223 lines today, its own provenance paragraph included).
 `rewrite-sync/rewrite-names.tsv` = 6 comment lines + **284 fn rows**.
 Generator: `D:/tmp/sygen2.py` (byte-reproducible). Verifier: `D:/tmp/syverify_f.py` (0 mismatch). Calibration: `D:/tmp/sycal6.py` (4 planted defects, all caught).
 
@@ -157,7 +157,7 @@ Two things were settled by asking rather than assuming:
   left alone and no tree-level document was invented.
 
 The wording deliberately says *written against* and *with … as the reference*, never *adapted from* / *derived from*.
-`rewrite/REWRITE.md:61` forbids fabricated provenance claims, and a claim of derivation is exactly that.
+`ports/artemis/REWRITE.md:61` (was `rewrite/REWRITE.md:61` before the tree moved) forbids fabricated provenance claims, and a claim of derivation is exactly that.
 
 Sync (284 products) went through the generator, so one edit to the head block in `D:/tmp/sygen2.py` changed all 284 at once. It
 also removed a factual error the old boilerplate carried: it promised *jump board calls*, but the sync closure is

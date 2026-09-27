@@ -26,10 +26,14 @@
  */
 import { openSync, readSync, closeSync, fstatSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { resolve } from 'node:path';
 
 // The pack chain is real game data and is never committed; point ARTEMIS_GAME_DIR at it.
 // Default stays beside the other reference checkouts, under the gitignored `.ref/`.
-const GAME = process.env.ARTEMIS_GAME_DIR ?? new URL('../../.ref/artemis-game/', import.meta.url).pathname;
+// `new URL(...).pathname` is NOT a filesystem path: on Windows it yields `/D:/...`,
+// and the leading slash then makes `resolve()` treat it as drive-relative, producing
+// `D:\D:\...`.  `${import.meta.dirname}` + resolve is the idiom the rest of ports/ uses.
+const GAME = process.env.ARTEMIS_GAME_DIR ?? resolve(import.meta.dirname, '..', '..', '..', '.ref', 'artemis-game');
 const PATH = `${GAME}/root.pfs`;
 
 /** Mirrors `looksLikeText` in packages/runtime-artemis/src/pfs.ts. */

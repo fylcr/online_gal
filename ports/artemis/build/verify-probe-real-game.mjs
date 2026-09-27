@@ -15,18 +15,27 @@
 import { closeSync, existsSync, openSync, readSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { DefaultProbeContext } from '../../packages/engine-api/dist/index.js';
-import { inspectArtemis } from '../../packages/runtime-artemis/dist/index.js';
+import { DefaultProbeContext } from '../../../packages/engine-api/dist/index.js';
+import { inspectArtemis } from '../../../packages/runtime-artemis/dist/index.js';
 
 // The pack chain is real game data and is never committed; point ARTEMIS_GAME_DIR at it.
-const ROOT = resolve(process.env.ARTEMIS_GAME_DIR ?? new URL('../../.ref/artemis-game/', import.meta.url).pathname);
+const ROOT = process.env.ARTEMIS_GAME_DIR ?? resolve(import.meta.dirname, '..', '..', '..', '.ref', 'artemis-game');
 
 /** A `GameSource` over a real directory, with per-read accounting. */
 class NodeFsGameSource {
   constructor(root) {
     this.name = 'artemis-real';
     this.capabilities = { list: true, randomAccess: true, writable: false };
-    this.root = root;
+    // Normalize ONCE, here. `#full()` compares a resolve()d path against
+    // `this.root`, and on Windows resolve() always yields backslashes while a
+    // user-supplied `ARTEMIS_GAME_DIR` is typically written with forward slashes
+    // ("D:/games/x"). Comparing the two forms made the escape guard reject the
+    // root itself, so every `list('')`/`exists(...)` failed and the probe
+    // reported a real 2.69 GB package as "no packages found" -- a false negative
+    // that looks exactly like the loading-model limitation it was written to
+    // rule out. (Measured: the same directory passes with backslashes and fails
+    // with forward slashes.)
+    this.root = resolve(root);
     this.bytesRead = 0;
     this.reads = [];
   }
