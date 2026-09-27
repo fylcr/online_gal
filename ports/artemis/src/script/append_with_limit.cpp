@@ -1,0 +1,625 @@
+// append_with_limit.cpp -- appends one entry to a growable parser list under a size limit, raising the named-limit error when the list is full..
+//
+// AppendWithLimit -- appends one entry to a growable parser list under a size limit, raising the named-limit error when the list is full.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 481796-481796 (f1116); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
+#include "util/engine_context.h"
+
+namespace artc {
+
+// Forward declarations -- batch-mates and registered callees.
+uint32_t FormatPushString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+void LexError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+void StoreListEntry(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+uint32_t GrowArray(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5);
+
+namespace {
+
+constexpr uint32_t kF1116MsgMainFunctionHasMore = 0x2B6C0u;  // main function has more than %d %s
+constexpr uint32_t kF1116MsgFunctionAtLineD = 0x2B6E2u;  // function at line %d has more than %d %s
+constexpr uint32_t kF1116MsgUpvalues = 0x2B77Fu;  // upvalues
+constexpr uint32_t kF1116Const2B788 = 0x2B788u;  // 
+constexpr uint32_t kF1116Const7FFFFFFD = 0x7FFFFFFDu;  // 
+constexpr uint32_t kF1116ResumeWordBytes = 4u;
+
+}  // namespace
+
+uint32_t AppendWithLimit(EngineContext* ctx, uint32_t list, uint32_t entry, uint32_t limit, uint32_t what) {
+  EnterFrame();
+  uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
+  uint64_t j1 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = 40u;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
+    i0 = LoadU32(ctx, i0);
+    list = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 8u);
+    limit = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 12u);
+    what = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l4 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l6 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l7 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 28u);
+    l8 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 32u);
+    l9 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 36u);
+    l10 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 4u);
+    entry = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1116ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l11 = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = GuestStackSp(ctx);
+    i1 = 32u;
+    i0 -= i1;
+    l9 = i0;
+    GuestStackSp(ctx) = i0;
+    i0 = list;
+    i0 = !(i0);
+    l6 = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l6;
+    if (i0) {
+      i0 = limit;
+      j1 = 18446744073709551615ull;
+      StoreU64(ctx, i0 + 16u, j1);
+      i0 = limit;
+      i1 = 255u;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = 8u;
+      l6 = i0;
+      i0 = limit;
+      i1 = 8u;
+      StoreU32(ctx, i0, i1);
+      goto running_exit;
+    }
+    i0 = list;
+    i0 = LoadU8(ctx, i0 + 50u);
+    l6 = i0;
+    dispatch_loop: 
+      i0 = l6;
+      l8 = i0;
+      i0 = l6;
+      i1 = 1u;
+      i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+      if (i0) {goto block_7;}
+      i0 = list;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 24u);
+      l10 = i0;
+      i1 = l8;
+      i2 = 1u;
+      i1 -= i2;
+      l6 = i1;
+      i2 = 1u;
+      i1 <<= (i2 & 31);
+      i2 = list;
+      i1 += i2;
+      i1 = LoadU16(ctx, i1 + 172u);
+      i2 = 12u;
+      i1 *= i2;
+      i0 += i1;
+      i0 = LoadU32(ctx, i0);
+      i1 = entry;
+      i0 = i0 != i1;
+      if (i0) {goto dispatch_loop;}
+    i0 = limit;
+    j1 = 18446744073709551615ull;
+    StoreU64(ctx, i0 + 16u, j1);
+    i0 = limit;
+    i1 = l6;
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = 6u;
+    l6 = i0;
+    i0 = limit;
+    i1 = 6u;
+    StoreU32(ctx, i0, i1);
+    i0 = what;
+    if (i0) {goto running_exit;}
+    i0 = list;
+    i0 = LoadU32(ctx, i0 + 20u);
+    list = i0;
+    i0 = !(i0);
+    if (i0) {goto running_exit;}
+    loop_9: 
+      i0 = l8;
+      i1 = list;
+      i1 = LoadU8(ctx, i1 + 8u);
+      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+      if (i0) {
+        i0 = list;
+        i0 = LoadU32(ctx, i0);
+        list = i0;
+        if (i0) {goto loop_9;}
+        goto running_exit;
+      }
+    i0 = list;
+    i1 = 1u;
+    StoreU8(ctx, i0 + 9u, i1);
+    goto running_exit;
+    block_7:;
+    i0 = 8u;
+    l6 = i0;
+    i0 = list;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l4 = i0;
+    i0 = 0u;
+    what = i0;
+  }
+  i0 = l11;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l4;
+    i1 = entry;
+    i2 = limit;
+    i3 = 0u;
+    i0 = AppendWithLimit(ctx, i0, i1, i2, i3);
+    l5 = i0;
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l5;
+    l4 = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    i1 = 8u;
+    i0 = i0 == i1;
+    if (i0) {goto running_exit;}
+    i0 = list;
+    i0 = LoadU32(ctx, i0);
+    l7 = i0;
+    i0 = LoadU32(ctx, i0 + 36u);
+    l6 = i0;
+    l4 = i0;
+    i0 = l7;
+    i0 = LoadU8(ctx, i0 + 72u);
+    l8 = i0;
+    i0 = !(i0);
+    l10 = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l10;
+    if (i0) {goto block_14;}
+    i0 = limit;
+    i0 = LoadU32(ctx, i0);
+    l10 = i0;
+    i0 = 0u;
+    l4 = i0;
+    loop_18: 
+      i0 = l10;
+      i1 = l4;
+      i2 = 1u;
+      i1 <<= (i2 & 31);
+      i2 = list;
+      i1 += i2;
+      what = i1;
+      i1 = LoadU8(ctx, i1 + 51u);
+      i0 = i0 == i1;
+      if (i0) {
+        i0 = what;
+        i0 = LoadU8(ctx, i0 + 52u);
+        i1 = limit;
+        i1 = LoadU32(ctx, i1 + 8u);
+        i0 = i0 == i1;
+        if (i0) {goto block_13;}
+      }
+      i0 = l8;
+      i1 = l4;
+      i2 = 1u;
+      i1 += i2;
+      l4 = i1;
+      i0 = i0 != i1;
+      if (i0) {goto loop_18;}
+    i0 = l6;
+    l4 = i0;
+    i0 = l8;
+    what = i0;
+    i1 = 60u;
+    i0 = i0 < i1;
+    l8 = i0;
+    if (i0) {goto block_14;}
+    i0 = list;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l8 = i0;
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 60u);
+    what = i0;
+    i0 = !(i0);
+    l4 = i0;
+  }
+  i0 = l4;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l9;
+      i1 = kF1116MsgUpvalues;
+      StoreU32(ctx, i0 + 4u, i1);
+      i0 = l9;
+      i1 = 60u;
+      StoreU32(ctx, i0, i1);
+    }
+    i0 = l11;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l8;
+      i1 = kF1116MsgMainFunctionHasMore;
+      i2 = l9;
+      i0 = FormatPushString(ctx, i0, i1, i2);
+      l5 = i0;
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l5;
+      l4 = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {goto block_15;}
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l9;
+    i1 = kF1116MsgUpvalues;
+    StoreU32(ctx, i0 + 24u, i1);
+    i0 = l9;
+    i1 = 60u;
+    StoreU32(ctx, i0 + 20u, i1);
+    i0 = l9;
+    i1 = what;
+    StoreU32(ctx, i0 + 16u, i1);
+    i0 = l9;
+    i1 = 16u;
+    i0 += i1;
+    what = i0;
+  }
+  i0 = l11;
+  i1 = 2u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l8;
+    i1 = kF1116MsgFunctionAtLineD;
+    i2 = what;
+    i0 = FormatPushString(ctx, i0, i1, i2);
+    l5 = i0;
+    i0 = 2u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l5;
+    l4 = i0;
+  }
+  block_15:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = list;
+    i0 = LoadU32(ctx, i0 + 12u);
+    what = i0;
+  }
+  i0 = l11;
+  i1 = 3u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = what;
+    i1 = l4;
+    i2 = 0u;
+    LexError(ctx, i0, i1, i2);
+    i0 = 3u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 36u);
+    l4 = i0;
+    i0 = l7;
+    i0 = LoadU8(ctx, i0 + 72u);
+    what = i0;
+  }
+  block_14:;
+  i0 = what;
+  i1 = l4;
+  i2 = what;
+  i3 = 255u;
+  i2 &= i3;
+  i1 = (uint32_t)((int32_t)i1 <= (int32_t)i2);
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  what = i0;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = list;
+      i0 = LoadU32(ctx, i0 + 16u);
+      l8 = i0;
+      i0 = l7;
+      i0 = LoadU32(ctx, i0 + 28u);
+      l4 = i0;
+      i0 = l7;
+      i1 = 36u;
+      i0 += i1;
+      what = i0;
+    }
+    i0 = l11;
+    i1 = 4u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l8;
+      i1 = l4;
+      i2 = what;
+      i3 = 4u;
+      i4 = kF1116Const7FFFFFFD;
+      i5 = kF1116Const2B788;
+      i0 = GrowArray(ctx, i0, i1, i2, i3, i4, i5);
+      l5 = i0;
+      i0 = 4u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l5;
+      what = i0;
+    }
+    i0 = ResumePhase(ctx);
+    if (i0) {
+      i0 = l4;
+    } else {
+      i0 = l7;
+      i1 = what;
+      StoreU32(ctx, i0 + 28u, i1);
+      i0 = l7;
+      i0 = LoadU32(ctx, i0 + 36u);
+    }
+    l4 = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    i1 = l6;
+    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+    if (i0) {
+      loop_34: 
+        i0 = l7;
+        i0 = LoadU32(ctx, i0 + 28u);
+        i1 = l6;
+        i2 = 2u;
+        i1 <<= (i2 & 31);
+        i0 += i1;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+        i0 = l6;
+        i1 = 1u;
+        i0 += i1;
+        l6 = i0;
+        i1 = l4;
+        i0 = i0 != i1;
+        if (i0) {goto loop_34;}
+    }
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 28u);
+    l6 = i0;
+    i1 = l7;
+    i1 = LoadU8(ctx, i1 + 72u);
+    l4 = i1;
+    i2 = 2u;
+    i1 <<= (i2 & 31);
+    i0 += i1;
+    i1 = entry;
+    StoreU32(ctx, i0, i1);
+    i0 = entry;
+    i0 = LoadU8(ctx, i0 + 5u);
+    i1 = 3u;
+    i0 &= i1;
+    i0 = !(i0);
+    if (i0) {goto block_35;}
+    i0 = l7;
+    i0 = LoadU8(ctx, i0 + 5u);
+    i1 = 4u;
+    i0 &= i1;
+    i0 = !(i0);
+    if (i0) {goto block_35;}
+    i0 = list;
+    i0 = LoadU32(ctx, i0 + 16u);
+    i1 = l7;
+    i2 = entry;
+    StoreListEntry(ctx, i0, i1, i2);
+    i0 = l7;
+    i0 = LoadU8(ctx, i0 + 72u);
+    l4 = i0;
+    block_35:;
+    i0 = l4;
+    i1 = 1u;
+    i0 <<= (i1 & 31);
+    i1 = list;
+    i0 += i1;
+    list = i0;
+    i1 = limit;
+    i1 = LoadU32(ctx, i1);
+    StoreU8(ctx, i0 + 51u, i1);
+    i0 = list;
+    i1 = limit;
+    i1 = LoadU32(ctx, i1 + 8u);
+    StoreU8(ctx, i0 + 52u, i1);
+    i0 = l7;
+    i1 = l4;
+    i2 = 1u;
+    i1 += i2;
+    StoreU8(ctx, i0 + 72u, i1);
+  }
+  block_13:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = limit;
+    i1 = 7u;
+    StoreU32(ctx, i0, i1);
+    i0 = limit;
+    i1 = l4;
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = 7u;
+    l6 = i0;
+  }
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l9;
+    i1 = 32u;
+    i0 += i1;
+    GuestStackSp(ctx) = i0;
+    i0 = l6;
+    goto func_exit;
+  }
+  TrapUnreachable();
+  spill_frame:;
+  l5 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l5;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF1116ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l5 = i0;
+  i1 = list;
+  StoreU32(ctx, i0, i1);
+  i0 = l5;
+  i1 = entry;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l5;
+  i1 = limit;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l5;
+  i1 = what;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l5;
+  i1 = l4;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l5;
+  i1 = l6;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = l5;
+  i1 = l7;
+  StoreU32(ctx, i0 + 24u, i1);
+  i0 = l5;
+  i1 = l8;
+  StoreU32(ctx, i0 + 28u, i1);
+  i0 = l5;
+  i1 = l9;
+  StoreU32(ctx, i0 + 32u, i1);
+  i0 = l5;
+  i1 = l10;
+  StoreU32(ctx, i0 + 36u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 40u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
+  LeaveFrame();
+  return i0;
+}
+}

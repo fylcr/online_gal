@@ -29,12 +29,21 @@ ranged stream fails is still the reference for that problem — see
         tools/                      analysis helpers that read real game data (artemis only)
         reverse/                    recipes that reverse the official binaries (artemis only)
         vendor/                     the official SDK's binaries, committed on purpose (artemis only)
+        src/                        rewritten engine source, tracked (artemis only)
+        REWRITE.md, rewrite-names.tsv   its style constitution and rename ledger
 
 `artemis/reverse/` turns the official WebAssembly builds and Android natives into pseudo-C and
 checks its own claims against the shipped bytes; `artemis/vendor/` is what those checks verify
 against. Both, and the licensing decision behind the second one, are documented in
 [`docs/artemis-web-port.md`](../docs/artemis-web-port.md) §15–16 and
 [`artemis/reverse/README.md`](artemis/reverse/README.md).
+
+`artemis/src/` is the rewritten engine: hand-written C++ that replaces the wasm2c-transpiled
+bodies function by function, in artemis-compat's house style. It is ordinary tracked source, and
+`build-bridge-route.sh` compiles it in place of the generated bodies it supersedes. The
+constitution it is held to (`artemis/REWRITE.md`) and the function-by-function rename ledger
+(`artemis/rewrite-names.tsv`) sit beside it. The sync flavour's equivalent tree is not committed:
+the two modules number their functions differently, so the products are not interchangeable.
 
 ## Getting the upstream checkouts
 

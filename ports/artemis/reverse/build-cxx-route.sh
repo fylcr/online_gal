@@ -56,12 +56,13 @@ GEN_C="${2:-$OFFICIAL_ROOT/wasm/$FLAVOUR/artemis.wasm2c.c}"
 GEN_H="$OFFICIAL_ROOT/wasm/$FLAVOUR/artemis.wasm2c.h"
 RUNTIME_SRC="$OFFICIAL_ROOT/wasm/runtime"
 # The product tree is per-flavour: engine_context.h is the vocabulary boundary and
-# its forwarders spell generated names, which are numbered per module.  Callers
-# (code-assemble.sh) pass ARTEMIS_REWRITE; the default keeps asyncify.
+# its forwarders spell generated names, which are numbered per module.  asyncify's
+# products are tracked source inside the port; sync's stay a local, untracked tree.
+# Callers (code-assemble.sh) pass ARTEMIS_REWRITE to override the default.
 REWRITE_TREE="${ARTEMIS_REWRITE:-}"
 if [ -z "$REWRITE_TREE" ]; then
-  REWRITE_TREE="$OFFICIAL_ROOT/rewrite"
-  [ "$FLAVOUR" = "asyncify" ] || REWRITE_TREE="$OFFICIAL_ROOT/rewrite-$FLAVOUR"
+  REWRITE_TREE="$REPO_ROOT/ports/artemis"
+  [ "$FLAVOUR" = "asyncify" ] || REWRITE_TREE="$OFFICIAL_ROOT/rewrite-sync"
 fi
 OUTDIR="${3:-$HERE/out/cxx-route-$FLAVOUR}"
 

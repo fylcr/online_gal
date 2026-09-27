@@ -1,5 +1,11 @@
 # Batch 4B closeout: closure forwarders, table slots, host imports, 131 products
 
+**Tree location:** the asyncify products these notes count have since moved from
+`.ref/artemis-official/rewrite/src` to **`ports/artemis/src`** (tracked source, alongside
+`ports/artemis/rewrite-names.tsv` and `ports/artemis/REWRITE.md`).  Paths below are the
+ones that were true when each note was written.
+
+
 Branch state: `.ref/artemis-official/rewrite/src` = **157 products** + `util/engine_context.h` (771 lines).
 `rewrite/rewrite-names.tsv` = 314 fn rows. Generator `D:/tmp/tx_gen2.py` = 280 PROD rows, METAS for 131 items, ORDER 131.
 

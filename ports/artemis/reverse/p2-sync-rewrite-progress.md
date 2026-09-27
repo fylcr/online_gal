@@ -1,5 +1,10 @@
 # Sync flavour rewrite: 284 products, mechanical transcription, 18/18 agreement
 
+**Not tracked.** The sync products live at `.ref/artemis-official/rewrite-sync/src`, which is
+gitignored, and they stay there: only the asyncify flavour is committed as source
+(`ports/artemis/src`, see `ports/artemis/REWRITE.md`).  This note is a record of work done,
+not a description of a shipped tree.  Sync is not buildable from a clone.
+
 Branch state: `.ref/artemis-official/rewrite-sync/src` = **284 products** + `util/engine_context.h` (220 lines, 50 inline helpers) = **38,191 lines**
 (38,127 before the provenance block added on user request; see §8).
 `rewrite-sync/rewrite-names.tsv` = 6 comment lines + **284 fn rows**.

@@ -1,5 +1,11 @@
 # P2 batch 3 — f3785 (`artc::DispatchResourceStep`)
 
+**Tree location:** the asyncify products these notes count have since moved from
+`.ref/artemis-official/rewrite/src` to **`ports/artemis/src`** (tracked source, alongside
+`ports/artemis/rewrite-names.tsv` and `ports/artemis/REWRITE.md`).  Paths below are the
+ones that were true when each note was written.
+
+
 批 3 只有一件：**f3785**（3,228 源行，全库最重的资源/sha1 缓存泵）。
 派活前 lead 独立跑脚本核过结构数字，简报三处错认已在 § 简报纠错 里记账。
 

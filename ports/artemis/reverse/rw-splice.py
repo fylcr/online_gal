@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""rw-splice.py — splice rewrite/src products over their generated defs.
+"""rw-splice.py — splice the rewritten products over their generated defs.
 
 For every rewrite product registered in rewrite-names.tsv (kind=fn rows whose
-file column names a live file under rewrite/src/), the generated definition of
+file column names a live file under <tree>/src/), the generated definition of
 w2c_artemis_f<NNN> in the assembled source is replaced by:
 
   1. the product body, verbatim (it defines <qualified target> in artc style,

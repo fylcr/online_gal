@@ -69,17 +69,18 @@ trap 'rm -rf "$TMP"' EXIT
   cat "${FRAGS[@]}"
 } > "$TMP/t.cpp"
 
-# The rewrite tree supplies engine_context.h, so its src/ must be on the include
-# path.  Overridable because each flavour has its own tree: the asyncify products
-# live under rewrite/, the sync products under rewrite-sync/.  Pointing this at
-# the wrong tree is silent -- the check then never sees the header the products
-# include -- so ARTEMIS_REWRITE is the only place the tree is named.
+# The rewritten engine supplies engine_context.h, so its src/ must be on the
+# include path.  Each flavour has its own tree (asyncify under this port's src/,
+# sync local and untracked), because wasm2c numbers functions per module and one
+# fNNN names a different function in each.  Pointing this at the wrong tree is
+# silent -- the check then never sees the header the products include -- so
+# ARTEMIS_REWRITE is the only place the tree is named.
 REWRITE_TREE="${ARTEMIS_REWRITE:-}"
 if [ -z "$REWRITE_TREE" ]; then
   if [ "$FLAVOUR" = "asyncify" ]; then
-    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite"
+    REWRITE_TREE="$REPO_ROOT/ports/artemis"
   else
-    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite-$FLAVOUR"
+    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite-sync"
   fi
 fi
 

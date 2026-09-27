@@ -39,14 +39,15 @@ GEN_C="$REPO_ROOT/.ref/artemis-official/wasm/$FLAVOUR/artemis.wasm2c.c"
 # The transcription archive and the product tree are per-flavour: wasm2c numbers
 # functions by their position in ITS OWN module, so fNNN in the asyncify tree
 # names a different function in the sync tree (measured: f205 is void/2 there
-# and u32/3 here).  Defaults keep the asyncify behaviour; sync passes its own.
+# and u32/3 here).  asyncify's products are tracked source inside the port;
+# sync's stay a local, untracked tree.
 CODE_DIR="${ARTEMIS_CODE_DIR:-$REPO_ROOT/.ref/artemis-official/code}"
 REWRITE_TREE="${ARTEMIS_REWRITE:-}"
 if [ -z "$REWRITE_TREE" ]; then
   if [ "$FLAVOUR" = "asyncify" ]; then
-    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite"
+    REWRITE_TREE="$REPO_ROOT/ports/artemis"
   else
-    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite-$FLAVOUR"
+    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite-sync"
   fi
 fi
 OUTDIR="${2:-$HERE/out/code-$FLAVOUR}"

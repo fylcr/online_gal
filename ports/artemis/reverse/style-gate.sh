@@ -1,7 +1,7 @@
 #!/bin/bash
-# style-gate.sh — assert the rewrite tree's hand-written code carries no
+# style-gate.sh — assert the rewritten engine's hand-written code carries no
 # wasm2c fingerprints and follows the artemis-compat house style
-# (rewrite/REWRITE.md §2/§3).
+# (ports/artemis/REWRITE.md §2/§3).
 #
 # Scan scope: hand-written code under <tree>/src ONLY.  Docs and mappings
 # (REWRITE.md, rewrite-names.tsv) name mechanical symbols by definition — the
@@ -11,11 +11,15 @@
 # both are pruned below.
 #
 # usage: bash ports/artemis/reverse/style-gate.sh [tree]
-#        tree default: /d/online_gal/.ref/artemis-official/rewrite
+#        tree default: <repo>/ports/artemis (its src/ is the product tree)
 # exit 0 = pass; 1 = fingerprint/dependency failure; warnings do not fail
 # unless STYLE_GATE_STRICT=1 (bare pool-ish literals, pragma once misses).
 set -u
-TREE="${1:-/d/online_gal/.ref/artemis-official/rewrite}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolved from this script, not hardcoded: every other recipe in ports/ works
+# wherever the clone lands, and a baked-in absolute path silently gates the
+# wrong tree (or nothing at all) on any other machine.
+TREE="${1:-$(cd "$HERE/.." && pwd)}"
 SRC="$TREE/src"
 fail=0
 echo "== style-gate: $TREE"
@@ -30,8 +34,19 @@ if [ -d "$SRC" ]; then
 fi
 echo "     ${#FILES[@]} hand-written file(s) in scope"
 
+# An empty scope is a FAILURE, not a pass.  Every check below would report "ok"
+# against zero files, so a mistyped tree, a moved tree or a wrong default would
+# come back green while checking nothing -- the same failure mode that let a
+# product audit report zero defects three times before it found a real one (see
+# ports/artemis/REWRITE.md §7.6).  A gate that cannot say "I found nothing to
+# look at" is worse than no gate, because it is believed.
+if [ "${#FILES[@]}" -eq 0 ]; then
+  echo "FAIL  nothing to scan under $SRC"
+  echo "      the tree argument is wrong, or the products moved"
+  exit 1
+fi
+
 scan() {  # scan <grep-pattern>; prints hits, returns 1 on hit
-  [ "${#FILES[@]}" -gt 0 ] || { echo "ok    [$1] (no files)"; return 0; }
   local hits
   hits=$(grep -InE "$1" "${FILES[@]}" 2>/dev/null)
   if [ -n "$hits" ]; then

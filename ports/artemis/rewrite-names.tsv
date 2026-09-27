@@ -1,0 +1,334 @@
+# rewrite-names.tsv — 逆向名 → artemis-compat 风格名总表
+# kindfn=函数rt=运行时面host=宿主导入族
+# fn<TAB>fNNN<TAB>current<TAB>target<TAB>file<TAB>depth<TAB>note
+# rt<TAB>old<TAB>target<TAB>file<TAB>note
+# host<TAB>old<TAB>target<TAB>note
+fn	f199	art_probe_f199	artc::Panic	util/panic.cpp	R1	failure handoff target; semantics=abort path (provisional)
+fn	f200	—	artc::CompareBytes	util/compare_bytes.cpp	R2	bounded memcmp-like leaf (198.1K calls/轮); P1 热核 #9
+fn	f202	—	artc::CopyBytes	util/copy_bytes.cpp	R2	architected memcpy shape (453.0K calls/轮); P1 热核 #1
+fn	f463	—	artc::CopyIfNonEmpty	util/copy_if_nonempty.cpp	R2	zero-length-safe copy gate (213.0K calls/轮); P1 热核 #8
+fn	f203	—	artc::ResizeValueStack	script/resize_value_stack.cpp	R2	值栈定形（TValue 16B，清 +8 tt 域）(122.9K calls/轮); P1 微叶簇
+fn	f206	—	artc::PushTableField	script/push_table_field.cpp	R2	index2adr 伪索引解析+取场压栈 (171.7K calls/轮); P1 微叶簇
+fn	f393	art_sha1_compress	artc::Sha1CompressBlock	util/sha1_compress.cpp	R2	SHA-1 分块压缩（FIPS 180-1）：20B 链值(+0)+64B 消息块(+20)，80 轮 feed-forward 回写；FIPS 已知答案+4000 组随机差分双零铁证
+fn	f779	—	artc::LookupTableField	script/lookup_table_field.cpp	R2	luaH_get 形通用值键取场（类型分派主位+链走+数组快路径，miss→共享 nil 记录）(310.0K calls/轮)；调 f603 RawValueEqual（PROVISIONAL）
+fn	f244	—	artc::StepRecordResume	script/step_record_resume.cpp	R2	Asyncify 恢复步（记录 +4 影子 +8、+32 块下移 +16..31 打 287 标记早退、否则 +24 调 f1727 回填写回 +16；rewinding 从事件 return-frame 栈弹、suspended 压回）(218.4K calls/轮)；调 f1727 RefillRecordState（PROVISIONAL）
+fn	f778	—	artc::GetTableFieldByString	script/get_table_field_by_string.cpp	R2	被驻留字符串的 table 取场（主位=字符串缓存 hash 掩桶、链上指针同一性比对；miss→16B 字符串键记录交可挂起通用取场 FinishTableIndex，命中直接返节点值记录）(108.9K calls/轮)
+fn	f326	—	artc::SetTableField	script/set_table_field.cpp	R2	luaH_setnum 形写场（伪索引→ResolveValueSlot→f898 取记录→拷 16B 值记录→三闸写屏障重灰容器）+ asyncify 三相位骨架 (118.1K calls/轮)；调 f898 GetTableFieldByNumber
+fn	f898	—	artc::GetTableFieldByNumber	script/get_table_field_by_number.cpp	R2	整数键表字段查找快路径；miss 在 16B guest 栈帧构造数值键记录交可挂起通用取场 FinishTableIndex (120.8K calls/轮)；访存 1:1 计数铁证
+fn	f1111	—	artc::ResolveTableField	script/resolve_table_field.cpp	R2	luaH_set 形可写值记录解析（先取场；miss 才判键：nil 键报 table index is nil、NaN 键报 table index is NaN、其余建键；判键前清缓存标志）(104.6K calls/轮)；调 f313 RaiseScriptError（PROVISIONAL）
+fn	f313	—	artc::RaiseScriptError	—	—	未重写；engine_context.h 调用跳板（被 f1111 调，32 调用点）；void(instance,3×u32)；PROVISIONAL，产品落地时删跳板并集中对名；勿与 f199 artc::Panic 混淆
+fn	f777	—	artc::GetIndexedValue	script/get_indexed_value.cpp	R2	通用索引取值（目标 tag==5 先探自身存储否则查 __index 事件；非函数事件迭代行走上限 100 步；16B 值记录拷入调用者槽位）(117.6K calls/轮)；调 f517/f333/f289/f372/f907（PROVISIONAL 跳板）
+fn	f517	—	artc::FetchMetamethod	—	—	未重写；engine_context.h 跳板（被 f777 调）；u32(instance,3×u32)；PROVISIONAL
+fn	f333	—	artc::FetchObjectMetamethod	—	—	未重写；engine_context.h 跳板（被 f777 调）；u32(instance,3×u32)；PROVISIONAL
+fn	f289	—	artc::GrowValueStack	—	—	未重写；engine_context.h 跳板（被 f777 调）；void(instance,2×u32)；PROVISIONAL
+fn	f372	—	artc::CallValue	—	—	未重写；engine_context.h 跳板（被 f777 调）；void(instance,3×u32)；PROVISIONAL
+fn	f907	—	artc::RaiseTypeError	—	—	未重写；engine_context.h 跳板（被 f777 调）；void(instance,3×u32)；PROVISIONAL
+fn	f400	—	artc::AppendStringBytes	util/append_string_bytes.cpp	R2	libc++ basic_string::append 形（LuaString 双形态记录：长形 +0 数据指针/+4 长度/+8 偏置容量字；短形内联 +11 低 7 位长度、第 7 位长形标志；容量=(字&0x7FFFFFFF)-1 或 10；放得下→f463 原地续写+长度+终止符；放不下→溢出量交 f805 GrowStringAndReplace，挂起压事件 return-frame、rewinding 弹回重试）(148.8K calls/轮)
+fn	f603	artc::RawValueEqual	artc::RawValueEqual	util/raw_value_equal.cpp	R1	raw value comparison: pointer test first, then the tag-selected compare with the double slot last; was an engine_context.h jump board
+fn	f643	—	artc::FinishTableIndex	script/finish_table_index.cpp	R2	luaH_newkey 形新键落位（键类型选主位；已占则空位游标下走找槽；无空位先 rehash 计数定数组新尺寸再递归取位；主位被占且占者非本位→搬空位腾主位，本位在则挂链尾；112B scratch 帧挂起九字回卷）(155.2K calls/轮)；自调×2 可挂起；调 f205/f1120×2/f1112/f779/f313×2
+fn	f805	—	artc::GrowStringAndReplace	util/grow_string_and_replace.cpp	R2	字符串重分配拼接（libc++ __grow_by_and_replace 语义：头段/插入段/存活尾段搬入更大缓冲；8 绑定 text,old_cap,delta_cap,old_size,n_copy,n_del,n_add,new_stuff）(117.6K calls/轮)；差分台 21018 组+变异反证 6/6；调 f201/f560/f248（PROVISIONAL 跳板）
+fn	f201	—	artc::AllocateStringBuffer	util/allocate_string_buffer.cpp	R1	可挂起分配器（确证，149 行禁区件 R1 判断序原封）：raw heap（Nc_0，跳板 AllocateRawBlock）→拒→856940u 槽 GC 步进回调 CALL_INDIRECT(t6) 可挂起→重试；OOM 抛 bad_alloc 形（HostAllocateException 4B + 两 type 词 798992/798956 + HostThrowException(799044,2270)）；rewind 两段弹帧 {bytes,slot}+resume word、压序 word 先帧后；热核 #2 424.7K calls/轮、640 调用点；跳板已删
+fn	f560	—	artc::DeallocateStringBuffer	—	—	未重写；engine_context.h 跳板（被 f805 调）；void(instance,3×u32)；PROVISIONAL
+fn	f248	—	artc::RaiseStringLengthError	—	—	未重写；engine_context.h 跳板（被 f805 调）；void(instance,1×u32)；PROVISIONAL
+fn	f428	—	artc::DischargeExpression	script/discharge_expression.cpp	R2	表达式描述子取值化（upvalue/global/索引→打包载入指令交代码汇、描述子改停新指令 pc；local/开放调用原地收束；其余原样放行；三发射点各带挂起闸）(294.7K calls/轮)；调 f340 EmitInstruction×3
+fn	f247	—	artc::InternString	script/intern_string.cpp	R2	字符串驻留（长度播种逐字节混哈希→掩桶链走长度先行字节殿后→未命中建节点挂链头；链先穿后长、容量见顶跳增长；终止符越界交 block-too-big）(113.4K calls/轮)；调 f200/f250/f223/f202/f1114
+fn	f340	—	artc::EmitInstruction	script/emit_instruction.cpp	R2	指令汇（放电待决跳转链→指令入代码数组容量见顶增长→行号入行数组→回传 pc；链尾词未完则认领前词；偏移过宽报 control structure too long）(125.2K calls/轮)；调 f243/f704×2
+fn	f250	—	artc::RaiseBlockTooBig	—	—	未重写；engine_context.h 跳板（被 f247 调）；u32(instance,1×u32)；PROVISIONAL
+fn	f223	artc::ReallocateBlock	artc::ReallocateBlock	util/reallocate_block.cpp	R1	块分配器：块重分配+too-big 守卫、new=0 释放；被 f247/f970/f1116/批内分配簇调
+fn	f265	artc::AppendStringText	artc::AppendStringText	util/append_string_text.cpp	R1	可挂起追加前门：经 f970 检查型追加扩文本；调 f970
+fn	f5721	artc::ResizeRawBlock	artc::ResizeRawBlock	util/resize_raw_block.cpp	R1	alloc 层 resize 垫片：new=0→Oc_0 释放否则 f399 重分配；调 Oc_0/f399
+fn	f910	artc::ExpressionToOperand	artc::ExpressionToOperand	script/expression_to_operand.cpp	R1	表达式放电成操作数（常量/寄存器溢出、NaN 箱位掩码 8388608/8388607）；调 f340×5/f428/f708
+fn	f708	artc::AddFunctionConstant	artc::AddFunctionConstant	script/add_function_constant.cpp	R1	函数常量表 intern：查重→miss 追加→溢出报 "constant table overflow"；调 f518/f704/f1111
+fn	f364	artc::ExpressionToRegister	artc::ExpressionToRegister	script/expression_to_register.cpp	R1	exp2reg 形：表达式放电进下一空闲寄存器；调 f428/f476×2/f708×3
+fn	f645	artc::EncodeConstant	artc::EncodeConstant	script/encode_constant.cpp	R1	值→常量表操作数映射（缺则新增）；调 f708
+fn	f476	artc::EmitConditionJump	artc::EmitConditionJump	script/emit_condition_jump.cpp	R1	条件跳转发射+复杂度超限报 "function or expression too complex"；调 f243/f428×2/f707×2
+fn	f4579	artc::AllocateGuardedBuffer	artc::AllocateGuardedBuffer	util/allocate_guarded_buffer.cpp	R1	守卫式分配（allocator<T>::allocate 超限断言族）；调 f201/f218/f253
+fn	f399	artc::ReallocateRawBlock	artc::ReallocateRawBlock	util/reallocate_raw_block.cpp	R1	裸块重分配：null→Nc_0 新分配、块头-8、对齐折算、失败记 849888u；调 Nc_0/f2207
+fn	f1116	artc::AppendWithLimit	artc::AppendWithLimit	script/append_with_limit.cpp	R1	限长追加（checklimit 文案族 "more than %d %s"/"upvalues"）；调 f219×2/f397/f518/f704
+fn	f204	artc::ReleaseNodeTree	artc::ReleaseNodeTree	util/release_node_tree.cpp	R1	双子树递归析构（+39 标志字节、+28 块经 Oc_0 释放）；自递归×2
+fn	f207	artc::StringLength	artc::StringLength	util/string_length.cpp	R1	haszero 字扫描 strlen（0x01010101/0x80808080 掩码对齐快路径）；无 callee
+fn	f414	artc::EmitOpInstruction	artc::EmitOpInstruction	script/emit_op_instruction.cpp	R1	操作码+操作数拼指令字交发射器；调 f340
+fn	f970	artc::AppendTextBytes	artc::AppendTextBytes	util/append_text_bytes.cpp	R1	检查型追加：先扩缓冲再拷字节、超限抛长度错；调 f201/f463/f248
+fn	f303	artc::ClearFlagsRecursive	artc::ClearFlagsRecursive	util/clear_flags_recursive.cpp	R1	节点低位标志清零（+5 字节 &252）+类型字节 switch 走子；自递归×2
+fn	f1233	artc::SetStringBytes	artc::SetStringBytes	util/set_string_bytes.cpp	R1	替换串内容（grow-and-copy worker）；调 f523/f805
+fn	f592	artc::UnorderedFindEntry	artc::UnorderedFindEntry	util/unordered_find_entry.cpp	R1	boost::unordered 查找：hash%桶数、桶链按键比较；调 f200
+fn	f226	artc::SetStringFromSource	artc::SetStringFromSource	util/set_string_from_source.cpp	R1	从源串替换内容（委托增长+拷贝）；调 f1233
+fn	f1550	artc::UnorderedCheckLoadFactor	artc::UnorderedCheckLoadFactor	util/unordered_check_load_factor.cpp	R1	载荷因子守卫（"mlf_ >= minimum_max_load_factor"）超阈 rehash；调 f635/f4180
+fn	f2801	artc::PumpEventQueue	artc::PumpEventQueue	script/pump_event_queue.cpp	R1	事件泵一轮（g3=51 相位机大户、852316 pending-throw×15）；调 f199/f329/f1042/f3544/f3551
+fn	f1071	artc::UnorderedPrepareSlot	artc::UnorderedPrepareSlot	util/unordered_prepare_slot.cpp	R1	unordered 插槽准备（boost 断言串+852316×3）；无 fNNN callee
+fn	f3784	artc::UnorderedInsert	artc::UnorderedInsert	util/unordered_insert.cpp	R1	unordered 插入：查→备槽→新键增长；调 f201/f592/f1071
+fn	f902	artc::InclineNumber	artc::InclineNumber	script/incline_number.cpp	R1	lexer 换行行计数（前瞻一致性）；调 f285×2/f397；f1727 分析在册
+fn	f221	artc::PrepareStringBuffer	artc::PrepareStringBuffer	util/prepare_string_buffer.cpp	R1	串缓冲就位（p1>=33 切外置块、SSO 形）；无 callee
+fn	f896	artc::IndexTableValue	artc::IndexTableValue	script/index_table_value.cpp	R1	luaV_gettable+__call 族：表索引+元方法回落+调用管线；调 f289/f313/f333/f372/f517/f907/f1111
+fn	f220	artc::SkipWhitespace	artc::SkipWhitespace	util/skip_whitespace.cpp	R1	isspace 字节循环（c==32 || (c-9)<5）；无 callee
+fn	f209	artc::SetStackTop	artc::SetStackTop	script/set_stack_top.cpp	R1	栈顶设槽（TValue 16B 槽、176936u kNilValueAddr 填充）；无 callee
+fn	f1114	—	artc::ResizeTableArray	—	R0	未重写；engine_context.h 跳板（被 f247 InternString 与 f1125 CloseFunctionScope 调）；字符串表 rehash；void(instance,2×u32)；只调 f223 ReallocateBlock
+fn	f243	—	artc::RaiseSyntaxError	—	—	未重写；engine_context.h 跳板（被 f340 调）；void(instance,2×u32)；PROVISIONAL
+fn	f704	—	artc::GrowArray	—	—	未重写；engine_context.h 跳板（被 f340 调×2）；解析器数组增长器；u32(instance,6×u32)；PROVISIONAL
+fn	f205	artc::FillBytes	artc::FillBytes	util/fill_bytes.cpp	R1	bounded zero-fill: byte run for the short spans, word run past the threshold, clamped at the long end; 307 inbound calls from 204 distinct callers, no callee; not suspendable
+fn	f1120	artc::BucketLog2	artc::BucketLog2	util/bucket_log2.cpp	R1	byte length to bucket step: the logarithm is walked eight bits at a time and the pool base offset is added back; was an engine_context.h jump board
+fn	f1112	—	artc::LookupOrCreateTableField	script/lookup_or_create_table_field.cpp	—	Overturns the tsv name artc::ResizeTable (f1114 ResizeTableArray already owns resize). Pools 179091/179110 hit verbatim. void/4.
+fn	f1727	art_refill_record_state	artc::RefillRecordState	script/refill_record_state.cpp	R1	词法分析步 llex（读下一 token：主循环按当前字符分派，空白/注释跳过、数字与名字走各自 reader、短字符串带十进制转义、长括号串/注释走 skip_sep+read_long_string；错误走 chunkid + %s:%d: %s + %s near '%s' 链）；asyncify 44B 帧 11 字 + 4B 挂起码、87 挂起点（码 0-86）；被 f244 调（回填写回 +16）；调 f285/f901/f902/f1726/f397/f219/f236/f223/f250/f247/f778/f363/f5594/f312
+fn	f5508	—	artc::LookupValue	script/lookup_value.cpp	R2	luaH_getnum 形键查（数组快路径+哈希链，miss→共享 nil 记录）(171.7K calls/轮); P1 微叶簇
+fn	f210	—	artc::QueryValueType	script/query_value_type.cpp	R2	lua_type 形类型签查询（伪索引解析共用 script/value_slot.h）(101.9K calls/轮); P1 热核
+fn	f4832	—	artc::ClearLatchedFlags	util/clear_latched_flags.cpp	R2	latch 掩码消费（+52 读清、+40 位清除、-148 描述符重定位）(116.6K calls/轮); P1 热核
+fn	f4551	—	artc::ReleaseContainerElements	script/release_container_elements.cpp	R2	容器析构元素释放：四类存储（+16 桶头/+64 与 +68 的 12 字节步长数组/+72 与 +80 链表）逐元素经「自身首字→描述符 -152 增量→属主 vtable +140 槽」定位 disposer 并间接调用；逢空头走 5 参 boost 断言桥（px != 0 / shared_ptr.hpp:734 / operator->）后读 852316 排空槽，未抛则 TrapUnreachable、已抛则转 catch 路径交 Panic (109.0K calls/轮)；调 Panic(f199)/HostFailAssertion(w2c_a_e)/FindMatchingCatch(w2c_a_g)/HostTempRet0(w2c_a_b)/CallTableFunction(Lc t1)；11 挂起点；产品内 kPendingThrowAddr 等 6 常量为私有副本
+fn	f859	art_lua_dispatch	LuaEngine::Dispatch	script/lua_engine.cpp	R1	lua engine entry
+fn	f904	art_lua_call	LuaEngine::Call	script/lua_engine.cpp	R1	lua call bridge
+fn	f1042	art_backlog_dispatch2	BacklogView::DispatchAux	script/backlog_view.cpp	R1	backlog tag family, 2nd unit (provisional split)
+fn	f1081	art_reset1	SceneReset::Reset01	script/scene_reset.cpp	R0	reset clone family; subsystem TBD at R1
+fn	f1406	art_reset2	SceneReset::Reset02	script/scene_reset.cpp	R0	reset clone family
+fn	f1465	art_reset3	SceneReset::Reset03	script/scene_reset.cpp	R0	reset clone family
+fn	f1593	art_shared_array_reset	SceneReset::ResetSharedArray	script/scene_reset.cpp	R0	shared array reset
+fn	f2936	art_reset4	SceneReset::Reset04	script/scene_reset.cpp	R0	reset clone family
+fn	f2945	art_effect_dispatch	Compositor::EffectDispatch	render/compositor_effect.cpp	R1	trans/effect surface (provisional)
+fn	f3085	art_file_dispatch1	PackManager::FileDispatchA	pack/pack_manager.cpp	R1	file tag trio; disambiguate at R1
+fn	f3086	art_file_dispatch2	PackManager::FileDispatchB	pack/pack_manager.cpp	R1	file tag trio
+fn	f3087	art_file_dispatch3	PackManager::FileDispatchC	pack/pack_manager.cpp	R1	file tag trio
+fn	f3088	art_layer_prop_dispatch	Compositor::LyPropDispatch	render/compositor_props.cpp	R1	lyprop layer property tag
+fn	f3112	art_var_dispatch	LuaEngine::VarDispatch	script/lua_tags_var.cpp	R1	CLua object wrap/reflect init
+fn	f3196	art_text_fx_dispatch	MessageLayer::TextFxDispatch	script/lua_tags_text.cpp	R1	text fx dispatch (provisional)
+fn	f3207	art_font_dispatch	GlyphAtlas::FontDispatch	render/glyph_atlas.cpp	R1	font tag family
+fn	f3219	art_print_text	MessageLayer::QueuePrintText	script/lua_tags_text.cpp	R1	print list push (AGENT.md gated tag print)
+fn	f3222	art_flow_dispatch	IetRunner::FlowDispatch	script/iet_flow.cpp	R1	if/elseif/else/loop pairing validator + JP diagnostics
+fn	f3293	art_http_dispatch	FetchManager::HttpDispatch	host/fetch_manager.cpp	R1	http tag surface (provisional)
+fn	f3387	art_reset5	SceneReset::Reset05	script/scene_reset.cpp	R0	reset clone family
+fn	f3395	art_reset6	SceneReset::Reset06	script/scene_reset.cpp	R0	reset clone family
+fn	f3460	art_print	LuaEngine::TagPrint	script/lua_tags_text.cpp	R1	AGENT.md gated tag; f3219 is its push
+fn	f3548	art_rp_dispatch	MessageLayer::RpDispatch	script/lua_tags_text.cpp	R1	rp=page turn (AGENT.md named)
+fn	f3551	art_alreadyread_dispatch	AutoReadTimer::Dispatch	input/auto_read.cpp	R1	auto-read; AutoReadTimer exists in its tree
+fn	f3558	art_reset7	SceneReset::Reset07	script/scene_reset.cpp	R0	reset clone family
+fn	f3626	art_reset8	SceneReset::Reset08	script/scene_reset.cpp	R0	reset clone family
+fn	f3631	art_command_dispatch	FetchManager::CommandDispatch	host/fetch_manager.cpp	R1	6 commands incl clear_cache/baseurl + JP file diagnostics
+fn	f3633	art_builtin_dispatch	LuaEngine::BuiltinDispatch	script/lua_tags_builtin.cpp	R2	8 parts, 33 var-class tags
+fn	f3650	art_delon_dispatch	LuaEngine::TagGenericDelOn	script/lua_tag_dispatch.cpp	R1	AGENT.md seton*/delon* prefix registry pattern
+fn	f3651	art_seton_dispatch	LuaEngine::TagGenericSetOn	script/lua_tag_dispatch.cpp	R1	AGENT.md seton*/delon* prefix registry pattern
+fn	f3655	art_lytween_dispatch	Compositor::TweenDispatch	render/compositor_tween.cpp	R1	lytween補間 (provisional)
+fn	f3656	art_delete_dispatch	Compositor::LydelDispatch	render/compositor.cpp	R1	delete family; lydel vs file-delete TBD at R1
+fn	f3661	art_lyevent_dispatch	Compositor::LyEventDispatch	render/layer_events.cpp	R1	layer event reg; runtime_state.h [B] bucket names it
+fn	f3666	art_mode_dispatch	EngineMode::Dispatch	config/engine_mode.cpp	R1	mode semantics TBD at R1 (provisional)
+fn	f3688	art_hide_dispatch	Compositor::HideDispatch	render/compositor.cpp	R1	true identity=scetween; collision case 1/8; verify at R1
+fn	f3695	art_backlog_dispatch	BacklogView::DispatchTag	script/backlog_view.cpp	R1	backlog tag family (provisional)
+fn	f3698	art_video_dispatch	VideoPlayer::Dispatch	render/video_player.cpp	R1	video tag; video_player.cpp exists in its tree
+fn	f3744	art_tag_dispatch	LuaEngine::TagDispatch	script/lua_tag_dispatch.cpp	R2	10 parts, 103 tags; model on l_tag two-stage (RawTagTable+TagTable)
+fn	f4204	art_reset11	SceneReset::Reset11	script/scene_reset.cpp	R0	reset clone family (renamed from Reset6, collision fix)
+fn	f4553	art_reset9	SceneReset::Reset09	script/scene_reset.cpp	R0	reset clone family
+fn	f4569	art_reset10	SceneReset::Reset10	script/scene_reset.cpp	R0	reset clone family
+fn	f5551	art_os	HostApi::Os	host/host_api.cpp	R0	os service shim (provisional)
+fn	f5596	art_reserve_keywords	LuaKeywords::Init	script/lua_keywords.cpp	R1	luaX_init class; 21 keywords intern+number
+fn	f5598	art_io_type	LuaStdlib::InitIoType	script/lua_engine.cpp	R0	io type init (provisional)
+fn	f5623	art_lua_openlibs	LuaEngine::OpenLibs	script/lua_engine.cpp	R1	stdlib open (luaL_openlibs analogue)
+fn	f5670	art_debug	LuaDebug::Init	script/lua_engine.cpp	R0	debug facility init (provisional)
+rt	w2c_artemis (instance struct)	artc::EngineContext	util/engine_context.h	唯一装配点; README/AGENT.md core 词汇
+rt	instance->w2c_g3	ResumePhase()	util/engine_context.h	0 running / 1 suspended / 2 rewinding; R2 提 enum class ResumeState
+rt	instance->w2c_g4	ReturnFrameSp()	util/engine_context.h	event return-frame stack pointer (它 README 原生叙事)
+rt	instance->w2c_Lc	function_table_	util/engine_context.h	indirect table (export Lc 名不变, glue 契约)
+rt	instance->w2c_a_a	LinearMemory memory_	util/engine_context.h	memory accessor; bridge 路线走 imported memory a.a
+rt	wasm_rt_local_memory_base / _size	memory_base / memory_size	EngineContext 内联	真实访问器的底座
+rt	852316u (throw slot)	kPendingThrowAddr	util/panic.cpp	named constant; emscripten __THREW__ pass-through
+rt	FUNC_PROLOGUE / FUNC_EPILOGUE	EnterFrame / LeaveFrame	util/engine_context.h	R2 可整体消除
+rt	TRAP(x) / UNREACHABLE	TrapXxx helpers	util/panic.cpp	trap 收尾已实装（patch-native-traps.py，build 层 transform）：call_indirect 失败面 defer 到引擎原生陷阱——type/null→"function signature mismatch"、OOB→合成越界 call_indirect→"table index is out of bounds"（V8 实测见 build/trap-exp/）
+rt	u32 / u64	uint32_t / uint64_t	—	R1 进行时替换
+rt	表间接调用 CALL_INDIRECT(t1)	CallTableFunction()	util/engine_context.h	(i32)→() 表项薄包装；f4551 的 disposer/回调分派用
+host	w2c_a_b … w2c_a_Kc (198 imports)	HostApi::具名包装	host/host_api.h	按签名+工单热度逐个命名; bridge 路线保持 import_module "a" 原名转发
+host	w2c_a_e	artc::HostFailAssertion	util/engine_context.h	断言桥 5×u32 失败向量直传（f4551 用）；PROVISIONAL，host/host_api.cpp 落地后移
+host	w2c_a_g	artc::FindMatchingCatch	util/engine_context.h	___cxa_find_matching_catch_3 形 u32(u32)（f4551 用）；PROVISIONAL
+host	w2c_a_b	artc::HostTempRet0	util/engine_context.h	_getTempRet0 形 u32()（f4551 用）；PROVISIONAL
+fn	f1115	artc::ExpectToken	artc::ExpectToken	—	R0	token 期望检查（池 177701 '%s' expected）；调 f243 RaiseSyntaxError / f219 FormatPushString；被 f1119 CheckMatch 调
+fn	f1713	artc::MatchKeyword	artc::MatchKeyword	—	R0	关键字匹配（同池 177701）；调 f346 CheckStatementLimits / f5676；被 f1119 CheckMatch 调
+fn	f1714	artc::ParseArguments	artc::ParseArguments	—	R0	实参表解析（池 178106 'function arguments expected'、178057 'ambiguous syntax (function call x new'）；被 f1119 CheckMatch 调
+fn	f1745	artc::EmitMoveSlot	artc::EmitMoveSlot	—	R0	槽位 move 指令发射；只调 f364 ExpressionToRegister（码发射）；被 f1119 CheckMatch 调
+fn	f347	artc::FormatCharValue	artc::FormatCharValue	—	R0	字符值格式化（池 175280 'char(%d)'，返回 u32）；调 f219 FormatPushString；被 f1119 CheckMatch 调
+fn	f427	artc::CheckExprComplexity	artc::CheckExprComplexity	—	R0	表达式复杂度守卫（池 172913 function or expression too complex）；被 f1119 CheckMatch 调；仍走 engine_context.h 跳板，尚未生成产品
+fn	f547	artc::CheckClosingMatch	artc::CheckClosingMatch	—	R0	闭合符匹配检查（池 178134 '%s' expected (to close '%s' at line %'，4 额外参数）；被 f1119 CheckMatch 调
+fn	f5675	artc::EmitJumpIf	artc::EmitJumpIf	—	R0	条件跳转发射（池 172913）；调 f340 EmitInstruction / f364 / f476 EmitConditionJump；被 f1119 CheckMatch 调
+fn	f1118	artc::ParseParamList	artc::ParseParamList	—	R0	形参表解析（池 177930 'self'、177980 '<name> or \'...\' expected'、177715）；4 额外参数；被 f346 CheckStatementLimits 调
+fn	f1717	artc::CompileMainBody	artc::CompileMainBody	—	R0	主函数体编译（池 177856 'main function has more than %d %s'、177890、177833）；被 f346 CheckStatementLimits 调
+fn	f5671	artc::EmitExpression	artc::EmitExpression	—	R0	表达式发射（池 172948 'control structure too long'、172913），4 额外参数；被 f346 CheckStatementLimits 调
+fn	f5672	artc::EmitCondition	artc::EmitCondition	—	R0	条件发射（同池 172948/172913），3 额外参数；被 f346 CheckStatementLimits 调
+fn	f5673	artc::EmitStatement	artc::EmitStatement	—	R0	语句发射（池 172913、177248），3 额外参数；被 f346 CheckStatementLimits 调
+fn	f1731	artc::ClearLocalFlags	artc::ClearLocalFlags	—	R0	清局部变量标志位；只调 f303 ClearFlagsRecursive；被 f1125 CloseFunctionScope 调
+fn	f1732	artc::ClearUpvalueFlags	artc::ClearUpvalueFlags	—	R0	清 upvalue 标志位；只调 f303 ClearFlagsRecursive；被 f1125 CloseFunctionScope 调
+fn	f1734	artc::InvokeMetaField	artc::InvokeMetaField	—	R0	metafield 调用桥；调 f372 CallValue / f517 FetchMetamethod；被 f1125 CloseFunctionScope 调
+fn	f782	artc::LoadProtoSlot	artc::LoadProtoSlot	—	R0	proto 槽位读取（字面量 20000；返回 u32）；调 f1739/f303/f309/f450/f517；被 f1125 CloseFunctionScope 调×5
+fn	f783	artc::SetStringSlot	artc::ReshapeTaggedNodeChain	util/reshape_tagged_node_chain.cpp	R0	Self-recursive on byte(node+4)==8 marker -3; switch cases 1-5 to f5629/f5628/f5630/f5509/f5536; case 0 decrements the counter at payload+4; cases 6/7 f223-realloc to load(node+12)+17 / load(node+16)+24. u32/3.
+fn	f310	artc::StoreGlobalEntry	artc::StoreGlobalEntry	—	R0	全局表项写入（3 额外参数）；只调 f1342；f707 CompileExpression 批次同族入口
+fn	f707	artc::CompileExpression	artc::CompileExpression	script/compile_expression.cpp	R1	code-generation entry for one expression node: resolves the node opcode, folds constants and emits the operand/branch pair (self-recursive over subexpressions); callees f243 RaiseSyntaxError, f340 EmitInstruction, f910 ExpressionToOperand; asyncify rewind saves 68 frame bytes
+fn	f1119	artc::CheckMatch	artc::CheckMatch	script/check_match.cpp	R1	luaY_check-shaped syntax match over the lexer token stream: formats the expected message, walks alternatives and on failure calls f243 RaiseSyntaxError; callees f1115 ExpectToken, f1713 MatchKeyword, f1714 ParseArguments, f1745 EmitMoveSlot, f347 FormatCharValue, f427 CheckExprComplexity, f547 CheckClosingMatch, f5675 EmitJumpIf, f244 StepRecordResume, f219 FormatPushString, f346 CheckStatementLimits, f476, f428, f645; asyncify rewind saves 28 frame bytes
+fn	f346	artc::CheckStatementLimits	artc::CheckStatementLimits	script/check_statement_limits.cpp	R1	parser semantic/depth gate: enforces nesting depth and vararg scoping (goto-dense); messages 177715 chunk has too many syntax levels, 177790 cannot use ... outside a vararg function; self-recursive plus f1119 CheckMatch, f1118 ParseParamList, f1717 CompileMainBody, f5671 EmitExpression, f5672 EmitCondition, f5673 EmitStatement, f414, f397, f243, f244 StepRecordResume, f645; asyncify rewind saves 32 frame bytes
+fn	f1125	artc::CloseFunctionScope	artc::CloseFunctionScope	script/close_function_scope.cpp	R1	function-scope teardown: releases the proto slot array, clears local/upvalue flags, drops pending metainfo and shrinks the table; callees f782 LoadProtoSlot x5, f303 ClearFlagsRecursive x3, f783 SetStringSlot x2, f1732 ClearUpvalueFlags, f1731 ClearLocalFlags, f1734 InvokeMetaField, f517 FetchMetamethod, f1114 ResizeTableArray, f223 ReallocateBlock; asyncify rewind saves 32 frame bytes
+fn	f4082	artc::CleanupPendingResources	artc::CleanupPendingResources	util/cleanup_pending_resources.cpp	R1	C++ exception/RAII unwind and guard cleanup: drains the pending-throw slot (852316u) x15, sentinel -1 x12, -16 x6, 0x80000000 x3, frees raw blocks and routes the table-call trampoline (host a_m, table slot 860); callees Oc_0 DeallocateRawBlock x7, f201 x3, f202 x3, f207, f248, self x1; asyncify rewind saves 48 frame bytes
+fn	f3785	artc::DispatchResourceStep	artc::DispatchResourceStep	util/dispatch_resource_step.cpp	R1	resource/cache step dispatcher: 28-arm selector over the saved resume word, each arm rebuilding one key into the 112-byte scratch frame and driving its host slot; drains the asyncify pending-throw slot and spills a 56-byte rewind frame
+fn	f215	—	artc::UnlinkListNode	util/unlink_list_node.cpp	R1	doubly linked list node removal: splices the victim out in either order, walking the marking bytes beside each link back to the start node; 138 inbound / 87 callers, no callee; not suspendable
+fn	f264	—	artc::ResolveExprValue	script/resolve_expr_value.cpp	R1	expression tag to value slot resolution: four tag families each clamped to its own bound, shared empty cell as fallback, tail switch on the slot tag; not suspendable
+fn	f341	—	artc::LoadExprValue	script/load_expr_value.cpp	R1	suspendable twin of f264 ResolveExprValue, identical tag switch, resolved slot read through f777 GetIndexedValue; 24 inbound / 21 callers; asyncify rewind saves 16 frame bytes
+fn	f401	—	artc::ShiftWideDigits	util/shift_wide_digits.cpp	R1	wide digit step: the 128-bit pair is shifted left by the byte-derived count and written back as two 64-bit halves; 17 inbound / 9 callers; not suspendable
+fn	f493	—	artc::CompareNumericLiteral	script/compare_numeric_literal.cpp	R1	numeric literal comparison: three digit-scan loops over the two literals, whitespace skipped on both sides through f220, final compare through f200; not suspendable
+fn	f604	—	artc::RelocateObjectHeader	util/relocate_object_header.cpp	R1	moves a header down the slab, repacking the tag byte and the two flag bytes; 8 inbound / 7 callers; not suspendable
+fn	f611	—	artc::ReadLiveNodePayload	util/read_live_node_payload.cpp	R1	liveness guard on the payload read: only a node of the live kind with its flag unset answers the payload address; 8 inbound / 7 callers; not suspendable
+fn	f1493	—	artc::ClearIntegerConstant	util/clear_integer_constant.cpp	R1	inline-constant probe: the small tag range plus the sentinel value clear the slot and answer zero, every other shape answers whether it survived; sole caller f3516
+fn	f1702	—	artc::CompileComparison	script/compile_comparison.cpp	R1	comparison compiler: constants fold to a constant instruction, everything else takes both operand metamethods through f517 and compares raw values with f603; callees f289, f372, f517, f603; asyncify rewind saves 20 frame bytes
+fn	f1709	—	artc::InitializeTableArray	script/initialize_table_array.cpp	R1	table array sizing for a constructor: overflow raised at pool 179184 table overflow once the depth implied by the size cannot fit; callees f223, f250, f313, f1120; asyncify rewind saves 20 frame bytes
+fn	f3514	—	artc::DispatchClassMethod	core/dispatch_class_method.cpp	R1	class method table walk: 327 classes by four slots, the child path takes the low six bits of the per-class word and everything else indexes the slot table; two t3 indirect calls; asyncify rewind saves 12 frame bytes
+fn	f4230	—	artc::SweepMarkedNodeList	util/sweep_marked_node_list.cpp	R1	first sweep list: the mark byte is cleared, the mask drops the cleared bit, every live node on the chain gets its finaliser called through the t1 table; asyncify rewind saves 16 frame bytes
+fn	f4240	—	artc::SweepSecondaryNodeList	util/sweep_secondary_node_list.cpp	R1	sweep twin of f4230 at the second set of field offsets (+52/+40/+124/+128 against +56/+44/+824/+828); asyncify rewind saves 16 frame bytes
+fn	f4715	—	artc::SyncPropertyVector	util/sync_property_vector.cpp	R1	compares the cached property vector against the incoming one with six float compares, takes the t16 equality adapter when it drifts, folds the dirty bits back; asyncify rewind saves 8 frame bytes
+fn	f4881	—	artc::InvokeNodeHandler	util/invoke_node_handler.cpp	R1	reads the handler slot out of the node and calls it through the t16 numeric builtin table with the node and the scale in hand; t13 table entry, t16 upcall; asyncify rewind saves 8 frame bytes
+fn	f4882	—	artc::InvokeSiblingNodeHandler	util/invoke_sibling_node_handler.cpp	R1	twin of f4881 that repairs the back pointer to reach the owning node first before the same t16 upcall; t13 table entry, t16 upcall; asyncify rewind saves 8 frame bytes
+fn	f5511	—	artc::NextTableEntry	script/next_table_entry.cpp	R1	the next-pair walk: successor of the current entry, missing key raises pool 179129 invalid key to next; sole caller f521; callees f313, f603; asyncify rewind saves 16 frame bytes
+fn	f5726	—	artc::SetTableArrayElement	script/set_table_array_element.cpp	R1	array-part write: key pushed, field set through f326 SetTableField, a number value boxed into the value record; callees f206 PushTableField, f326 SetTableField; asyncify rewind saves 12 frame bytes
+fn	f5749	—	artc::CompareNodePayloads	util/compare_node_payloads.cpp	R1	three-way payload comparison behind a null check, no side effect and no callee; not suspendable
+fn	f605	—	artc::ConcatJumpLists	script/concat_jump_lists.cpp	1	Emits 0x7FFF8006 via f340, then walks the sJ chain patching targets; returns the new pc. u32/1. Sibling of f451 PatchJumpChain (void/2, no emit).
+fn	f646	—	artc::ReserveRegisters	script/reserve_registers.cpp	1	freereg += n, guards the 250 limit via f243(172913), writes the freereg byte at +75. void/2.
+fn	f909	—	artc::EmitVariableStore	script/emit_variable_store.cpp	1	Switch on variable kind 2..12 dispatching f520 opcodes 26/27, maintains maxstacksize. Load-side twin is f1132. void/2.
+fn	f911	—	artc::AllocateExpressionRegister	script/allocate_expression_register.cpp	1	Kinds 13/14 rewrite an existing instruction operand to freereg+1 and bump freereg. void/3.
+fn	f912	—	artc::PatchComparisonIntoJump	script/patch_comparison_into_jump.cpp	1	Walks the sJ chain, then rewrites opcode 27 to 26 gated on the 177248 sign table. Sibling of f605. void/3.
+fn	f913	—	artc::EmitInstructionABC	script/emit_instruction_abc.cpp	1	Packs (arg_c<<6) | opcode | (arg_a<<14), appends via f340, returns the new pc. u32/4.
+fn	f1117	—	artc::ReleaseExpressionSlots	script/release_expression_slots.cpp	1	Freeexps dispatcher: n = max(n+1,0), calls f911/f427/f646 with n-1. void/4.
+fn	f1132	—	artc::EmitVariableLoad	script/emit_variable_load.cpp	1	Switch on variable kind 6..16, builds (val<<23)|(res<<6) loads, decrements fs[36]. Mirror of f909. void/3.
+fn	f1718	—	artc::ParseExpression	script/parse_expression.cpp	1	15-way token switch, interns 12-byte constants, calls f605/f912/f913. void/5.
+fn	f1719	—	artc::ParseAssignment	script/parse_assignment.cpp	1	Pool 178303 'variables in assignment', 200-minus-nCcalls limit, self-recursive target list, f1117/f646 reconcile. void/3.
+fn	f1720	—	artc::ParseSimpleAssignment	script/parse_simple_assignment.cpp	1	Single f909 storevar, exactly two f346 expression parses, no explist reconciliation. u32/1.
+fn	f1746	—	artc::EmitJumpInstruction	script/emit_jump_instruction.cpp	1	Emits 0x800000 | (a<<6) | (c<<23) | opcode 30. void/3.
+fn	f5678	—	artc::AddOneConstant	script/add_one_constant.cpp	1	Builds TValue{f64 1.0, tt=3} on the stack allocator and hands it to f708 AddFunctionConstant; never touches freereg. u32/1.
+fn	f5679	—	artc::ReserveThreeRegisters	script/reserve_three_registers.cpp	1	freereg += 3, then f243(172913). void/1.
+fn	f262	—	artc::FlushOutputRoomIfFull	util/flush_output_room_if_full.cpp	1	high-water vs low-water test on load(p0+16)+64/68, drains via f363, then hands off to f900. void/1.
+fn	f298	—	artc::CheckArgumentType	util/check_argument_type.cpp	1	QueryValueType vs expected tag, pool 171360 '%s expected, got %s', type names at 179584+tag*4, fallback 171255 'no value' for tag -1. void/3.
+fn	f304	—	artc::FormatArgumentError	util/format_argument_error.cpp	1	3-way select on state 1/2/3 -> pool 171267 'bad argument #%d (%s)' / 171298 "calling '%s' on bad self (%s)" / 171330 "bad argument #%d to '%s' (%s)"; builds the text, does not raise. u32/3.
+fn	f309	—	artc::FindPoolEntryByTagByte	util/find_pool_entry_by_tag_byte.cpp	1	Body is v=f1005(p0,p1); return (*(u8*)v == (p1 & 0xFF)) ? v : 0; first-character recheck on a NUL-terminated pool scan. u32/2.
+fn	f377	—	artc::InvokeCallbackWhenFlagUnset	util/invoke_callback_when_flag_unset.cpp	1	Single guard (load8(p0) & 32) == 0 then f962, which CALL_INDIRECTs a function pointer read from p2+36. void/3.
+fn	f1486	—	artc::FindFreeBlockOnChain	util/find_free_block_on_chain.cpp	1	Walks the +4 chain, sign-tests byte at +27 via <<24/(s32)>>24, compares candidate size from +20, confirms with f200 on the +16 key prefix, unlinks. u32/3.
+fn	f1487	—	artc::CoalesceFreeBlockRange	util/coalesce_free_block_range.cpp	1	Same node layout and sign test as f1486, also walks +0, two circular terminator tests (load(p3+8)==p1 / ==p3), merges adjacent blocks, falls back to f1486. u32/5.
+fn	f3516	—	artc::ReadInlineFlagBit3	util/read_inline_flag_bit3.cpp	1	if (p1 <= 319) { v = load(p0+8516+4*p1); if ((v & 63) == 0) return (v & 8) >> 3; } return f1493(p0,p1); siblings f3517/f3518 return bits 2/1. u32/2.
+fn	f3804	—	artc::AcquireBlockFromFreeList	util/acquire_block_from_free_list.cpp	1	f1487 splice, then f201(40u) as malloc, sets +8 from a payload word, i64_store zeroes bytes 0-7, links the node, bumps the counter at p0+8. u32/4.
+fn	f5509	—	artc::ReshapePowerOfTwoNode	util/reshape_power_of_two_node.cpp	1	Size 32 << load8(node+7) plus count*16 from +28/+12, compares the +16 word against sentinel 179152, reallocs via f223. void/2.
+fn	f5536	—	artc::ReshapeCountedArrayNode	util/reshape_counted_array_node.cpp	1	Calls f549 first, sizes count*24 from +48/+40 and count*16 from +44/+32, fixed 120-byte whole-object size, then f223. void/2.
+fn	f5628	—	artc::ReshapeHeaderVariantNode	util/reshape_header_variant_node.cpp	1	Size (byte[node+6] ? 4 : 2) shift over a payload plus a (byte[node+6] ? 24 : 20) header, then f223. void/2.
+fn	f5629	—	artc::ReshapeFieldRecordNode	util/reshape_field_record_node.cpp	1	7 guarded field-pair cases with strides 16/4/12, doubly-linked unlink at +84/+88, count*16 from +80/+76, fixed 92-byte whole-object size, stores node+88 into load(p0+16)+256. void/2.
+fn	f5630	—	artc::ReshapeInlinePairNode	util/reshape_inline_pair_node.cpp	1	Conditionally swaps words at node+16/node+20 when the back-pointer at +8 is not self-inlined, then f223(p0, node, 32u, 0). void/2.
+fn	f5716	—	artc::StepInvokeValueEntry	core/step_invoke_value_entry.cpp	1	Asserts arg 1 against type tag 5 via f298, f203 ResizeValueStack(p0, 2), then f521; returns 2 on success else pops a 16-byte value-stack frame and returns 1. u32/1.
+fn	f255	—	artc::AssignSharedOwner	util/assign_shared_owner.cpp	1	Boost shared_ptr control-block branch; refcount increment, f885 releases the old block. void/3.
+fn	f382	—	artc::ResolveVariableSlot	script/resolve_variable_slot.cpp	1	Stack index to register window p0+12+p1*4-16, five-way TValue tag switch, tag 2 forces f1707. u32/2.
+fn	f442	—	artc::DeclareLocalVariable	script/declare_local_variable.cpp	1	12-byte LocVar slots against a 200 limit; 'too many local variables' / 'function at line %d has more than %d %s' via f704. void/3.
+fn	f450	—	artc::RelocateElementArray	util/relocate_element_array.cpp	1	Real memmove loop over 24-byte records into an f223 reallocated buffer; overflow reports f250. void/2.
+fn	f451	—	artc::PatchJumpChain	script/patch_jump_chain.cpp	1	Rewrites the pending jump table at +32, repacks (target<<14)|(line&0x3FFF), range error 'control structure too long'. void/2.
+fn	f453	—	artc::ConvertValueToInteger	script/convert_value_to_integer.cpp	1	Verbatim prologue twin of f382; non-tag-3 values go through f897, saturating at fabs(d)<2^31. u32/2.
+fn	f521	—	artc::AdvanceTableIterator	script/advance_table_iterator.cpp	1	Resolves a key through the shared tagged-slot prologue, then f5511 NextTableEntry; 16-byte records advance, last key writes 0xFFFFFFF0. u32/2.
+fn	f548	—	artc::BindUpvalueCell	script/bind_upvalue_cell.cpp	1	f247 interns the name, f778 looks the upvalue up; missing entries mark a new stack cell and go through f363. u32/3.
+fn	f781	—	artc::CloseBlockScope	script/close_block_scope.cpp	1	Nesting limit 201 reports 'chunk has too many syntax levels'; loop with f244, emits opcode 35. void/1.
+fn	f885	—	artc::CreateSharedRecord	util/create_shared_record.cpp	1	40-byte node, refcount (1<<32)|1, f205 FillBytes clears the payload, links in and decrements the old refcount. void/2.
+fn	f897	—	artc::MaterializeNumberValue	script/materialize_number_value.cpp	1	Walks one value-chain step (case 1 advances frame+8 / p0+16) to f371, then writes tag 3 and the f64 at p1+8. void/2.
+fn	f1128	—	artc::CompactEntryQueue	script/compact_entry_queue.cpp	1	p0+56&2 flag, 24-byte records against a 320-byte budget, f450 reflow on overflow. u32/2.
+fn	f1212	—	artc::ReclaimFreeBlock	util/reclaim_free_block.cpp	1	Boundary-tagged block return: merges both neighbours, unlinks page index 857248u, rotates the page bitmap at 856948u. void/2.
+fn	f1701	—	artc::CompileOperation	script/compile_operation.cpp	1	74-way operator dispatch (f333 x20 / f371 x17 / f289 x11 / f372 x11 / f644 x7); sits immediately before f1702 CompileComparison. void/2.
+fn	f1715	—	artc::RaiseItemLimitError	script/raise_item_limit_error.cpp	1	Linear asyncify phase machine over the 'items in a constructor' and '...has more than %d %s' groups via f219/f243. void/2.
+fn	f1739	—	artc::ReserveClosureRecords	script/reserve_closure_records.cpp	1	24-byte record vector, oldcap*24 to (p1+1)*24 through f223, 'block too big' on overflow; sole caller f1125. void/2.
+fn	f899	—	artc::CompileStatement	script/compile_statement.cpp	1	158-token if-elseif chain: f442 x11 / f451 x10 / f548 x6 / f781 x3 / f1119 / f1118. u32/1.
+fn	f2207	—	artc::AllocateTaggedBlock	util/allocate_tagged_block.cpp	1	Overturns the jump-board name ReallocateRawBlockCore. Lead read all 762 lines: tag = w&3, size = w&~7, p1<256 rejected, four global chains. u32/2.
+fn	f784	—	artc::FixPendingJumpTargets	script/fix_pending_jump_targets.cpp	1	Walks the pending-jump list at load(load(p0)+12) with a 4-byte stride, re-encodes each entry as (line<<14)|(pc&0x3FFF)+0x7FFF8000, folds the 131072 overflow flag, and seeds a fresh entry when the line sentinel is 0xFFFFFFFF; range error 172948. Sibling of f451 PatchJumpChain (which owns the +32 table instead). void/3.
+fn	f211	—	artc::CompareNulTerminatedStrings	util/compare_nul_terminated_strings.cpp	1	a NUL-terminated byte-string compare, walked byte by byte and answering the first difference.
+fn	f238	—	artc::RaiseTraceback	util/raise_traceback.cpp	1	builds the "%s:%d: " traceback prefix for an error position.
+fn	f246	—	artc::CombineComparisonResults	util/combine_comparison_results.cpp	1	merges two comparison results, boxing the second through the value record.
+fn	f371	—	artc::CoerceToNumber	util/coerce_to_number.cpp	1	turns a value into a number for arithmetic, falling back through the string and metamethod paths.
+fn	f373	—	artc::TrimLocalSlotsAboveLevel	util/trim_local_slots_above_level.cpp	1	walks a function prototype and drops the local slots declared above a nesting level.
+fn	f435	—	artc::ComputeNumericPower	util/compute_numeric_power.cpp	1	the double power operation behind the '^' operator.
+fn	f519	—	artc::FormatTracebackFrame	util/format_traceback_frame.cpp	1	resolves one traceback frame, walking the locals and the name table for the description.
+fn	f520	—	artc::ResolveBranchOffset	util/resolve_branch_offset.cpp	1	emits a branch and folds its jump offset, raising when the control structure outgrows the field.
+fn	f549	—	artc::ReleaseNodeChain	script/release_node_chain.cpp	1	unlinks a node from its chain and hands the block back to the allocator.
+fn	f601	—	artc::AllocateTable	util/allocate_table.cpp	1	allocates a table object and initialises its array part.
+fn	f644	—	artc::RaiseArithmeticError	util/raise_arithmetic_error.cpp	1	raises the "attempt to perform arithmetic on ..." error for a bad operand.
+fn	f837	—	artc::CompareScriptStrings	util/compare_script_strings.cpp	1	the string comparison the parser uses for identifiers and keywords.
+fn	f900	—	artc::FormatNumber	script/format_number.cpp	1	the number-to-string conversion, including the "%.14g" default and the "(null)" fallback.
+fn	f962	—	artc::ReadInputLine	util/read_input_line.cpp	1	reads one line from the input stream, growing the buffer as it goes.
+fn	f1005	—	artc::FindStringLength	script/find_string_length.cpp	1	walks a NUL-terminated literal to find its length.
+fn	f1110	—	artc::FormatNumberValue	script/format_number_value.cpp	1	formats a number for output, honouring the "%.14g" default and the length limit.
+fn	f1700	—	artc::DeclareUpvalue	core/declare_upvalue.cpp	1	declares an upvalue, adding the local it closes over to the cell list.
+fn	f1703	—	artc::CompareConstantOperands	script/compare_constant_operands.cpp	1	compares two constants at compile time, folding the comparison when both are known.
+fn	f1704	—	artc::NumberToString	script/number_to_string.cpp	1	the numeric formatter behind string coercion, with the "%.14g" default format.
+fn	f1707	—	artc::FindNumericKeySlot	script/find_numeric_key_slot.cpp	1	walks a table key to the slot a numeric key would occupy.
+fn	f1735	—	artc::ReserveIntVector	util/reserve_int_vector.cpp	1	reserves an integer vector, reallocating and re-stamping the header on the way.
+fn	f1741	—	artc::CheckComparableTypes	script/check_comparable_types.cpp	1	rejects operand types that cannot be compared, before the comparison is emitted.
+fn	f5510	—	artc::StoreTableField	core/store_table_field.cpp	1	stores a value into a table field, choosing the direct slot or the metamethod path.
+fn	f5631	—	artc::AdjustNodeCapacity	util/adjust_node_capacity.cpp	1	grows a node to the capacity a resize asked for, re-stamping the header.
+fn	f5677	—	artc::PatchInstructionTarget	script/patch_instruction_target.cpp	1	retargets one pending jump in an instruction word and settles the pending list.
+fn	f5680	—	artc::EmitBranchWord	script/emit_branch_word.cpp	1	emits one branch word, choosing the short and the long encoding.
+fn	f242	w2c_artemis_f242	artc::FindOrderedChainEntry	—	—	按 payload 双向比较在有序链上找键（f200 CompareBytes）
+fn	f263	w2c_artemis_f263	artc::InternKeyIntoTableSlot	—	—	键 interning + 表槽预留（f363 GrowTableSlot / f247 InternString）
+fn	f268	w2c_artemis_f268	artc::MoveMemoryRange	—	—	重叠感知前向/反向拷贝（f202 CopyBytes 快路 + 4 条对齐循环）
+fn	f272	w2c_artemis_f272	artc::UnorderedLinkBucketNode	—	—	桶节点插入链接（f200×2 / f201 / f215 / f281 递归）
+fn	f281	w2c_artemis_f281	artc::ReleaseLayerNodeTree	—	—	递归析构 tag@27→+16；挂 f1042 / f3656 补间 / f3661 鼠标层
+fn	f283	w2c_artemis_f283	artc::InitTaggedNodeDescriptor	—	—	17 行：*p0 写 799084 描述符并调 f1216
+fn	f293	w2c_artemis_f293	artc::RaiseNodeInitError	—	—	798992/799084 双 tag 写入 + 清 852316 后抛出并回读
+fn	f302	w2c_artemis_f302	artc::StoreSuspendableEntry	—	—	可挂起写入口：同址去重后 st@12 再调 f2737
+fn	f325	w2c_artemis_f325	artc::InsertFormattedKeyEntry	—	—	键格式化 + 表槽插入（f363 / f1110 FormatNumberValue / f247）
+fn	f334	w2c_artemis_f334	artc::StepCallValueFrame	—	—	f1742 的可挂起薄包装，只调一次后搬运
+fn	f351	w2c_artemis_f351	artc::MatchCStringPrefix	—	—	两次 ld@4 后走 f211 CompareNulTerminatedStrings
+fn	f376	w2c_artemis_f376	artc::ReadPackedI64Value	—	—	帧 20u 带 i64 影子；调 f833 末参 0xFFFFFFFF 取低 32 位
+fn	f390	w2c_artemis_f390	artc::RebuildUnorderedBucketArray	—	—	4 组 AllocateStringBuffer+UnlinkListNode，返 u32 桶数
+fn	f391	w2c_artemis_f391	artc::ReleaseNoSaveNodeTree	—	—	递归析构 745280；caller f2962 带 ini.NoSave
+fn	f392	w2c_artemis_f392	artc::FormatLuaEventFilterLine	—	—	拼 `[Lua] EventFilter %s: %s` / label / handler
+fn	f413	w2c_artemis_f413	artc::UnorderedInsertBucketNode	—	—	与 f272 同型另一实例，递归体为 f422
+fn	f422	w2c_artemis_f422	artc::ReleaseNestedNodePair	—	—	自递归 + Oc_0 析构，44 行
+fn	f437	w2c_artemis_f437	artc::DestroyNodeObject	—	—	与 f582 构造配对的析构，写 745280/745092
+fn	f438	w2c_artemis_f438	artc::ReleaseNodeListTail	—	—	递归析构 + f580 子树释放，222 行
+fn	f471	w2c_artemis_f471	artc::UnlinkOrderedChainNode	—	—	有序链上比对命中即摘链，tag ld8@11 判负后 Oc_0
+fn	f479	w2c_artemis_f479	artc::EncodeSignedOrderAsDouble	—	—	四路有符号比较结果左移打包进 f64
+fn	f490	w2c_artemis_f490	artc::ResetEventFilterState	—	—	重置 f392 EventFilter 条目状态（调 f392 / f582）
+fn	f491	w2c_artemis_f491	artc::ReleaseShallowNodePair	—	—	递归析构 745280；tag@59/@35 两段
+fn	f532	w2c_artemis_f532	artc::ClearLinkedNodeFields	—	—	同址去重后把 +8/+12/+16 写 0
+fn	f533	w2c_artemis_f533	artc::PersistSessionState	—	—	存档/输入状态机（onSave / autosave.dat / input / video）
+fn	f534	w2c_artemis_f534	artc::ReleaseTaggedNodeTriple	—	—	递归析构 748244；tag@47→+36、@27→+16
+fn	f550	w2c_artemis_f550	artc::CompileNumericPower	—	—	幂运算编译（f364 / f435 / f340）
+fn	f582	w2c_artemis_f582	artc::InitNodeStorage	—	—	节点存储构造；与 f437 析构配对
+fn	f583	w2c_artemis_f583	artc::ReleaseTaggedChildNodes	—	—	递归析构 tag@27→+16；与 f281 逐字同构的另两实例之一
+fn	f671	w2c_artemis_f671	artc::MeasureFormattedNumber	—	—	格式化后长度/位宽测量（f2735）
+fn	f678	w2c_artemis_f678	artc::ReleaseAssertedNodeTree	—	—	递归析构 + f199 Panic 断言，301 行
+fn	f679	w2c_artemis_f679	artc::ReleaseSubtreeTaggedNodes	—	—	递归 ×2 + f489 子树 + tag@27 三段析构
+fn	f680	w2c_artemis_f680	artc::ReleasePlainNodeTree	—	—	与 f678 同型的无断言实例，301 行
+fn	f681	w2c_artemis_f681	artc::FormatLuaTagFilterLine	—	—	拼 `[Lua] LogFilter: %s` / TagFilter / `%s(%d): [%s%s]`
+fn	f682	w2c_artemis_f682	artc::ReleaseNestedTaggedNodes	—	—	递归析构 748176；tag@59/@47/@27 三段全在
+fn	f742	w2c_artemis_f742	artc::ApplyCommandSkipStatus	—	—	`s.status.commandskip` 开关
+fn	f744	w2c_artemis_f744	artc::ApplyAutoModeStatus	—	—	`s.status.automode` 开关
+fn	f761	w2c_artemis_f761	artc::ResetGlobalSlotTable	—	—	848180..848224 连号静态表逐项复位
+fn	f763	w2c_artemis_f763	artc::ClearStructFields	—	—	21 个槽全清零（末 156 处 store16）
+fn	f776	w2c_artemis_f776	artc::ReallocateFormatBuffer	—	—	f223 ReallocateBlock + f250 RaiseBlockTooBig
+fn	f829	w2c_artemis_f829	artc::TerminateStringAt	—	—	取长度后交给 f828 定界；caller f312/f424
+fn	f839	w2c_artemis_f839	artc::ReleaseSharedObjectHolder	—	—	699 行，仅 f199；boost 三件套 772726 区
+fn	f860	w2c_artemis_f860	artc::InitLayerStorage	—	—	与 f582 前 26 行逐字同型的构造实例
+fn	f908	w2c_artemis_f908	artc::ResolveVariableKind	—	—	`local`/`global`/`field`/`upvalue`/`method` 变量名解析
+fn	f1004	w2c_artemis_f1004	artc::PadStringBuffer	—	—	14 行纯转发 f2721
+fn	f1006	w2c_artemis_f1006	artc::ReadNumericFieldAsDouble	—	—	异步挂起后回读 f64；caller f371 CoerceToNumber
+fn	f1032	w2c_artemis_f1032	artc::ReleaseChainedResourceNodes	—	—	链式搬运 + pending-throw 检查，2020 行
+fn	f1033	w2c_artemis_f1033	artc::ReleaseChainedNodeBranches	—	—	与 f1032 同型，尾部多 W@28×2
+fn	f1038	w2c_artemis_f1038	artc::ApplyControlSkipStatus	—	—	`s.status.controlskip`；唯一 caller f3551
+fn	f1043	w2c_artemis_f1043	artc::InvokeVirtualSlot	—	—	t0 间接虚调用 + 2948/2952 槽惰性链接
+fn	f1129	w2c_artemis_f1129	artc::RelocateUpvalueCells	—	—	调 f450 RelocateElementArray；caller f1700 DeclareUpvalue
+fn	f1131	w2c_artemis_f1131	artc::EmitPrototypePrologue	—	—	三发 f340 EmitInstruction；caller f1717 CompileMainBody
+fn	f1210	w2c_artemis_f1210	artc::ResetInputLineState	—	—	输入行缓冲状态复位；caller f962 ReadInputLine
+fn	f1218	w2c_artemis_f1218	artc::ResetSuspendableFrame	—	—	零参：清 852316 + 同址去重的挂起入口初始化
+fn	f1325	w2c_artemis_f1325	artc::ScanBitMaskWord	—	—	位图/压缩位串扫描（set 位与 test 位双循环）
+fn	f1408	w2c_artemis_f1408	artc::ReleaseLayerRenderData	—	—	495 行，仅 f199；572/580 段族
+fn	f1457	w2c_artemis_f1457	artc::UnorderedRebuildBucketChain	—	—	桶族第四实例，含 `buckets_`
+fn	f1458	w2c_artemis_f1458	artc::ApplyAvoidStatus	—	—	`s.status.avoid` 判定子树；唯一 caller f3551
+fn	f1459	w2c_artemis_f1459	artc::RebucketUnorderedNodeArray	—	—	与 f390 同型但无 f391 递归，尾部 f633
+fn	f1463	w2c_artemis_f1463	artc::AdvanceGainStatStage	—	—	`s.sevol` / `s.segain.` 增益阶段；唯一 caller f3551
+fn	f1471	w2c_artemis_f1471	artc::UnorderedInsertCheckedBucketNode	—	—	桶族第三实例，含 3 次 f199 Panic
+fn	f1520	w2c_artemis_f1520	artc::UnorderedReleaseBucketTable	—	—	`buckets_` + unordered implementation.hpp + get_bucket
+fn	f1531	w2c_artemis_f1531	artc::ReleaseNodeSlotArray	—	—	601 行，仅 f199，常量 592588
+fn	f1708	w2c_artemis_f1708	artc::LookupMaskedMetamethodSlot	—	—	位宽掩码链式查找，兜底 176936；caller f333/f517
+fn	f1721	w2c_artemis_f1721	artc::PatchUpvalueJumpTarget	—	—	f1746 EmitJumpInstruction + f548 BindUpvalueCell
+fn	f1723	w2c_artemis_f1723	artc::MaskToBitWidth	—	—	移位+掩码按位宽裁剪 u32
+fn	f1742	w2c_artemis_f1742	artc::InvokeCallValueWithStack	—	—	f372 CallValue + f289 GrowValueStack + f236 抛错
+fn	f2305	w2c_artemis_f2305	artc::ReleaseStringBufferPending	—	—	清 852316 + Oc_0 再清零；caller f560 DeallocateStringBuffer
+fn	f2729	w2c_artemis_f2729	artc::CopyTextBytes	—	—	逐字节复制 p2 次后写 0 终止；caller f312
+fn	f2890	w2c_artemis_f2890	artc::AdvanceEngineFrameTasks	—	—	4955 行帧任务体；caller f3544
+fn	f2892	w2c_artemis_f2892	artc::ReleaseEngineFrameResources	—	—	835 行，仅 f199 + boost
+fn	f3192	w2c_artemis_f3192	artc::AdvanceMessageEffectTimer	—	—	1229 行帧推进；邻 f3196 MessageLayer::TextFxDispatch
+fn	f3294	w2c_artemis_f3294	artc::AdvanceHttpFetchState	—	—	邻 f3293 FetchManager::HttpDispatch；cal f843/f4028/f4030
+fn	f3872	w2c_artemis_f3872	artc::PauseFullscreenVideo	—	—	`artemis_fullscreen_video.pause();`
+fn	f3933	w2c_artemis_f3933	artc::RebuildUnorderedIndexTable	—	—	含 `buckets_`/get_bucket 与 f205 FillBytes
+fn	f5538	w2c_artemis_f5538	artc::PrepareParameterFrame	—	—	f289 GrowValueStack + f601 AllocateTable；caller f1118
+fn	f5624	w2c_artemis_f5624	artc::ResetNodeChainFlags	—	—	调 f303 ClearFlagsRecursive；caller f549 ReleaseNodeChain
+fn	f5645	w2c_artemis_f5645	artc::FormatConcatenationError	—	—	`concatenate` + `attempt to %s %s '%s' (a %s value)`
+fn	f5676	w2c_artemis_f5676	artc::CompileKeywordCondition	—	—	f476 EmitConditionJump + f428 DischargeExpression
+fn	f5733	w2c_artemis_f5733	artc::FormatTracebackSlotEntry	—	—	f363 GrowTableSlot + f900 FormatNumber；caller f238 RaiseTraceback

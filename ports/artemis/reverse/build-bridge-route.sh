@@ -73,17 +73,19 @@ OFFICIAL_ROOT="${ARTEMIS_OFFICIAL:-$REPO_ROOT/.ref/artemis-official}"
 GEN_C="$OFFICIAL_ROOT/wasm/$FLAVOUR/artemis.wasm2c.c"
 GEN_H="$OFFICIAL_ROOT/wasm/$FLAVOUR/artemis.wasm2c.h"
 RUNTIME_SRC="$OFFICIAL_ROOT/wasm/runtime"
-# The rewrite tree supplies engine_context.h, so its src/ has to be on the
-# include path.  Each flavour has its own tree: asyncify products live under
-# rewrite/, sync products under rewrite-sync/.  Getting this wrong is silent --
-# the sync build would splice asyncify's products (and its vocabulary boundary)
-# into the sync module, and every gate would still pass because the shapes agree.
+# The rewritten engine supplies engine_context.h, so its src/ has to be on the
+# include path.  asyncify's products are tracked source inside this port
+# (ports/artemis/src); sync's are still a local, untracked tree.  Each flavour
+# needs its OWN tree and must never fall back to the other's: wasm2c numbers
+# functions by position in ITS module, so one fNNN is a different function in
+# each, and splicing the wrong one in is silent -- every gate still passes,
+# because the gates check the ABI shape and not whose code that shape is.
 REWRITE_TREE="${ARTEMIS_REWRITE:-}"
 if [ -z "$REWRITE_TREE" ]; then
   if [ "$FLAVOUR" = "asyncify" ]; then
-    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite"
+    REWRITE_TREE="$REPO_ROOT/ports/artemis"
   else
-    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite-$FLAVOUR"
+    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite-sync"
   fi
 fi
 OUTDIR="${ARGS[1]:-$HERE/out/bridge-$FLAVOUR}"
