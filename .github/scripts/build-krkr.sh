@@ -38,12 +38,32 @@
 # ORDER IS LOAD-BEARING: emsdk activation, then the port-flag fix, then `embuilder`, then cmake.
 # Running `embuilder` before the fix caches the failure.
 #
-# DETERMINISM: `KRKR2_BUILD_VERSION` is passed the *upstream pin*, never a timestamp or a run id.
-# Upstream defaults it to `string(TIMESTAMP ...)` (CMakeLists.txt:201-202), and an earlier version
-# of this script passed `${GITHUB_SHA}-${GITHUB_RUN_ID}`; both change the `?v=` cache-buster in
-# `index.html` and the `BUILD_VERSION` compiled into the module on every single run, which makes
-# the published bytes impossible to pin in `ports/lib/engine-artifacts.json` and turns every
-# consumer's checksum verification into a spurious failure.
+# DETERMINISM, PART 1 -- THE VERSION STRING
+#
+# `KRKR2_BUILD_VERSION` is passed the *upstream pin*, never a timestamp or a run id. Upstream
+# defaults it to `string(TIMESTAMP ...)` (CMakeLists.txt:201-202), and an earlier version of this
+# script passed `${GITHUB_SHA}-${GITHUB_RUN_ID}`; both change the `?v=` cache-buster in `index.html`
+# and the `BUILD_VERSION` compiled into the module on every single run, which makes the published
+# bytes impossible to pin in `ports/lib/engine-artifacts.json` and turns every consumer's checksum
+# verification into a spurious failure.
+#
+# DETERMINISM, PART 2 -- THE CLOCK, WHICH THE VERSION STRING ALONE DOES NOT COVER
+#
+# Pinning the version string is necessary but was not sufficient. Two runs of this script published
+# byte-different artifacts anyway -- identical sizes, different sha256 -- and the difference is
+# entirely wall-clock records the compiler and the packagers write into the output. See the
+# "reproducible bytes" block below for the four sources and for the fix; the short version is
+# `SOURCE_DATE_EPOCH`, set from the upstream commit. Without it, `ports/lib/engine-artifacts.json`
+# goes stale after every single krkr rebuild, and a stale entry is not a loud failure: the fetch
+# reports exit 3 and the caller silently falls back to a source build, which is the exact outcome
+# this pipeline exists to remove.
+#
+# Only this script sets the epoch, and the asymmetry is deliberate: the ONS build was measured
+# byte-identical across four independent runner builds before any of this, so exporting the
+# variable there could only invalidate `ports/lib/engine-artifacts.json` and the adopted bytes in
+# `packages/runtime-ons/assets/` for no measured gain. If another engine is ever seen to drift the
+# same way, this block is the fix to copy -- and krkr is the one that costs ~50 minutes because
+# vcpkg builds OpenCV from source on every run.
 set -eu
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -63,6 +83,46 @@ echo "## VCPKG_ROOT:  $VCPKG_ROOT"
 
 [ -d "$REPO" ] || { echo "::error::no upstream checkout at $REPO"; exit 1; }
 [ -d "$REPO/vcpkg/ports" ] || { echo "::error::$REPO/vcpkg/ports missing (overlay target)"; exit 1; }
+
+# --- reproducible bytes -----------------------------------------------------
+#
+# Everything below inherits these two variables, so this block has to come before the emsdk fix,
+# before the vcpkg overlay copy and before `cmake --preset` (which is what builds OpenCV).
+#
+# Four separate records used to be written into the artifact from the wall clock. Measured on two
+# consecutive runs of this script over identical sources: `index.wasm` and `assets.zip` came out
+# with identical sizes and different sha256, while the other four files were byte-identical.
+#
+#   1. `cpp/core/base/MsgIntf.cpp:138-139` -- `TVPCompileDate`/`TVPCompileTime` are `WIDEN(__DATE__)`
+#      and `WIDEN(__TIME__)` (UTF-16 in the data segment).
+#   2. `cpp/core/tjs2/tjs.cpp:57` -- `const char TJSCompiledDate[] = "" __DATE__ " " __TIME__;`.
+#   3. `assets.zip` -- upstream's `cmake/CreateStoredZip.py` calls `archive.write`, which encodes
+#      each source file's mtime into the entry's DOS timestamp; on a fresh clone every file's mtime
+#      is the clone time. Handled below, at the seam block, by normalising the UI assets' mtimes.
+#   4. OpenCV's `getBuildInformation()` records `Timestamp: <ISO8601>` from CMake's
+#      `string(TIMESTAMP ... UTC)` (`libopencv_core4.a` carries it into the wasm), and vcpkg builds
+#      OpenCV from source during configure, so it is the configure time.
+#
+# `SOURCE_DATE_EPOCH` is the standard fix for all of them, and it reaches all of them:
+#   - CMake's `string(TIMESTAMP ... UTC)` returns the epoch date instead of the wall clock
+#     (verified locally in script mode: `1700000000` -> `2023-11-14T22:13:20Z`, `1600000000` ->
+#     `2020-09-13T12:26:40Z`, and the same epoch twice gives the same string).
+#   - clang expands `__DATE__`/`__TIME__` to the epoch date, and two builds minutes apart produced
+#     a byte-identical `.wasm` (verified locally with em++).
+#   - vcpkg does not pass the caller's environment through to port builds by default, so the epoch
+#     is named in `VCPKG_KEEP_ENV_VARS`. `ports/v8/portfile.cmake:36` uses the same variable to keep
+#     `DEPOT_TOOLS_WIN_TOOLCHAIN`, which is what makes it the supported mechanism rather than a
+#     guess. Setting it is additive if a future vcpkg keeps the variable anyway.
+#
+# The epoch is the upstream commit's own time, not an arbitrary constant: it stays explainable
+# ("the time of the sources being built"), it cannot drift on its own, and it changes only when the
+# pin moves -- which is exactly when the bytes are expected to change regardless.
+export TZ=UTC
+SOURCE_DATE_EPOCH="$(git -C "$REPO" show -s --format=%ct HEAD)"
+[ -n "$SOURCE_DATE_EPOCH" ] || { echo "::error::could not read the upstream commit time"; exit 1; }
+export SOURCE_DATE_EPOCH
+export VCPKG_KEEP_ENV_VARS="SOURCE_DATE_EPOCH"
+echo "## SOURCE_DATE_EPOCH: $SOURCE_DATE_EPOCH ($(date -u -d "@$SOURCE_DATE_EPOCH" +%Y-%m-%dT%H:%M:%SZ))"
 
 # --- the emsdk port-flag fix ------------------------------------------------
 #
@@ -125,6 +185,35 @@ for probe in "platforms/web/vlfs.js:__onlineGalVfsSource" "platforms/web/shell.h
   }
   echo "## seam present in $file ($needle)"
 done
+
+# --- deterministic assets.zip ----------------------------------------------
+#
+# Upstream's `CreateStoredZip.py` is not modified: it reads each entry's mtime (via
+# `archive.write`), so normalising the mtimes is enough to make its output a function of the
+# sources rather than of when they were checked out. Verified locally against the real asset tree
+# (75 files):
+#   - two packs with checkout-time mtimes -> two different sha256 (`b13d4901…` / `08bd328b…`),
+#     which is the defect, and both were 7,853,397 bytes -- exactly the size of both published
+#     releases;
+#   - two packs with normalised mtimes -> one sha256 (`6081d306…`), again 7,853,397 bytes;
+#   - the entry names, sizes and CRCs of the normalised zip match the published `assets.zip`
+#     exactly, so this changes only the timestamps.
+#
+# `TZ=UTC` (set above) is load-bearing here, not decoration: `ZipInfo.from_file` encodes
+# `localtime(st_mtime)`, so the same epoch would otherwise hash differently on a runner in another
+# zone. The assertions below are the point of the block -- an mtime that silently failed to apply
+# would leave a zip that is still clock-dependent, which is the failure this replaces.
+UI_ASSETS="$REPO/ui/cocos-studio"
+[ -d "$UI_ASSETS" ] || { echo "::error::no UI assets at $UI_ASSETS"; exit 1; }
+find "$UI_ASSETS" -type f -exec touch -d "@$SOURCE_DATE_EPOCH" {} +
+UI_FILES="$(find "$UI_ASSETS" -type f | wc -l)"
+UI_STAMP="$(find "$UI_ASSETS" -type f -exec stat -c %Y {} + | sort -u | paste -sd ' ' -)"
+[ "$UI_STAMP" = "$SOURCE_DATE_EPOCH" ] || {
+  echo "::error::UI asset mtimes are '$UI_STAMP', expected exactly one value: '$SOURCE_DATE_EPOCH'"
+  echo "::error::assets.zip encodes those mtimes, so it would not be reproducible"
+  exit 1
+}
+echo "## UI assets normalised: $UI_FILES files at mtime $SOURCE_DATE_EPOCH"
 
 # --- emsdk ports prewarm ----------------------------------------------------
 #
