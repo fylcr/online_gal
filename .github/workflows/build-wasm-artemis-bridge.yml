@@ -61,7 +61,9 @@ on:
       - 'ports/artemis/REWRITE.md'
       - 'ports/artemis/tools/real-game-test.mjs'
       - 'ports/artemis/vendor/artemis-sdk/WebAssembly/**'
-      - 'ports/lib/engine-artifacts.json'
+      # NOT 'ports/lib/engine-artifacts.json'. That file records what the publish step
+      # produced -- it is an output of this pipeline, not an input to it. Listing it means
+      # every hash update, which is a one-line edit, rebuilds every engine.
   pull_request:
     paths:
       - '.github/scripts/build-artemis-bridge.sh'

@@ -19,7 +19,9 @@ on:
       - '.github/upstream-pins.json'
       - 'ports/env.sh'
       - 'ports/krkr/kirikiroid2/**'
-      - 'ports/lib/engine-artifacts.json'
+      # NOT 'ports/lib/engine-artifacts.json'. That file records what the publish step
+      # produced -- it is an output of this pipeline, not an input to it. Listing it means
+      # every hash update, which is a one-line edit, rebuilds every engine.
       - 'ports/lib/ref.mjs'
   pull_request:
     paths:
