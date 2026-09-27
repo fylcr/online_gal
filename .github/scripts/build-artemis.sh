@@ -74,6 +74,48 @@ git -C "$REPO" apply --check --reverse "$PATCH" >/dev/null 2>&1 || {
   exit 1
 }
 
+# --- prewarm the Emscripten ports this build needs ---------------------------
+#
+# `artemis-compat` does `find_package(ZLIB REQUIRED)` (CMakeLists.txt:36) against the **Emscripten
+# sysroot**, and Emscripten does not ship a built zlib: it ships zlib as a *port* that `embuilder`
+# has to build into `cache/sysroot/` first. Without that step CMake fails with
+#
+#     Could NOT find ZLIB (missing: ZLIB_LIBRARY ZLIB_INCLUDE_DIR)
+#
+# which is what this script hit on its first real run. A dev machine never notices, because the
+# sysroot already has `zlib.h`/`libz.a` from an earlier `libpng` prewarm -- so the missing dependency
+# only exists on a clean machine, which is to say only in CI. It is spelled out here rather than left
+# to the caller for that reason: an engine build must not depend on another engine's side effects.
+#
+# `EMSDK`/`EMSDK_HOME` are exported alongside `EMSDK_DIR` because `embuilder` looks for its SDK
+# through them, and the retry loop matches `build-krkr.sh`: the first run of a port downloads its
+# sources from the emscripten-ports bucket, which is the flakiest network step in any of these builds.
+export EMSDK="${EMSDK_DIR}"
+export EMSDK_HOME="${EMSDK_DIR}"
+
+echo
+echo "== prewarming Emscripten ports (zlib) =="
+prewarm_port() {
+  local port="$1" attempt
+  for attempt in 1 2 3; do
+    if embuilder build "$port" >"/tmp/embuilder-$port.log" 2>&1; then
+      echo "## embuilder $port ok"
+      return 0
+    fi
+    echo "## embuilder $port attempt $attempt failed; tail:"
+    tail -8 "/tmp/embuilder-$port.log" | sed 's/^/     /' || true
+    sleep $((attempt * 5))
+  done
+  echo "::error::embuilder build $port failed after 3 attempts"
+  return 1
+}
+prewarm_port zlib
+
+[ -f "$EMSDK_DIR/upstream/emscripten/cache/sysroot/include/zlib.h" ] || {
+  echo "::error::embuilder did not produce the zlib sysroot headers; find_package(ZLIB) will fail"
+  exit 1
+}
+
 # --- build ------------------------------------------------------------------
 #
 # `build-emscripten.sh` sources `ports/env.sh`, which honours `EMSDK_DIR` and `REPO` from the

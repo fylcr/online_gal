@@ -70,4 +70,8 @@ jobs:
       # build would publish to one place and every consumer would look in another, and neither side
       # would report an error. The tag is a coincidence of naming, so it belongs in one visible place.
       release-tag: engine-krkr-20260920
-      publish: ${{ github.event_name != 'pull_request' && inputs.publish != false }}
+      # `inputs.publish` is an empty string on `push` (no `inputs` context for that event), and GitHub
+      # compares values of different types by coercing BOTH to a number -- `'' == false` -- so the
+      # obvious `inputs.publish != false` is FALSE on a push and silently skips publishing. Name the
+      # events instead, so nothing is left to a coercion rule.
+      publish: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish) }}

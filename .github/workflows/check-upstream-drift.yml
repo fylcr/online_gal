@@ -59,20 +59,29 @@ jobs:
           set -eu
           node .github/scripts/check-drift.mjs --markdown >> "$GITHUB_STEP_SUMMARY"
 
-      # `matrix` from a JSON array is the mechanism that keeps this to "one engine at a time": the
-      # per-engine workflow is what owns that engine's build, and this only names it to be run.
-      #
-      # `publish` is deliberately NOT passed. Each engine workflow owns its own publish default, and
-      # for Artemis that default is off for licensing reasons -- a scheduled job must not be able to
-      # flip it on, so the decision stays with whoever reads the drift report.
-      - name: Dispatch the affected engine builds
-        if: steps.check.outputs.moved != '[]' && steps.check.outputs.moved != ''
-        strategy:
-          # Not fail-fast: one engine's dispatch failing should not cancel the others, because the
-          # engines are independent and a partial dispatch is still useful.
-          fail-fast: false
-          matrix:
-            engine: ${{ fromJSON(steps.check.outputs.moved) }}
+  # The dispatch is a SEPARATE JOB, not a step, and that is not cosmetic: `strategy` is a job-level key.
+  # Written on a step it does not matrix anything -- it makes the whole workflow invalid, and the run
+  # then has zero jobs and no downloadable log, which is how this file first failed.
+  #
+  # `matrix` from a JSON array is the mechanism that keeps this to "one engine at a time": the
+  # per-engine workflow is what owns that engine's build, and this only names it to be run.
+  #
+  # `publish` is deliberately NOT passed. Each engine workflow owns its own publish default, and
+  # for Artemis that default is off for licensing reasons -- a scheduled job must not be able to
+  # flip it on, so the decision stays with whoever reads the drift report.
+  dispatch:
+    needs: drift
+    if: needs.drift.outputs.moved != '[]' && needs.drift.outputs.moved != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      # Not fail-fast: one engine's dispatch failing should not cancel the others, because the
+      # engines are independent and a partial dispatch is still useful.
+      fail-fast: false
+      matrix:
+        engine: ${{ fromJSON(needs.drift.outputs.moved) }}
+    steps:
+      - name: Dispatch ${{ matrix.engine.name }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

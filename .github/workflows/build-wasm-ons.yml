@@ -77,4 +77,8 @@ jobs:
       release-tag: engine-ons-0.7.7beta
       # A pull request builds and checks but must not publish: a PR's bytes are unreviewed, and a
       # release is a public promise that these are the bytes the manifest describes.
-      publish: ${{ github.event_name != 'pull_request' && inputs.publish != false }}
+      # `inputs.publish` is an empty string on `push` (no `inputs` context for that event), and GitHub
+      # compares values of different types by coercing BOTH to a number -- `'' == false` -- so the
+      # obvious `inputs.publish != false` is FALSE on a push and silently skips publishing. Name the
+      # events instead, so nothing is left to a coercion rule.
+      publish: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
