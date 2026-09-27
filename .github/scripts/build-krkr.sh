@@ -26,9 +26,24 @@
 #   3. The `embuilder` prewarm is explicit about variants. The `-mt` and `-legacysjlj` builds are
 #      separate artifacts, and building only the plain name makes CMake's later port fetch
 #      re-satisfy them -- slowly, and (for the legacysjlj pair) through the broken flag above.
+#   4. `ports/krkr/kirikiroid2/patch-vlfs-host-source.mjs` is applied here because the Windows
+#      recipe applies it (`run-build.sh:319`) and a fresh clone has not. It is what installs the
+#      `window.__onlineGalVfsSource` seam in `platforms/web/vlfs.js` + `shell.html`, which is how
+#      this project feeds the engine game bytes from its own VFS instead of letting the page fetch
+#      them. Without it the build succeeds and the engine runs -- but the host seam is simply
+#      absent, so the deployed engine cannot load a game the way this project loads one. That is a
+#      silent, functional difference, not a cosmetic one, so the seam is asserted after patching
+#      and again in the built output.
 #
 # ORDER IS LOAD-BEARING: emsdk activation, then the port-flag fix, then `embuilder`, then cmake.
 # Running `embuilder` before the fix caches the failure.
+#
+# DETERMINISM: `KRKR2_BUILD_VERSION` is passed the *upstream pin*, never a timestamp or a run id.
+# Upstream defaults it to `string(TIMESTAMP ...)` (CMakeLists.txt:201-202), and an earlier version
+# of this script passed `${GITHUB_SHA}-${GITHUB_RUN_ID}`; both change the `?v=` cache-buster in
+# `index.html` and the `BUILD_VERSION` compiled into the module on every single run, which makes
+# the published bytes impossible to pin in `ports/lib/engine-artifacts.json` and turns every
+# consumer's checksum verification into a spurious failure.
 set -eu
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -81,6 +96,35 @@ if [ -d "ports/krkr/kirikiroid2/overlay-ports" ]; then
     echo "## overlay port: $name -> $REPO/vcpkg/ports/$name"
   done
 fi
+
+# --- vlfs host byte-source seam --------------------------------------------
+#
+# Same patch the Windows recipe applies, for the same reason. The patcher restores each target from
+# git before re-applying its insertions, so running it over an already-patched tree is a no-op that
+# reproduces the same bytes (verified: two consecutive runs give identical md5).
+#
+# `refPath()` in `ports/lib/ref.mjs` resolves the checkout from `KIRIKIROID2_WEB_DIR` first, then
+# `<repo-root>/.ref/kirikiroid2-web`. The checkout here is `$REPO`, which is normally that same
+# path, but it is passed explicitly so an overridden `UPSTREAM_PATH` cannot silently patch a
+# different tree than the one about to be compiled.
+echo
+echo "== vlfs host byte-source seam =="
+node ports/krkr/kirikiroid2/patch-vlfs-host-source.mjs "$REPO" || {
+  echo "::error::patch-vlfs-host-source.mjs failed"
+  exit 1
+}
+
+# Assert the seam is actually in the sources now. The patcher is idempotent and prints its anchors,
+# but a patch that silently matched nothing would leave a *working* build that quietly lacks the
+# integration -- exactly the failure mode this step exists to prevent.
+for probe in "platforms/web/vlfs.js:__onlineGalVfsSource" "platforms/web/shell.html:hostSourceStat"; do
+  file="${probe%%:*}"; needle="${probe#*:}"
+  grep -q "$needle" "$REPO/$file" || {
+    echo "::error::$file is missing '$needle' after patching -- the host seam did not land"
+    exit 1
+  }
+  echo "## seam present in $file ($needle)"
+done
 
 # --- emsdk ports prewarm ----------------------------------------------------
 #
@@ -141,6 +185,11 @@ fi
 cd "$REPO"
 echo
 echo "== cmake configure (from $REPO) =="
+# The version string is derived from the checkout's own commit, so the same sources always produce
+# the same bytes. `KRKR2_BUILD_VERSION` is sanitised upstream (`CMakeLists.txt:204` allows only
+# `[A-Za-z0-9._-]`), and a 40-char hex sha satisfies that.
+KRKR2_VERSION="$(git -C "$REPO" rev-parse --short=12 HEAD)"
+echo "## KRKR2_BUILD_VERSION: $KRKR2_VERSION"
 STATUS=1
 for attempt in 1 2 3; do
   echo "  attempt $attempt/3"
@@ -148,7 +197,7 @@ for attempt in 1 2 3; do
      cmake --preset "Web Release Config" \
        -DEMSCRIPTEN=1 \
        -DVCPKG_TARGET_TRIPLET=wasm32-emscripten \
-       -DKRKR2_BUILD_VERSION="${GITHUB_SHA:-local}-${GITHUB_RUN_ID:-0}" \
+       -DKRKR2_BUILD_VERSION="$KRKR2_VERSION" \
        > /tmp/krkr2-configure.log 2>&1; then
     STATUS=0
     break

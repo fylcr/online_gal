@@ -1,9 +1,11 @@
 # KiriKiri2 web engine wasm. See build-wasm-ons.yml for why each engine gets its own workflow and
 # why the trigger is an exact `paths:` list rather than `paths-ignore`.
 #
-# `paths` here is broader than ONS's because this engine's build is assembled from three places at
-# once: upstream's own CMake preset, the vcpkg port overlays under `ports/krkr/kirikiroid2/`, and the
-# emsdk port-flag fix that the build script applies. A push touching any of them changes the wasm.
+# `paths` here is broader than ONS's because this engine's build is assembled from four places at
+# once: upstream's own CMake preset, the vcpkg port overlays under `ports/krkr/kirikiroid2/`, the
+# emsdk port-flag fix the build script applies, and `patch-vlfs-host-source.mjs` (which installs the
+# host byte-source seam and imports `ports/lib/ref.mjs` to find the checkout). A push touching any of
+# them changes the wasm.
 name: Build wasm (KiriKiri2)
 
 on:
@@ -18,10 +20,12 @@ on:
       - 'ports/env.sh'
       - 'ports/krkr/kirikiroid2/**'
       - 'ports/lib/engine-artifacts.json'
+      - 'ports/lib/ref.mjs'
   pull_request:
     paths:
       - '.github/scripts/build-krkr.sh'
       - 'ports/krkr/kirikiroid2/**'
+      - 'ports/lib/ref.mjs'
   workflow_dispatch:
     inputs:
       publish:

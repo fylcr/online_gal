@@ -1,15 +1,37 @@
 # Getting a working engine without compiling one
 
-> **Status: implemented and verified on this machine.** `ports/lib/fetch-engine.mjs` downloads a
-> published engine binary, checks its size and sha256 against `ports/lib/engine-artifacts.json`, and
+> **Status: implemented, published, and verified end to end.** `ports/lib/fetch-engine.mjs` downloads
+> a published engine binary, checks its size and sha256 against `ports/lib/engine-artifacts.json`, and
 > only then puts it where the runtime looks for it. Both halves of the point are met: someone who
 > only wants to run the emulator needs no Emscripten SDK and no upstream checkout, and deploying the
 > web page no longer recompiles a wasm that has not changed.
 >
-> The published artifacts themselves do **not** exist yet — there is no release and no tag on
-> `github.com/fylcr/online_gal`. Until one is published, a fetch reports the artifact as unavailable
-> (exit 2) and every caller falls back to building from source, which is the same behaviour as
-> before this existed. The manifest is ready for the release; the release is what is missing.
+> The artifacts are now really published by the CI workflows in `.github/workflows/`, and the whole
+> loop has been exercised against them: the tag the fetch helper asks for is the tag the build
+> publishes, the bytes it downloads match the manifest, and a real browser run of a fetched engine
+> renders the same frame as a locally built one. `krkr` and `ons` have releases
+> (`engine-ons-0.7.7beta`, `engine-krkr-20260920`); `artemis` deliberately does not, because its
+> engine is built against a proprietary SDK.
+
+## This repository is private, so fetching needs a token
+
+`github.com/fylcr/online_gal` is **private**, and a release asset in a private repository answers an
+unauthenticated request with `404` — indistinguishable from "there is no such release". So a fetch
+tries one of two ways:
+
+1. the plain release URL, with `Authorization: Bearer <token>` when a token is set;
+2. if that returns `404` **and** a token is set, the API route
+   (`/repos/{owner}/{repo}/releases/tags/{tag}` → the asset id → `Accept: application/octet-stream`).
+
+The token is read from the environment as `GITHUB_TOKEN` or `GH_TOKEN`, never from a command line:
+an argument ends up in the process table, in shell history and in CI logs. With no token the plain
+path still runs, so a public repository behaves exactly as before, and a private one reports the
+artifact as unavailable (exit 2) and falls back to a source build rather than reporting a corrupt
+download.
+
+```bash
+GITHUB_TOKEN=ghp_... node ports/lib/fetch-engine.mjs ons
+```
 
 ## Why it works this way
 
@@ -65,9 +87,10 @@ Exit codes, because scripts branch on them rather than parsing output:
 | `3` | verification failed — a size or sha256 mismatch; **the engine was left exactly as it was** |
 | `4` | the manifest is missing, unreadable, or has no entry for this engine |
 
-Code 2 is the expected outcome today, and the message names the file, the URL it tried, and the
-command that builds it from source instead. There is no stack trace and no silent success: a fetch
-that cannot deliver says so and exits non-zero.
+Code 2 is the expected outcome for `artemis`, whose engine is not published, and for any engine on a
+machine with no network. The message names the file, the URL it tried, and the command that builds it
+from source instead. There is no stack trace and no silent success: a fetch that cannot deliver says
+so and exits non-zero.
 
 ## Where the bytes come from
 
@@ -81,9 +104,24 @@ directly, which is how the bytes' location changes without a code change here:
 node ports/lib/fetch-engine.mjs ons --manifest https://example.invalid/engine-artifacts.json
 ```
 
-Every hash in that file was computed from the bytes actually built and tested on this machine. It is
-generated, not hand-maintained: **if a file is rebuilt, its hash changes and the entry must be
-regenerated**, never guessed. A mismatch is the mechanism working, not a false alarm.
+Every hash in that file was computed from the bytes of a real, tested build of the pinned upstream
+commit. It is generated, not hand-maintained: **if a file is rebuilt, its hash changes and the entry
+must be regenerated**, never guessed. A mismatch is the mechanism working, not a false alarm.
+
+**Which build the hashes describe matters, and it is the producer's.** Emscripten's `DETERMINISTIC`
+setting no longer functions in the 6.0.9 SDK this project uses, so a build's function order, its
+data-segment order and the JS `dynCall_*` ordering all depend on the host that compiled it. Real
+numbers: the same ONS sources give `onsyuri.wasm` at 4,660,610 bytes on a Linux runner and 4,660,612
+bytes on a Windows machine, with a different function-index permutation — behaviourally identical
+(same rendered frame, same shim state in a real browser) but a different hash. Three independent
+runner builds were byte-identical to each other, so the runner is the reproducible party and the
+manifest follows it. Pinning a developer's machine instead would make every consumer's verification
+fail and silently fall back to a source build, which is exactly what this feature exists to avoid.
+
+The same reasoning puts a constraint on the *build*: any input that varies per run makes the bytes
+unpinnable. `KRKR2_BUILD_VERSION` was such an input (a run id, and upstream's own default of a
+timestamp) — it changes the `?v=` cache-buster in `index.html` and the version compiled into the
+module on every run, so `.github/scripts/build-krkr.sh` passes the checkout's own commit instead.
 
 ## Forcing a build from source
 

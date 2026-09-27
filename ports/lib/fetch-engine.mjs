@@ -72,6 +72,84 @@ const DEFAULT_MANIFEST = 'ports/lib/engine-artifacts.json';
 /** Sent as `User-Agent`; GitHub's asset endpoint is friendlier with one, and a proxy can tell who called. */
 const USER_AGENT = 'online-gal/fetch-engine';
 
+/**
+ * Token for a release that is not publicly readable.
+ *
+ * This repository is **private**, and GitHub serves a private repository's release assets only to an
+ * authenticated caller: the plain `releases/download/...` URL answers 404 even when the release
+ * exists, which is indistinguishable from "not published yet" unless something tries the
+ * authenticated route. So when a token is present the download falls back to the API asset endpoint,
+ * which is the documented way to fetch a private asset.
+ *
+ * Read from the environment rather than a flag: a token on a command line lands in the process table,
+ * in shell history, and in CI logs that echo the command. `GITHUB_TOKEN` and `GH_TOKEN` are the two
+ * names a GitHub runner and the `gh` CLI already use, so a caller usually sets neither deliberately.
+ *
+ * It stays optional. A public release needs nothing, and a token only ever *adds* a route: the plain
+ * URL is always tried first, so nothing about the public case changes.
+ */
+const TOKEN = (process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '').trim();
+
+/** Auth headers, empty when no token is configured. */
+function authHeaders() {
+  return TOKEN ? { authorization: `Bearer ${TOKEN}` } : {};
+}
+
+/**
+ * Matches a browser-facing release asset URL and pulls it apart.
+ *
+ * Only `github.com/<owner>/<repo>/releases/download/<tag>/<name>` is recognised; every other URL
+ * (a `baseUrl` on a static host, a `file.url`) is fetched as-is, because those are whatever the
+ * publisher chose and there is no API to translate them into.
+ */
+function parseReleaseUrl(url) {
+  const match = /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\/download\/([^/]+)\/(.+)$/.exec(url);
+  if (!match) return null;
+  return { owner: match[1], repo: match[2], tag: decodeURIComponent(match[3]), name: decodeURIComponent(match[4]) };
+}
+
+/**
+ * The API URL for one asset of a release, plus the `Accept` header that returns its bytes.
+ *
+ * Returns bytes rather than JSON metadata: `assets[].url` with `Accept: application/octet-stream`
+ * is the one documented way to read a private asset's contents, and it is also stable against an
+ * asset being re-uploaded, since the lookup is by name at download time rather than by an id baked
+ * into the manifest.
+ */
+async function resolvePrivateAsset(url, signal) {
+  const parts = parseReleaseUrl(url);
+  if (!parts || !TOKEN) return null;
+  const api = `https://api.github.com/repos/${parts.owner}/${parts.repo}/releases/tags/${encodeURIComponent(parts.tag)}`;
+  let response;
+  try {
+    response = await fetch(api, {
+      redirect: 'follow',
+      headers: { 'user-agent': USER_AGENT, accept: 'application/vnd.github+json', ...authHeaders() },
+      signal,
+    });
+  } catch (cause) {
+    throw new UnavailableError(`could not list the release ${parts.tag}: ${describeCause(cause)}`);
+  }
+  if (!response.ok) {
+    throw new UnavailableError(
+      `could not list the release ${parts.tag}: HTTP ${response.status}` +
+        (response.status === 404 ? ' (the release or the token is not valid for this repository)' : ''),
+    );
+  }
+  const release = await response.json();
+  const asset = (release.assets ?? []).find((a) => a.name === parts.name);
+  if (!asset) {
+    throw new UnavailableError(
+      `release ${parts.tag} has no asset named ${parts.name} ` +
+        `(it has: ${(release.assets ?? []).map((a) => a.name).join(', ') || 'none'})`,
+    );
+  }
+  return {
+    url: `https://api.github.com/repos/${parts.owner}/${parts.repo}/releases/assets/${asset.id}`,
+    headers: { accept: 'application/octet-stream' },
+  };
+}
+
 const MANIFEST_TIMEOUT_MS = 30_000;
 const FILE_TIMEOUT_MS = 300_000;
 
@@ -223,9 +301,22 @@ async function download(url, target, file) {
     try {
       response = await fetch(url, {
         redirect: 'follow',
-        headers: { 'user-agent': USER_AGENT },
+        headers: { 'user-agent': USER_AGENT, ...authHeaders() },
         signal: AbortSignal.timeout(FILE_TIMEOUT_MS),
       });
+      // A private repository answers 404 on the browser-facing URL even for an asset that exists, so a
+      // 404 while a token is configured means "try the API" rather than "not published". Any other
+      // status, and every status when no token is set, is reported as it is.
+      if (!response.ok && response.status === 404 && TOKEN) {
+        const asset = await resolvePrivateAsset(url, AbortSignal.timeout(FILE_TIMEOUT_MS));
+        if (asset) {
+          response = await fetch(asset.url, {
+            redirect: 'follow',
+            headers: { 'user-agent': USER_AGENT, ...authHeaders(), ...asset.headers },
+            signal: AbortSignal.timeout(FILE_TIMEOUT_MS),
+          });
+        }
+      }
     } catch (cause) {
       throw new UnavailableError(`could not download ${file.name} from ${url}: ${describeCause(cause)}`);
     }
