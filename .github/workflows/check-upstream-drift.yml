@@ -48,7 +48,11 @@ jobs:
           node .github/scripts/check-drift.mjs --out drift.json
           if [ -f drift.json ]; then
             echo "moved<<EOF" >> "$GITHUB_OUTPUT"
-            node -e 'process.stdout.write(JSON.stringify(require("./drift.json")))' >> "$GITHUB_OUTPUT"
+            # `console.log`, not `process.stdout.write`. The heredoc ends at the first line that is
+            # exactly `EOF`, so the payload has to arrive newline-terminated -- `process.stdout.write`
+            # emits none, `echo "EOF"` then appends to the same line, and the run dies with
+            # "Invalid value. Matching delimiter not found 'EOF'" after the comparison itself passed.
+            node -e 'console.log(JSON.stringify(require("./drift.json")))' >> "$GITHUB_OUTPUT"
             echo "EOF" >> "$GITHUB_OUTPUT"
           else
             echo "moved=[]" >> "$GITHUB_OUTPUT"
