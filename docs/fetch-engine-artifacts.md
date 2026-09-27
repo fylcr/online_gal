@@ -156,6 +156,14 @@ Only `krkr` needs any of this: it is the one engine whose tree carries a `string
 `__DATE__`, the one that ships a zipped asset bundle, and the one whose wasm embeds a port that
 vcpkg builds at configure time.
 
+**A vcpkg binary cache would undo this, which is why there is not one yet.** Building `krkr` takes
+about an hour on a runner and most of it is vcpkg compiling OpenCV from source. Caching those
+binaries is the obvious optimisation and it is deliberately deferred: OpenCV writes its `Timestamp:`
+when OpenCV itself is configured, so a cached `libopencv_core4.a` carries the timestamp it had when
+it was cached, and a single cache miss or eviction would change `index.wasm`’s hash while every
+source stayed identical. A cache is only safe here once its key includes `SOURCE_DATE_EPOCH`; until
+that is measured, the slow build is the reproducible one.
+
 ## Forcing a build from source
 
 The published artifact is the verified copy; a local build is merely the copy that is available right
