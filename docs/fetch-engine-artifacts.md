@@ -65,6 +65,17 @@ build product and must not be committed by accident. `ons` is the exception — 
 ships with is tracked so that it is reviewable like any other change, and a fetch there shows up in
 `git status` for exactly that reason.
 
+**The `krkr` set is the engine, not a complete web root.** Upstream's release directory also contains
+`manifest.webmanifest`, `sw.js`, `robots.txt`, `sitemap.xml` and `pwa/icon-{192,512}.png`, copied
+verbatim from `platforms/web/` by `CMakeLists.txt:214-251`. None of them is compiled, so none of them
+belongs to the reason this list exists, and they are not published. The consequence is concrete and
+bounded: pointing a server at the fetched six gets a working engine — the wasm instantiates, renders
+and mounts `assets.zip` — while the page's PWA manifest and service worker 404. `sw.js` precaches the
+two icons with `cache.addAll`, so a complete deploy needs all of them, and it has to place the icons
+under `pwa/`: GitHub release assets are flat names, so a nested fetch destination would need its own
+mechanism in both the publish step and `fetch-engine.mjs`. That work is deliberately not done here.
+Anyone deploying KiriKiri needs those files from upstream `platforms/web/` alongside the fetched set.
+
 ## Fetching
 
 ```bash
@@ -117,6 +128,16 @@ bytes on a Windows machine, with a different function-index permutation — beha
 runner builds were byte-identical to each other, so the runner is the reproducible party and the
 manifest follows it. Pinning a developer's machine instead would make every consumer's verification
 fail and silently fall back to a source build, which is exactly what this feature exists to avoid.
+
+`krkr` is the same decision with a bigger spread, for a second reason. Its Windows recipe configures
+vcpkg with `-DVCPKG_HOST_TRIPLET=x64-mingw-static` and the runner takes the Linux default, so
+host-side ports compile differently and the runner's module carries two more functions — about 17 KB
+more code and data out of 22.6 MB. What decides behaviour is identical either way: `vlfs.js`, which
+carries the host byte-source seam, is byte-identical to the tested Windows build; `index.html` and
+`shell.html` become identical once CRLF and the version string are normalised; and the seam patcher's
+two probes are asserted during the CI build. Line endings are worth naming here because they are the
+first thing that looks like a real difference and is not one: a Windows checkout writes CRLF, so
+`index.html` differs by exactly its 21 carriage returns until you normalise.
 
 The same reasoning puts a constraint on the *build*: any input that varies per run makes the bytes
 unpinnable. `KRKR2_BUILD_VERSION` was such an input (a run id, and upstream's own default of a
