@@ -1,0 +1,80 @@
+# ONS web engine wasm. One engine per workflow so that a push touching ONS does not queue the
+# KiriKiri or Artemis builds, and so a failure names the engine it belongs to.
+#
+# The `paths:` list is the whole trigger design. Requirements 3 and 4 -- "rebuild only when the
+# corresponding engine updates" and "a build must not build all engines" -- are satisfied by this
+# being an exact list rather than a wildcard: the shared inputs every engine depends on are named
+# explicitly (`ports/env.sh`, the reusable workflow, the manifest tool, the engine's own build
+# script), and an unrelated push does not match any of them. A `paths-ignore` design cannot do that
+# because it has to enumerate everything that is NOT an input.
+#
+# There is a second reading of "only when the engine updates" that paths cannot express: the
+# upstream can move while this repository does not change at all. That is
+# `check-upstream-drift.yml`, which compares the pins in `.github/upstream-pins.json` against the
+# live remotes on a schedule and dispatches this workflow when ONS has moved.
+name: Build wasm (ONS)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-wasm-ons.yml'
+      - '.github/workflows/build-wasm-reusable.yml'
+      - '.github/scripts/build-ons.sh'
+      - '.github/scripts/make-manifest.mjs'
+      - '.github/upstream-pins.json'
+      - 'ports/env.sh'
+      - 'ports/ons/build/**'
+      - 'ports/lib/engine-artifacts.json'
+  pull_request:
+    paths:
+      - '.github/scripts/build-ons.sh'
+      - 'ports/ons/build/**'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the built artifacts as a GitHub Release'
+        required: false
+        type: boolean
+        default: true
+      upstream_commit:
+        description: 'Override the pinned upstream commit (blank = use .github/upstream-pins.json)'
+        required: false
+        type: string
+        default: ''
+
+# One build per upstream commit, and a newer push cancels an older in-flight build of the same
+# engine. Without `cancel-in-progress` a burst of pushes to a shared input queues three identical
+# 20-minute builds; `group` keeps a rebuild from two different commits from cancelling each other.
+concurrency:
+  group: wasm-ons-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-wasm-reusable.yml
+    with:
+      engine: ons
+      build-script: .github/scripts/build-ons.sh
+      upstream-repository: https://github.com/YuriSizuku/OnscripterYuri.git
+      upstream-branch: master
+      upstream-commit: ${{ inputs.upstream_commit || '08f744b31cc1907b66a15f0402e62321a131ed81' }}
+      upstream-path: .ref/onscripter-yuri
+      upstream-full-clone: false
+      upstream-submodules: false
+      emsdk-version: '6.0.9'
+      artifact-name: wasm-ons
+      artifact-dir: dist/ons
+      artifact-files: onsyuri.wasm onsyuri.js onsyuri.html
+      version: 0.7.7beta
+      # Stated explicitly rather than left to the reusable workflow's `engine-<engine>-<version>`
+      # default. Here the default happens to produce the same string, but this tag is the URL a
+      # consumer downloads from (`ports/lib/engine-artifacts.json`), so it is pinned visibly in every
+      # engine workflow rather than being derivable in one and spelled out in another.
+      release-tag: engine-ons-0.7.7beta
+      # A pull request builds and checks but must not publish: a PR's bytes are unreviewed, and a
+      # release is a public promise that these are the bytes the manifest describes.
+      publish: ${{ github.event_name != 'pull_request' && inputs.publish != false }}

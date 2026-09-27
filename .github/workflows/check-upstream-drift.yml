@@ -1,0 +1,83 @@
+# Upstream drift check: the "only when the engine updates" requirement has two halves.
+#
+# The `paths:` triggers in the per-engine workflows cover the half where *this* repository
+# changes. They cannot cover the other half, because an upstream repository can move without
+# anything here changing at all -- and then the pins in `.github/upstream-pins.json` silently stop
+# describing the newest upstream, which is the state the engines are actually built against.
+#
+# So this job answers one question on a schedule: which pinned commits are no longer the tips of
+# their branches? Each moved engine is then dispatched to its own workflow with the new commit, so
+# the rebuild is one engine at a time (requirement 4) and only for engines that moved
+# (requirement 3). Nothing is rebuilt when nothing moved.
+#
+# It deliberately does NOT write the new commit into `.github/upstream-pins.json`. Moving a pin by
+# hand is the reviewable act: the commit recorded there is the one the published bytes were built
+# from, and a bot that rewrote it would make the published manifest describe a commit nobody
+# reviewed. The job reports the new SHA instead, and the run summary says what to change.
+name: Check upstream drift
+
+on:
+  schedule:
+    # 03:17 UTC daily. Off the hour on purpose: scheduled workflows queue behind everything GitHub
+    # starts at :00, and a drift check that reports an hour late is still a drift check that ran.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Needed to dispatch the per-engine build workflows.
+  actions: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      moved: ${{ steps.check.outputs.moved }}
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@v4
+
+      # The comparison itself is a small node script rather than a `run:` block because it has to
+      # parse a JSON file, run `git ls-remote` per engine, and emit a matrix -- three things that are
+      # easy to get subtly wrong inline and impossible to test there.
+      - name: Compare pins against live remotes
+        id: check
+        run: |
+          set -eu
+          node .github/scripts/check-drift.mjs --out drift.json
+          if [ -f drift.json ]; then
+            echo "moved<<EOF" >> "$GITHUB_OUTPUT"
+            node -e 'process.stdout.write(JSON.stringify(require("./drift.json")))' >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          else
+            echo "moved=[]" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Summarise
+        run: |
+          set -eu
+          node .github/scripts/check-drift.mjs --markdown >> "$GITHUB_STEP_SUMMARY"
+
+      # `matrix` from a JSON array is the mechanism that keeps this to "one engine at a time": the
+      # per-engine workflow is what owns that engine's build, and this only names it to be run.
+      #
+      # `publish` is deliberately NOT passed. Each engine workflow owns its own publish default, and
+      # for Artemis that default is off for licensing reasons -- a scheduled job must not be able to
+      # flip it on, so the decision stays with whoever reads the drift report.
+      - name: Dispatch the affected engine builds
+        if: steps.check.outputs.moved != '[]' && steps.check.outputs.moved != ''
+        strategy:
+          # Not fail-fast: one engine's dispatch failing should not cancel the others, because the
+          # engines are independent and a partial dispatch is still useful.
+          fail-fast: false
+          matrix:
+            engine: ${{ fromJSON(steps.check.outputs.moved) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          echo "## ${{ matrix.engine.name }}: ${{ matrix.engine.pinned }} -> ${{ matrix.engine.head }}"
+          gh workflow run "${{ matrix.engine.workflow }}" \
+            --ref "${{ github.ref_name }}" \
+            -f "upstream_commit=${{ matrix.engine.head }}"

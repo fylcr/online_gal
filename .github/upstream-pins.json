@@ -1,0 +1,117 @@
+{
+  "$comment": [
+    "The upstream revisions this repository's ports are built against, in machine-readable form.",
+    "",
+    "Every one of these checkouts is gitignored (see `.gitignore`: `.ref/`), so a CI runner starts",
+    "with none of them and must fetch the exact commit recorded here. That makes this file the",
+    "single place where 'which upstream' is answered, and it is what the scheduled drift check",
+    "(.github/workflows/check-upstream-drift.yml) diffs against the live remotes: if a branch has",
+    "moved past the commit below, an engine is out of date and only that engine needs rebuilding.",
+    "",
+    "`engine` names the build workflow to dispatch for that checkout, and the key under `engines`",
+    "is the engine name used by ports/lib/fetch-engine.mjs. `full-clone` marks checkouts that",
+    "cannot be fetched shallowly: a shallow clone of vcpkg makes its own `read-tree` fail with",
+    "exit code 128 while resolving its baseline, so it must be a full clone.",
+    "",
+    "Do not edit `commit` by hand to silence the drift check. Moving a pin means rebuilding the",
+    "engine, re-running its gates, and publishing a new manifest -- the commit recorded here is",
+    "the one the published bytes were built from."
+  ],
+  "emsdk": {
+    "version": "6.0.9",
+    "install": "https://github.com/emscripten-core/emsdk.git",
+    "commit-hint": "emcc 6.0.9 (4e4223852a0835923411059a3929907d7df1232e)"
+  },
+  "engines": {
+    "ons": {
+      "engine": "ons",
+      "repository": "https://github.com/YuriSizuku/OnscripterYuri.git",
+      "branch": "master",
+      "commit": "08f744b31cc1907b66a15f0402e62321a131ed81",
+      "path": ".ref/onscripter-yuri",
+      "workflow": ".github/workflows/build-wasm-ons.yml",
+      "version": "0.7.7beta",
+      "build-script": ".github/scripts/build-ons.sh",
+      "artifact-name": "wasm-ons",
+      "artifact-dir": "dist/ons",
+      "files": ["onsyuri.wasm", "onsyuri.js", "onsyuri.html"],
+      "system-deps": "",
+      "full-clone": false
+    },
+    "krkr": {
+      "engine": "krkr",
+      "repository": "https://github.com/fenghengzhi/kirikiroid2-web.git",
+      "branch": "web",
+      "commit": "13dda190f8370d02b6cf59286a088529b355658c",
+      "path": ".ref/kirikiroid2-web",
+      "workflow": ".github/workflows/build-wasm-krkr.yml",
+      "version": "kirikiroid2-web-20260920",
+      "build-script": ".github/scripts/build-krkr.sh",
+      "artifact-name": "wasm-krkr",
+      "artifact-dir": "dist/krkr",
+      "files": ["index.wasm", "index.js", "vlfs.js", "index.html", "shell.html", "assets.zip"],
+      "system-deps": "",
+      "full-clone": false,
+      "submodules": true
+    },
+    "artemis": {
+      "engine": "artemis",
+      "repository": "https://github.com/Weiss-UltimateSavior/artemis-compat.git",
+      "branch": "main",
+      "commit": "a4f8a257cf87cb8f65ab4e3f83501ab327a55424",
+      "path": ".ref/artemis-compat",
+      "workflow": ".github/workflows/build-wasm-artemis.yml",
+      "version": "web-android-a4f8a25",
+      "build-script": ".github/scripts/build-artemis.sh",
+      "artifact-name": "wasm-artemis",
+      "artifact-dir": "dist/artemis",
+      "files": ["artemis-web-android.wasm", "artemis-web-android.js"],
+      "system-deps": "",
+      "full-clone": false,
+      "publish-gated": true
+    }
+  },
+  "tools": {
+    "vcpkg": {
+      "repository": "https://github.com/microsoft/vcpkg.git",
+      "commit": "b1e15efef6758eaa0beb0a8732cfa66f6a68a81d",
+      "full-clone": true,
+      "why": "kirikiroid2-web/vcpkg-configuration.json pins this commit as its builtin-registry baseline, and a shallow clone cannot resolve it."
+    },
+    "wabt": {
+      "repository": "https://github.com/WebAssembly/wabt.git",
+      "commit": "02418f72a70466b45805891843f114c7f602eb34",
+      "describe": "1.0.42-8-g02418f72",
+      "full-clone": false,
+      "why": "wasm2c regenerates the Artemis bridge's C source from the vendored SDK modules."
+    }
+  },
+  "artemis-bridge": {
+    "$comment": [
+      "The bridge is not an engine build: it recompiles the official Artemis module from its",
+      "wasm2c-transpiled form on top of the hand-written engine in ports/artemis/src. Its only",
+      "input that is not tracked is the 103 MB transpile, and that is regenerable byte-for-byte,",
+      "so the workflow produces it instead of downloading it.",
+      "",
+      "The md5 values are the reference transpiles' hashes, measured on this machine against",
+      "wabt at the commit above. They are recorded so the workflow can assert it regenerated the",
+      "same bytes rather than a merely-similar file: wasm2c derives the emitted",
+      "`#include \"artemis.wasm2c.h\"` from the `-o` basename, so any other output name yields a",
+      "file that differs by about 30 bytes and does not compile."
+    ],
+    "target": "asyncify",
+    "module": "ports/artemis/vendor/artemis-sdk/WebAssembly/asyncify/artemis.wasm",
+    "rewrite-tree": "ports/artemis",
+    "expected": {
+      "asyncify": {
+        "bytes": 107593501,
+        "md5": "d895a74b11ba767b06c82d722c407517"
+      },
+      "sync": {
+        "bytes": 47741355,
+        "md5": "080822b6e14345d339312d1e1bcfd0aa"
+      }
+    },
+    "workflow": ".github/workflows/build-wasm-artemis-bridge.yml"
+  }
+}

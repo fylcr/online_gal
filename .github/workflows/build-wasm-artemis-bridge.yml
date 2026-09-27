@@ -1,0 +1,180 @@
+# The Artemis rewrite bridge: the official module, rebuilt on top of the hand-written engine.
+#
+# WHY THIS IS NOT PART OF build-wasm-artemis.yml
+#
+# They produce different modules from different sources. `build-wasm-artemis.yml` compiles the
+# third-party `artemis-compat` engine -- that is our own engine, and its artifact is what a web
+# deploy loads. This workflow takes the *official* module, transpiles it to C with wasm2c, and lets
+# `ports/artemis/src` (159 hand-written files, namespace `artc`) replace the transpiled bodies
+# function by function. The result keeps the official module's import and export faces, which is the
+# entire point, and that is why its acceptance test is the four gates rather than "it compiled".
+#
+# Merging them would also mean one `paths:` list covering both source trees, so an edit to one
+# engine would queue a build of the other.
+#
+# WHAT THE BUILD NEEDS, AND WHY NONE OF IT IS MISSING FROM A CLONE
+#
+# The bridge's route needs `artemis.wasm2c.c` (103 MB), its `.h`, and wasm/runtime/* -- 160 MB of
+# machine-written C that is gitignored and used to exist only under `.ref/`. It is regenerable:
+# wabt at the pinned commit produces the reference bytes exactly, md5-asserted in the build script,
+# because the input module IS committed under `ports/artemis/vendor/artemis-sdk/`. So this builds
+# from a clean clone.
+#
+# THE GATES
+#
+# Three separate assertions, and they answer different questions:
+#   * the per-flavour md5 assertion in the build script -- the transpile really is the measured one,
+#     byte for byte. This comes first because every later gate would still pass on a transpile of
+#     some *other* module: the gates check the ABI shape, not whose code that shape is.
+#   * `wasm-diff.mjs` -- the rebuilt engine behaves like the official module, export by export.
+#     Re-run after the build, and its exit status is what fails this workflow.
+#   * `wasm-replace-test.mjs` -- the four loader-contract gates (import face, export face,
+#     behaviour via `wasm-diff.mjs`, host wiring). Run by `build-bridge-route.sh` itself, and the
+#     whole route is built around passing all four.
+#   * `tools/real-game-test.mjs` -- the settled frame in a real Chrome, official and candidate side
+#     by side. This is the one that catches a module that passes every structural gate and renders
+#     black.
+#
+# Note what is NOT among them: the `rebuild.sh wasm` round-trip. It is the dev-machine check that the
+# transpile is reversible, and it cannot run here at all -- its wasm half shells out to
+# `wat2wasm.exe` (rebuild.sh:275). The hash assertion above answers the same "is this the reference
+# transpile?" question on this platform, and `wasm-diff.mjs` answers the stronger one.
+#
+# The real-game test needs a game tree, which is not in this repository (a title's assets are not
+# ours to redistribute). It is therefore only run when the `game_tree` input names one -- typically
+# a self-hosted runner with the extract already on disk. The structural gates always run.
+name: Build wasm (Artemis bridge)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-wasm-artemis-bridge.yml'
+      - '.github/workflows/build-wasm-reusable.yml'
+      - '.github/scripts/build-artemis-bridge.sh'
+      - '.github/scripts/make-manifest.mjs'
+      - '.github/upstream-pins.json'
+      - 'ports/env.sh'
+      - 'ports/artemis/src/**'
+      - 'ports/artemis/reverse/**'
+      - 'ports/artemis/rewrite-names.tsv'
+      - 'ports/artemis/REWRITE.md'
+      - 'ports/artemis/tools/real-game-test.mjs'
+      - 'ports/artemis/vendor/artemis-sdk/WebAssembly/**'
+      - 'ports/lib/engine-artifacts.json'
+  pull_request:
+    paths:
+      - '.github/scripts/build-artemis-bridge.sh'
+      - 'ports/artemis/src/**'
+      - 'ports/artemis/reverse/**'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the built module as a GitHub Release'
+        required: false
+        type: boolean
+        default: false
+      flavour:
+        description: 'Which official module to rebuild from'
+        required: false
+        type: choice
+        options: [asyncify, sync]
+        default: asyncify
+      game_tree:
+        description: 'Path to an extracted game tree for the real-game test (blank = skip it)'
+        required: false
+        type: string
+        default: ''
+      upstream_commit:
+        description: 'Override the pinned upstream commit (blank = use .github/upstream-pins.json)'
+        required: false
+        type: string
+        default: ''
+
+concurrency:
+  group: wasm-artemis-bridge-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  # The wabt build and the transpile are the same for both flavours and cost ten minutes; the fork
+  # below is only about which module is fed in, and the reusable workflow takes the flavour as an
+  # input because the transpile's expected hash differs per flavour.
+  bridge:
+    uses: ./.github/workflows/build-wasm-reusable.yml
+    with:
+      engine: artemis-bridge
+      build-script: .github/scripts/build-artemis-bridge.sh
+      # The bridge's inputs are all in-repo: the vendored SDK module and the rewrite under
+      # `ports/artemis/src`. There is no upstream checkout to fetch, so the clone step is skipped.
+      # `artemis-compat` is named only so the pins file and the drift check have one place that
+      # answers which upstream this artifact tracks.
+      upstream-repository: https://github.com/Weiss-UltimateSavior/artemis-compat.git
+      upstream-branch: main
+      upstream-commit: ${{ inputs.upstream_commit || 'a4f8a257cf87cb8f65ab4e3f83501ab327a55424' }}
+      upstream-path: .ref/artemis-compat
+      skip-upstream-checkout: true
+      emsdk-version: '6.0.9'
+      artifact-name: wasm-artemis-bridge
+      artifact-dir: dist/artemis-bridge/build
+      artifact-files: bridge.wasm
+      version: bridge-${{ inputs.flavour || 'asyncify' }}-a4f8a25
+      release-tag: engine-artemis-bridge-${{ inputs.flavour || 'asyncify' }}-a4f8a25
+      # The build script reads BRIDGE_FLAVOUR to pick which vendored module to transpile, and the
+      # expected-transpile assertion inside it is per-flavour -- so the input has to reach the script
+      # or a `sync` run would silently produce an `asyncify` module under a sync manifest.
+      build-env: BRIDGE_FLAVOUR=${{ inputs.flavour || 'asyncify' }}
+      # Same licensing posture as the host build, and for the same reason: the module is derived
+      # from the proprietary SDK's binary. See build-wasm-artemis.yml.
+      publish: ${{ (inputs.publish || vars.ARTEMIS_PUBLISH_ARTIFACTS == 'true') && github.event_name != 'pull_request' }}
+
+  # The real-game test is a separate job because it needs a display-driving Chrome and a game tree,
+  # and a failure there means something different from a failure in the structural gates: the module
+  # is shaped correctly but renders wrong. Keeping it separate is what makes that distinction
+  # visible in the checks list.
+  real-game:
+    needs: bridge
+    if: inputs.game_tree != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # `real-game-test.mjs` drives Chrome over CDP and needs the puppeteer-managed browser. It is
+      # installed here rather than as a repo dependency because nothing else needs it.
+      - name: Install the browser driver
+        run: |
+          set -eu
+          npm install --no-save puppeteer
+
+      - name: Download the built module
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-artemis-bridge
+          path: candidate
+
+      - name: Run the real-game frame comparison
+        run: |
+          set -eu
+          ls -la candidate
+          node ports/artemis/tools/real-game-test.mjs \
+            --game "${{ inputs.game_tree }}" \
+            --engine candidate/bridge.wasm \
+            --flavour "${{ inputs.flavour || 'asyncify' }}" \
+            --json-out real-game-result.json
+          cat real-game-result.json
+
+      - name: Upload the result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: artemis-bridge-real-game-result
+          path: real-game-result.json
+          if-no-files-found: warn

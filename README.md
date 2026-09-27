@@ -93,6 +93,18 @@ pnpm test
 > 仓库跑 `pnpm test` 会**明确报错退出**，而不是打一个 0 用例的绿色结果——空 glob 下
 > `node --test` 会以 0 退出，那种「假通过」比失败更糟。要跑测试，先把 `.test/` 与 `.ref/` 恢复。
 
+引擎 wasm 也同理：`ports/**/*.wasm` 不进仓库。`.github/workflows/` 里的 CI **按引擎分别构建**
+（只在上游 pin 或该引擎源码变化时触发，不会每次 push 都重编全部），产物发布为 release asset，
+别人**不需要自己编译**。取用与校验见 [docs/fetch-engine-artifacts.md](docs/fetch-engine-artifacts.md)：
+
+```bash
+node ports/lib/fetch-engine.mjs ons          # 下载 + 校验 sha256 + 落位
+```
+
+> 这套 CI 与取用链路的**两侧都已在本机实测**（产物生成 → manifest → 下载 → sha256 校验 → 落位，
+> 字节一致；退出码矩阵齐备），但**尚未在真实 GitHub Actions 上跑过，也还没有发布过 release**——
+> 在第一个 release 出现之前，fetch 会以退出码 2 报「制品不可得」并回落到本地源码构建。
+
 类型检查：
 
 ```bash

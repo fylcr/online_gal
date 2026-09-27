@@ -1,0 +1,73 @@
+# KiriKiri2 web engine wasm. See build-wasm-ons.yml for why each engine gets its own workflow and
+# why the trigger is an exact `paths:` list rather than `paths-ignore`.
+#
+# `paths` here is broader than ONS's because this engine's build is assembled from three places at
+# once: upstream's own CMake preset, the vcpkg port overlays under `ports/krkr/kirikiroid2/`, and the
+# emsdk port-flag fix that the build script applies. A push touching any of them changes the wasm.
+name: Build wasm (KiriKiri2)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-wasm-krkr.yml'
+      - '.github/workflows/build-wasm-reusable.yml'
+      - '.github/scripts/build-krkr.sh'
+      - '.github/scripts/make-manifest.mjs'
+      - '.github/upstream-pins.json'
+      - 'ports/env.sh'
+      - 'ports/krkr/kirikiroid2/**'
+      - 'ports/lib/engine-artifacts.json'
+  pull_request:
+    paths:
+      - '.github/scripts/build-krkr.sh'
+      - 'ports/krkr/kirikiroid2/**'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the built artifacts as a GitHub Release'
+        required: false
+        type: boolean
+        default: true
+      upstream_commit:
+        description: 'Override the pinned upstream commit (blank = use .github/upstream-pins.json)'
+        required: false
+        type: string
+        default: ''
+
+concurrency:
+  group: wasm-krkr-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-wasm-reusable.yml
+    with:
+      engine: krkr
+      build-script: .github/scripts/build-krkr.sh
+      upstream-repository: https://github.com/fenghengzhi/kirikiroid2-web.git
+      upstream-branch: web
+      upstream-commit: ${{ inputs.upstream_commit || '13dda190f8370d02b6cf59286a088529b355658c' }}
+      upstream-path: .ref/kirikiroid2-web
+      # The checkout has one submodule (`cpp/plugins/layerExImage`), and it is fetched after the
+      # pinned commit is checked out so the submodule lands on the revision that commit records.
+      upstream-submodules: true
+      # vcpkg is set up by the reusable workflow at the commit the engine's
+      # `vcpkg-configuration.json` names as its builtin-registry baseline. Pinning it here rather
+      # than letting vcpkg resolve "the registry's default" is what makes the build reproducible.
+      vcpkg-commit: b1e15efef6758eaa0beb0a8732cfa66f6a68a81d
+      emsdk-version: '6.0.9'
+      artifact-name: wasm-krkr
+      artifact-dir: dist/krkr
+      artifact-files: index.wasm index.js vlfs.js index.html shell.html assets.zip
+      version: kirikiroid2-web-20260920
+      # Stated explicitly instead of left to the reusable workflow's `engine-<engine>-<version>`
+      # default. That default would spell this tag `engine-krkr-kirikiroid2-web-20260920`, which is
+      # not the tag `ports/lib/engine-artifacts.json` tells the fetch helper to download from -- the
+      # build would publish to one place and every consumer would look in another, and neither side
+      # would report an error. The tag is a coincidence of naming, so it belongs in one visible place.
+      release-tag: engine-krkr-20260920
+      publish: ${{ github.event_name != 'pull_request' && inputs.publish != false }}
