@@ -73,6 +73,19 @@ OFFICIAL_ROOT="${ARTEMIS_OFFICIAL:-$REPO_ROOT/.ref/artemis-official}"
 GEN_C="$OFFICIAL_ROOT/wasm/$FLAVOUR/artemis.wasm2c.c"
 GEN_H="$OFFICIAL_ROOT/wasm/$FLAVOUR/artemis.wasm2c.h"
 RUNTIME_SRC="$OFFICIAL_ROOT/wasm/runtime"
+# The rewrite tree supplies engine_context.h, so its src/ has to be on the
+# include path.  Each flavour has its own tree: asyncify products live under
+# rewrite/, sync products under rewrite-sync/.  Getting this wrong is silent --
+# the sync build would splice asyncify's products (and its vocabulary boundary)
+# into the sync module, and every gate would still pass because the shapes agree.
+REWRITE_TREE="${ARTEMIS_REWRITE:-}"
+if [ -z "$REWRITE_TREE" ]; then
+  if [ "$FLAVOUR" = "asyncify" ]; then
+    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite"
+  else
+    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite-$FLAVOUR"
+  fi
+fi
 OUTDIR="${ARGS[1]:-$HERE/out/bridge-$FLAVOUR}"
 RT_BUILD="$HERE/build"
 SHIMS="$HERE/out/$RDIR/artemis-export-shims.c"
@@ -203,6 +216,18 @@ SRC="$OUTDIR/artemis.cpp"
 } > "$SRC"
 LEFT=$(grep -v '^//' "$SRC" | grep -c '\*instance_ptr' || true)
 [ "$LEFT" = "0" ] || fail "$LEFT uncast *instance_ptr remain"
+
+# trap-text parity: call_indirect failures must surface as the engine's own
+# traps ("function signature mismatch" / "table index is out of bounds"), not
+# abort() -> `unreachable`.  Same concession as build-cxx-route.sh; see
+# patch-native-traps.py and build/trap-exp/ for the measured V8 texts.
+python "$HERE/patch-native-traps.py" "$SRC" || fail "native-trap patch failed"
+
+# rewrite/src products take over their generated defs; a bridge thunk keeps the
+# original name, signature and FUNC_PROLOGUE frame so generated callers, the
+# static forward decls and the profiler anchor all stay valid untouched.
+python "$HERE/rw-splice.py" "$SRC" "$REWRITE_TREE" \
+  || fail "rewrite splice failed"
 
 # --- 1b. optional: record what the guest's bounds checks refuse ---------------
 # With two address spaces sharing one linear memory, "an out-of-bounds access" is not an
@@ -346,7 +371,7 @@ note "5/6  linking with em++ (importing memory as a.a)"
   -Xlinker --global-base="$LAYOUT_BASE" -Xlinker --no-stack-first \
   -Xlinker --initial-memory=$TOTAL \
   -sALLOW_UNIMPLEMENTED_SYSCALLS=1 \
-  -I "$INCDIR" -I "$RUNTIME_SRC" -I "$(dirname "$GEN_H")" \
+  -I "$INCDIR" -I "$RUNTIME_SRC" -I "$(dirname "$GEN_H")" -I "$REWRITE_TREE/src" \
   "$SRC" "$FWD" "$SHIMS" \
   "$OUTDIR/wasm-rt-impl.o" "$OUTDIR/wasm-rt-mem-impl.o" $TRAP_OBJ $PROFILE_OBJ \
   -o "$OUTDIR/bridge.raw.wasm" 2> "$OUTDIR/link.log"
@@ -400,7 +425,7 @@ if [ "$STUB_COUNT" -gt 0 ]; then
     -Wl,--export-all -sEXPORT_ALL \
     -sIMPORTED_MEMORY=1 -Xlinker --import-memory=a,a \
     -sALLOW_UNIMPLEMENTED_SYSCALLS=1 \
-    -I "$INCDIR" -I "$RUNTIME_SRC" -I "$(dirname "$GEN_H")" \
+    -I "$INCDIR" -I "$RUNTIME_SRC" -I "$(dirname "$GEN_H")" -I "$REWRITE_TREE/src" \
     "$SRC" "$FWD" "$SHIMS" "$OUTDIR/runtime-stubs.c" \
     "$OUTDIR/wasm-rt-impl.o" "$OUTDIR/wasm-rt-mem-impl.o" \
     -o "$OUTDIR/bridge.raw2.wasm" 2>> "$OUTDIR/link.log" \

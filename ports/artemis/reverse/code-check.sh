@@ -69,8 +69,22 @@ trap 'rm -rf "$TMP"' EXIT
   cat "${FRAGS[@]}"
 } > "$TMP/t.cpp"
 
+# The rewrite tree supplies engine_context.h, so its src/ must be on the include
+# path.  Overridable because each flavour has its own tree: the asyncify products
+# live under rewrite/, the sync products under rewrite-sync/.  Pointing this at
+# the wrong tree is silent -- the check then never sees the header the products
+# include -- so ARTEMIS_REWRITE is the only place the tree is named.
+REWRITE_TREE="${ARTEMIS_REWRITE:-}"
+if [ -z "$REWRITE_TREE" ]; then
+  if [ "$FLAVOUR" = "asyncify" ]; then
+    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite"
+  else
+    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite-$FLAVOUR"
+  fi
+fi
+
 "$EMXX" -fsyntax-only -x c++ -Wno-c23-extensions -Wno-undefined-internal \
-  -I "$RUNTIME_SRC" -I "$(dirname "$GEN_H")" "$TMP/t.cpp"
+  -I "$RUNTIME_SRC" -I "$(dirname "$GEN_H")" -I "$REWRITE_TREE/src" "$TMP/t.cpp"
 RC=$?
 [ "$RC" -eq 0 ] && echo "check OK: ${FRAGS[*]}"
 exit "$RC"

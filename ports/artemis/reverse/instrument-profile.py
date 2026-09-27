@@ -47,6 +47,12 @@ import sys
 # never spans a line.
 DEFINITION = re.compile(r"^[A-Za-z_][A-Za-z0-9_ \t*]*\bw2c_artemis_f(\d+)\s*\(.*\)\s*\{")
 PROLOGUE = "  FUNC_PROLOGUE;"
+# A rewrite product (rewrite/src) frames itself with EnterFrame(); rw-splice.py
+# stamps the index onto the splice marker right above the product body, and the
+# bridge thunk below it is pure forwarding (no anchor of its own).
+REWRITE_MARKER = re.compile(r"^// ---- rewrite: f(\d+) ")
+THUNK_MARKER = "// ---- bridge thunk"
+ENTER_FRAME = "  EnterFrame();"
 
 # Prepended once, not written at every call site: 5,579 prototypes would cost more to compile
 # than the calls themselves. `extern "C"` because this file is compiled as C++ while the
@@ -92,6 +98,7 @@ def instrument(lines):
     """
     out = []
     current = None
+    rewrite = None
     instrumented = 0
     highest = -1
     seen = set()
@@ -101,10 +108,19 @@ def instrument(lines):
         if match:
             current = int(match.group(1))
             highest = max(highest, current)
+        marker = REWRITE_MARKER.match(line)
+        if marker:
+            rewrite = int(marker.group(1))
+            highest = max(highest, rewrite)
         out.append(line)
+        text = line.rstrip("\n")
+        if text.startswith(THUNK_MARKER):
+            # The product body (and its EnterFrame anchor) is above this line.
+            rewrite = None
+            continue
         # The anchor only counts once we are inside a function, so a stray `FUNC_PROLOGUE;`
         # elsewhere in the file cannot pick up a bogus index.
-        if current is not None and line.rstrip("\n") == PROLOGUE:
+        if current is not None and text == PROLOGUE:
             if current in seen:
                 # A function split across parts (asyncify) is still one function to the
                 # profile: counting each part separately would make the totals incomparable
@@ -115,6 +131,15 @@ def instrument(lines):
             out.append(f"  artc_profile_hit({current}u);\n")
             instrumented += 1
             current = None
+        elif rewrite is not None and text == ENTER_FRAME:
+            # Rewrite products frame themselves: counting at EnterFrame keeps the
+            # totals identical to the generated bodies they replace, including
+            # product-to-product calls that never touch a bridge thunk.
+            if rewrite not in seen:
+                seen.add(rewrite)
+                out.append(f"  artc_profile_hit({rewrite}u);\n")
+                instrumented += 1
+            rewrite = None
 
     return out, instrumented, highest, seen
 

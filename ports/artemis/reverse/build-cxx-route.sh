@@ -55,6 +55,14 @@ OFFICIAL_ROOT="${ARTEMIS_OFFICIAL:-$REPO_ROOT/.ref/artemis-official}"
 GEN_C="${2:-$OFFICIAL_ROOT/wasm/$FLAVOUR/artemis.wasm2c.c}"
 GEN_H="$OFFICIAL_ROOT/wasm/$FLAVOUR/artemis.wasm2c.h"
 RUNTIME_SRC="$OFFICIAL_ROOT/wasm/runtime"
+# The product tree is per-flavour: engine_context.h is the vocabulary boundary and
+# its forwarders spell generated names, which are numbered per module.  Callers
+# (code-assemble.sh) pass ARTEMIS_REWRITE; the default keeps asyncify.
+REWRITE_TREE="${ARTEMIS_REWRITE:-}"
+if [ -z "$REWRITE_TREE" ]; then
+  REWRITE_TREE="$OFFICIAL_ROOT/rewrite"
+  [ "$FLAVOUR" = "asyncify" ] || REWRITE_TREE="$OFFICIAL_ROOT/rewrite-$FLAVOUR"
+fi
 OUTDIR="${3:-$HERE/out/cxx-route-$FLAVOUR}"
 
 STUBS="$HERE/out/$RDIR-import-stubs.c"
@@ -102,6 +110,13 @@ echo "     cast sites fixed : $FIXED"
 [ "$LEFT" = "0" ] || fail "$LEFT uncast *instance_ptr remain"
 [ "$FIXED" -gt 0 ] || fail "no cast sites found -- pattern changed?"
 
+# The second documented concession (trap-text parity): call_indirect failures
+# must surface as the engine's own traps ("function signature mismatch" / "table
+# index is out of bounds"), not as abort() -> `unreachable`.  The pre-check in
+# func_types_eq_slowpath defers to the real call_indirect instead of trapping;
+# see patch-native-traps.py and build/trap-exp/ for the measured texts.
+python "$HERE/patch-native-traps.py" "$SRC" || fail "native-trap patch failed"
+
 # --- 2. the include bridge -------------------------------------------------
 note "2/4  include bridge for the import stubs"
 INCDIR="$OUTDIR/inc"
@@ -121,7 +136,7 @@ done
 note "4/4  linking with em++ (no wabt in this chain)"
 "$EMXX" -O0 -Wno-c23-extensions \
   -Wl,--export-all -sEXPORT_ALL \
-  -I "$INCDIR" -I "$RUNTIME_SRC" -I "$(dirname "$GEN_H")" \
+  -I "$INCDIR" -I "$RUNTIME_SRC" -I "$(dirname "$GEN_H")" -I "$REWRITE_TREE/src" \
   "$SRC" "$STUBS" "$SHIMS" \
   "$OUTDIR/wasm-rt-impl.o" "$OUTDIR/wasm-rt-mem-impl.o" \
   -o "$OUTDIR/cxx-route.js" 2> "$OUTDIR/link.log"

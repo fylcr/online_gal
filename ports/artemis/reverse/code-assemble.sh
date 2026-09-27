@@ -29,20 +29,42 @@ case "$FLAVOUR" in
   asyncify|sync) ;;
   *) echo "unknown flavour: $FLAVOUR" >&2; exit 2 ;;
 esac
+# Two directory names, and conflating them is how the sync flavour used to be
+# unreachable: reverse.sh calls the sync module "plain" in its out/ scratch tree,
+# while the official SDK keeps the generated sources under wasm/sync/.  RDIR is the
+# scratch-tree name (used for out/ paths), FLAVOUR is the generated-source name.
 if [ "$FLAVOUR" = "asyncify" ]; then RDIR="asyncify"; else RDIR="plain"; fi
 
-GEN_C="$REPO_ROOT/.ref/artemis-official/wasm/$RDIR/artemis.wasm2c.c"
-CODE_DIR="$REPO_ROOT/.ref/artemis-official/code"
+GEN_C="$REPO_ROOT/.ref/artemis-official/wasm/$FLAVOUR/artemis.wasm2c.c"
+# The transcription archive and the product tree are per-flavour: wasm2c numbers
+# functions by their position in ITS OWN module, so fNNN in the asyncify tree
+# names a different function in the sync tree (measured: f205 is void/2 there
+# and u32/3 here).  Defaults keep the asyncify behaviour; sync passes its own.
+CODE_DIR="${ARTEMIS_CODE_DIR:-$REPO_ROOT/.ref/artemis-official/code}"
+REWRITE_TREE="${ARTEMIS_REWRITE:-}"
+if [ -z "$REWRITE_TREE" ]; then
+  if [ "$FLAVOUR" = "asyncify" ]; then
+    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite"
+  else
+    REWRITE_TREE="$REPO_ROOT/.ref/artemis-official/rewrite-$FLAVOUR"
+  fi
+fi
 OUTDIR="${2:-$HERE/out/code-$FLAVOUR}"
 SPLICE="$OUTDIR/combined.c"
 mkdir -p "$OUTDIR"
 
+echo "flavour        : $FLAVOUR"
+echo "generated C    : $GEN_C"
+echo "archive dir    : $CODE_DIR"
+echo "product tree   : $REWRITE_TREE"
+
 # python on this box only takes native Windows paths (see extract-tag-map notes)
 G=$(cygpath -m "$GEN_C"); C=$(cygpath -m "$CODE_DIR"); S=$(cygpath -m "$SPLICE")
-python - "$G" "$C" "$S" <<'EOF'
+R=$(cygpath -m "$REWRITE_TREE")
+python - "$G" "$C" "$S" "$R" <<'EOF'
 import os, re, sys
 
-gen_c, code_dir, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
+gen_c, code_dir, out_path, rw_root = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 
 # ---- collect fragments: fnid -> [(part, new_name, filename), ...] ------------
 # A whole fragment is fNNN.cpp (`// tx:` header).  A split function is
@@ -83,7 +105,39 @@ for fname in sorted(os.listdir(code_dir)):
         new_name = None
     frags.setdefault(fnid, []).append((part, new_name, fname))
 if not frags:
-    sys.exit("no fragments found in %s" % code_dir)
+    # An empty archive is the legitimate starting state of a fresh flavour: the
+    # assembly then keeps every generated definition untouched, which is exactly
+    # the baseline that proves the route is reachable before any product exists.
+    # It stays an error by default so a mistyped CODE_DIR cannot masquerade as one.
+    if os.environ.get("ARTEMIS_ALLOW_EMPTY_ARCHIVE") != "1":
+        sys.exit("no fragments found in %s (set ARTEMIS_ALLOW_EMPTY_ARCHIVE=1 to "
+                 "assemble the un-transcribed baseline)" % code_dir)
+    print("no fragments in %s: keeping all %s definitions as the generated baseline"
+          % (code_dir, "generated"))
+
+# ---- products take precedence over their code/ transcriptions ---------------
+# A fnid whose rewrite product is live（a kind=fn row in rewrite-names.tsv naming
+# a file that exists under rewrite/src）is assembled from the product instead of
+# its code/ transcription; the transcription stays on disk as the fidelity
+# archive.  Dropping the fnid here skips the fragment, the rename layer and the
+# alias block for it in one stroke.  The live-product test mirrors rw-splice.py
+# exactly, so both sides always agree on who owns a definition.
+live = set()
+with open(os.path.join(rw_root, "rewrite-names.tsv"), encoding="utf-8") as fh:
+    for raw in fh:
+        if not raw.strip() or raw.startswith("#"):
+            continue
+        cols = raw.rstrip("\n").split("\t")
+        if len(cols) < 5 or cols[0] != "fn":
+            continue
+        relfile = cols[4]
+        if relfile.endswith((".h", ".hpp")):
+            continue
+        if os.path.isfile(os.path.join(rw_root, "src", relfile)):
+            live.add(int(cols[1].lstrip("f")))
+for fnid in sorted(set(frags) & live):
+    print("f%-5d -> product takes over; code/ transcription skipped" % fnid)
+    del frags[fnid]
 
 # ---- validate each group: part01 present, 01..N contiguous, one `// tx:` ------
 # `// tx:` must sit on part01's first line; a group without it is an error, and a
@@ -161,10 +215,28 @@ for fnid, parts in sorted(frags.items()):
     text, n = re.subn(r"\bw2c_artemis_f%d\b" % fnid, new_name, text)
     print("f%-5d -> %-28s rename hits: %d" % (fnid, new_name, n))
 
+# ---- route compat aliases ---------------------------------------------------
+# engine_context.h call-throughs spell the generated name (w2c_artemis_fNNN);
+# the rename above has just stamped the transcription's symbol into the body.
+# Alias every generated spelling to its new one so the vocabulary boundary
+# compiles in both this route and the bridge route (which never renames).
+alias = ""
+for fnid, parts in sorted(frags.items()):
+    new_name = parts[0][0]
+    if new_name != "w2c_artemis_f%d" % fnid:
+        alias += "#define w2c_artemis_f%d %s\n" % (fnid, new_name)
+if alias:
+    text = alias + text
+
 with open(out_path, "w", encoding="utf-8", errors="surrogateescape", newline="") as fh:
     fh.write(text)
 print("spliced: %s  (%d fragments, %d defs kept)" % (out_path, sum(len(v) for v in frags.values()), len(defs) - len(frags)))
 EOF
 [ $? -eq 0 ] || exit 1
+
+# rewrite/src products take over their generated defs; a bridge thunk keeps the
+# original name, signature and FUNC_PROLOGUE frame so generated callers, the
+# static forward decls and the profiler anchor all stay valid untouched.
+python "$HERE/rw-splice.py" "$SPLICE" "$REWRITE_TREE" || exit 1
 
 bash "$HERE/build-cxx-route.sh" "$FLAVOUR" "$SPLICE" "$OUTDIR"
