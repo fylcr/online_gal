@@ -74,18 +74,18 @@ jobs:
       build-script: .github/scripts/build-artemis.sh
       upstream-repository: https://github.com/Weiss-UltimateSavior/artemis-compat.git
       upstream-branch: main
-      upstream-commit: ${{ inputs.upstream_commit || 'a4f8a257cf87cb8f65ab4e3f83501ab327a55424' }}
+      upstream-commit: ${{ inputs.upstream_commit || '9f622629f595db85e6f76c45c06edde29d7d9961' }}
       upstream-path: .ref/artemis-compat
       upstream-full-clone: false
       emsdk-version: '6.0.9'
       artifact-name: wasm-artemis
       artifact-dir: dist/artemis
       artifact-files: artemis-web-android.wasm artemis-web-android.js
-      version: web-android-a4f8a25
+      version: web-android-9f62262
       # Pinned to the exact tag `ports/lib/engine-artifacts.json` downloads from. The reusable
-      # workflow's default (`engine-<engine>-<version>`) would spell this `engine-artemis-web-android-a4f8a25`,
+      # workflow's default (`engine-<engine>-<version>`) would spell this `engine-artemis-web-android-9f62262`,
       # which no consumer would ever look for -- see the same note in build-wasm-krkr.yml.
-      release-tag: engine-artemis-a4f8a25
+      release-tag: engine-artemis-9f62262
       # `vars.ARTEMIS_PUBLISH_ARTIFACTS` is the standing consent; `inputs.publish` is the per-run
       # one. Both are required for a push-triggered run to publish, and neither is required for a
       # manual run that explicitly asks for it -- so deleting the variable is a complete off switch

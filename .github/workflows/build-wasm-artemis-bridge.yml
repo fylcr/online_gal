@@ -115,15 +115,15 @@ jobs:
       # answers which upstream this artifact tracks.
       upstream-repository: https://github.com/Weiss-UltimateSavior/artemis-compat.git
       upstream-branch: main
-      upstream-commit: ${{ inputs.upstream_commit || 'a4f8a257cf87cb8f65ab4e3f83501ab327a55424' }}
+      upstream-commit: ${{ inputs.upstream_commit || '9f622629f595db85e6f76c45c06edde29d7d9961' }}
       upstream-path: .ref/artemis-compat
       skip-upstream-checkout: true
       emsdk-version: '6.0.9'
       artifact-name: wasm-artemis-bridge
       artifact-dir: dist/artemis-bridge/build
       artifact-files: bridge.wasm
-      version: bridge-${{ inputs.flavour || 'asyncify' }}-a4f8a25
-      release-tag: engine-artemis-bridge-${{ inputs.flavour || 'asyncify' }}-a4f8a25
+      version: bridge-${{ inputs.flavour || 'asyncify' }}-9f62262
+      release-tag: engine-artemis-bridge-${{ inputs.flavour || 'asyncify' }}-9f62262
       # The build script reads BRIDGE_FLAVOUR to pick which vendored module to transpile, and the
       # expected-transpile assertion inside it is per-flavour -- so the input has to reach the script
       # or a `sync` run would silently produce an `asyncify` module under a sync manifest.

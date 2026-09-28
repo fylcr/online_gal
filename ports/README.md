@@ -55,7 +55,7 @@ They are **gitignored** — not ours to redistribute, and several GB in total. F
 | `.ref/onscripter-yuri` | `https://github.com/YuriSizuku/OnscripterYuri` | see `docs/ons-source-build.md` |
 | `.ref/kirikiroid2-web` | `https://github.com/fenghengzhi/kirikiroid2-web` (`web` branch) | see `docs/kirikiri-web-plan.md` |
 | `.ref/krkrsdl2` | `https://github.com/ammaraskar/krkrsdl2` | see `docs/kirikiri-web-plan.md` |
-| `.ref/artemis-compat` | `https://github.com/Weiss-UltimateSavior/artemis-compat` | `a4f8a257cf87cb8f65ab4e3f83501ab327a55424` |
+| `.ref/artemis-compat` | `https://github.com/Weiss-UltimateSavior/artemis-compat` | `9f622629f595db85e6f76c45c06edde29d7d9961` |
 | `.ref/vcpkg` | `https://github.com/microsoft/vcpkg` | KiriKiri only; the CI pins it |
 
 Artemis additionally needs its engine patch applied — the upstream project has no web target at

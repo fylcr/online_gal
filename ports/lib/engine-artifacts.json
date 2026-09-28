@@ -101,11 +101,11 @@
     ]
   },
   "artemis": {
-    "version": "web-android-a4f8a25",
-    "upstream": "https://github.com/Weiss-UltimateSavior/artemis-compat @ a4f8a257cf87cb8f65ab4e3f83501ab327a55424",
+    "version": "web-android-9f62262",
+    "upstream": "https://github.com/Weiss-UltimateSavior/artemis-compat @ 9f622629f595db85e6f76c45c06edde29d7d9961",
     "emsdk": "6.0.9",
     "repository": "https://github.com/fylcr/online_gal",
-    "releaseTag": "engine-artemis-a4f8a25",
+    "releaseTag": "engine-artemis-9f62262",
     "files": [
       { "name": "artemis-web-android.wasm", "size": 1147110, "sha256": "79dce328b57ba5ef3bdd7e212bb8daedf3e165c720269e43e95b7ee3285cad6a" },
       { "name": "artemis-web-android.js", "size": 182842, "sha256": "a1c03dd659ebc23c91bbb83627c8fb521ca9c1d69672165fb69f65eeaf47953f" }

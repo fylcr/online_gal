@@ -129,7 +129,7 @@ into a GPL-3.0-or-later project permissible.
 ## artemis-compat — engine structure and house style
 
 **Upstream:** <https://github.com/Weiss-UltimateSavior/artemis-compat> — **GPL-3.0**
-(commit `a4f8a257cf87cb8f65ab4e3f83501ab327a55424`, pinned in `ports/README.md`)
+(commit `9f622629f595db85e6f76c45c06edde29d7d9961`, pinned in `ports/README.md`)
 
 No upstream source is redistributed here, and no file is copied: `ports/artemis/src/`
 is hand-written C++ that was checked against that project's conventions rather than
