@@ -1,13 +1,17 @@
 # The Artemis rewrite bridge: the official module, rebuilt on top of the hand-written engine.
 #
-# WHY THIS IS NOT PART OF build-wasm-artemis.yml
+# WHY THIS IS THE ONLY ARTEMIS BUILD NOW
 #
-# They produce different modules from different sources. `build-wasm-artemis.yml` compiles the
-# third-party `artemis-compat` engine -- that is our own engine, and its artifact is what a web
-# deploy loads. This workflow takes the *official* module, transpiles it to C with wasm2c, and lets
-# `ports/artemis/src` (159 hand-written files, namespace `artc`) replace the transpiled bodies
-# function by function. The result keeps the official module's import and export faces, which is the
-# entire point, and that is why its acceptance test is the four gates rather than "it compiled".
+# An earlier workflow, `build-wasm-artemis.yml`, compiled the third-party `artemis-compat` engine
+# into a web deploy artifact. It is retired, along with `.github/scripts/build-artemis.sh`,
+# `ports/artemis/build/web-deploy.sh` and `ports/artemis/engine/0001-web-host.patch`; this one is
+# the only Artemis form that ships.
+#
+# The two produced different modules from different sources, and that is still why the acceptance
+# test here is the four gates rather than "it compiled". This workflow takes the *official* module,
+# transpiles it to C with wasm2c, and lets `ports/artemis/src` (159 hand-written files, namespace
+# `artc`) replace the transpiled bodies function by function. The result keeps the official
+# module's import and export faces, which is the entire point.
 #
 # Merging them would also mean one `paths:` list covering both source trees, so an edit to one
 # engine would queue a build of the other.
@@ -128,8 +132,9 @@ jobs:
       # expected-transpile assertion inside it is per-flavour -- so the input has to reach the script
       # or a `sync` run would silently produce an `asyncify` module under a sync manifest.
       build-env: BRIDGE_FLAVOUR=${{ inputs.flavour || 'asyncify' }}
-      # Same licensing posture as the host build, and for the same reason: the module is derived
-      # from the proprietary SDK's binary. See build-wasm-artemis.yml.
+      # Same licensing posture as the host build had, and for the same reason: the module is derived
+      # from the proprietary SDK's binary. That host build is retired now; this is the only Artemis
+      # form that ships, and it is gated the same way.
       publish: ${{ (inputs.publish || vars.ARTEMIS_PUBLISH_ARTIFACTS == 'true') && github.event_name != 'pull_request' }}
 
   # The real-game test is a separate job because it needs a display-driving Chrome and a game tree,

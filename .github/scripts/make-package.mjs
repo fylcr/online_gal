@@ -296,9 +296,11 @@ while (queue.length) {
 // --- tar --------------------------------------------------------------------------------------
 
 // The filename flattens the scope: `@online-gal/runtime-ons` is not a legal file name, so the `/`
-// becomes a `-` and the tarball is `online-gal-runtime-ons-0.1.0.tgz`. npm's own convention keeps
-// the scope instead, but a release asset that a human types into a `pnpm add` line is worth the
-// unambiguous name, and `--tarball-name` overrides it either way.
+// becomes a `-` and the tarball is `online-gal-runtime-ons-<version>.tgz`. npm's own convention
+// keeps the scope instead, but a release asset that a human types into a `pnpm add` line is worth
+// the unambiguous name, and `--tarball-name` overrides it either way. The version is whatever
+// `manifest.version` says, so the name moves when the package does — docs that hard-code a
+// `.tgz` filename have to be updated in the same commit that bumps the version.
 const tarballName = options.tarballName
   ?? `${manifest.name.replace(/^@/, '').replace(/[/\\@]/g, '-')}-${manifest.version}.tgz`;
 const tarballPath = join(outDir, tarballName);

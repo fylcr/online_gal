@@ -10,8 +10,8 @@
 > loop has been exercised against them: the tag the fetch helper asks for is the tag the build
 > publishes, the bytes it downloads match the manifest, and a real browser run of a fetched engine
 > renders the same frame as a locally built one. `krkr` and `ons` have releases
-> (`engine-ons-0.7.7beta`, `engine-krkr-20260920`); `artemis` deliberately does not, because its
-> engine is built against a proprietary SDK.
+> (`engine-ons-0.7.7beta`, `engine-krkr-20260920`). Artemis has no artifact at all any more: its
+> host build is retired, and the bridge that replaced it is not published either.
 
 ## This repository is private, so fetching needs a token
 
@@ -52,15 +52,14 @@ phases: every file is downloaded and verified first, touching nothing, and only 
 into place together. A failure anywhere in the list leaves the *previous* engine completely intact
 rather than a half-updated one. The observable states are "all previous" and "all new", never a mix.
 
-## The three engines
+## The engines
 
 | Engine | Files | Installed to | Tracked? |
 | --- | --- | --- | --- |
 | `ons` | `onsyuri.html`, `onsyuri.js`, `onsyuri.wasm` | `packages/runtime-ons/assets/` | **yes** — committed source |
 | `krkr` | `index.wasm`, `index.js`, `vlfs.js`, `index.html`, `shell.html`, `assets.zip` | `.ref/kirikiroid2-web/out/web/release/` | no |
-| `artemis` | `artemis-web-android.wasm`, `artemis-web-android.js` | `ports/artemis/build/out/web-android/` | no |
 
-Two of the three land in gitignored build directories, which is deliberate: a downloaded binary is a
+Both of the two land in gitignored build directories, which is deliberate: a downloaded binary is a
 build product and must not be committed by accident. `ons` is the exception — the engine the emulator
 ships with is tracked so that it is reviewable like any other change, and a fetch there shows up in
 `git status` for exactly that reason.
@@ -94,7 +93,6 @@ and 1.6 GB into a 2.3 GB file), so the game arrived on demand instead of as a wh
 ```bash
 node ports/lib/fetch-engine.mjs ons          # one engine
 node ports/lib/fetch-engine.mjs krkr --json  # machine-readable result on stdout
-node ports/lib/fetch-engine.mjs artemis --out /tmp/elsewhere
 ```
 
 It is idempotent: a file that is already present and matches the manifest is left alone, and every
@@ -111,10 +109,14 @@ Exit codes, because scripts branch on them rather than parsing output:
 | `3` | verification failed — a size or sha256 mismatch; **the engine was left exactly as it was** |
 | `4` | the manifest is missing, unreadable, or has no entry for this engine |
 
-Code 2 is the expected outcome for `artemis`, whose engine is not published, and for any engine on a
-machine with no network. The message names the file, the URL it tried, and the command that builds it
-from source instead. There is no stack trace and no silent success: a fetch that cannot deliver says
-so and exits non-zero.
+Code 2 is the expected outcome for any engine on a machine with no network. The message names the
+file, the URL it tried, and the command that builds it from source instead. There is no stack trace
+and no silent success: a fetch that cannot deliver says so and exits non-zero.
+
+Code 4 — "the manifest has no usable entry" — is a different thing, and it is what `artemis` now
+returns. The name is still accepted, so the argument parses, but the ledger has no `artemis` group
+because the artifact it used to describe is no longer produced. Both outcomes mean "no bytes for you
+here"; 4 is the honest one for an engine that has been retired rather than merely unpublished.
 
 ## Installing a runtime package instead of fetching loose files
 
@@ -125,14 +127,14 @@ engine's file names, a tag, or where a hash manifest lives. So the ONS build now
 **standard npm tarball** — the CI output *is* the package.
 
 ```bash
-pnpm add https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.0.tgz
+pnpm add https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.1.tgz
 ```
 
 ```jsonc
 // package.json
 {
   "dependencies": {
-    "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.0.tgz"
+    "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.1.tgz"
   }
 }
 ```
@@ -212,7 +214,7 @@ of the *identical* tar stream would otherwise differ. Verified locally:
 node .github/scripts/make-package.mjs --package packages/runtime-ons --out /tmp/a
 touch packages/runtime-ons/dist/index.js          # mtime changes, content does not
 node .github/scripts/make-package.mjs --package packages/runtime-ons --out /tmp/b
-cmp /tmp/a/online-gal-runtime-ons-0.1.0.tgz /tmp/b/online-gal-runtime-ons-0.1.0.tgz   # identical
+cmp /tmp/a/online-gal-runtime-ons-0.1.1.tgz /tmp/b/online-gal-runtime-ons-0.1.1.tgz   # identical
 ```
 
 ### Licensing: GPL-3.0 propagates
@@ -323,15 +325,16 @@ now. When you are changing the engine, the artifact is by definition older than 
 
 ```bash
 bash ports/ons/build/fetch-web-engine.sh --from-source   # ONS
-bash ports/artemis/build/web-deploy.sh --from-source     # Artemis
 bash ports/krkr/kirikiroid2/run-build.sh                 # KiriKiroid2
 ```
 
 `ports/ons/build/fetch-web-engine.sh` is the ONS entry point and its default is fetch-then-build, so
-it works on a machine with nothing and on a machine with everything. The Artemis equivalent is
-`ports/artemis/build/web-deploy.sh`, which installs the verified artifact beside the game's pack
-files and only compiles when no artifact is available — the two scripts are the model the CI job
-follows.
+it works on a machine with nothing and on a machine with everything — the two scripts are the model
+the CI job follows.
+
+There is no Artemis line here any more. The browser host this section used to name
+(`ports/artemis/build/web-deploy.sh`) is retired along with the `artemis-web-android` artifact it
+installed; see "Relationship to the rest of the tree" above for what the engine looks like now.
 
 One asymmetry worth knowing when you rebuild ONS by hand: `ports/ons/build/run-web-build-shimmed.sh`
 is the real build recipe, not upstream's. It force-includes the host shim that makes input injection
@@ -353,6 +356,21 @@ whose files are already present: every file reports `already present and verifie
 would be replaced or reported as a failure rather than passed over.
 
 ## Relationship to the rest of the tree
+
+**Where Artemis stands.** Artemis is a **wasm rewrite of the third-party `artemis-compat` engine
+(GPL-3.0)**; the rewrite's sources are `ports/artemis/src/`. The only form of it that ships today is
+the **bridge module** (`.github/workflows/build-wasm-artemis-bridge.yml`), which links that rewrite
+against the official Artemis SDK so the emulator can drive a real game. There is **no modern host**
+for it yet — no `packages/runtime-artemis` engine that a downstream app can depend on — so
+`packages/engines` reports `artemis` as `unavailable` and the emulator refuses it rather than
+half-running. Accordingly this manifest describes two engines, not three.
+
+The two files under `ports/artemis/build/` that a build or a benchmark needs —
+`official-web-deploy.py` and the `ports/artemis/tools/real-game-test.mjs` that drives it — are
+**not** an Artemis shipping route. They are the **yardstick**: the real-game benchmark's control
+tree is deliberately "the official module plus the official glue", so our rewrite is measured
+against the engine it replaces rather than against itself. A failure there means the rewrite is
+wrong, not that the harness is.
 
 - `ports/lib/ref.mjs` is the shared path helper; the fetch script resolves the repository root
   through it rather than counting `..` segments of its own.

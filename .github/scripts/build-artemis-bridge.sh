@@ -2,15 +2,17 @@
 # Rebuild the official Artemis module from its transpiled form, on top of the hand-written engine,
 # and check that the result is a drop-in replacement for the official one.
 #
-# WHY THIS IS A SEPARATE ARTIFACT FROM THE ARTEMIS HOST
+# WHY THIS IS THE ONLY ARTEMIS BUILD NOW
 #
-# The Artemis host (`build-artemis.sh`) compiles the third-party `artemis-compat` engine: `artc`
-# code from `.ref/artemis-compat` plus a browser host. That module is *our* engine.
+# An earlier script, `build-artemis.sh`, compiled the third-party `artemis-compat` engine -- `artc`
+# code from `.ref/artemis-compat` plus a browser host -- into a web deploy artifact. It is retired,
+# with `build-wasm-artemis.yml`, `ports/artemis/build/web-deploy.sh` and
+# `ports/artemis/engine/0001-web-host.patch`; this one is the only Artemis form that ships.
 #
-# This one is different in kind. It takes the *official* module, transpiles it to C with wasm2c,
-# compiles that C, and lets the hand-written rewrite in `ports/artemis/src` (namespace `artc`)
-# replace the transpiled bodies function by function. The result has the official module's import
-# and export faces -- that is the whole point -- with an engine inside it that can be read and
+# This one is different in kind from that anyway. It takes the *official* module, transpiles it to C
+# with wasm2c, compiles that C, and lets the hand-written rewrite in `ports/artemis/src` (namespace
+# `artc`) replace the transpiled bodies function by function. The result has the official module's
+# import and export faces -- that is the whole point -- with an engine inside it that can be read and
 # edited. That is why its acceptance test is `wasm-replace-test.mjs`'s four gates rather than "it
 # compiled".
 #

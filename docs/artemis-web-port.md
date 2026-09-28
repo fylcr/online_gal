@@ -1,5 +1,27 @@
 # Artemis 浏览器移植：进展与验证
 
+> **当前状态（路线已改向，以下正文按历史保留）**
+>
+> **现在只剩一条 Artemis 路线：我们自己的重写。** 本文的主角是 **artemis-compat
+> （上游，GPL-3.0）的 wasm 重写**，源码在 `ports/artemis/src/`，**目前唯一的出货形态是桥模块**
+> （`.github/workflows/build-wasm-artemis-bridge.yml`）。**还没有现代宿主**——
+> `packages/runtime-artemis` 因此报 `unavailable`，模拟器会明确拒绝而不是半跑起来。
+>
+> **已退役（本文档记录了它，但不要再照着做）**：早期那条「给上游 `artemis-compat` 源码
+> 补一层浏览器宿主、编出 `artemis-web-android.wasm`」的路线。随它一起删除的有
+> `.github/scripts/build-artemis.sh`、`.github/workflows/build-wasm-artemis.yml`、
+> `ports/artemis/build/web-deploy.sh` 和 `ports/artemis/engine/0001-web-host.patch`。
+> 所以本文里凡是提到 `web-deploy.sh`、`artemis-web-android` 或那份 patch 的段落，
+> **都是历史记录，不是现行的部署指令**——§9（Web 宿主）、§12.2 起的「部署脚本」等
+> 段落请这样读。
+>
+> **仍然保留、但不是出货路线的两样东西**：`ports/artemis/build/official-web-deploy.py`
+> 与驱动它的 `ports/artemis/tools/real-game-test.mjs`。真实游戏 bench 的对照树**故意**是
+> 「官方模块 + 官方胶水」——它是**判据**（尺子），用来衡量我们的重写，不是一条我们自己的
+> 发布通道。
+>
+> 仍在推进的是**宿主的头一刀**（由另一条工作线负责），那之后本节要重写。
+
 基座是 [Weiss-UltimateSavior/artemis-compat](https://github.com/Weiss-UltimateSavior/artemis-compat)
 （clean-room Artemis 兼容引擎，C++17，96 个文件约 30K 行）。目标是把这个引擎搬进浏览器。
 
@@ -227,6 +249,14 @@ node ports/artemis/build/verify-pfs-real-archive.mjs
 > 不是构建或引擎的问题。
 
 ## 九、Web 宿主（`src/host/web_main.cpp`）
+
+> ⚠️ **已退役的路线，本节按历史保留。** 这一整节描述的是给上游 `artemis-compat` 补一个
+> 浏览器宿主（`src/host/web_main.cpp`）并编出 `artemis-web-android.wasm` 的做法。
+> **那份 patch（`ports/artemis/engine/0001-web-host.patch`）与这条线对应的
+> `build-artemis.sh` / `build-wasm-artemis.yml` / `web-deploy.sh` 已全部删除**，
+> 下面的 `src/host/web_main.cpp` 路径指的是 `.ref/` 里的上游参考源码，不是入库文件。
+> 仍然有效的教训（帧序、Asyncify vs JSPI、按需供数、那些真机验证过的坑）都留在本节里，
+> 但**重建这条路请看 §十七（我们的重写）和 §十八（官方 SDK + 替换台）**。
 
 已写好并在**真实浏览器里验证通过**。照 `mac_main.mm` 的帧序写，刻意保持逐步一致：
 
@@ -1310,10 +1340,10 @@ node /tmp/artc-t2/save_reg.js
 各一条 —— 那是该文件里**既有的 POSIX-only 用例**（`fork`、`RLIMIT_FSIZE`），
 Emscripten 本来就模拟不了，与本轮改动无关。
 
-集成侧另有一路证据：`web-deploy.sh` 重建后真实游戏仍正常启动
-（canvas `2252x1352`、`artc_android_boot(2252x1352) -> 1`、`viewport: 2252x1266`、
-非黑像素 **93.733%**、`maxLum 255`）。注意产物 `.wasm` **无 name section、无 DWARF**，
-`grep` 在里面找不到新符号 —— 这类改动只能靠行为或原生测试证。
+集成侧另有一路证据：当时用 `web-deploy.sh`（**该脚本已随宿主路线一起退役删除**）重建后
+真实游戏仍正常启动（canvas `2252x1352`、`artc_android_boot(2252x1352) -> 1`、
+`viewport: 2252x1266`、非黑像素 **93.733%**、`maxLum 255`）。注意产物 `.wasm`
+**无 name section、无 DWARF**，`grep` 在里面找不到新符号 —— 这类改动只能靠行为或原生测试证。
 
 ### 复现
 
@@ -1453,13 +1483,14 @@ if (!drew || !renderer.SwapPaced())
 | `npm run check:layout` | — | layout ok |
 
 诊断用的 `loopdbg` 埋点已全部移除，产物里 `grep loopdbg` 为 false。
-`fix` 同时进了 `ports/artemis/engine/0001-web-host.patch`（现 15 个 `diff --git`）。
+`fix` 当时同时进了 `ports/artemis/engine/0001-web-host.patch`（现 15 个 `diff --git`；
+**这份 patch 已随宿主路线退役删除**）。
 
 **遗留**：`initdbg` 式的 `LOGI` 走 shim 的 `__android_log_print`（只写 stderr），
 而 `Log(kLogInfo, …)` 走引擎 sink —— 两者都能到页面，但
-**worker 的 `printErr` 过滤器是白名单**（`artemis-web-android-worker.js`），
-新加的诊断字符串必须先加进那个正则，否则「没有输出」会被误读成「代码没跑」。
-这一条是本轮最容易骗到自己的陷阱。
+**worker 的 `printErr` 过滤器是白名单**（当时的 `artemis-web-android-worker.js`，
+产物名也一并退役了），新加的诊断字符串必须先加进那个正则，否则「没有输出」会被误读成
+「代码没跑」。这一条是本轮最容易骗到自己的陷阱。
 
 ## 十五、官方 SDK 入库：一个被推翻的决定
 
