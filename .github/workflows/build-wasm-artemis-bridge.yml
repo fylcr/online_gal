@@ -165,10 +165,18 @@ jobs:
       - name: Run the real-game frame comparison
         run: |
           set -eu
-          ls -la candidate
+          # The artifact keeps every file's path relative to the repository root: the reusable
+          # workflow uploads `<artifact-dir>/*` beside `manifest.json`, so the module arrives at
+          # candidate/dist/artemis-bridge/build/bridge.wasm rather than candidate/bridge.wasm.
+          # Resolve it instead of hard-coding the build script's output directory here.
+          # This job is skipped unless a game tree is supplied, so the resolution below is not
+          # exercised by an ordinary push: check it against a downloaded artifact when changing it.
+          engine="$(find candidate -name bridge.wasm -print -quit)"
+          test -n "$engine" || { echo "::error::bridge.wasm is missing from the artifact"; exit 1; }
+          echo "## engine: $engine"
           node ports/artemis/tools/real-game-test.mjs \
             --game "${{ inputs.game_tree }}" \
-            --engine candidate/bridge.wasm \
+            --engine "$engine" \
             --flavour "${{ inputs.flavour || 'asyncify' }}" \
             --json-out real-game-result.json
           cat real-game-result.json
