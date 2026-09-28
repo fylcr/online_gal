@@ -77,10 +77,20 @@ export class OnsWasmRuntime implements RuntimeInstance {
       throw new Error('the ONScripter WASM runtime needs a canvas from the host');
     }
 
-    // The engine's own files. `engineBase` defaults to the package's assets directory, which
-    // the bundler resolves; the index describes the *game*, so it comes from the host.
+    // The engine's own files. `engineBase` defaults to the package's own `assets/`, resolved from
+    // this module's URL; the index describes the *game*, so it comes from the host.
+    //
+    // The depth is one `../`, not two. This file compiles to `dist/wasm-runtime.js`, whose parent
+    // is the package root, so `../assets/` is `<package>/assets/`. The earlier `../../assets/`
+    // pointed one level *above* the package -- `packages/assets/` in the repository, and
+    // `node_modules/@online-gal/assets/` once installed -- so every consumer that did not pass
+    // `engineBase` explicitly got a 404 for `onsyuri.js`. `.test/runtime-ons-engine-base.test.ts`
+    // pins this arithmetic against the built file rather than against this source line.
+    //
+    // A bundler that rewrites `import.meta.url` still has to set `engineBase` explicitly, which is
+    // why it remains an option and a game-config key.
     const engineBase =
-      this.options.engineBase ?? (this.fromGameConfig('engineBase') as string | undefined) ?? new URL('../../assets/', import.meta.url).href;
+      this.options.engineBase ?? (this.fromGameConfig('engineBase') as string | undefined) ?? new URL('../assets/', import.meta.url).href;
 
     // The game's file index. Read from `gameConfig` first, because that is how the launcher
     // supplies it — `RuntimeSession` forwards the library record's config into `create()` —

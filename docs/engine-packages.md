@@ -146,16 +146,19 @@ release URL is the dependency:
 ```jsonc
 {
   "dependencies": {
-    "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.0.tgz",
-    "@online-gal/engines": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-engines-0.1.0.tgz"
+    "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.1.tgz"
+    // No "@online-gal/engines" entry yet, on purpose: a tarball exists only for a package whose
+    // workflow sets `package-dir`, and so far only the ONScripter workflow does. A URL here would
+    // be a 404 that only shows up at install time, so there is no URL here.
   }
 }
 ```
 
 `@online-gal/engines` builds the same way as any other package, so `make-package.mjs --package
-packages/engines` produces that tarball once the workflow is pointed at it. The consumer still
-picks engines the same way — the tarball ships the compiled `dist/`, and the six runtime
-packages come in as its vendored `node_modules/`, so `import { selectEngine } from
+packages/engines` produces its tarball the moment a workflow names it in `package-dir`; until
+then the supported routes are the workspace dependency above or a checkout of this repository. The
+consumer still picks engines the same way — the tarball ships the compiled `dist/`, and the six
+runtime packages come in as its vendored `node_modules/`, so `import { selectEngine } from
 '@online-gal/engines'` works without compiling anything locally. See
 `docs/fetch-engine-artifacts.md` for the tarball format, the reproducibility guarantees, and the
 token a consumer needs on this private repository.

@@ -106,7 +106,8 @@ const USAGE = `usage: node .github/scripts/make-package.mjs --package <dir> --ou
   --package      a package directory, e.g. packages/runtime-ons
   --out          directory to write the .tgz into
   --assets-from  directory holding the built engine files to vendor as package/assets
-                 (default: the package's own assets/ directory)
+                 (default: the package's own assets/ directory). The binaries ship once, from
+                 this directory; a second copy under dist/assets/ is refused.
   --tarball-name override the output file name
   --source-date-epoch  mtime stamped into every tar entry (default 498073600 = 1985-10-26)
   --quiet        print only the output path`;
@@ -238,6 +239,18 @@ if (existsSync(assetsSource)) {
   cpSync(assetsSource, join(staged, 'assets'), { recursive: true });
 } else if (options.assetsFrom) {
   fail(2, `--assets-from directory does not exist: ${assetsSource}`);
+}
+
+// 3b. those bytes must not also be sitting inside `dist/`, because two copies of the same engine
+// files drift: `assets/` here comes from the engine *build*, while anything under `dist/` was put
+// there by the package build from the *checkout*, whose line endings are decided by
+// `.gitattributes` (`* text=auto eol=lf`) rather than by the engine. A tarball then carries the
+// same file twice in two forms, and the copy a consumer reads depends on which module resolves it.
+// Only checked when `--assets-from` is given, since that is the caller asserting where the engine
+// bytes come from; other packages have no reason to keep `dist/assets/` either, but they are not
+// what this guard is for. See packages/runtime-ons/scripts/copy-runtime-assets.mjs.
+if (options.assetsFrom && existsSync(join(staged, 'dist', 'assets'))) {
+  fail(2, 'dist/assets/ duplicates the engine files that --assets-from supplies; the runtime resolves assets/ at the package root, so ship one copy and stop the build from writing dist/assets/');
 }
 
 // 4. the dependency closure, vendored.
