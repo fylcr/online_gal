@@ -14,6 +14,7 @@
 //     --md     <imports-map.md>
 
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 
 const argv = process.argv.slice(2);
@@ -128,6 +129,30 @@ ok('every row points at an implementation definition in the glue', noImpl.length
 
 // The offsets have to be real, not merely present: re-derive each from the glue bytes.
 const glue = readFileSync(GLUE, 'utf8');
+
+// Identity FIRST.  Every offset below is an index into one specific file, and the vendor
+// SDK and a deployed build of the same engine differ by a couple of bytes in their embedded
+// package table, which shifts every one of the 405 offsets below by that same amount.  That
+// failure is indistinguishable from a corrupt table by its own symptoms, so it gets its own
+// gate: one line naming the two files beats 405 "bad offset" lines.
+const glueSha256 = createHash('sha256').update(glue).digest('hex');
+{
+  const wantGlue = table.totals?.glueSha256 ?? null;
+  const wantWasm = table.totals?.moduleSha256 ?? null;
+  const gotWasm = createHash('sha256').update(bytes).digest('hex');
+  ok('the table was generated from this module', wantWasm === null || wantWasm === gotWasm,
+    wantWasm === null ? 'table records no module sha256 (pre-hash table; offsets not identity-checked)'
+      : wantWasm === gotWasm ? '' : `table=${wantWasm.slice(0, 12)} given=${gotWasm.slice(0, 12)} — regenerate the table for this module`);
+  if (wantGlue === null) {
+    ok('the glue is the one the table was generated from', true, 'table records no glue sha256 (pre-hash table; offsets not identity-checked)');
+  } else {
+    ok('the glue is the one the table was generated from', wantGlue === glueSha256,
+      wantGlue === glueSha256 ? '' : `table=${wantGlue.slice(0, 12)} given=${glueSha256.slice(0, 12)} — this is a different glue build; regenerate the table for it`);
+  }
+  ok('the table records the glue it was built from', typeof wantGlue === 'string' && wantGlue.length === 64,
+    typeof wantGlue === 'string' ? '' : 'totals.glueSha256 missing');
+}
+
 // glueImplOffset is the offset of the DEFINITION SITE — the `function` keyword, or `var` for
 // the one binding that is a variable rather than a function — so the identifier follows it.
 let badRef = 0; let badImpl = 0; const checkedImpl = new Set(); const forms = new Map();

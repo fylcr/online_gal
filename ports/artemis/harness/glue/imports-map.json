@@ -17,7 +17,9 @@
       }
     ],
     "moduleBytes": 41757498,
-    "moduleSha256": "2b30f5c540729d1237021a6e90160de46a48f21832cdbfe5300f5b24c11e6c96"
+    "moduleSha256": "2b30f5c540729d1237021a6e90160de46a48f21832cdbfe5300f5b24c11e6c96",
+    "glueBytes": 276695,
+    "glueSha256": "a3e65b926ef3898302963f7928de79d80e06107e664ead3c66d65ebe2d9672b5"
   },
   "importModule": "a",
   "glueObjectSpan": [
@@ -108,11 +110,11 @@
       "glueBindingOffset": 258306,
       "glueImplOffset": 215907,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -124,11 +126,11 @@
       "glueBindingOffset": 256054,
       "glueImplOffset": 173258,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -140,11 +142,11 @@
       "glueBindingOffset": 256015,
       "glueImplOffset": 180649,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -156,11 +158,11 @@
       "glueBindingOffset": 254909,
       "glueImplOffset": 25245,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_*cxa_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": null
     },
     {
@@ -172,11 +174,11 @@
       "glueBindingOffset": 259247,
       "glueImplOffset": 240363,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "runtime",
       "rule": "^_(pthread_|sbrk)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling",
+      "owner": "landed: packages/runtime-artemis/src/host/runtime.ts — heap growth, thread bookkeeping, asm! marshalling — all 8 rows",
       "duplicate": null
     },
     {
@@ -188,11 +190,11 @@
       "glueBindingOffset": 259308,
       "glueImplOffset": 240438,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "runtime",
       "rule": "^_(pthread_|sbrk)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling",
+      "owner": "landed: packages/runtime-artemis/src/host/runtime.ts — heap growth, thread bookkeeping, asm! marshalling — all 8 rows",
       "duplicate": null
     },
     {
@@ -204,11 +206,11 @@
       "glueBindingOffset": 259413,
       "glueImplOffset": 248756,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_*_?(clock|clock_gettime|localtime|localtime_r|gmtime|gmtime_r|tzset|difftime|time|mktime|strftime|strftime_l|usleep)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -220,11 +222,11 @@
       "glueBindingOffset": 255917,
       "glueImplOffset": 167287,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "runtime",
       "rule": "^_emscripten_(resize_heap|run_script|get_now|is_html|get_html|random|debug|asm_const)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling",
+      "owner": "landed: packages/runtime-artemis/src/host/runtime.ts — heap growth, thread bookkeeping, asm! marshalling — all 8 rows",
       "duplicate": null
     },
     {
@@ -236,11 +238,11 @@
       "glueBindingOffset": 258667,
       "glueImplOffset": 273409,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -252,11 +254,11 @@
       "glueBindingOffset": 259279,
       "glueImplOffset": 240402,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "runtime",
       "rule": "^_(pthread_|sbrk)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling",
+      "owner": "landed: packages/runtime-artemis/src/host/runtime.ts — heap growth, thread bookkeeping, asm! marshalling — all 8 rows",
       "duplicate": null
     },
     {
@@ -268,11 +270,11 @@
       "glueBindingOffset": 255883,
       "glueImplOffset": 21705,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_*_?(clock|clock_gettime|localtime|localtime_r|gmtime|gmtime_r|tzset|difftime|time|mktime|strftime|strftime_l|usleep)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -284,11 +286,11 @@
       "glueBindingOffset": 259339,
       "glueImplOffset": 240477,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "runtime",
       "rule": "^_(get|set)TempRet0\\d*$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling",
+      "owner": "landed: packages/runtime-artemis/src/host/runtime.ts — heap growth, thread bookkeeping, asm! marshalling — all 8 rows",
       "duplicate": null
     },
     {
@@ -300,11 +302,11 @@
       "glueBindingOffset": 258698,
       "glueImplOffset": 273237,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -316,11 +318,11 @@
       "glueBindingOffset": 259372,
       "glueImplOffset": 247954,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_*_?(clock|clock_gettime|localtime|localtime_r|gmtime|gmtime_r|tzset|difftime|time|mktime|strftime|strftime_l|usleep)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -332,11 +334,11 @@
       "glueBindingOffset": 256201,
       "glueImplOffset": 185038,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_emscripten_idb_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -348,11 +350,11 @@
       "glueBindingOffset": 258826,
       "glueImplOffset": 271359,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -364,11 +366,11 @@
       "glueBindingOffset": 255454,
       "glueImplOffset": 114157,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -380,11 +382,11 @@
       "glueBindingOffset": 255094,
       "glueImplOffset": 28562,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_*cxa_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": null
     },
     {
@@ -396,11 +398,11 @@
       "glueBindingOffset": 256169,
       "glueImplOffset": 184696,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_emscripten_idb_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -412,11 +414,11 @@
       "glueBindingOffset": 255260,
       "glueImplOffset": 89788,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -428,11 +430,11 @@
       "glueBindingOffset": 257158,
       "glueImplOffset": 198885,
       "alias": "wasi_snapshot_preview1.fd_write -> a.Ea",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_(fd_write|fd_read|fd_close|fd_seek|open|close|read|write|seek|lseek|stat|lstat|fstat|fsync|getdents|ioctl|dup|dup2|chdir|getcwd|mkdir|rmdir|unlink|rename|fcntl|exit|environ_get|environ_sizes_get)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": "1 of 2: _fd_write type#2 (i32,i32,i32,i32) -> i32"
     },
     {
@@ -444,11 +446,11 @@
       "glueBindingOffset": 257064,
       "glueImplOffset": 196977,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_(fd_write|fd_read|fd_close|fd_seek|open|close|read|write|seek|lseek|stat|lstat|fstat|fsync|getdents|ioctl|dup|dup2|chdir|getcwd|mkdir|rmdir|unlink|rename|fcntl|exit|environ_get|environ_sizes_get)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -460,11 +462,11 @@
       "glueBindingOffset": 256135,
       "glueImplOffset": 184441,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_emscripten_idb_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -476,11 +478,11 @@
       "glueBindingOffset": 255620,
       "glueImplOffset": 161305,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -492,11 +494,11 @@
       "glueBindingOffset": 257334,
       "glueImplOffset": 206888,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -508,11 +510,11 @@
       "glueBindingOffset": 257082,
       "glueImplOffset": 197300,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_(fd_write|fd_read|fd_close|fd_seek|open|close|read|write|seek|lseek|stat|lstat|fstat|fsync|getdents|ioctl|dup|dup2|chdir|getcwd|mkdir|rmdir|unlink|rename|fcntl|exit|environ_get|environ_sizes_get)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -524,11 +526,11 @@
       "glueBindingOffset": 256234,
       "glueImplOffset": 185335,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_emscripten_idb_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -540,11 +542,11 @@
       "glueBindingOffset": 255585,
       "glueImplOffset": 160746,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -556,11 +558,11 @@
       "glueBindingOffset": 255784,
       "glueImplOffset": 158950,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -572,11 +574,11 @@
       "glueBindingOffset": 255143,
       "glueImplOffset": 31095,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_*_?(clock|clock_gettime|localtime|localtime_r|gmtime|gmtime_r|tzset|difftime|time|mktime|strftime|strftime_l|usleep)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -588,11 +590,11 @@
       "glueBindingOffset": 256316,
       "glueImplOffset": 186151,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_emscripten_idb_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -604,11 +606,11 @@
       "glueBindingOffset": 258248,
       "glueImplOffset": 215462,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -620,11 +622,11 @@
       "glueBindingOffset": 255485,
       "glueImplOffset": 156352,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -636,11 +638,11 @@
       "glueBindingOffset": 255126,
       "glueImplOffset": 29278,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_*_?(clock|clock_gettime|localtime|localtime_r|gmtime|gmtime_r|tzset|difftime|time|mktime|strftime|strftime_l|usleep)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -652,11 +654,11 @@
       "glueBindingOffset": 256290,
       "glueImplOffset": 185767,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_emscripten_idb_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -668,11 +670,11 @@
       "glueBindingOffset": 256342,
       "glueImplOffset": 186470,
       "alias": "env._emscripten_throw_longjmp -> a.I",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_emscripten_longjmp$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": "1 of 2: _emscripten_longjmp type#0 (i32,i32) -> void"
     },
     {
@@ -684,11 +686,11 @@
       "glueBindingOffset": 255739,
       "glueImplOffset": 163784,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -700,11 +702,11 @@
       "glueBindingOffset": 255186,
       "glueImplOffset": 87334,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -716,11 +718,11 @@
       "glueBindingOffset": 256262,
       "glueImplOffset": 185529,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_emscripten_idb_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -732,11 +734,11 @@
       "glueBindingOffset": 257743,
       "glueImplOffset": 209345,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -748,11 +750,11 @@
       "glueBindingOffset": 255526,
       "glueImplOffset": 159280,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -764,11 +766,11 @@
       "glueBindingOffset": 255435,
       "glueImplOffset": 113960,
       "alias": "wasi_snapshot_preview1.fd_fdstat_get -> a.Jb",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": "1 of 2: ___sys_stat64 type#6 (i32,i32) -> i32"
     },
     {
@@ -780,11 +782,11 @@
       "glueBindingOffset": 255948,
       "glueImplOffset": 167424,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "asyncify",
       "rule": "^_emscripten_(async_)?wget\\d*_data$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the spill; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/asyncify.ts — the spill; see docs §18.3 — all 4 rows, via a synchronous `resolve` callback rather than the XHR/Asyncify unwinder",
       "duplicate": null
     },
     {
@@ -796,11 +798,11 @@
       "glueBindingOffset": 258115,
       "glueImplOffset": 213109,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -812,11 +814,11 @@
       "glueBindingOffset": 255504,
       "glueImplOffset": 158495,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -828,11 +830,11 @@
       "glueBindingOffset": 255341,
       "glueImplOffset": 92663,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -844,11 +846,11 @@
       "glueBindingOffset": 257510,
       "glueImplOffset": 207563,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -860,11 +862,11 @@
       "glueBindingOffset": 259194,
       "glueImplOffset": 239235,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_*llvm_eh_typeid_for$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": null
     },
     {
@@ -876,11 +878,11 @@
       "glueBindingOffset": 255548,
       "glueImplOffset": 159678,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -892,11 +894,11 @@
       "glueBindingOffset": 255395,
       "glueImplOffset": 93378,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -908,11 +910,11 @@
       "glueBindingOffset": 257314,
       "glueImplOffset": 206801,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -924,11 +926,11 @@
       "glueBindingOffset": 255567,
       "glueImplOffset": 159993,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -940,11 +942,11 @@
       "glueBindingOffset": 255303,
       "glueImplOffset": 91761,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -956,11 +958,11 @@
       "glueBindingOffset": 257248,
       "glueImplOffset": 206500,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -972,11 +974,11 @@
       "glueBindingOffset": 255823,
       "glueImplOffset": 166692,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_alc[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -988,11 +990,11 @@
       "glueBindingOffset": 255321,
       "glueImplOffset": 92464,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -1004,11 +1006,11 @@
       "glueBindingOffset": 255412,
       "glueImplOffset": 109929,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -1020,11 +1022,11 @@
       "glueBindingOffset": 255800,
       "glueImplOffset": 165033,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_alc[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1036,11 +1038,11 @@
       "glueBindingOffset": 254835,
       "glueImplOffset": 21968,
       "alias": "wasi_snapshot_preview1.clock_time_get -> a.Ob",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_*_?(clock|clock_gettime|localtime|localtime_r|gmtime|gmtime_r|tzset|difftime|time|mktime|strftime|strftime_l|usleep)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": "1 of 2: ___clock_gettime type#6 (i32,i32) -> i32"
     },
     {
@@ -1052,11 +1054,11 @@
       "glueBindingOffset": 259142,
       "glueImplOffset": 273821,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1068,11 +1070,11 @@
       "glueBindingOffset": 255851,
       "glueImplOffset": 166833,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_alc[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1084,11 +1086,11 @@
       "glueBindingOffset": 259234,
       "glueImplOffset": 239282,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_*_?(clock|clock_gettime|localtime|localtime_r|gmtime|gmtime_r|tzset|difftime|time|mktime|strftime|strftime_l|usleep)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -1100,11 +1102,11 @@
       "glueBindingOffset": 257115,
       "glueImplOffset": 197685,
       "alias": "wasi_snapshot_preview1.fd_close -> a.Q",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_(fd_write|fd_read|fd_close|fd_seek|open|close|read|write|seek|lseek|stat|lstat|fstat|fsync|getdents|ioctl|dup|dup2|chdir|getcwd|mkdir|rmdir|unlink|rename|fcntl|exit|environ_get|environ_sizes_get)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": "1 of 2: _fd_close type#23 (i32) -> i32"
     },
     {
@@ -1116,11 +1118,11 @@
       "glueBindingOffset": 255982,
       "glueImplOffset": 168798,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "asyncify",
       "rule": "^_emscripten_(async_)?wget\\d*_data$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the spill; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/asyncify.ts — the spill; see docs §18.3 — all 4 rows, via a synchronous `resolve` callback rather than the XHR/Asyncify unwinder",
       "duplicate": null
     },
     {
@@ -1132,11 +1134,11 @@
       "glueBindingOffset": 255376,
       "glueImplOffset": 93132,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -1148,11 +1150,11 @@
       "glueBindingOffset": 255674,
       "glueImplOffset": 162464,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1164,11 +1166,11 @@
       "glueBindingOffset": 258867,
       "glueImplOffset": 272237,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1180,11 +1182,11 @@
       "glueBindingOffset": 255227,
       "glueImplOffset": 89265,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -1196,11 +1198,11 @@
       "glueBindingOffset": 257207,
       "glueImplOffset": 206342,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1212,11 +1214,11 @@
       "glueBindingOffset": 256424,
       "glueImplOffset": 187410,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "runtime",
       "rule": "^_emscripten_(resize_heap|run_script|get_now|is_html|get_html|random|debug|asm_const)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling",
+      "owner": "landed: packages/runtime-artemis/src/host/runtime.ts — heap growth, thread bookkeeping, asm! marshalling — all 8 rows",
       "duplicate": null
     },
     {
@@ -1228,11 +1230,11 @@
       "glueBindingOffset": 255244,
       "glueImplOffset": 89530,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -1244,11 +1246,11 @@
       "glueBindingOffset": 257955,
       "glueImplOffset": 210504,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1260,11 +1262,11 @@
       "glueBindingOffset": 255473,
       "glueImplOffset": 114334,
       "alias": "env._Unwind_RaiseException -> a.Ta",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_?_*_(abort|assert_fail)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": "1 of 2: _abort type#1 () -> void"
     },
     {
@@ -1276,11 +1278,11 @@
       "glueBindingOffset": 255209,
       "glueImplOffset": 89090,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -1292,11 +1294,11 @@
       "glueBindingOffset": 257694,
       "glueImplOffset": 208992,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1308,11 +1310,11 @@
       "glueBindingOffset": 257424,
       "glueImplOffset": 207297,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1324,11 +1326,11 @@
       "glueBindingOffset": 257130,
       "glueImplOffset": 197870,
       "alias": "wasi_snapshot_preview1.fd_read -> a.Ub",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_(fd_write|fd_read|fd_close|fd_seek|open|close|read|write|seek|lseek|stat|lstat|fstat|fsync|getdents|ioctl|dup|dup2|chdir|getcwd|mkdir|rmdir|unlink|rename|fcntl|exit|environ_get|environ_sizes_get)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": "1 of 2: _fd_read type#2 (i32,i32,i32,i32) -> i32"
     },
     {
@@ -1340,11 +1342,11 @@
       "glueBindingOffset": 257105,
       "glueImplOffset": 197649,
       "alias": "wasi_snapshot_preview1.proc_exit -> a.V",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_(fd_write|fd_read|fd_close|fd_seek|open|close|read|write|seek|lseek|stat|lstat|fstat|fsync|getdents|ioctl|dup|dup2|chdir|getcwd|mkdir|rmdir|unlink|rename|fcntl|exit|environ_get|environ_sizes_get)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": "1 of 2: _exit type#17 (i32) -> void"
     },
     {
@@ -1356,11 +1358,11 @@
       "glueBindingOffset": 257827,
       "glueImplOffset": 209607,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1372,11 +1374,11 @@
       "glueBindingOffset": 255280,
       "glueImplOffset": 90423,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -1388,11 +1390,11 @@
       "glueBindingOffset": 257266,
       "glueImplOffset": 206582,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1404,11 +1406,11 @@
       "glueBindingOffset": 257859,
       "glueImplOffset": 209793,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1420,11 +1422,11 @@
       "glueBindingOffset": 257975,
       "glueImplOffset": 210594,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1436,11 +1438,11 @@
       "glueBindingOffset": 258050,
       "glueImplOffset": 211094,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1452,11 +1454,11 @@
       "glueBindingOffset": 258181,
       "glueImplOffset": 214964,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1468,11 +1470,11 @@
       "glueBindingOffset": 259389,
       "glueImplOffset": 248034,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "todo",
       "rule": "fallthrough",
       "todoReason": "system. No subprocesses in a browser tab. A call has to fail, not fork — and fail loudly, because a working port never reaches it.",
-      "owner": "packages/runtime-artemis/src/host/todo.ts (to be written) — deliberate no-ops, each with a reason",
+      "owner": "landed: packages/runtime-artemis/src/host/boot.ts — deliberate refusal: `_system` writes ENOSYS (52) into the guest errno slot and returns -1 — the only row is implemented, in boot.ts rather than a todo.ts of its own",
       "duplicate": null
     },
     {
@@ -1484,11 +1486,11 @@
       "glueBindingOffset": 257228,
       "glueImplOffset": 206399,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1500,11 +1502,11 @@
       "glueBindingOffset": 257290,
       "glueImplOffset": 206689,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1516,11 +1518,11 @@
       "glueBindingOffset": 257717,
       "glueImplOffset": 209199,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1532,11 +1534,11 @@
       "glueBindingOffset": 257624,
       "glueImplOffset": 208376,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1548,11 +1550,11 @@
       "glueBindingOffset": 257931,
       "glueImplOffset": 210389,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1564,11 +1566,11 @@
       "glueBindingOffset": 258444,
       "glueImplOffset": 235611,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_glfw",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1580,11 +1582,11 @@
       "glueBindingOffset": 257357,
       "glueImplOffset": 206960,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1596,11 +1598,11 @@
       "glueBindingOffset": 257907,
       "glueImplOffset": 210297,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1612,11 +1614,11 @@
       "glueBindingOffset": 256553,
       "glueImplOffset": 189193,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1628,11 +1630,11 @@
       "glueBindingOffset": 258846,
       "glueImplOffset": 272033,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1644,11 +1646,11 @@
       "glueBindingOffset": 258071,
       "glueImplOffset": 212369,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1660,11 +1662,11 @@
       "glueBindingOffset": 256934,
       "glueImplOffset": 194749,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1676,11 +1678,11 @@
       "glueBindingOffset": 257172,
       "glueImplOffset": 199135,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "runtime",
       "rule": "^_(get|set)TempRet0\\d*$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling",
+      "owner": "landed: packages/runtime-artemis/src/host/runtime.ts — heap growth, thread bookkeeping, asm! marshalling — all 8 rows",
       "duplicate": null
     },
     {
@@ -1692,11 +1694,11 @@
       "glueBindingOffset": 259166,
       "glueImplOffset": 274044,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1708,11 +1710,11 @@
       "glueBindingOffset": 257488,
       "glueImplOffset": 207489,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1724,11 +1726,11 @@
       "glueBindingOffset": 256507,
       "glueImplOffset": 188989,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1740,11 +1742,11 @@
       "glueBindingOffset": 254930,
       "glueImplOffset": 25585,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_*cxa_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": null
     },
     {
@@ -1756,11 +1758,11 @@
       "glueBindingOffset": 258889,
       "glueImplOffset": 273581,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1772,11 +1774,11 @@
       "glueBindingOffset": 258209,
       "glueImplOffset": 215051,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1788,11 +1790,11 @@
       "glueBindingOffset": 256459,
       "glueImplOffset": 188781,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1804,11 +1806,11 @@
       "glueBindingOffset": 258968,
       "glueImplOffset": 269688,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1820,11 +1822,11 @@
       "glueBindingOffset": 256095,
       "glueImplOffset": 181943,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1836,11 +1838,11 @@
       "glueBindingOffset": 257555,
       "glueImplOffset": 207808,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1852,11 +1854,11 @@
       "glueBindingOffset": 256732,
       "glueImplOffset": 192921,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1868,11 +1870,11 @@
       "glueBindingOffset": 259045,
       "glueImplOffset": 268999,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1884,11 +1886,11 @@
       "glueBindingOffset": 259402,
       "glueImplOffset": 248672,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_*_?(clock|clock_gettime|localtime|localtime_r|gmtime|gmtime_r|tzset|difftime|time|mktime|strftime|strftime_l|usleep)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -1900,11 +1902,11 @@
       "glueBindingOffset": 257455,
       "glueImplOffset": 207379,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1916,11 +1918,11 @@
       "glueBindingOffset": 256784,
       "glueImplOffset": 193140,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1932,11 +1934,11 @@
       "glueBindingOffset": 259029,
       "glueImplOffset": 270338,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1948,11 +1950,11 @@
       "glueBindingOffset": 257037,
       "glueImplOffset": 196090,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "asyncify",
       "rule": "^_emscripten_(async_)?wget\\d*_data$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the spill; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/asyncify.ts — the spill; see docs §18.3 — all 4 rows, via a synchronous `resolve` callback rather than the XHR/Asyncify unwinder",
       "duplicate": null
     },
     {
@@ -1964,11 +1966,11 @@
       "glueBindingOffset": 257469,
       "glueImplOffset": 207420,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -1980,11 +1982,11 @@
       "glueBindingOffset": 255903,
       "glueImplOffset": 167236,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_*_?(clock|clock_gettime|localtime|localtime_r|gmtime|gmtime_r|tzset|difftime|time|mktime|strftime|strftime_l|usleep)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -1996,11 +1998,11 @@
       "glueBindingOffset": 254963,
       "glueImplOffset": 26421,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_*cxa_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": null
     },
     {
@@ -2012,11 +2014,11 @@
       "glueBindingOffset": 255655,
       "glueImplOffset": 162296,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2028,11 +2030,11 @@
       "glueBindingOffset": 258586,
       "glueImplOffset": 237567,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_glfw",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2044,11 +2046,11 @@
       "glueBindingOffset": 256833,
       "glueImplOffset": 193353,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2060,11 +2062,11 @@
       "glueBindingOffset": 258746,
       "glueImplOffset": 269994,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2076,11 +2078,11 @@
       "glueBindingOffset": 258270,
       "glueImplOffset": 215531,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2092,11 +2094,11 @@
       "glueBindingOffset": 258162,
       "glueImplOffset": 214719,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2108,11 +2110,11 @@
       "glueBindingOffset": 256883,
       "glueImplOffset": 193568,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2124,11 +2126,11 @@
       "glueBindingOffset": 255162,
       "glueImplOffset": 25404,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_*resumeException$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": null
     },
     {
@@ -2140,11 +2142,11 @@
       "glueBindingOffset": 258361,
       "glueImplOffset": 216144,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2156,11 +2158,11 @@
       "glueBindingOffset": 258025,
       "glueImplOffset": 210800,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2172,11 +2174,11 @@
       "glueBindingOffset": 256991,
       "glueImplOffset": 195798,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2188,11 +2190,11 @@
       "glueBindingOffset": 258997,
       "glueImplOffset": 269837,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2204,11 +2206,11 @@
       "glueBindingOffset": 257795,
       "glueImplOffset": 209527,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2220,11 +2222,11 @@
       "glueBindingOffset": 258468,
       "glueImplOffset": 235679,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_glfw",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2236,11 +2238,11 @@
       "glueBindingOffset": 256684,
       "glueImplOffset": 191102,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2252,11 +2254,11 @@
       "glueBindingOffset": 258760,
       "glueImplOffset": 269172,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2268,11 +2270,11 @@
       "glueBindingOffset": 257999,
       "glueImplOffset": 210684,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2284,11 +2286,11 @@
       "glueBindingOffset": 258497,
       "glueImplOffset": 235891,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_glfw",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2300,11 +2302,11 @@
       "glueBindingOffset": 256634,
       "glueImplOffset": 190888,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2316,11 +2318,11 @@
       "glueBindingOffset": 259080,
       "glueImplOffset": 271170,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2332,11 +2334,11 @@
       "glueBindingOffset": 257402,
       "glueImplOffset": 207171,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2348,11 +2350,11 @@
       "glueBindingOffset": 258406,
       "glueImplOffset": 218858,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_glewInit$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2364,11 +2366,11 @@
       "glueBindingOffset": 256584,
       "glueImplOffset": 190674,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_emscripten_(get_canvas|get_device|enter_soft|exit_soft|get_element|set_)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2380,11 +2382,11 @@
       "glueBindingOffset": 258775,
       "glueImplOffset": 269516,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2396,11 +2398,11 @@
       "glueBindingOffset": 259013,
       "glueImplOffset": 271711,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2412,11 +2414,11 @@
       "glueBindingOffset": 258608,
       "glueImplOffset": 237624,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_glfw",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2428,11 +2430,11 @@
       "glueBindingOffset": 258631,
       "glueImplOffset": 237792,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_glfw",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2444,11 +2446,11 @@
       "glueBindingOffset": 258808,
       "glueImplOffset": 270150,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2460,11 +2462,11 @@
       "glueBindingOffset": 255359,
       "glueImplOffset": 92854,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -2476,11 +2478,11 @@
       "glueBindingOffset": 258536,
       "glueImplOffset": 237498,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_glfw",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2492,11 +2494,11 @@
       "glueBindingOffset": 258421,
       "glueImplOffset": 235491,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_glfw",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2508,11 +2510,11 @@
       "glueBindingOffset": 258791,
       "glueImplOffset": 269336,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2524,11 +2526,11 @@
       "glueBindingOffset": 255602,
       "glueImplOffset": 160864,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2540,11 +2542,11 @@
       "glueBindingOffset": 258288,
       "glueImplOffset": 215641,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2556,11 +2558,11 @@
       "glueBindingOffset": 258521,
       "glueImplOffset": 235978,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_glfw",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2572,11 +2574,11 @@
       "glueBindingOffset": 258931,
       "glueImplOffset": 270503,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2588,11 +2590,11 @@
       "glueBindingOffset": 258230,
       "glueImplOffset": 215202,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2604,11 +2606,11 @@
       "glueBindingOffset": 258324,
       "glueImplOffset": 215984,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2620,11 +2622,11 @@
       "glueBindingOffset": 258565,
       "glueImplOffset": 237539,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_glfw",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2636,11 +2638,11 @@
       "glueBindingOffset": 254815,
       "glueImplOffset": 21112,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_?_*_(abort|assert_fail)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": null
     },
     {
@@ -2652,11 +2654,11 @@
       "glueBindingOffset": 257646,
       "glueImplOffset": 208579,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2668,11 +2670,11 @@
       "glueBindingOffset": 258342,
       "glueImplOffset": 216073,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2684,11 +2686,11 @@
       "glueBindingOffset": 259357,
       "glueImplOffset": 241368,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_*_?(clock|clock_gettime|localtime|localtime_r|gmtime|gmtime_r|tzset|difftime|time|mktime|strftime|strftime_l|usleep)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -2700,11 +2702,11 @@
       "glueBindingOffset": 254886,
       "glueImplOffset": 24647,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_*cxa_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": null
     },
     {
@@ -2716,11 +2718,11 @@
       "glueBindingOffset": 257598,
       "glueImplOffset": 208129,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2732,11 +2734,11 @@
       "glueBindingOffset": 257576,
       "glueImplOffset": 207932,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2748,11 +2750,11 @@
       "glueBindingOffset": 258945,
       "glueImplOffset": 273014,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2764,11 +2766,11 @@
       "glueBindingOffset": 259062,
       "glueImplOffset": 270644,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2780,11 +2782,11 @@
       "glueBindingOffset": 258096,
       "glueImplOffset": 212658,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2796,11 +2798,11 @@
       "glueBindingOffset": 257383,
       "glueImplOffset": 207043,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2812,11 +2814,11 @@
       "glueBindingOffset": 258651,
       "glueImplOffset": 272850,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2828,11 +2830,11 @@
       "glueBindingOffset": 258683,
       "glueImplOffset": 271555,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2844,11 +2846,11 @@
       "glueBindingOffset": 258389,
       "glueImplOffset": 216282,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2860,11 +2862,11 @@
       "glueBindingOffset": 257888,
       "glueImplOffset": 210212,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2876,11 +2878,11 @@
       "glueBindingOffset": 258715,
       "glueImplOffset": 272662,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2892,11 +2894,11 @@
       "glueBindingOffset": 254856,
       "glueImplOffset": 22151,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_*cxa_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": null
     },
     {
@@ -2908,11 +2910,11 @@
       "glueBindingOffset": 258142,
       "glueImplOffset": 213546,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2924,11 +2926,11 @@
       "glueBindingOffset": 257190,
       "glueImplOffset": 199182,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_getaddrinfo$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -2940,11 +2942,11 @@
       "glueBindingOffset": 259120,
       "glueImplOffset": 272449,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2956,11 +2958,11 @@
       "glueBindingOffset": 258982,
       "glueImplOffset": 271876,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2972,11 +2974,11 @@
       "glueBindingOffset": 257533,
       "glueImplOffset": 207664,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -2988,11 +2990,11 @@
       "glueBindingOffset": 254997,
       "glueImplOffset": 27257,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_*cxa_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": null
     },
     {
@@ -3004,11 +3006,11 @@
       "glueBindingOffset": 255638,
       "glueImplOffset": 161988,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -3020,11 +3022,11 @@
       "glueBindingOffset": 255076,
       "glueImplOffset": 28407,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_*cxa_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": null
     },
     {
@@ -3036,11 +3038,11 @@
       "glueBindingOffset": 257674,
       "glueImplOffset": 208836,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -3052,11 +3054,11 @@
       "glueBindingOffset": 258914,
       "glueImplOffset": 274317,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -3068,11 +3070,11 @@
       "glueBindingOffset": 255768,
       "glueImplOffset": 164319,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -3084,11 +3086,11 @@
       "glueBindingOffset": 258733,
       "glueImplOffset": 271022,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -3100,11 +3102,11 @@
       "glueBindingOffset": 257759,
       "glueImplOffset": 209390,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -3116,11 +3118,11 @@
       "glueBindingOffset": 257144,
       "glueImplOffset": 198118,
       "alias": "wasi_snapshot_preview1.fd_seek -> a.xb",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_(fd_write|fd_read|fd_close|fd_seek|open|close|read|write|seek|lseek|stat|lstat|fstat|fsync|getdents|ioctl|dup|dup2|chdir|getcwd|mkdir|rmdir|unlink|rename|fcntl|exit|environ_get|environ_sizes_get)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": "1 of 2: _fd_seek type#7 (i32,i32,i32,i32,i32) -> i32"
     },
     {
@@ -3132,11 +3134,11 @@
       "glueBindingOffset": 255720,
       "glueImplOffset": 163617,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -3148,11 +3150,11 @@
       "glueBindingOffset": 259099,
       "glueImplOffset": 270825,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3",
+      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
       "duplicate": null
     },
     {
@@ -3164,11 +3166,11 @@
       "glueBindingOffset": 257780,
       "glueImplOffset": 209484,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_gl[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -3180,11 +3182,11 @@
       "glueBindingOffset": 256367,
       "glueImplOffset": 186529,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "asyncify",
       "rule": "explicit:yb",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/asyncify.ts (to be written) — the spill; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/asyncify.ts — the spill; see docs §18.3 — all 4 rows, via a synchronous `resolve` callback rather than the XHR/Asyncify unwinder",
       "duplicate": null
     },
     {
@@ -3196,11 +3198,11 @@
       "glueBindingOffset": 255693,
       "glueImplOffset": 162631,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "gl",
       "rule": "^_al[A-Z]",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim",
+      "owner": "planned: packages/runtime-artemis/src/host/gl.ts — the real WebGL2 context, forwarded verbatim — not started; 99 rows",
       "duplicate": null
     },
     {
@@ -3212,11 +3214,11 @@
       "glueBindingOffset": 255030,
       "glueImplOffset": 24960,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_*cxa_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": null
     },
     {
@@ -3228,11 +3230,11 @@
       "glueBindingOffset": 255057,
       "glueImplOffset": 28093,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_*cxa_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": null
     },
     {
@@ -3244,11 +3246,11 @@
       "glueBindingOffset": 256395,
       "glueImplOffset": 186843,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "runtime",
       "rule": "^_emscripten_(resize_heap|run_script|get_now|is_html|get_html|random|debug|asm_const)",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling",
+      "owner": "landed: packages/runtime-artemis/src/host/runtime.ts — heap growth, thread bookkeeping, asm! marshalling — all 8 rows",
       "duplicate": null
     },
     {
@@ -3260,11 +3262,11 @@
       "glueBindingOffset": 255871,
       "glueImplOffset": 167122,
       "alias": null,
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_*_?(clock|clock_gettime|localtime|localtime_r|gmtime|gmtime_r|tzset|difftime|time|mktime|strftime|strftime_l|usleep)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": null
     },
     {
@@ -3276,11 +3278,11 @@
       "glueBindingOffset": 257158,
       "glueImplOffset": 198885,
       "alias": "wasi_snapshot_preview1.fd_write -> a.Ea",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_(fd_write|fd_read|fd_close|fd_seek|open|close|read|write|seek|lseek|stat|lstat|fstat|fsync|getdents|ioctl|dup|dup2|chdir|getcwd|mkdir|rmdir|unlink|rename|fcntl|exit|environ_get|environ_sizes_get)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": "1 of 2: _fd_write type#2 (i32,i32,i32,i32) -> i32"
     },
     {
@@ -3292,11 +3294,11 @@
       "glueBindingOffset": 257130,
       "glueImplOffset": 197870,
       "alias": "wasi_snapshot_preview1.fd_read -> a.Ub",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_(fd_write|fd_read|fd_close|fd_seek|open|close|read|write|seek|lseek|stat|lstat|fstat|fsync|getdents|ioctl|dup|dup2|chdir|getcwd|mkdir|rmdir|unlink|rename|fcntl|exit|environ_get|environ_sizes_get)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": "1 of 2: _fd_read type#2 (i32,i32,i32,i32) -> i32"
     },
     {
@@ -3308,11 +3310,11 @@
       "glueBindingOffset": 255473,
       "glueImplOffset": 114334,
       "alias": "env._Unwind_RaiseException -> a.Ta",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_?_*_(abort|assert_fail)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": "1 of 2: _abort type#23 (i32) -> i32"
     },
     {
@@ -3324,11 +3326,11 @@
       "glueBindingOffset": 254835,
       "glueImplOffset": 21968,
       "alias": "wasi_snapshot_preview1.clock_time_get -> a.Ob",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_*_?(clock|clock_gettime|localtime|localtime_r|gmtime|gmtime_r|tzset|difftime|time|mktime|strftime|strftime_l|usleep)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": "1 of 2: ___clock_gettime type#56 (i32,i64,i32) -> i32"
     },
     {
@@ -3340,11 +3342,11 @@
       "glueBindingOffset": 257105,
       "glueImplOffset": 197649,
       "alias": "wasi_snapshot_preview1.proc_exit -> a.V",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_(fd_write|fd_read|fd_close|fd_seek|open|close|read|write|seek|lseek|stat|lstat|fstat|fsync|getdents|ioctl|dup|dup2|chdir|getcwd|mkdir|rmdir|unlink|rename|fcntl|exit|environ_get|environ_sizes_get)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": "1 of 2: _exit type#17 (i32) -> void"
     },
     {
@@ -3356,11 +3358,11 @@
       "glueBindingOffset": 257115,
       "glueImplOffset": 197685,
       "alias": "wasi_snapshot_preview1.fd_close -> a.Q",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_(fd_write|fd_read|fd_close|fd_seek|open|close|read|write|seek|lseek|stat|lstat|fstat|fsync|getdents|ioctl|dup|dup2|chdir|getcwd|mkdir|rmdir|unlink|rename|fcntl|exit|environ_get|environ_sizes_get)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": "1 of 2: _fd_close type#23 (i32) -> i32"
     },
     {
@@ -3372,11 +3374,11 @@
       "glueBindingOffset": 257144,
       "glueImplOffset": 198118,
       "alias": "wasi_snapshot_preview1.fd_seek -> a.xb",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^_(fd_write|fd_read|fd_close|fd_seek|open|close|read|write|seek|lseek|stat|lstat|fstat|fsync|getdents|ioctl|dup|dup2|chdir|getcwd|mkdir|rmdir|unlink|rename|fcntl|exit|environ_get|environ_sizes_get)$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": "1 of 2: _fd_seek type#57 (i32,i64,i32,i32) -> i32"
     },
     {
@@ -3388,11 +3390,11 @@
       "glueBindingOffset": 255435,
       "glueImplOffset": 113960,
       "alias": "wasi_snapshot_preview1.fd_fdstat_get -> a.Jb",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "fd",
       "rule": "^___sys_",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock",
+      "owner": "landed: packages/runtime-artemis/src/host/fd.ts — @online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each",
       "duplicate": "1 of 2: ___sys_stat64 type#6 (i32,i32) -> i32"
     },
     {
@@ -3404,11 +3406,11 @@
       "glueBindingOffset": 256342,
       "glueImplOffset": 186470,
       "alias": "env._emscripten_throw_longjmp -> a.I",
-      "forwarded": "yes",
+      "forwarded": "-",
       "bucket": "eh",
       "rule": "^_emscripten_longjmp$",
       "todoReason": null,
-      "owner": "packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value",
+      "owner": "landed: packages/runtime-artemis/src/host/eh.ts — throw/abort, never a return value — all 17 rows over 15 export keys",
       "duplicate": "1 of 2: _emscripten_longjmp type#1 () -> void"
     }
   ]

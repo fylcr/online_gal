@@ -29,7 +29,7 @@
 // the classification.  Without it the `forwarded` column reads `-` and the table still
 // stands on the wasm import section plus the glue.
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, resolve, relative, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -213,7 +213,19 @@ function readGlueImports(js) {
     defs.set(fn, { form: null, offset: -1 });
   }
 
-  return { importModule, bindings, defs, bytes: js.length, objectStart: bodyStart, objectEnd: end };
+  // The glue is an INPUT, not a constant: two builds of the same engine differ by a couple
+  // of bytes in their embedded package table, which shifts every offset in this file.  The
+  // glue's own identity has to travel with the table, or a validator handed a different
+  // variant reports 207+198 "bad" offsets with no hint of the real cause.
+  return {
+    importModule,
+    bindings,
+    defs,
+    bytes: js.length,
+    sha256: createHash('sha256').update(js).digest('hex'),
+    objectStart: bodyStart,
+    objectEnd: end,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -362,17 +374,66 @@ function classify(name, fn) {
 // ---------------------------------------------------------------------------
 // Where a modern host should put each implementation
 //
-// This is a recommendation, not a measurement: it is the module this repository already
-// has, named per bucket, so that every row has a place to land rather than a shrug.
+// The `status` is a measurement, not an intention. It is written by hand only after
+// the module exists and its export count is checked against the row count, and it is
+// deliberately blunt: "planned" means there is no code, and a bucket whose module
+// exists but covers only part of its rows says which part.
+//
+// The first draft of this table said "(to be written)" on all seven buckets, which is
+// exactly the kind of claim that goes stale: five of the seven had landed by the time
+// anyone looked, and nobody could tell from the table which. A generated map that lies
+// about the host is worse than no map.
+//
+// `port` stays a path even where the module is only planned, because the path is the
+// bucket's agreed home whether or not the file is there yet.
 // ---------------------------------------------------------------------------
 const OWNER = {
-  gl: 'packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim',
-  fd: 'packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock',
-  asyncify: 'packages/runtime-artemis/src/host/asyncify.ts (to be written) — the spill; see docs §18.3',
-  async: 'packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3',
-  eh: 'packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value',
-  runtime: 'packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling',
-  todo: 'packages/runtime-artemis/src/host/todo.ts (to be written) — deliberate no-ops, each with a reason',
+  gl: {
+    status: 'planned',
+    port: 'packages/runtime-artemis/src/host/gl.ts',
+    note: 'the real WebGL2 context, forwarded verbatim — not started; 99 rows',
+  },
+  fd: {
+    status: 'landed',
+    port: 'packages/runtime-artemis/src/host/fd.ts',
+    note: '@online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each',
+  },
+  asyncify: {
+    status: 'landed',
+    port: 'packages/runtime-artemis/src/host/asyncify.ts',
+    note: 'the spill; see docs §18.3 — all 4 rows, via a synchronous `resolve` callback rather than the XHR/Asyncify unwinder',
+  },
+  async: {
+    status: 'planned',
+    port: 'packages/runtime-artemis/src/host/async.ts',
+    note: 'the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3',
+  },
+  eh: {
+    status: 'landed',
+    port: 'packages/runtime-artemis/src/host/eh.ts',
+    note: 'throw/abort, never a return value — all 17 rows over 15 export keys',
+  },
+  runtime: {
+    status: 'landed',
+    port: 'packages/runtime-artemis/src/host/runtime.ts',
+    note: 'heap growth, thread bookkeeping, asm! marshalling — all 8 rows',
+  },
+  todo: {
+    status: 'landed',
+    port: 'packages/runtime-artemis/src/host/boot.ts',
+    note: 'deliberate refusal: `_system` writes ENOSYS (52) into the guest errno slot and returns -1 — the only row is implemented, in boot.ts rather than a todo.ts of its own',
+  },
+};
+
+/**
+ * One cell's worth of owner text, in a form a reader can act on: what state it is in
+ * first, then the path, then the detail. A bare path is the failure mode here — it
+ * reads as "done" whether or not any code exists.
+ */
+const ownerText = (bucket) => {
+  const o = OWNER[bucket];
+  if (!o) return `unknown bucket \`${bucket}\``;
+  return `${o.status}: ${o.port} — ${o.note}`;
 };
 
 // ---------------------------------------------------------------------------
@@ -427,7 +488,7 @@ function buildRows(args) {
       bucket,
       rule,
       todoReason,
-      owner: OWNER[bucket],
+      owner: ownerText(bucket),
       duplicate: null,
     };
   });
@@ -587,6 +648,8 @@ function renderMarkdown(model, args) {
   L.push(`| glue object | \`var asmLibraryArg={\` at byte ${glue.objectStart}, ${glue.objectEnd - glue.objectStart} bytes, ${glue.bindings.size} bindings |`);
   L.push(`| module bytes | ${model.bytes} |`);
   L.push(`| module sha256 | \`${model.wasmSha256}\` |`);
+  L.push(`| glue bytes | ${glue.bytes} |`);
+  L.push(`| glue sha256 | \`${glue.sha256}\` |`);
   L.push(`| import entries decoded | ${imports.length} (${funcImports.length} func + ${otherImports.length} other) |`);
   L.push('');
   L.push('Regenerate:');
@@ -614,6 +677,8 @@ function renderJson(model) {
       otherImports: otherImports.map((e) => ({ module: e.module, name: e.name, kind: e.kind, limits: e.limits ?? null })),
       moduleBytes: bytes,
       moduleSha256: model.wasmSha256,
+      glueBytes: glue.bytes,
+      glueSha256: glue.sha256,
     },
     importModule: glue.importModule,
     glueObjectSpan: [glue.objectStart, glue.objectEnd],
@@ -685,6 +750,24 @@ function main() {
     process.exit(1);
   }
 
+  // A bucket whose row count the owner table never mentions is the other half of that rot:
+  // a claim about coverage that no number in the output can contradict. Every bucket that
+  // has rows must appear in the owner note, so "41 of the 48" cannot quietly become "all of
+  // them" without the count going missing.
+  const noteByBucket = new Map(
+    Object.entries(OWNER).map(([bucket, o]) => [bucket, `${o.status}: ${o.port} — ${o.note}`]),
+  );
+  const unowned = [...new Set(model.rows.map((r) => r.bucket))].filter((b) => !noteByBucket.has(b));
+  if (unowned.length) {
+    process.stderr.write(`refusing to emit: no OWNER entry for bucket(s) ${unowned.join(', ')}\n`);
+    process.exit(1);
+  }
+  const claimed = [...new Set(model.rows.map((r) => r.bucket))].filter((b) => !OWNER[b].note.includes(String(model.rows.filter((x) => x.bucket === b).length)));
+  if (claimed.length) {
+    process.stderr.write(`refusing to emit: the OWNER note for ${claimed.join(', ')} does not state its own row count — a coverage claim that no number can check\n`);
+    process.exit(1);
+  }
+
   // And the same again for the rules: a rule that matches nothing is a name this build
   // asked for under a spelling nobody anticipated, which is a row riding the fallthrough.
   const ruleHits = new Map(RULES.map(([re, bucket]) => [re, 0]));
@@ -700,6 +783,10 @@ function main() {
 
   const md = renderMarkdown(model, args);
   const json = renderJson(model);
+  // Creating the output directory is part of honouring --out-dir: the caller asked for the
+  // table to land THERE, and a bare ENOENT from writeFileSync makes it look like the flag
+  // was rejected rather than that a directory was missing.
+  mkdirSync(args.outDir, { recursive: true });
   writeFileSync(resolve(args.outDir, 'imports-map.md'), md, 'utf8');
   writeFileSync(resolve(args.outDir, 'imports-map.json'), json, 'utf8');
 

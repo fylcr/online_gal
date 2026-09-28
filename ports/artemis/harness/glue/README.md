@@ -100,8 +100,30 @@ node ports/artemis/harness/glue/verify-imports-map.mjs \
   --md   ports/artemis/harness/glue/imports-map.md
 ```
 
-24 checks; all must pass. The checker is committed beside the table it checks, and it reads
+26 checks; all must pass. The checker is committed beside the table it checks, and it reads
 the wasm and the glue itself rather than trusting anything the generator wrote.
+
+### The glue is an input, not a constant
+
+Two builds of the same engine are not byte-identical. The vendor SDK copy of `artemis.js`
+and a deployed build differ by two bytes in an embedded package table, which shifts **every**
+offset in the table by the same two bytes. The generated table therefore records the sha256 of
+both the module and the glue it was made from (`totals.moduleSha256`, `totals.glueSha256`),
+and the checker refuses up front when handed a different pair — one line naming both files,
+instead of 405 "bad offset" lines that read like a corrupt table.
+
+So a failed identity check is not a defect in the table. Regenerate it for the inputs you
+actually have:
+
+```sh
+node ports/artemis/harness/glue/imports-map.mjs \
+  --wasm   <artifact-dir>/dist/artemis-bridge/build/bridge.wasm \
+  --glue   <the artemis.js you are reading> \
+  --aliases <artifact-dir>/dist/artemis-bridge/build/runtime-imports.json \
+  --out-dir <where you want it>
+```
+
+`--out-dir` creates the directory if it does not exist.
 
 ## Reading a row
 
