@@ -28,13 +28,15 @@ on:
       # changes the released bytes. Judged by "is it inside the published artifact", not "does it get
       # compiled". Note the engine bytes are NOT in this package (see the `package-dir` comment
       # below), so `dist/krkr` edits still come from `ports/krkr/**` and this list is purely the
-      # TypeScript half of the release.
+      # TypeScript half of the release. `pnpm-lock.yaml` is in the list for the same reason it is in
+      # ONS's: the tarball's `dist/` is compiled by the TypeScript version the lockfile pins.
       - '.github/scripts/make-package.mjs'
       - 'packages/runtime-kag/**'
       - 'packages/engine-api/**'
       - 'packages/vfs/**'
       - 'packages/image-codec/**'
       - 'packages/player-host/**'
+      - 'pnpm-lock.yaml'
       - 'LICENSE'
       - 'THIRD_PARTY_NOTICES.md'
   pull_request:

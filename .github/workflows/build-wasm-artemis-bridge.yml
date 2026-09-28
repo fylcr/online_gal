@@ -71,11 +71,14 @@ on:
       # compiled": the earlier `8845051` BOM sweep touched only files outside every artifact's
       # closure and correctly triggered no run, whereas `src/` edits are all shipped -- `src/` is
       # in the tarball because every exports map routes `types` to source, and because GPL-3.0
-      # §5(b) requires the corresponding source to travel with the work.
+      # §5(b) requires the corresponding source to travel with the work. `pnpm-lock.yaml` is in the
+      # list for the same reason it is in ONS's: the tarball's `dist/` is compiled by the TypeScript
+      # version the lockfile pins.
       - '.github/scripts/make-package.mjs'
       - 'packages/runtime-artemis/**'
       - 'packages/engine-api/**'
       - 'packages/vfs/**'
+      - 'pnpm-lock.yaml'
       - 'LICENSE'
       - 'THIRD_PARTY_NOTICES.md'
       # NOT 'ports/lib/engine-artifacts.json'. That file records what the publish step

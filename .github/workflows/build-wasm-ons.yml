@@ -107,9 +107,10 @@ jobs:
       release-tag: engine-ons-0.7.7beta
       # Packaging is what makes the build output consumable. A consumer runs
       # `pnpm add https://github.com/fylcr/online_gal/releases/download/<tag>/online-gal-runtime-ons-<version>.tgz`
-      # and gets a runtime that needs no Emscripten SDK and no wasm build of its own. This is the
-      # first engine wired up; `krkr` and the rest follow once this path is proven, and an engine
-      # with no `package-dir` still builds and publishes exactly as before.
+      # and gets a runtime that needs no Emscripten SDK and no wasm build of its own. Each engine
+      # sets its own `package-dir`, so packaging is opt-in per engine and an engine with none
+      # still builds and publishes exactly as before. `krkr` and the Artemis bridge are wired the
+      # same way; see `package-dir` in each of those workflows for what is specific to them.
       package-dir: packages/runtime-ons
       # ONScripter is the one engine whose runtime reads its engine files out of the package:
       # `dist/wasm-runtime.js` resolves them as `new URL('../assets/', import.meta.url)` — that

@@ -210,19 +210,40 @@ extracted tarball equals `sha256sum LICENSE` in a clone of the project.
 ### The tarball is reproducible
 
 Two runs over the same inputs produce byte-identical archives (`sha256` equal), because the build
-pins the six things that vary by default: every entry's mtime is `--mtime=@498073600` (1985-10-26,
+pins the seven things that vary by default: every entry's mtime is `--mtime=@498073600` (1985-10-26,
 the earliest a zip can represent), entries are `--sort=name` so filesystem readdir order cannot leak
 in, owner/group are forced to `0`, file and directory modes are normalized to `0644`/`0755` before
-`tar` reads them, and the gzip header has both its timestamp (`mtime: 0`) and its OS byte (3) pinned.
+`tar` reads them, text files are normalized to LF before `tar` reads them, and the gzip header has
+both its timestamp (`mtime: 0`) and its OS byte (3) pinned.
 
-The last three are not theoretical. The first two builds of this package were byte-identical on a
-laptop and **one byte apart** on a runner: `actions/upload-artifact` preserves the mode of the file
+The last four are not theoretical, and each of them was a real mismatch between a build on a
+laptop and the same build on a runner. The first two builds of this package were byte-identical on
+a laptop and **one byte apart** on a runner: `actions/upload-artifact` preserves the mode of the file
 as it sits on the runner, so the `--assets-from` copy of `assets/onsyuri.wasm` arrived as `0755`
 while the same bytes fetched by curl locally are `0644`. The extracted trees were identical — 209
 files, byte for byte — and the entire difference was the mode field in one tar header. The gzip OS
 byte leaked the same way, because zlib writes the *host's* OS there (0x03 on Unix, 0x0a on Windows
 Node) and nothing in the archive depends on it. So the modes are taken from nowhere: the staged tree
 is normalized before `tar` runs, and the umask of whoever ran the build never reaches the archive.
+
+Line endings leaked last, and it was the only one of the four that `git status` cannot see. This
+repository is `* text=auto eol=lf` with `core.autocrlf=true`, so the blob in git is LF while a
+developer's worktree is CRLF — and git reports that worktree as *clean*, because it compares the
+blob after applying the same conversion. Copying a working-tree file into the archive therefore
+copies the **developer's** line endings, not the repository's. The published
+`@online-gal/runtime-ons` 0.1.2 and a local build of the same commit disagreed by 186 bytes, and the
+only file that differed was the licence: 35,149 B on CI, 35,823 B locally, exactly 674 bytes larger,
+and 674 is that file's line count. One CR per line, nothing else. Both archives listed the same 233
+entries, so it was diagnosable — but every machine that happened to check out with CRLF would have
+produced a different `.tgz` for a repository state that had not changed at all.
+
+So text files are normalized to LF on the same principle the modes are: LF is the repository's
+canonical form, and a worktree's line endings are a property of the machine, not an input. Two
+guards keep the rule from eating data. `package/assets/` is skipped entirely, because those engine
+artefacts are committed CRLF and their exact bytes are pinned by hash in `ports/lib/engine-artifacts.json`.
+A file containing a NUL byte is treated as binary and left alone. `--json` reports how many files a
+given run rewrote as `normalizedLineEndings`: non-zero on a Windows worktree, zero in CI, same
+archive either way — and a non-zero value *in CI* means a CRLF file got committed.
 
 Verified locally:
 
@@ -235,20 +256,24 @@ cmp /tmp/a/online-gal-runtime-ons-0.1.2.tgz /tmp/b/online-gal-runtime-ons-0.1.2.
 
 There is one limit worth stating plainly, because it is the difference between a content change and
 a toolchain change. A `.tgz` is produced by two programs: GNU tar writes the headers, and whatever
-zlib the host links to produces the deflate stream. Pinning the six inputs above removes the ambient
-variation — clock, readdir order, uid, umask, host OS — but it cannot pin a future zlib's match
-search. So the script also reports the sha256 of the **uncompressed tar stream** (`tarSha256` via
-`--json`), and that is the number to compare across machines. A `tarSha256` mismatch is a content
-change. A `tarSha256` match with a differing `.tgz` sha256 is a toolchain difference, not a
-regression.
+zlib the host links to produces the deflate stream. Pinning the seven inputs above removes the ambient
+variation — clock, readdir order, uid, umask, checkout line endings, host OS — but it cannot pin a
+future zlib's match search. So the script also reports the sha256 of the **uncompressed tar stream**
+(`tarSha256` via `--json`), and that is the number to compare across machines. A `tarSha256` mismatch
+is a content change. A `tarSha256` match with a differing `.tgz` sha256 is a toolchain difference,
+not a regression.
 
-In practice, after pinning the mode and the OS byte, the `.tgz` itself matched across toolchains:
-the same script on Windows/Node 26 and on Linux/Node 22.14.0 with GNU tar 1.35 produced the same
-`2,139,136 B` archive with sha256 `54f40d0c…`. The two pins are what made that possible; with
-`normalizeModes` disabled the same two runs differ, and on a filesystem that reports `777` for every
-file (a 9p mount, for instance) the tarball picks up `-rwxrwxrwx` on 205 of its 209 files. That
-regression is checked by packing once from a `0644` source and once from a `0755` one and comparing,
-not by trusting that `chmod` on the build machine did nothing.
+Two claims, and it is worth keeping them apart. **Same checkout, different toolchains**: the same
+script on Windows/Node 26 and on Linux/Node 22.14.0 with GNU tar 1.35 produced the same `.tgz`. That
+was measured, and the mode and OS-byte pins are what made it possible — with `normalizeModes`
+disabled the same two runs differ, and on a filesystem that reports `777` for every file (a 9p
+mount, for instance) the tarball picks up `-rwxrwxrwx` on 205 of its 209 files. **Different
+checkouts, different machines**: this is the claim the line-ending rule buys, and until that rule
+existed it was silently false — the earlier cross-toolchain run read the *same* CRLF worktree through
+WSL, so it could never have detected the difference. The anchor for the second claim is the
+published artifact, built from CI's LF checkout: `online-gal-runtime-ons-0.1.2.tgz` is
+**2,156,973 B**, sha256 `633edee6748c3fe…`, and its uncompressed tar stream is **6,389,760 B**,
+sha256 `ced5707a182c9…`. A local build on a CRLF worktree now reproduces both numbers exactly.
 
 ### Licensing: GPL-3.0 propagates
 

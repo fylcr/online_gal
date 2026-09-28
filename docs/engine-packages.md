@@ -181,6 +181,15 @@ runtime packages come in as its vendored `node_modules/`, so `import { selectEng
 `docs/fetch-engine-artifacts.md` for the tarball format, the reproducibility guarantees, and the
 token a consumer needs on this private repository.
 
+One consequence of that vendoring is worth knowing before it surprises someone. The aggregate
+package's copy of `runtime-ons` is the one committed in this repository, engine bytes included, and
+those four asset files are byte-identical to what `ports/lib/engine-artifacts.json` records today
+(`onsyuri.html` 24,399 B, `onsyuri.js` 198,947 B, `onsyuri.wasm` 4,660,610 B). So the two packages
+agree as things stand. They take the bytes from different places, though: the aggregate has no
+`--assets-from`, so it takes whatever is committed, while `@online-gal/runtime-ons` takes the fresh
+build. Rebuild ONS and then either commit the new assets or bump both packages together — otherwise
+the aggregate would keep shipping the previous engine under a version that claims otherwise.
+
 ### GPL-3.0-or-later
 
 Every package in the workspace — including this one — is `private: true` and licensed

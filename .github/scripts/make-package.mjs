@@ -66,7 +66,7 @@
  * WHY THE TARBALL IS BYTE-STABLE
  *
  * Two runs over the same inputs must produce the same bytes, or every rebuild looks like a content
- * change and the idempotence claim is untestable. Six things vary by default and all six are
+ * change and the idempotence claim is untestable. Seven things vary by default and all seven are
  * pinned here:
  *
  *   * mtime  -- `--mtime=@SOURCE_DATE_EPOCH` (default 1985-10-26T08:00:00Z, the earliest a zip
@@ -76,6 +76,9 @@
  *               otherwise differ between a runner and a laptop
  *   * mode   -- normalized to 0644 for files and 0755 for directories before `tar` runs, because
  *               tar records the mode of the file it found. See "MODES ARE ENVIRONMENT, NOT INPUT".
+ *   * line endings -- normalized to LF in text files before `tar` runs, because the checkout's
+ *               line endings belong to whoever checked it out, not to the repository. See "LINE
+ *               ENDINGS ARE THE CHECKOUT, NOT THE REPOSITORY".
  *   * gzip timestamp -- `mtime: 0` below, since zlib otherwise records the current time in the
  *               gzip header. This is the one piece `tar -czf` gets wrong: two runs in a row yield
  *               two different files even when the tar stream inside is identical.
@@ -84,16 +87,23 @@
  *
  * WHAT "REPRODUCIBLE" ACTUALLY MEANS HERE
  *
- * The `.tgz` is byte-identical only within one toolchain. `.tgz` is the product of two programs:
- * GNU tar lays out the headers, and whatever zlib the host links to produces the deflate stream.
- * Pinning the inputs above removes the *ambient* variation -- clock, filesystem order, uid, umask,
- * host OS -- but it cannot pin the tar implementation's header padding or a future zlib's match
- * search. So this script reports two numbers:
+ * Two claims, which used to be confused with each other:
  *
- *   * the sha256 of the **uncompressed tar stream** (`tarSha256`), which is what this script fully
- *     controls and what should be compared across machines, and
+ *   * **Same checkout, different toolchains** -- Windows/Node 26 and Linux/Node 22 running this
+ *     script over one working tree produce the same tar stream. This was measured.
+ *   * **Different checkouts, different machines** -- a developer's CRLF worktree and the runner's
+ *     LF checkout of one commit produce the same tar stream. This is what the line-ending rule
+ *     buys, and it is the claim that actually matters, because it is the one that says "rebuilding
+ *     on a clean CI machine is not a content change". Until that rule existed the second claim was
+ *     silently false, and the LICENSE leak below is the proof.
+ *
+ * The `.tgz` additionally depends on the compressor, and no pinning inside this script can reach
+ * into a future zlib's match search. So this script reports two numbers:
+ *
+ *   * the sha256 of the **uncompressed tar stream** (`tarSha256`), which is the cross-machine
+ *     invariant, and
  *   * the sha256 of the `.tgz` (the `sha256` line), which should be compared against another run of
- *     *this* script.
+ *     *this* script on a comparable toolchain.
  *
  * A `tarSha256` mismatch is a content change. A `tarSha256` match with a `.tgz` mismatch is a
  * toolchain difference, and is not a regression.
@@ -184,7 +194,20 @@ const packageDir = resolve(repoRoot, options.packageDir);
 const manifestPath = join(packageDir, 'package.json');
 if (!existsSync(manifestPath)) fail(2, `no package.json in ${packageDir}`);
 
-const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+const manifestBytes = readFileSync(manifestPath);
+// A UTF-8 BOM is not valid JSON, and `JSON.parse` would report it as a syntax error several
+// characters into the file rather than where the problem actually is. Worse, the failure would
+// surface as "this manifest is broken" on one machine, while a checkout that stripped it would
+// package fine -- so it would read as flakiness. JSON forbids a BOM; every manifest in this
+// repository is BOM-free, so a BOM means somebody hand-edited the file with a tool that adds one.
+// Fail loudly and name the fix instead of silently stripping it: stripping would hide the fact
+// that the repository's byte identity depends on these files being byte-exact.
+if (manifestBytes[0] === 0xef && manifestBytes[1] === 0xbb && manifestBytes[2] === 0xbf) {
+  fail(2, `${manifestPath} starts with a UTF-8 BOM (ef bb bf). JSON does not allow one, and every
+  manifest in this repository is BOM-free -- this means the source file needs fixing, not this
+  script. Re-save it without the BOM, then commit that.`);
+}
+const manifest = JSON.parse(manifestBytes.toString('utf8'));
 if (!manifest.name) fail(2, `${manifestPath} has no "name"`);
 if (!manifest.version) fail(2, `${manifestPath} has no "version"`);
 
@@ -420,6 +443,55 @@ function normalizeModes(dir) {
 chmodSync(staged, 0o755);
 normalizeModes(staged);
 
+// --- line endings --------------------------------------------------------------------------------
+//
+// LINE ENDINGS ARE THE CHECKOUT, NOT THE REPOSITORY.
+//
+// The third and last environment leak, and the quietest one. This repository's `.gitattributes` is
+// `* text=auto eol=lf` with `core.autocrlf=true`, so the blob in git is LF while a developer's
+// worktree is CRLF -- and `git status` reports the CRLF worktree as *clean*, because git compares
+// the blob after applying the same conversion. Nothing in the working tree says "this file is
+// different from the one in the repository".
+//
+// The published `@online-gal/runtime-ons` 0.1.2 and a local build of the same commit disagreed, and
+// the only file that differed was the licence:
+//
+//   CI (LF checkout)   35,149 B  sha256 3972dc97...   == git show HEAD:LICENSE, byte for byte
+//   local (CRLF worktree) 35,823 B  sha256 230184f6...    exactly 674 bytes larger
+//
+// 674 is this licence's line count: one CR per line, and nothing else. The two archives' 233 entry
+// lists were identical, so it was diagnosable -- but every machine that happened to check out with
+// CRLF would have produced a different `.tgz` for a repository state that had not changed at all.
+//
+// So text files are normalized to LF here, the same way the modes are normalized rather than
+// copied: LF is the repository's canonical form (that is what `* text=auto eol=lf` means), and the
+// worktree's line endings are a property of the machine, not an input. Two guards keep this from
+// eating data:
+//
+//   * `package/assets/` is skipped entirely. Those are engine artefacts whose exact bytes are
+//     pinned by hash in `ports/lib/engine-artifacts.json`, and they are committed CRLF: rewriting
+//     them would break the identity every consumer checks.
+//   * a file containing a NUL byte is treated as binary and left alone. A wasm blob that happens to
+//     contain 0x0d must not be rewritten, and NUL is the conventional signal that it is one.
+function normalizeLineEndings(dir) {
+  const assetsRoot = join(staged, 'assets');
+  let changed = 0;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (resolve(path) === resolve(assetsRoot)) continue; // pinned engine bytes, byte for byte
+      changed += normalizeLineEndings(path);
+    } else if (entry.isFile()) {
+      const bytes = readFileSync(path);
+      if (!bytes.includes(0x0d) || bytes.includes(0x00)) continue;
+      writeFileSync(path, Buffer.from(bytes.toString('latin1').replaceAll('\r\n', '\n'), 'latin1'));
+      changed += 1;
+    }
+  }
+  return changed;
+}
+const normalizedLineEndings = normalizeLineEndings(staged);
+
 // --- tar --------------------------------------------------------------------------------------
 
 // The filename flattens the scope: `@online-gal/runtime-ons` is not a legal file name, so the `/`
@@ -487,9 +559,10 @@ if (!options.quiet) {
   process.stderr.write(`  ${String(stats.count).padStart(6)} file(s), ${stats.bytes} B staged\n`);
   process.stderr.write(`  vendored: ${vendored.length ? vendored.join(', ') : '(none)'}\n`);
   process.stderr.write(`  notices: ${shippedNotices.join(', ')}${vendoredNotices.length ? ` (+ ${vendoredNotices.join(', ')})` : ''}\n`);
+  process.stderr.write(`  line endings: ${normalizedLineEndings ? `${normalizedLineEndings} file(s) normalized to LF` : 'already LF (assets/ exempt, always)'}\n`);
   process.stderr.write(`  tar      ${String(reported.tarSize).padStart(6)} B uncompressed  sha256 ${reported.tarSha256}\n`);
   process.stderr.write(`  ${String(size).padStart(6)} B  ${tgzSha256}  ${tarballName}\n`);
-  process.stderr.write('  (compare tar sha256 across machines; the .tgz sha256 is this toolchain\'s)\n');
+  process.stderr.write('  (compare tar sha256 across checkouts and machines; the .tgz sha256 is this toolchain\'s)\n');
   process.stderr.write(`make-package: wrote ${tarballPath}\n`);
 }
 
@@ -510,6 +583,10 @@ if (options.json) {
     vendored,
     notices: shippedNotices,
     vendoredNotices,
+    // How many staged text files this run had to rewrite from the checkout's CRLF to the
+    // repository's LF. Non-zero on a Windows worktree, zero in CI; the archive is the same either
+    // way, which is the point. A non-zero value on CI means a CRLF file got committed.
+    normalizedLineEndings,
     sourceDateEpoch: options.epoch,
   })}\n`);
 } else if (options.quiet) {
