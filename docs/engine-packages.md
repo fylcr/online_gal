@@ -154,7 +154,7 @@ release URL is the dependency:
     // and the packer drops `dependencies`, so a stale vendored provider would be invisible to the
     // consumer. `build-packages.yml` builds every package from source, so its ten vendored
     // directories are all rebuilt in the same job that packs them.
-    "@online-gal/engines": "https://github.com/fylcr/online_gal/releases/download/engine-packages-0.1.0/online-gal-engines-0.1.0.tgz"
+    "@online-gal/engines": "https://github.com/fylcr/online_gal/releases/download/engine-packages-0.1.1/online-gal-engines-0.1.1.tgz"
   }
 }
 ```
@@ -166,7 +166,11 @@ the push that adds `package-dir`", not as something to paste into a build today.
 a second condition on top: `build-wasm-artemis-bridge.yml` only publishes when `publish` is set or
 `vars.ARTEMIS_PUBLISH_ARTIFACTS` is `true`, because that engine is deliberately withheld while its
 SDK terms are unsettled. It is not cleared to publish yet. The fourth is the one this repository's
-`build-packages.yml` publishes on its first successful run, under the tag `engine-packages-0.1.0`.
+`build-packages.yml` publishes on its first successful run, under the tag `engine-packages-<version>`
+— `engine-packages-0.1.1` as of the commit that made the committed ONS engine files byte-exact (see the
+note on `packages/runtime-ons/assets/**` in `.gitattributes`; 0.1.0 was published with the LF checkout
+form of `onsyuri.html` and then withdrawn, because the aggregate is the one tarball that vendors the
+committed copy rather than a fresh build).
 
 A tarball per engine is the right default here, because the engine workflows are the thing that
 actually build these packages and they build one engine each. Note that only the ONS tarball carries

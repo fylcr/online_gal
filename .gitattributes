@@ -24,3 +24,14 @@
 # `text=auto eol=lf` above would rewrite it on commit and break the identity the
 # recipes check.  Nothing in this subtree is ours to normalise.
 ports/artemis/vendor/** -text -diff
+
+# The ONS engine files committed under `packages/runtime-ons/assets/` are build
+# artefacts, not sources, and their exact bytes are pinned by sha256 in
+# `ports/lib/engine-artifacts.json`.  `onsyuri.html` leaves the Emscripten build with
+# CRLF line endings (582 of them), and `* text=auto eol=lf` above stored the LF form
+# instead -- so the blob was 23,817 B where the ledger, the release asset and the
+# build all say 24,399 B, and a fresh Linux checkout handed the aggregate package
+# (which vendors this directory) different bytes than the ONS tarball (which takes the
+# freshly built copy).  Store them verbatim: an artefact's bytes are the thing being
+# pinned, so line-ending normalisation here is not tidiness, it is corruption.
+packages/runtime-ons/assets/** -text -diff
