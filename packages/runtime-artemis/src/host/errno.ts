@@ -94,8 +94,13 @@ export class ArtemisErrnoError extends Error {
 
 /** Raised by `_exit`. Distinguishable from a crash: wasm unwound out of the engine on purpose. */
 export class ArtemisExit extends Error {
-  constructor(readonly status: number) {
-    super(`artemis called _exit(${status})`);
+  /**
+   * `detail` is an optional reason. `_exit` needs none — the guest is simply done — but
+   * `___assert_fail` reuses this signal, and an assertion without its message is a report that
+   * cannot be acted on.
+   */
+  constructor(readonly status: number, detail?: string) {
+    super(detail ? `artemis guest exited (${status}): ${detail}` : `artemis called _exit(${status})`);
     this.name = 'ArtemisExit';
   }
 }
