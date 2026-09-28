@@ -1,4 +1,4 @@
-﻿/**
+/**
  * TJS2 bytecode container parsing.
  *
  * A compiled TJS2 script is a tagged container, not a bare instruction stream.

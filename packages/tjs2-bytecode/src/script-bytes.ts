@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Script payload unwrapping, re-exported from the KiriKiri runtime.
  *
  * A compiled `.ks` sits behind a 16-byte header with a fixed-length XOR key and
