@@ -18,8 +18,13 @@ thing:
   input question cannot be settled from `artemis-compat` alone, the official
   binary is the oracle.
 
-This script deploys the real game to the official build. It is deliberately
-separate from `web-deploy.sh`, which deploys *our* build.
+This script deploys the real game to the official build. It is a **yardstick, not
+a shipping route**: the official binaries are not ours, so nothing this script
+produces can be released. It earns its place by being the one configuration
+verified to run a real game end to end in a browser, and by giving the
+`artemis-compat` work something to be compared against. Our own port
+(`ports/artemis/src/`, built by `build-wasm-artemis-bridge.yml`) is the
+shipping path.
 
 ## The two official modes, and why asyncify is the only usable one
 

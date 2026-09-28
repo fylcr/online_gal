@@ -58,16 +58,16 @@ They are **gitignored** — not ours to redistribute, and several GB in total. F
 | `.ref/artemis-compat` | `https://github.com/Weiss-UltimateSavior/artemis-compat` | `9f622629f595db85e6f76c45c06edde29d7d9961` |
 | `.ref/vcpkg` | `https://github.com/microsoft/vcpkg` | KiriKiri only; the CI pins it |
 
-Artemis additionally needs its engine patch applied — the upstream project has no web target at
-all, so `ports/artemis/engine/0001-web-host.patch` adds the CMake target, the pthread/GLES2 host,
-and four real bug fixes:
-
-    cd .ref/artemis-compat
-    git checkout -- . && rm -f src/host/web_{main.cpp,page.html,worker.js}
-    git apply /path/to/ports/artemis/engine/0001-web-host.patch
+Artemis no longer needs an engine patch: `ports/artemis/engine/0001-web-host.patch` was retired along
+with the host it patched, and `.ref/artemis-compat` is now a read-only reference for the reverse
+engineering rather than a build target. The one artifact that still comes from it is the bridge
+module (`build-wasm-artemis-bridge.yml`), which rebases a known-good commit and applies no local
+patch.
 
 The official-wasm route (`artemis/build/official-web-deploy.py`) needs no checkout at all: it
-reads the binaries from `artemis/vendor/artemis-sdk/` when `.ref/artemis` is absent.
+reads the binaries from `artemis/vendor/artemis-sdk/` when `.ref/artemis` is absent. It is a
+**yardstick**, not a shipping route — it deploys the real game onto upstream's own asyncify build,
+and it is kept because it is the only configuration known to run a real game end to end.
 
 ## The Emscripten SDK
 

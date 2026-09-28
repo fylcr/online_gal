@@ -28,8 +28,12 @@
 #   core   - `artemis_core` only, no GL: proves the 30k lines compile under Emscripten at all.
 #   cli    - add the CLI (`artc`), still GL-free.
 #   cli-node - the CLI with `NODERAWFS`, so it can read host paths (used for the pack-layer probes).
-#   web-android - the real host: the Android JNI activity + the host shim, compiled as an
-#                 Emscripten pthread/GLES2 module. This is the one the browser actually runs.
+#
+# The `web-android` stage is gone. It compiled the upstream Android JNI entry point against
+# `ports/artemis/build/android-shim/`, and it needed the engine patch that has since been retired, so
+# it had no way to configure. The shim directory survives as the only C++ record of that host layer --
+# EGL setup, input translation, the directory registry -- and the modern TypeScript host in
+# `packages/runtime-artemis/src/host/` reads it as a reference. Nothing builds it any more.
 set -u
 
 # Repo root, upstream checkout and `emcc` all come from the shared environment. See `ports/env.sh`.
@@ -100,21 +104,8 @@ case "$STAGE" in
     BUILD="$BUILD_ROOT/cli-node"
     EXTRA_LINK="-sNODERAWFS=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=64MB -sMAXIMUM_MEMORY=4GB"
     ;;
-  web-android)
-    # The real host: the upstream Android JNI entry point (`ANativeActivity_onCreate`) plus the
-    # Android shim in `ports/artemis/build/android-shim/`, compiled with pthreads and GLES2.
-    #
-    # `ARTC_ANDROID_SHIM` points at the shim directory in the **repository**, not at `.test/`, which
-    # is what makes this build reproducible from a clone. Everything else about the target
-    # (`-sOFFSCREEN_FRAMEBUFFER`, the `--wrap` list, the exported functions) lives in the
-    # `artemis-web-android` block of the engine's `CMakeLists.txt`, applied by
-    # `ports/artemis/engine/0001-web-host.patch`.
-    TARGET=artemis-web-android
-    BUILD="$BUILD_ROOT/web-android"
-    EXTRA_CMAKE="-DARTC_BUILD_WEB_ANDROID_HOST=ON -DARTC_ANDROID_SHIM=$(cygpath -m "$PORTS_ROOT/ports/artemis/build/android-shim" 2>/dev/null || echo "$PORTS_ROOT/ports/artemis/build/android-shim")"
-    ;;
   *)
-    echo "## unknown stage '$STAGE' (expected core, cli, cli-node or web-android)" >&2
+    echo "## unknown stage '$STAGE' (expected core, cli or cli-node)" >&2
     exit 2
     ;;
 esac
@@ -155,8 +146,6 @@ echo
 echo "== artefact =="
 if [ "$TARGET" = "artc" ]; then
   ls -la "$BUILD"/artc.wasm "$BUILD"/artc.js 2>/dev/null
-elif [ "$TARGET" = "artemis-web-android" ]; then
-  ls -la "$BUILD"/artemis-web-android.js "$BUILD"/artemis-web-android.wasm 2>/dev/null
 else
   ls -la "$BUILD"/libartemis_core.a 2>/dev/null ||
     find "$BUILD" -name "*.a" -maxdepth 2 -exec ls -la {} \; 2>/dev/null | head -5

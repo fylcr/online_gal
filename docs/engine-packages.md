@@ -146,7 +146,7 @@ release URL is the dependency:
 ```jsonc
 {
   "dependencies": {
-    "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.1.tgz"
+    "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.2.tgz"
     // No "@online-gal/engines" entry yet, on purpose: a tarball exists only for a package whose
     // workflow sets `package-dir`, and so far only the ONScripter workflow does. A URL here would
     // be a 404 that only shows up at install time, so there is no URL here.

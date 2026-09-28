@@ -1,9 +1,8 @@
 # Normalize every text file to LF in the repository, and check it out as LF
 # everywhere.  This matters for more than tidiness: the ported build scripts
-# (`ports/**/*.sh`) must run under Git Bash and under Linux CI alike, and the
-# engine patch (`ports/artemis/engine/0001-web-host.patch`) has to stay
-# byte-comparable with `git diff` output so that `git apply` accepts it.  A
-# CRLF checkout would break both.
+# (`ports/**/*.sh`) must run under Git Bash and under Linux CI alike, and
+# `docs/项目状态与恢复指南.md` has to stay diffable for the recovery steps it
+# documents.  A CRLF checkout would break both.
 * text=auto eol=lf
 
 # Binary artefacts: never touch their bytes, never try to diff them.

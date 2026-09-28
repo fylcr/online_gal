@@ -13,7 +13,10 @@
 > `ports/artemis/build/web-deploy.sh` 和 `ports/artemis/engine/0001-web-host.patch`。
 > 所以本文里凡是提到 `web-deploy.sh`、`artemis-web-android` 或那份 patch 的段落，
 > **都是历史记录，不是现行的部署指令**——§9（Web 宿主）、§12.2 起的「部署脚本」等
-> 段落请这样读。
+> 段落请这样读。宿主胶水本身（`ports/artemis/harness/android-host.html` 与
+> `ports/artemis/build/artemis-web-android-worker.js`）和 `build-emscripten.sh` 的
+> `web-android` stage 也已删除；`ports/artemis/build/android-shim/` 里的 C++ 保留下来，
+> 只作参考。
 >
 > **仍然保留、但不是出货路线的两样东西**：`ports/artemis/build/official-web-deploy.py`
 > 与驱动它的 `ports/artemis/tools/real-game-test.mjs`。真实游戏 bench 的对照树**故意**是

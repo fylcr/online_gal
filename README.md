@@ -616,7 +616,7 @@ wasm 构建、WebGPU 离屏读回、`Scene.pck` 解包、`Gameexe.dat` 解码器
   把真实游戏部署到官方 asyncify 构建上。这是**唯一验证过能在浏览器里完整跑起真实游戏**的路线
   （`.ref/artemis/WebAssembly/asyncify/`）。官方只给了二进制，所以它入库属于一个被推翻的
   许可决定，理由见 [`docs/artemis-web-port.md`](docs/artemis-web-port.md) §15。
-- **`artemis-compat` 的自建移植**（`ports/artemis/build/web-deploy.sh`）——第三方引擎，输入层
+- **`artemis-compat` 的自建移植**（`ports/artemis/src/`）——第三方引擎，输入层
   的工作都在这一条上。`ports/artemis/src/` 是它的**重写产物**：手写 C++，逐个函数替换
   wasm2c 转译出来的函数体，命名空间 `artc`，共 159 个文件、约 71,000 行，全部是**已跟踪的
   普通源码**。旁边放着它的风格宪法 `ports/artemis/REWRITE.md` 与逐函数改名台账

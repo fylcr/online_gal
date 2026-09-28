@@ -20,7 +20,7 @@
  *
  *     node ports/lib/fetch-engine.mjs <engine> [--out <dir>] [--force] [--manifest <path-or-url>] [--json]
  *
- * `<engine>` is one of `ons`, `krkr` or `artemis`. The manifest is `ports/lib/engine-artifacts.json`
+ * `<engine>` is one of `ons` or `krkr`. The manifest is `ports/lib/engine-artifacts.json`
  * unless `--manifest` names another file or an http(s) URL (the CI half publishes one, and pointing
  * at it is how a release changes where its bytes live without a code change).
  *
@@ -61,10 +61,12 @@ const ENGINES = {
     dest: '.ref/kirikiroid2-web/out/web/release',
     fromSource: 'bash ports/krkr/kirikiroid2/run-build.sh',
   },
-  artemis: {
-    dest: 'ports/artemis/build/out/web-android',
-    fromSource: 'bash ports/artemis/build/build-emscripten.sh web-android',
-  },
+  // `artemis` used to be here, pointing at the `web-android` build that task-12 retired. Keeping it
+  // would have advertised an engine this tool can only fail on: with the entry gone from
+  // `engine-artifacts.json`, `fetch-engine.mjs artemis` reached the manifest and exited 4 ("no
+  // usable entry"). Dropping the entry too makes the failure honest and immediate -- it is now a
+  // usage error naming the two engines that exist, exit 1. Artemis' wasm comes from
+  // `build-wasm-artemis-bridge.yml` instead, which is a rebase of upstream, not a fetch.
 };
 
 const DEFAULT_MANIFEST = 'ports/lib/engine-artifacts.json';

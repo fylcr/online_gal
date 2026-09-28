@@ -1,5 +1,15 @@
 // The web side of the Android NDK surface the engine's own NativeActivity host expects.
 //
+// ## Status: no build path remains
+//
+// The `web-android` stage of `../build-emscripten.sh` was retired along with the engine patch it
+// depended on, so nothing compiles this any more. It is kept deliberately, as the only C++ record of
+// the host layer this repository once needed: EGL context setup, the input queue's translation of
+// `AInputEvent` into engine events, and the directory registry the Android side used to provide. The
+// modern TypeScript host in `packages/runtime-artemis/src/host/` is the shipping path, and it reads
+// this file to check its own translation tables against the ones that were known to render
+// correctly. Treat it as reference, not as buildable source.
+//
 // Nothing in here is engine code: `src/jni/native_activity.cpp` and `render/renderer.cpp` compile
 // unmodified against these headers, and the driver below plays the part the Android system plays —
 // it fabricates an `ANativeActivity`, calls the engine's `ANativeActivity_onCreate`, then delivers a

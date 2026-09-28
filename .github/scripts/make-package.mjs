@@ -54,6 +54,8 @@
  *   package/src/**         the sources: what the exports map's `types` condition points at, and
  *                          what GPL-3.0 §5(b) requires a recipient of this tarball to be given
  *   package/assets/**      the engine artifacts the runtime resolves at run time
+ *   package/LICENSE        the GPL-3 text, which GPL §5(a) requires to travel with the work
+ *   package/THIRD_PARTY_NOTICES.md  the upstream notices covering the vendored closure
  *   package/node_modules/**  the vendored dependency closure
  *
  * Never `.test/`, never `.ref/`, never the game data. The staging directory is built from an
@@ -64,7 +66,7 @@
  * WHY THE TARBALL IS BYTE-STABLE
  *
  * Two runs over the same inputs must produce the same bytes, or every rebuild looks like a content
- * change and the idempotence claim is untestable. Three things vary by default and all three are
+ * change and the idempotence claim is untestable. Six things vary by default and all six are
  * pinned here:
  *
  *   * mtime  -- `--mtime=@SOURCE_DATE_EPOCH` (default 1985-10-26T08:00:00Z, the earliest a zip
@@ -72,10 +74,29 @@
  *   * order  -- `--sort=name`, so directory order cannot leak the readdir order of the filesystem
  *   * owner  -- `--owner=0 --group=0 --numeric-owner`, since uid/gid of the build user would
  *               otherwise differ between a runner and a laptop
+ *   * mode   -- normalized to 0644 for files and 0755 for directories before `tar` runs, because
+ *               tar records the mode of the file it found. See "MODES ARE ENVIRONMENT, NOT INPUT".
+ *   * gzip timestamp -- `mtime: 0` below, since zlib otherwise records the current time in the
+ *               gzip header. This is the one piece `tar -czf` gets wrong: two runs in a row yield
+ *               two different files even when the tar stream inside is identical.
+ *   * gzip OS byte -- forced to 3, because zlib writes the *host's* OS there. See "THE GZIP OS
+ *               BYTE IS THE HOST, NOT THE ARCHIVE".
  *
- * and the gzip header carries no timestamp (`gzip -n`), which is the one piece `tar -z` gets wrong:
- * zlib records the current time in the gzip header unless told not to, so `tar -czf` twice in a row
- * yields two different files even when the tar stream inside is identical.
+ * WHAT "REPRODUCIBLE" ACTUALLY MEANS HERE
+ *
+ * The `.tgz` is byte-identical only within one toolchain. `.tgz` is the product of two programs:
+ * GNU tar lays out the headers, and whatever zlib the host links to produces the deflate stream.
+ * Pinning the inputs above removes the *ambient* variation -- clock, filesystem order, uid, umask,
+ * host OS -- but it cannot pin the tar implementation's header padding or a future zlib's match
+ * search. So this script reports two numbers:
+ *
+ *   * the sha256 of the **uncompressed tar stream** (`tarSha256`), which is what this script fully
+ *     controls and what should be compared across machines, and
+ *   * the sha256 of the `.tgz` (the `sha256` line), which should be compared against another run of
+ *     *this* script.
+ *
+ * A `tarSha256` mismatch is a content change. A `tarSha256` match with a `.tgz` mismatch is a
+ * toolchain difference, and is not a regression.
  *
  * Usage:
  *
@@ -88,6 +109,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -101,7 +123,7 @@ import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const USAGE = `usage: node .github/scripts/make-package.mjs --package <dir> --out <dir>
-         [--assets-from <dir>] [--tarball-name NAME] [--source-date-epoch N] [--quiet]
+         [--assets-from <dir>] [--tarball-name NAME] [--source-date-epoch N] [--json] [--quiet]
 
   --package      a package directory, e.g. packages/runtime-ons
   --out          directory to write the .tgz into
@@ -110,6 +132,7 @@ const USAGE = `usage: node .github/scripts/make-package.mjs --package <dir> --ou
                  this directory; a second copy under dist/assets/ is refused.
   --tarball-name override the output file name
   --source-date-epoch  mtime stamped into every tar entry (default 498073600 = 1985-10-26)
+  --json         print one JSON object on stdout; human output goes to stderr
   --quiet        print only the output path`;
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -126,6 +149,7 @@ const options = {
   assetsFrom: null,
   tarballName: null,
   epoch: 498073600,
+  json: false,
   quiet: false,
 };
 
@@ -146,6 +170,7 @@ for (let index = 0; index < argv.length; index += 1) {
     case '--assets-from': options.assetsFrom = next(); break;
     case '--tarball-name': options.tarballName = next(); break;
     case '--source-date-epoch': options.epoch = Number(next()); break;
+    case '--json': options.json = true; break;
     case '--quiet': options.quiet = true; break;
     default: fail(1, `unknown argument ${arg}\n\n${USAGE}`);
   }
@@ -207,6 +232,16 @@ delete shipped.dependencies;
 // script ship, so a consumer running it would fail on a missing tsconfig. A packaged artifact that
 // advertises a build command it cannot honour is worse than one that advertises none.
 delete shipped.scripts;
+// The `license` field survives on purpose, and it is worth being explicit about why it is not
+// redundant with step 5. `"license": "GPL-3.0-or-later"` is the machine-readable form: it is what a
+// consumer's licence scanner reads without opening the archive, and it is what states the obligation
+// before the recipient has read a line of the licence text shipped beside it. The text is what makes
+// the distribution compliant; the field is what makes the obligation findable. Guarded rather than
+// assumed, because a `delete shipped.license` added later would pass every check in this repository --
+// nothing here reads the field back.
+if (manifest.license && !shipped.license) {
+  fail(2, `the shipped manifest lost its "license" field (${manifest.license}); the copy must keep it`);
+}
 writeFileSync(join(staged, 'package.json'), `${JSON.stringify(shipped, null, 2)}\n`);
 
 // 2. compiled output.
@@ -293,6 +328,87 @@ while (queue.length) {
   }
 }
 
+// 5. the licence and the notices.
+//
+// A `tarball` that carries `"license": "GPL-3.0-or-later"` in its manifest and no licence text is
+// not GPL-compliant, it is just self-describing: §5(a) asks for a copy of the licence to travel with
+// the work, and a field name in a JSON file is not a copy of the licence. The first build of this
+// package shipped zero of `LICENSE`, `COPYING` and `NOTICE` -- which is also what a naive
+// `tar -tzf | grep -i licen` finds, and how the omission survived review.
+//
+// This repository is one GPL work with several packages under it, so the root files are shipped
+// verbatim into every package. That is deliberate over-inclusion: the notice file names upstream
+// components whose licences travel with the vendored closure, and a recipient of
+// `@online-gal/runtime-ons` receives all four vendored packages' worth of third-party code, so
+// giving them the whole notice file is the honest subset. Shipping a *narrower* notice would be
+// picking a subset of the obligations by hand, and the only safe hand-picked subset is "everything".
+//
+// `cpSync` rather than a reformat: the bytes must be the bytes the project publishes, so a
+// recipient can `sha256sum` this file against the repository's and get a match. Re-wrapping the text
+// to a different width would make that check fail for no benefit.
+const licenceFiles = ['LICENSE', 'THIRD_PARTY_NOTICES.md'];
+const shippedNotices = [];
+for (const name of licenceFiles) {
+  const source = join(repoRoot, name);
+  if (!existsSync(source)) {
+    fail(2, `missing ${source} -- every package here is GPL-3.0-or-later, and §5(a) requires the licence text to travel with the work; a tarball without it is not compliant`);
+  }
+  cpSync(source, join(staged, name));
+  shippedNotices.push(name);
+}
+
+// Step 4 copies each vendored package with no filter on file names, so a sibling that carries its
+// own `LICENSE`/`NOTICE` already arrives in `node_modules/@online-gal/<name>/`. Nothing here deletes
+// them, and that is intentional: a per-package licence that differs from the repository's must
+// reach whoever receives that package, and the root files shipped above do not replace it. This count
+// is reported rather than asserted, so "the notices travelled" is something the log shows instead of
+// something the code claims.
+const vendoredNotices = [];
+for (const name of vendored) {
+  for (const entry of readdirSync(join(staged, 'node_modules', name), { withFileTypes: true })) {
+    if (entry.isFile() && /^(LICEN[SC]E|COPYING|NOTICE)/i.test(entry.name)) {
+      vendoredNotices.push(`${name}/${entry.name}`);
+    }
+  }
+}
+
+// --- modes ------------------------------------------------------------------------------------
+//
+// MODES ARE ENVIRONMENT, NOT INPUT.
+//
+// tar writes the mode of the file it found into the header, so the staging tree's permissions end
+// up in the tarball verbatim. That is invisible locally and expensive in CI: the first two builds of
+// this package were byte-identical on a laptop and one byte apart on a runner, and the entire cause
+// was one file. `actions/upload-artifact` preserves the mode of the file as it sits on the runner,
+// so the `--assets-from` copy of `assets/onsyuri.wasm` arrived as 0755 while the same bytes fetched
+// by curl locally are 0644:
+//
+//   CI      2,139,137 B  sha256 95877f89...   -rwxr-xr-x 0/0 4660610 package/assets/onsyuri.wasm
+//   local   2,139,136 B  sha256 c30702cb...   -rw-r--r-- 0/0 4660610 package/assets/onsyuri.wasm
+//
+// The extracted trees were identical -- 209 files, byte for byte -- which is the only reason this was
+// diagnosable at all. One permission bit in one header is the entire difference, and it would have
+// reappeared on every future run, on whichever machine happened to touch the file differently.
+//
+// So the modes are not taken from the source at all: the staged tree is normalized to 0644 files and
+// 0755 directories, the values a fresh checkout of this repository has under `* text=auto eol=lf`.
+// The umask of whoever ran the build never reaches the archive. This runs after staging is complete,
+// so it covers the vendored closure and `src/` as well as the engine bytes -- chmod'ing only the
+// assets would leave the next file to leak the same way.
+function normalizeModes(dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      chmodSync(path, 0o755);
+      normalizeModes(path);
+    } else if (entry.isFile()) {
+      chmodSync(path, 0o644);
+    }
+  }
+}
+chmodSync(staged, 0o755);
+normalizeModes(staged);
+
 // --- tar --------------------------------------------------------------------------------------
 
 // The filename flattens the scope: `@online-gal/runtime-ons` is not a legal file name, so the `/`
@@ -318,13 +434,31 @@ const tarArgs = [
   '-cf', '-',
   'package',
 ];
+let reported = null;
+
 try {
   const tar = execFileSync('tar', tarArgs, { maxBuffer: 1024 * 1024 * 1024 });
+  const tarSha256 = createHash('sha256').update(tar).digest('hex');
   const { gzipSync } = await import('node:zlib');
   // `level: 9` is the default, and `mtime: 0` is what Node needs to omit the gzip timestamp; without
   // it Node writes the current time into the header and two runs differ.
   const gz = gzipSync(tar, { level: 9, mtime: 0 });
+  // THE GZIP OS BYTE IS THE HOST, NOT THE ARCHIVE.
+  //
+  // Offset 9 of the gzip header is the OS code, and zlib fills it in from the machine it ran on --
+  // 0x03 for Unix, 0x0a for the Windows build of Node. Nothing in the archive depends on it, and it
+  // is *not* covered by the CRC32 trailer (the CRC covers the uncompressed data), so rewriting it
+  // leaves the file exactly as valid as it was before. Pinning it to 3 costs nothing and stops the
+  // `.tgz` from depending on which platform ran the build.
+  //
+  // This is the second and last place the environment leaked in. The first was the file mode; the
+  // deflate stream itself proved stable across zlib versions, because re-compressing the runner's
+  // own uncompressed tar locally -- same level, same mtime, only this byte changed -- reproduced the
+  // runner's `.tgz` byte for byte. So the deflate output is trustworthy and only the header needed
+  // pinning; there was no reason to reach for a different compressor.
+  gz[9] = 3;
   writeFileSync(tarballPath, gz);
+  reported = { tarSha256, tarSize: tar.length };
 } catch (error) {
   fail(3, `tar failed: ${error.message}`);
 }
@@ -334,13 +468,39 @@ try {
 const stats = measure(staged);
 rmSync(stage, { recursive: true, force: true });
 
-if (options.quiet) {
-  process.stdout.write(`${tarballPath}\n`);
-} else {
-  const size = statSync(tarballPath).size;
+const size = statSync(tarballPath).size;
+const tgzSha256 = sha256(tarballPath);
+
+if (!options.quiet) {
   process.stderr.write(`make-package: ${manifest.name}@${manifest.version}\n`);
   process.stderr.write(`  ${String(stats.count).padStart(6)} file(s), ${stats.bytes} B staged\n`);
   process.stderr.write(`  vendored: ${vendored.length ? vendored.join(', ') : '(none)'}\n`);
-  process.stderr.write(`  ${String(size).padStart(6)} B  ${sha256(tarballPath)}  ${tarballName}\n`);
+  process.stderr.write(`  notices: ${shippedNotices.join(', ')}${vendoredNotices.length ? ` (+ ${vendoredNotices.join(', ')})` : ''}\n`);
+  process.stderr.write(`  tar      ${String(reported.tarSize).padStart(6)} B uncompressed  sha256 ${reported.tarSha256}\n`);
+  process.stderr.write(`  ${String(size).padStart(6)} B  ${tgzSha256}  ${tarballName}\n`);
+  process.stderr.write('  (compare tar sha256 across machines; the .tgz sha256 is this toolchain\'s)\n');
   process.stderr.write(`make-package: wrote ${tarballPath}\n`);
+}
+
+if (options.json) {
+  process.stdout.write(`${JSON.stringify({
+    package: manifest.name,
+    version: manifest.version,
+    tarball: tarballName,
+    path: tarballPath,
+    bytes: size,
+    sha256: tgzSha256,
+    // The cross-toolchain invariant. A `tarSha256` match with a differing `sha256` means the
+    // compressor or the tar implementation differs, not that the content changed.
+    tarSha256: reported.tarSha256,
+    tarBytes: reported.tarSize,
+    fileCount: stats.count,
+    stagedBytes: stats.bytes,
+    vendored,
+    notices: shippedNotices,
+    vendoredNotices,
+    sourceDateEpoch: options.epoch,
+  })}\n`);
+} else if (options.quiet) {
+  process.stdout.write(`${tarballPath}\n`);
 }

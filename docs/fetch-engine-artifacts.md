@@ -127,14 +127,14 @@ engine's file names, a tag, or where a hash manifest lives. So the ONS build now
 **standard npm tarball** — the CI output *is* the package.
 
 ```bash
-pnpm add https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.1.tgz
+pnpm add https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.2.tgz
 ```
 
 ```jsonc
 // package.json
 {
   "dependencies": {
-    "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.1.tgz"
+    "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.2.tgz"
   }
 }
 ```
@@ -186,7 +186,7 @@ package's own `node_modules` contains pnpm's links back to its siblings, so a na
 reproduces the whole closure inside every member of it: 13 copies of 4 packages and 4.0 MB where
 1.2 MB is honest. Node resolves upward, so the nested copies would be dead weight.
 
-### The tarball also carries the sources
+### The tarball also carries the sources and the licence
 
 `package/src/**` ships alongside `package/dist/**`, for two independent reasons.
 
@@ -201,21 +201,54 @@ recipients of the covered work receive the corresponding source. `dist/*.js` alo
 Shipping `src/` is how a single tarball satisfies that obligation without the consumer having to
 know to go back to the repository.
 
+And `package/LICENSE` and `package/THIRD_PARTY_NOTICES.md` ship for the same underlying reason: §5(a)
+asks for a copy of the licence to accompany the work, and §5(b) for the source. Together with the
+`"license"` field in the manifest, all three halves travel, and a recipient never has to come back to
+the repository to comply. They are copied byte for byte, so `sha256sum package/LICENSE` in an
+extracted tarball equals `sha256sum LICENSE` in a clone of the project.
+
 ### The tarball is reproducible
 
 Two runs over the same inputs produce byte-identical archives (`sha256` equal), because the build
-pins the three things that vary by default: every entry's mtime is
-`--mtime=@498073600` (1985-10-26, the earliest a zip can represent), entries are `--sort=name` so
-filesystem readdir order cannot leak in, and owner/group are forced to `0`. The gzip header carries
-no timestamp either — that one is not free: `tar -czf` writes the current time into it, so two runs
-of the *identical* tar stream would otherwise differ. Verified locally:
+pins the six things that vary by default: every entry's mtime is `--mtime=@498073600` (1985-10-26,
+the earliest a zip can represent), entries are `--sort=name` so filesystem readdir order cannot leak
+in, owner/group are forced to `0`, file and directory modes are normalized to `0644`/`0755` before
+`tar` reads them, and the gzip header has both its timestamp (`mtime: 0`) and its OS byte (3) pinned.
+
+The last three are not theoretical. The first two builds of this package were byte-identical on a
+laptop and **one byte apart** on a runner: `actions/upload-artifact` preserves the mode of the file
+as it sits on the runner, so the `--assets-from` copy of `assets/onsyuri.wasm` arrived as `0755`
+while the same bytes fetched by curl locally are `0644`. The extracted trees were identical — 209
+files, byte for byte — and the entire difference was the mode field in one tar header. The gzip OS
+byte leaked the same way, because zlib writes the *host's* OS there (0x03 on Unix, 0x0a on Windows
+Node) and nothing in the archive depends on it. So the modes are taken from nowhere: the staged tree
+is normalized before `tar` runs, and the umask of whoever ran the build never reaches the archive.
+
+Verified locally:
 
 ```bash
 node .github/scripts/make-package.mjs --package packages/runtime-ons --out /tmp/a
 touch packages/runtime-ons/dist/index.js          # mtime changes, content does not
 node .github/scripts/make-package.mjs --package packages/runtime-ons --out /tmp/b
-cmp /tmp/a/online-gal-runtime-ons-0.1.1.tgz /tmp/b/online-gal-runtime-ons-0.1.1.tgz   # identical
+cmp /tmp/a/online-gal-runtime-ons-0.1.2.tgz /tmp/b/online-gal-runtime-ons-0.1.2.tgz   # identical
 ```
+
+There is one limit worth stating plainly, because it is the difference between a content change and
+a toolchain change. A `.tgz` is produced by two programs: GNU tar writes the headers, and whatever
+zlib the host links to produces the deflate stream. Pinning the six inputs above removes the ambient
+variation — clock, readdir order, uid, umask, host OS — but it cannot pin a future zlib's match
+search. So the script also reports the sha256 of the **uncompressed tar stream** (`tarSha256` via
+`--json`), and that is the number to compare across machines. A `tarSha256` mismatch is a content
+change. A `tarSha256` match with a differing `.tgz` sha256 is a toolchain difference, not a
+regression.
+
+In practice, after pinning the mode and the OS byte, the `.tgz` itself matched across toolchains:
+the same script on Windows/Node 26 and on Linux/Node 22.14.0 with GNU tar 1.35 produced the same
+`2,139,136 B` archive with sha256 `54f40d0c…`. The two pins are what made that possible; with
+`normalizeModes` disabled the same two runs differ, and on a filesystem that reports `777` for every
+file (a 9p mount, for instance) the tarball picks up `-rwxrwxrwx` on 205 of its 209 files. That
+regression is checked by packing once from a `0644` source and once from a `0755` one and comparing,
+not by trusting that `chmod` on the build machine did nothing.
 
 ### Licensing: GPL-3.0 propagates
 
@@ -227,9 +260,15 @@ and forgotten:
   GPL-3.0-or-later**, and must distribute its own source. Linking `@online-gal/runtime-ons` into a
   proprietary product and shipping it is a licence violation, not a grey area.
 - **Redistribution needs the GPL text and the corresponding source**, and the notices must survive.
-  The `package.json` inside every tarball carries `"license": "GPL-3.0-or-later"`, which is the
-  machine-readable half of that obligation; the `src/**` inside it is the other half. The engine
+  So every tarball ships them literally: `package/LICENSE` and `package/THIRD_PARTY_NOTICES.md` sit
+  at the top of the archive, byte-identical to the repository's own files, and can be checked with
+  `sha256sum`. A `"license": "GPL-3.0-or-later"` field in the manifest is the machine-readable half
+  of the obligation — it is what a scanner reads without opening the archive — and `src/**` is the
+  other half; neither is a substitute for the text itself, which is why all three ship. The engine
   bytes under `assets/` carry their own upstream terms and must keep their own notices alongside.
+  The notice file is the repository-wide one, shipped whole rather than narrowed to one package: the
+  vendored closure means a recipient of one package receives all four packages' worth of code, and
+  the only safe hand-picked subset of obligations is "everything".
 - The upstream engines keep **their own** licenses, and they are not all GPL. OnscripterYuri ships
   under its own terms; the KiriKiroid2 and Artemis lines are separately licensed (Artemis is built
   against a proprietary SDK and is deliberately not published at all). Publishing a *package* does
