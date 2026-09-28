@@ -271,6 +271,40 @@ if [ ! -x "$VCPKG_ROOT/vcpkg" ]; then
   "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
 fi
 
+# ---------------------------------------------------------------------------------------------
+# vcpkg's binary cache, as a `files` directory.
+#
+# `lukka/run-vcpkg` already points vcpkg at a binary cache: it writes
+# `VCPKG_BINARY_SOURCES=clear;x-gha,readwrite` into `$GITHUB_ENV`. Whatever that backend does with
+# the value, it is not storing anything. That is measured rather than inferred: `gh api
+# repos/<owner>/<repo>/actions/caches` lists exactly one entry after every krkr run so far -- the
+# emsdk tree, saved by the workflow's own `actions/cache` step -- and never a vcpkg archive.
+# (`x-gha` reaches the Actions cache service through `ACTIONS_CACHE_URL` and
+# `ACTIONS_RUNTIME_TOKEN`, and the runner's env dump for the Build step lists neither, which is the
+# likeliest reason, but the empty listing is on its own enough to act on.)
+#
+# What that costs is the whole reason this script is slow: with no cache, every configure rebuilds
+# OpenCV, boost, bullet and 7zip from source for `wasm32-emscripten`, which is 50 of the 63 minutes
+# the job spends.
+#
+# A `files` backend is an ordinary directory, so the `Cache vcpkg binary artifacts` step in
+# `build-wasm-reusable.yml` can save and restore it -- and its hits show up in that same listing.
+# This block deliberately runs *after* the setup step, in the shell that will spawn cmake, so that
+# the value exported here is the one vcpkg reads.
+#
+# A binary cache is a build-speed input only. vcpkg decides hits itself, per package, from the ABI
+# hash of that package's inputs -- which `VCPKG_KEEP_ENV_VARS` above folds this run's
+# `SOURCE_DATE_EPOCH` into. A stale or half-populated cache therefore degrades to a partial
+# rebuild; it cannot change what the build produces. Deleting `.vcpkg-binary-cache` would make a
+# run slow, not different.
+# ---------------------------------------------------------------------------------------------
+if [ -n "${VCPKG_BINARY_CACHE:-}" ]; then
+  mkdir -p "$VCPKG_BINARY_CACHE"
+  export VCPKG_BINARY_SOURCES="clear;files,$VCPKG_BINARY_CACHE,readwrite"
+  echo "## VCPKG_BINARY_SOURCES: $VCPKG_BINARY_SOURCES"
+  echo "## vcpkg binary cache entries on entry: $(find "$VCPKG_BINARY_CACHE" -type f | wc -l)"
+fi
+
 cd "$REPO"
 echo
 echo "== cmake configure (from $REPO) =="
@@ -298,6 +332,15 @@ for attempt in 1 2 3; do
 done
 echo "## cmake configure exit: $STATUS"
 [ "$STATUS" -eq 0 ] || exit "$STATUS"
+
+# vcpkg announces a binary-cache hit as `Restored N package(s) from <path>` and a miss by naming each
+# package it has to build. The whole configure transcript goes to a file that is tailed only on
+# failure, so without this the run log cannot tell a working cache from a broken one -- which is
+# exactly how the dead `x-gha` backend went unnoticed.
+if [ -n "${VCPKG_BINARY_CACHE:-}" ]; then
+  grep -aE "Restored [0-9]+ package|Building [^ ]*:|Installing [0-9]+/" /tmp/krkr2-configure.log     | tail -20 | sed 's/^/     /'
+  echo "## vcpkg binary cache entries on exit: $(find "$VCPKG_BINARY_CACHE" -type f | wc -l)"
+fi
 
 echo
 echo "== cmake build =="

@@ -137,6 +137,10 @@ jobs:
       EMSDK: ${{ github.workspace }}/.emsdk
       EMSDK_VERSION: ${{ inputs.emsdk-version }}
       VCPKG_ROOT: ${{ github.workspace }}/.vcpkg
+      # The directory `build-krkr.sh` points vcpkg's `files` binary-cache backend at. It is
+      # a job-level env var because two separate steps have to agree on the path: the cache
+      # step below saves it, and the build script writes into it.
+      VCPKG_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-binary-cache
       ENGINE: ${{ inputs.engine }}
       UPSTREAM_PATH: ${{ inputs.upstream-path }}
     outputs:
@@ -224,6 +228,37 @@ jobs:
           echo "$EMSDK/upstream/emscripten" >> "$GITHUB_PATH"
           echo "$(dirname "$EMSDK_NODE")" >> "$GITHUB_PATH"
           emcc --version | head -1
+
+      # vcpkg's binary cache is the difference between a ~5-minute and a ~50-minute configure: with
+      # no cache at all, the manifest install rebuilds OpenCV, boost, bullet and 7zip from source for
+      # `wasm32-emscripten` on every single run.
+      #
+      # `lukka/run-vcpkg` already points vcpkg at a binary cache -- it writes
+      # `VCPKG_BINARY_SOURCES=clear;x-gha,readwrite` into `$GITHUB_ENV` -- but it is not storing
+      # anything: `gh api repos/<owner>/<repo>/actions/caches` lists exactly one entry, the emsdk
+      # tree saved above, and never a vcpkg archive. (Its `x-gha` backend needs
+      # `ACTIONS_CACHE_URL` and `ACTIONS_RUNTIME_TOKEN`, which the Build step's env dump does not
+      # list, but the empty listing is on its own enough to act on.) A `files` backend is an
+      # ordinary directory that `actions/cache` can save and restore, and whose hit is visible in
+      # that same listing. `build-krkr.sh` selects the `files` backend itself -- after this step, so
+      # its value is the one vcpkg actually uses.
+      #
+      # The run that introduces this still pays full price: nothing is cached until it finishes, and
+      # only the run after it benefits. Expect the configure stage to fall from ~50 minutes to a
+      # download, and read the `Restored N package(s)` line the build script now prints to confirm
+      # the cache is why.
+      #
+      # The key is the vcpkg commit plus the hash of the dependency manifests; `restore-keys` keeps
+      # the newest entry for the same vcpkg commit reachable when a manifest changes, which is what
+      # makes adding one dependency cost one package instead of all of them.
+      - name: Cache vcpkg binary artifacts
+        if: inputs.vcpkg-commit != ''
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_BINARY_CACHE }}
+          key: vcpkg-binary-${{ runner.os }}-${{ inputs.vcpkg-commit }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
+          restore-keys: |
+            vcpkg-binary-${{ runner.os }}-${{ inputs.vcpkg-commit }}-
 
       - name: Set up vcpkg
         if: inputs.vcpkg-commit != ''

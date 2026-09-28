@@ -47,6 +47,12 @@ ports/**/build-final/
 ports/**/*.wasm
 ports/**/*.o
 
+# vcpkg's binary cache, as the CI workflow points it here (`VCPKG_BINARY_CACHE` in
+# `build-wasm-reusable.yml`). It saves and restores this directory to stop KiriKiri
+# rebuilding OpenCV, boost, bullet and 7zip from source on every run — it is a few GB
+# of derived archives, and only ever exists on a build machine.
+.vcpkg-binary-cache/
+
 # ...except `ports/artemis/vendor/`, which holds the official Artemis SDK binaries.
 # Those are inputs to the port, not output from it: the reverse-engineering recipes
 # under `ports/artemis/reverse/` verify themselves against exactly these bytes, and
