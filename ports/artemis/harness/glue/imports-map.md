@@ -1,0 +1,311 @@
+<!-- GENERATED FILE -- do not edit. Run ports/artemis/harness/glue/imports-map.mjs. -->
+
+# The bridge module's import surface, classified
+
+The bridge module asks for **207 function imports** and **1 other import**, all under the module name `a`. Every one of those 207 has a row below, with the bucket a modern host has to answer it in and a place in the official glue where its implementation can be read.
+
+## The shape of the surface, before the rows
+
+- **207 function imports, 198 distinct names.** The difference is nine names the import section lists twice under two different type indices — the renames `wasm-satisfy-imports.py` performed, so the rebuild could ask for the facility under the field the official module already uses. Each repeat is a genuinely different call with a different signature, so the table keeps both rows instead of collapsing them.
+- one non-function import: the memory (see below). The host supplies the buffer; it is the one thing both tenants share.
+- 198 distinct C symbols underneath those 198 names, all of them defined in the official glue, so every row has a body to read.
+- the buckets are what a host has to **decide**, not what a function is **called**. The largest is the GL family, because the engine calls the 3D API through its own loader rather than through GLEW, and the smallest is the one worth reading twice: `async`.
+
+## How to read a row
+
+| column | meaning |
+| --- | --- |
+| `#` | position in the module's own import section, so this table diffs against the binary as an ordered list |
+| short name | the field name under module `a` — the only name the host has to spell |
+| sig | signature decoded from the module's type section, not from the JS API |
+| official | the unminified Emscripten name, read out of the glue's `asmLibraryArg` |
+| glue ref | byte offset of the binding in the official `artemis.js`; the glue is minified onto one line, so an offset is the only stable locator |
+| impl | byte offset of the **definition** of that name in the same file — the place to go read the body that answers this call |
+| alias | the rebuild's own runtime import that was renamed onto this field, if any |
+| fwd | present in the generated `imports-forward.c` forwarder set |
+| bucket | which host decides this one |
+| modern owner | the module in this repository it should land in |
+
+## Buckets
+
+| bucket | count | distinct | what it means |
+| --- | --- | --- | --- |
+| `gl` | 99 | 99 | WebGL2 + OpenAL + GLFW. Bound straight to the canvas context, the AudioContext and the window; nothing emulated. |
+| `fd` | 48 | 41 | wasi file descriptors, clock and time. Backed by @online-gal/vfs (SyncFileBridge over HTTP range reads), not by a real filesystem. |
+| `asyncify` | 4 | 4 | on-demand payload fetch, and the stack spill Asyncify unwinds through. The paths that cannot be synchronous: a range read has to leave the wasm and come back. |
+| `async` | 30 | 30 | the Asyncify re-entry trampolines. Each is one unwound call site: resume it, run it, rewind its arguments, then return to whatever yielded. |
+| `eh` | 17 | 15 | C++ exceptions and longjmp. The module was built without exceptions, so these exist only to make a failure unwind. |
+| `runtime` | 8 | 8 | Emscripten/musl runtime plumbing: heap growth, thread bookkeeping, environment, string formatting. Modern JS supplies these directly. |
+| `todo` | 1 | 1 | Known not to need a real implementation yet, with the reason recorded on the row. Nothing hides in here silently. |
+| **total** | **207** | |
+
+## Non-function imports
+
+| module.name | kind | detail |
+| --- | --- | --- |
+| `a.a` | memory | initial 3072 pages, max 65536, not shared (201326592 B initial); owner: the host's `WebAssembly.Memory` — both tenants fence inside this one buffer (docs §18.3) |
+
+## Every import
+
+| # | short name | sig | official | glue ref | impl | alias | fwd | bucket | modern owner |
+| ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+0 | `$` | (i32,i32) -> void | `_glUniform1i` | `artemis.js@258306` | `215907` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+1 | `$a` | (i32,i32,i32) -> i32 | `_emscripten_get_canvas_element_size` | `artemis.js@256054` | `173258` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+2 | `$b` | (i32,i32) -> i32 | `_emscripten_enter_soft_fullscreen` | `artemis.js@256015` | `180649` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+3 | `A` | () -> void | `___cxa_end_catch` | `artemis.js@254909` | `25245` | — | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value |
+4 | `Aa` | (i32) -> i32 | `_pthread_mutexattr_destroy` | `artemis.js@259247` | `240363` | — | yes | `runtime` | packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling |
+5 | `Ab` | (i32,i32) -> i32 | `_pthread_mutexattr_settype` | `artemis.js@259308` | `240438` | — | yes | `runtime` | packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling |
+6 | `Ac` | (i32) -> i32 | `_usleep` | `artemis.js@259413` | `248756` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+7 | `B` | (i32,i32,i32) -> i32 | `_emscripten_asm_const_int` | `artemis.js@255917` | `167287` | — | yes | `runtime` | packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling |
+8 | `Ba` | (i32,i32,i32,i32) -> f64 | `invoke_diii` | `artemis.js@258667` | `273409` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+9 | `Bb` | (i32) -> i32 | `_pthread_mutexattr_init` | `artemis.js@259279` | `240402` | — | yes | `runtime` | packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling |
+10 | `Bc` | (i32,i32) -> i32 | `_clock_gettime` | `artemis.js@255883` | `21705` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+11 | `C` | (i32) -> void | `_setTempRet0` | `artemis.js@259339` | `240477` | — | yes | `runtime` | packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling |
+12 | `Ca` | (i32,i32,i32,i32) -> f32 | `invoke_fiii` | `artemis.js@258698` | `273237` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+13 | `Cb` | (i32,i32,i32,i32,i32) -> i32 | `_strftime_l` | `artemis.js@259372` | `247954` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+14 | `Cc` | (i32,i32,i32,i32,i32,i32,i32) -> void | `_emscripten_idb_async_store` | `artemis.js@256201` | `185038` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+15 | `D` | (i32,i32,i32,i32,i32,i32,i32) -> i32 | `invoke_iiiiiii` | `artemis.js@258826` | `271359` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+16 | `Da` | (i32) -> i32 | `___sys_unlink` | `artemis.js@255454` | `114157` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+17 | `Db` | () -> i32 | `___cxa_uncaught_exceptions` | `artemis.js@255094` | `28562` | — | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value |
+18 | `Dc` | (i32,i32,i32,i32,i32) -> void | `_emscripten_idb_async_load` | `artemis.js@256169` | `184696` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+19 | `E` | (i32,i32,i32) -> i32 | `___sys_fcntl64` | `artemis.js@255260` | `89788` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+20 | `Ea` | (i32,i32,i32,i32) -> i32 | `_fd_write` | `artemis.js@257158` | `198885` | `wasi_snapshot_preview1.fd_write -> a.Ea` | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock | _(x2: 1 of 2: _fd_write type#2 (i32,i32,i32,i32) -> i32)_
+21 | `Eb` | (i32,i32) -> i32 | `_environ_get` | `artemis.js@257064` | `196977` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+22 | `Ec` | (i32,i32,i32,i32,i32) -> void | `_emscripten_idb_async_exists` | `artemis.js@256135` | `184441` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+23 | `F` | (i32) -> i32 | `_alGetString` | `artemis.js@255620` | `161305` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+24 | `Fa` | (i32) -> void | `_glBindVertexArray` | `artemis.js@257334` | `206888` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+25 | `Fb` | (i32,i32) -> i32 | `_environ_sizes_get` | `artemis.js@257082` | `197300` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+26 | `Fc` | (i32,i32,i32) -> void | `_emscripten_idb_delete` | `artemis.js@256234` | `185335` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+27 | `G` | () -> i32 | `_alGetError` | `artemis.js@255585` | `160746` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+28 | `Ga` | (i32,i32,i32) -> void | `_alSourcei` | `artemis.js@255784` | `158950` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+29 | `Gb` | (i32,i32) -> i32 | `___localtime_r` | `artemis.js@255143` | `31095` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+30 | `Gc` | (i32,i32,i32,i32,i32) -> void | `_emscripten_idb_store` | `artemis.js@256316` | `186151` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+31 | `H` | (i32,i32,i32) -> void | `_glTexParameteri` | `artemis.js@258248` | `215462` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+32 | `Ha` | (i32,i32,i32,i32,i32) -> void | `_alBufferData` | `artemis.js@255485` | `156352` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+33 | `Hb` | (i32,i32) -> i32 | `___gmtime_r` | `artemis.js@255126` | `29278` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+34 | `Hc` | (i32,i32,i32,i32,i32) -> void | `_emscripten_idb_load` | `artemis.js@256290` | `185767` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+35 | `I` | (i32,i32) -> void | `_emscripten_longjmp` | `artemis.js@256342` | `186470` | `env._emscripten_throw_longjmp -> a.I` | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value | _(x2: 1 of 2: _emscripten_longjmp type#0 (i32,i32) -> void)_
+36 | `Ia` | (i32,i32,i32) -> void | `_alSourceUnqueueBuffers` | `artemis.js@255739` | `163784` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+37 | `Ib` | (i32,i32,i32,i32,i32) -> i32 | `___sys__newselect` | `artemis.js@255186` | `87334` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+38 | `Ic` | (i32,i32,i32,i32) -> void | `_emscripten_idb_exists` | `artemis.js@256262` | `185529` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+39 | `J` | (i32) -> void | `_glDisable` | `artemis.js@257743` | `209345` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+40 | `Ja` | (i32,i32) -> void | `_alDeleteSources` | `artemis.js@255526` | `159280` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+41 | `Jb` | (i32,i32) -> i32 | `___sys_stat64` | `artemis.js@255435` | `113960` | `wasi_snapshot_preview1.fd_fdstat_get -> a.Jb` | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock | _(x2: 1 of 2: ___sys_stat64 type#6 (i32,i32) -> i32)_
+42 | `Jc` | (i32,i32,i32,i32,i32,i32,i32,i32) -> i32 | `_emscripten_async_wget2_data` | `artemis.js@255948` | `167424` | — | yes | `asyncify` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the spill; see docs §18.3 |
+43 | `K` | (i32,i32) -> i32 | `_glGetUniformLocation` | `artemis.js@258115` | `213109` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+44 | `Ka` | (i32,i32) -> void | `_alDeleteBuffers` | `artemis.js@255504` | `158495` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+45 | `Kb` | (i32,i32) -> i32 | `___sys_mkdir` | `artemis.js@255341` | `92663` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+46 | `Kc` | (i32,i32,i32,i32,i32,i32,i32,i32) -> void | `_glCopyTexImage2D` | `artemis.js@257510` | `207563` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+47 | `L` | (i32) -> i32 | `_llvm_eh_typeid_for` | `artemis.js@259194` | `239235` | — | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value |
+48 | `La` | (i32,i32) -> void | `_alGenBuffers` | `artemis.js@255548` | `159678` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+49 | `Lb` | (i32) -> i32 | `___sys_rmdir` | `artemis.js@255395` | `93378` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+50 | `M` | (i32,i32) -> void | `_glBindTexture` | `artemis.js@257314` | `206801` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+51 | `Ma` | (i32,i32) -> void | `_alGenSources` | `artemis.js@255567` | `159993` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+52 | `Mb` | (i32,i32,i32) -> i32 | `___sys_ioctl` | `artemis.js@255303` | `91761` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+53 | `N` | (i32,i32) -> void | `_glBindBuffer` | `artemis.js@257248` | `206500` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+54 | `Na` | (i32) -> i32 | `_alcMakeContextCurrent` | `artemis.js@255823` | `166692` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+55 | `Nb` | (i32,i32) -> i32 | `___sys_lstat64` | `artemis.js@255321` | `92464` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+56 | `O` | (i32,i32) -> i32 | `___sys_socketcall` | `artemis.js@255412` | `109929` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+57 | `Oa` | (i32,i32) -> i32 | `_alcCreateContext` | `artemis.js@255800` | `165033` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+58 | `Ob` | (i32,i32) -> i32 | `___clock_gettime` | `artemis.js@254835` | `21968` | `wasi_snapshot_preview1.clock_time_get -> a.Ob` | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock | _(x2: 1 of 2: ___clock_gettime type#6 (i32,i32) -> i32)_
+59 | `P` | (i32,i32,i32,i32,i32,i32,i32,i32,i32,i32,i32) -> void | `invoke_viiiiiiiiii` | `artemis.js@259142` | `273821` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+60 | `Pa` | (i32) -> i32 | `_alcOpenDevice` | `artemis.js@255851` | `166833` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+61 | `Pb` | (i32) -> i32 | `_mktime` | `artemis.js@259234` | `239282` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+62 | `Q` | (i32) -> i32 | `_fd_close` | `artemis.js@257115` | `197685` | `wasi_snapshot_preview1.fd_close -> a.Q` | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock | _(x2: 1 of 2: _fd_close type#23 (i32) -> i32)_
+63 | `Qa` | (i32,i32,i32,i32) -> void | `_emscripten_async_wget_data` | `artemis.js@255982` | `168798` | — | yes | `asyncify` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the spill; see docs §18.3 |
+64 | `Qb` | (i32,i32) -> i32 | `___sys_rename` | `artemis.js@255376` | `93132` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+65 | `R` | (i32) -> void | `_alSourcePlay` | `artemis.js@255674` | `162464` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+66 | `Ra` | (i32,i32,i32,i32,i32,i32,i32,i32,i32) -> i32 | `invoke_iiiiiiiii` | `artemis.js@258867` | `272237` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+67 | `Rb` | (i32,i32) -> i32 | `___sys_dup2` | `artemis.js@255227` | `89265` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+68 | `S` | (i32) -> void | `_glActiveTexture` | `artemis.js@257207` | `206342` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+69 | `Sa` | (i32) -> i32 | `_emscripten_run_script_string` | `artemis.js@256424` | `187410` | — | yes | `runtime` | packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling |
+70 | `Sb` | (i32,i32,i32) -> i32 | `___sys_dup3` | `artemis.js@255244` | `89530` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+71 | `T` | (i32,i32) -> void | `_glGenTextures` | `artemis.js@257955` | `210504` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+72 | `Ta` | () -> void | `_abort` | `artemis.js@255473` | `114334` | `env._Unwind_RaiseException -> a.Ta` | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value | _(x2: 1 of 2: _abort type#1 () -> void)_
+73 | `Tb` | (i32) -> i32 | `___sys_chdir` | `artemis.js@255209` | `89090` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+74 | `U` | (i32,i32) -> void | `_glDeleteTextures` | `artemis.js@257694` | `208992` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+75 | `Ua` | (i32) -> i32 | `_glCheckFramebufferStatus` | `artemis.js@257424` | `207297` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+76 | `Ub` | (i32,i32,i32,i32) -> i32 | `_fd_read` | `artemis.js@257130` | `197870` | `wasi_snapshot_preview1.fd_read -> a.Ub` | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock | _(x2: 1 of 2: _fd_read type#2 (i32,i32,i32,i32) -> i32)_
+77 | `V` | (i32) -> void | `_exit` | `artemis.js@257105` | `197649` | `wasi_snapshot_preview1.proc_exit -> a.V` | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock | _(x2: 1 of 2: _exit type#17 (i32) -> void)_
+78 | `Va` | (i32,i32,i32,i32) -> void | `_glFramebufferRenderbuffer` | `artemis.js@257827` | `209607` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+79 | `Vb` | (i32,i32,i32) -> i32 | `___sys_getdents64` | `artemis.js@255280` | `90423` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+80 | `W` | (i32,i32) -> void | `_glBindFramebuffer` | `artemis.js@257266` | `206582` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+81 | `Wa` | (i32,i32,i32,i32,i32) -> void | `_glFramebufferTexture2D` | `artemis.js@257859` | `209793` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+82 | `Wb` | (i32,i32) -> void | `_glGenVertexArrays` | `artemis.js@257975` | `210594` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+83 | `X` | (i32,i32,i32) -> void | `_glGetProgramiv` | `artemis.js@258050` | `211094` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+84 | `Xa` | (i32,i32,i32,i32) -> void | `_glRenderbufferStorage` | `artemis.js@258181` | `214964` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+85 | `Xb` | (i32) -> i32 | `_system` | `artemis.js@259389` | `248034` | — | yes | `todo` | packages/runtime-artemis/src/host/todo.ts (to be written) — deliberate no-ops, each with a reason |
+
+**Why `todo`:** system. No subprocesses in a browser tab. A call has to fail, not fork — and fail loudly, because a working port never reaches it.
+86 | `Y` | (i32,i32) -> void | `_glAttachShader` | `artemis.js@257228` | `206399` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+87 | `Ya` | (i32,i32) -> void | `_glBindRenderbuffer` | `artemis.js@257290` | `206689` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+88 | `Yb` | (i32,i32) -> void | `_glDeleteVertexArrays` | `artemis.js@257717` | `209199` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+89 | `Z` | (i32) -> void | `_glDeleteProgram` | `artemis.js@257624` | `208376` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+90 | `Za` | (i32,i32) -> void | `_glGenRenderbuffers` | `artemis.js@257931` | `210389` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+91 | `Zb` | (i32) -> void | `_glfwDestroyWindow` | `artemis.js@258444` | `235611` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+92 | `_` | (i32,i32,i32,i32) -> void | `_glBlendFuncSeparate` | `artemis.js@257357` | `206960` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+93 | `_a` | (i32,i32) -> void | `_glGenFramebuffers` | `artemis.js@257907` | `210297` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+94 | `_b` | (i32,i32,i32) -> void | `_emscripten_set_main_loop` | `artemis.js@256553` | `189193` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+95 | `aa` | (i32,i32,i32,i32,i32,i32,i32,i32) -> i32 | `invoke_iiiiiiii` | `artemis.js@258846` | `272033` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+96 | `ab` | (i32,i32,i32,i32) -> void | `_glGetShaderInfoLog` | `artemis.js@258071` | `212369` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+97 | `ac` | (i32,i32,i32,i32) -> i32 | `_emscripten_set_visibilitychange_callback_on_thread` | `artemis.js@256934` | `194749` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+98 | `b` | () -> i32 | `_getTempRet0` | `artemis.js@257172` | `199135` | — | yes | `runtime` | packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling |
+99 | `ba` | (i32,i32,i32,i32,i32,i32,i32,i32,i32,i32,i32,i32,i32,i32,i32,i32) -> void | `invoke_viiiiiiiiiiiiiii` | `artemis.js@259166` | `274044` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+100 | `bb` | (i32) -> void | `_glCompileShader` | `artemis.js@257488` | `207489` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+101 | `bc` | (i32,i32,i32,i32,i32) -> i32 | `_emscripten_set_keyup_callback_on_thread` | `artemis.js@256507` | `188989` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+102 | `c` | () -> i32 | `___cxa_find_matching_catch_2` | `artemis.js@254930` | `25585` | — | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value |
+103 | `ca` | (i32,i32,i32,i32,i32,i32,i32,i32,i32,i32,i32,i32) -> i32 | `invoke_iiiiiiiiiiii` | `artemis.js@258889` | `273581` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+104 | `cb` | (i32,i32,i32,i32) -> void | `_glShaderSource` | `artemis.js@258209` | `215051` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+105 | `cc` | (i32,i32,i32,i32,i32) -> i32 | `_emscripten_set_keydown_callback_on_thread` | `artemis.js@256459` | `188781` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+106 | `d` | (i32,i32) -> void | `invoke_vi` | `artemis.js@258968` | `269688` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+107 | `da` | () -> f64 | `_emscripten_get_device_pixel_ratio` | `artemis.js@256095` | `181943` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+108 | `db` | (i32) -> i32 | `_glCreateShader` | `artemis.js@257555` | `207808` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+109 | `dc` | (i32,i32,i32,i32,i32) -> i32 | `_emscripten_set_touchcancel_callback_on_thread` | `artemis.js@256732` | `192921` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+110 | `e` | (i32,i32,i32,i32,i32) -> void | `invoke_viiii` | `artemis.js@259045` | `268999` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+111 | `ea` | (i32) -> i32 | `_time` | `artemis.js@259402` | `248672` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+112 | `eb` | (i32) -> void | `_glClear` | `artemis.js@257455` | `207379` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+113 | `ec` | (i32,i32,i32,i32,i32) -> i32 | `_emscripten_set_touchend_callback_on_thread` | `artemis.js@256784` | `193140` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+114 | `f` | (i32,i32,i32,i32) -> void | `invoke_viii` | `artemis.js@259029` | `270338` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+115 | `fa` | (i32,i32,i32,i32) -> void | `_emscripten_wget_data` | `artemis.js@257037` | `196090` | — | yes | `asyncify` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the spill; see docs §18.3 |
+116 | `fb` | (f32,f32,f32,f32) -> void | `_glClearColor` | `artemis.js@257469` | `207420` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+117 | `fc` | (i32,i32) -> f64 | `_difftime` | `artemis.js@255903` | `167236` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+118 | `g` | (i32) -> i32 | `___cxa_find_matching_catch_3` | `artemis.js@254963` | `26421` | — | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value |
+119 | `ga` | (i32) -> void | `_alSourcePause` | `artemis.js@255655` | `162296` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+120 | `gb` | (i32) -> void | `_glfwSwapBuffers` | `artemis.js@258586` | `237567` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+121 | `gc` | (i32,i32,i32,i32,i32) -> i32 | `_emscripten_set_touchmove_callback_on_thread` | `artemis.js@256833` | `193353` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+122 | `h` | (i32,i32) -> i32 | `invoke_ii` | `artemis.js@258746` | `269994` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+123 | `ha` | (i32,f32) -> void | `_glUniform1f` | `artemis.js@258270` | `215531` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+124 | `hb` | (i32,i32,i32,i32,i32,i32,i32) -> void | `_glReadPixels` | `artemis.js@258162` | `214719` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+125 | `hc` | (i32,i32,i32,i32,i32) -> i32 | `_emscripten_set_touchstart_callback_on_thread` | `artemis.js@256883` | `193568` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+126 | `i` | (i32) -> void | `___resumeException` | `artemis.js@255162` | `25404` | — | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value |
+127 | `ia` | (i32,i32,i32,i32,i32,i32) -> void | `_glVertexAttribPointer` | `artemis.js@258361` | `216144` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+128 | `ib` | (i32,i32,i32,i32) -> void | `_glGetProgramInfoLog` | `artemis.js@258025` | `210800` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+129 | `ic` | (i32,i32,i32,i32,i32) -> i32 | `_emscripten_set_wheel_callback_on_thread` | `artemis.js@256991` | `195798` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+130 | `j` | (i32,i32,i32) -> void | `invoke_vii` | `artemis.js@258997` | `269837` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+131 | `ja` | (i32) -> void | `_glEnableVertexAttribArray` | `artemis.js@257795` | `209527` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+132 | `jb` | (i32,i32,i32) -> void | `_glfwGetFramebufferSize` | `artemis.js@258468` | `235679` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+133 | `jc` | (i32,i32,i32,i32,i32) -> i32 | `_emscripten_set_mouseup_callback_on_thread` | `artemis.js@256684` | `191102` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+134 | `k` | (i32,i32,i32) -> i32 | `invoke_iii` | `artemis.js@258760` | `269172` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+135 | `ka` | (i32,i32) -> i32 | `_glGetAttribLocation` | `artemis.js@257999` | `210684` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+136 | `kb` | (i32,i32,i32) -> void | `_glfwGetWindowSize` | `artemis.js@258497` | `235891` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+137 | `kc` | (i32,i32,i32,i32,i32) -> i32 | `_emscripten_set_mousemove_callback_on_thread` | `artemis.js@256634` | `190888` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+138 | `l` | (i32,i32,i32,i32,i32,i32,i32) -> void | `invoke_viiiiii` | `artemis.js@259080` | `271170` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+139 | `la` | (i32,i32,i32,i32) -> void | `_glBufferSubData` | `artemis.js@257402` | `207171` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+140 | `lb` | () -> i32 | `_glewInit` | `artemis.js@258406` | `218858` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+141 | `lc` | (i32,i32,i32,i32,i32) -> i32 | `_emscripten_set_mousedown_callback_on_thread` | `artemis.js@256584` | `190674` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+142 | `m` | (i32,i32,i32,i32) -> i32 | `invoke_iiii` | `artemis.js@258775` | `269516` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+143 | `ma` | (i32,i32,i32,f32) -> void | `invoke_viif` | `artemis.js@259013` | `271711` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+144 | `mb` | (i32) -> void | `_glfwSwapInterval` | `artemis.js@258608` | `237624` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+145 | `mc` | () -> void | `_glfwTerminate` | `artemis.js@258631` | `237792` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+146 | `n` | (i32,i32,i32,i32,i32,i32) -> i32 | `invoke_iiiiii` | `artemis.js@258808` | `270150` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+147 | `na` | (i32,i32,i32) -> i32 | `___sys_open` | `artemis.js@255359` | `92854` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+148 | `nb` | (i32) -> void | `_glfwMakeContextCurrent` | `artemis.js@258536` | `237498` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+149 | `nc` | (i32,i32,i32,i32,i32) -> i32 | `_glfwCreateWindow` | `artemis.js@258421` | `235491` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+150 | `o` | (i32,i32,i32,i32,i32) -> i32 | `invoke_iiiii` | `artemis.js@258791` | `269336` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+151 | `oa` | (i32,i32,i32) -> void | `_alGetSourcei` | `artemis.js@255602` | `160864` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+152 | `ob` | (i32,i32,i32) -> void | `_glUniform1fv` | `artemis.js@258288` | `215641` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+153 | `oc` | () -> i32 | `_glfwInit` | `artemis.js@258521` | `235978` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+154 | `p` | (i32) -> void | `invoke_v` | `artemis.js@258931` | `270503` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+155 | `pa` | (i32,i32,i32,i32,i32,i32,i32,i32,i32) -> void | `_glTexImage2D` | `artemis.js@258230` | `215202` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+156 | `pb` | (i32,f32,f32,f32) -> void | `_glUniform3f` | `artemis.js@258324` | `215984` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+157 | `pc` | () -> void | `_glfwPollEvents` | `artemis.js@258565` | `237539` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+158 | `q` | (i32,i32,i32,i32) -> void | `___assert_fail` | `artemis.js@254815` | `21112` | — | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value |
+159 | `qa` | (i32,i32) -> void | `_glDeleteRenderbuffers` | `artemis.js@257646` | `208579` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+160 | `qb` | (i32) -> void | `_glUseProgram` | `artemis.js@258342` | `216073` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+161 | `qc` | (i32,i32,i32,i32) -> i32 | `_strftime` | `artemis.js@259357` | `241368` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+162 | `r` | (i32) -> i32 | `___cxa_begin_catch` | `artemis.js@254886` | `24647` | — | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value |
+163 | `ra` | (i32,i32) -> void | `_glDeleteFramebuffers` | `artemis.js@257598` | `208129` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+164 | `rb` | (i32,i32) -> void | `_glDeleteBuffers` | `artemis.js@257576` | `207932` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+165 | `rc` | (i32,f32,f32,f32,f32,f32,f32,i32,i32,i32,i32) -> void | `invoke_vffffffiiii` | `artemis.js@258945` | `273014` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+166 | `s` | (i32,i32,i32,i32,i32,i32) -> void | `invoke_viiiii` | `artemis.js@259062` | `270644` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+167 | `sa` | (i32,i32,i32) -> void | `_glGetShaderiv` | `artemis.js@258096` | `212658` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+168 | `sb` | (i32,i32,i32,i32) -> void | `_glBufferData` | `artemis.js@257383` | `207043` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+169 | `sc` | (i32,i32,i32) -> f64 | `invoke_dii` | `artemis.js@258651` | `272850` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+170 | `t` | (i32,i32) -> f32 | `invoke_fi` | `artemis.js@258683` | `271555` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+171 | `ta` | (i32,i32,i32,i32) -> void | `_glViewport` | `artemis.js@258389` | `216282` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+172 | `tb` | (i32,i32) -> void | `_glGenBuffers` | `artemis.js@257888` | `210212` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+173 | `tc` | (i32,i32,i32,i32,i32,i32) -> f32 | `invoke_fiiiii` | `artemis.js@258715` | `272662` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+174 | `u` | (i32) -> i32 | `___cxa_allocate_exception` | `artemis.js@254856` | `22151` | — | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value |
+175 | `ua` | (i32) -> void | `_glLinkProgram` | `artemis.js@258142` | `213546` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+176 | `ub` | (i32,i32,i32,i32) -> i32 | `_getaddrinfo` | `artemis.js@257190` | `199182` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+177 | `uc` | (i32,i32,i32,i32,i32,i32,i32,i32,i32,i32) -> void | `invoke_viiiiiiiii` | `artemis.js@259120` | `272449` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+178 | `v` | (i32,i32,f32) -> void | `invoke_vif` | `artemis.js@258982` | `271876` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+179 | `va` | () -> i32 | `_glCreateProgram` | `artemis.js@257533` | `207664` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+180 | `vb` | (i32,i32,i32,i32,i32,i32) -> i32 | `___cxa_find_matching_catch_8` | `artemis.js@254997` | `27257` | — | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value |
+181 | `vc` | (i32,i32,f32,f32,f32) -> void | `_alSource3f` | `artemis.js@255638` | `161988` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+182 | `w` | (i32,i32,i32) -> void | `___cxa_throw` | `artemis.js@255076` | `28407` | — | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value |
+183 | `wa` | (i32) -> void | `_glDeleteShader` | `artemis.js@257674` | `208836` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+184 | `wb` | (i32,i32,i32,i32,i32) -> i32 | `invoke_jiiii` | `artemis.js@258914` | `274317` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+185 | `wc` | (i32,i32,f32) -> void | `_alSourcef` | `artemis.js@255768` | `164319` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+186 | `x` | (i32) -> i32 | `invoke_i` | `artemis.js@258733` | `271022` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+187 | `xa` | (i32,i32,i32,i32) -> void | `_glDrawElements` | `artemis.js@257759` | `209390` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+188 | `xb` | (i32,i32,i32,i32,i32) -> i32 | `_fd_seek` | `artemis.js@257144` | `198118` | `wasi_snapshot_preview1.fd_seek -> a.xb` | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock | _(x2: 1 of 2: _fd_seek type#7 (i32,i32,i32,i32,i32) -> i32)_
+189 | `xc` | (i32) -> void | `_alSourceStop` | `artemis.js@255720` | `163617` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+190 | `y` | (i32,i32,i32,i32,i32,i32,i32,i32) -> void | `invoke_viiiiiii` | `artemis.js@259099` | `270825` | — | yes | `async` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the one seam, beside the spill; see docs §18.3 |
+191 | `ya` | (i32) -> void | `_glEnable` | `artemis.js@257780` | `209484` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+192 | `yb` | (i32,i32,i32) -> i32 | `_emscripten_memcpy_big` | `artemis.js@256367` | `186529` | — | yes | `asyncify` | packages/runtime-artemis/src/host/asyncify.ts (to be written) — the spill; see docs §18.3 |
+193 | `yc` | (i32,i32,i32) -> void | `_alSourceQueueBuffers` | `artemis.js@255693` | `162631` | — | yes | `gl` | packages/runtime-artemis/src/host/gl.ts (to be written) — the real WebGL2 context, forwarded verbatim |
+194 | `z` | (i32) -> void | `___cxa_free_exception` | `artemis.js@255030` | `24960` | — | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value |
+195 | `za` | () -> void | `___cxa_rethrow` | `artemis.js@255057` | `28093` | — | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value |
+196 | `zb` | (i32) -> i32 | `_emscripten_resize_heap` | `artemis.js@256395` | `186843` | — | yes | `runtime` | packages/runtime-artemis/src/host/runtime.ts (to be written) — heap growth, thread bookkeeping, asm! marshalling |
+197 | `zc` | () -> i32 | `_clock` | `artemis.js@255871` | `167122` | — | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock |
+198 | `Ea` | (i32,i32,i32,i32) -> i32 | `_fd_write` | `artemis.js@257158` | `198885` | `wasi_snapshot_preview1.fd_write -> a.Ea` | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock | _(x2: 1 of 2: _fd_write type#2 (i32,i32,i32,i32) -> i32)_
+199 | `Ub` | (i32,i32,i32,i32) -> i32 | `_fd_read` | `artemis.js@257130` | `197870` | `wasi_snapshot_preview1.fd_read -> a.Ub` | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock | _(x2: 1 of 2: _fd_read type#2 (i32,i32,i32,i32) -> i32)_
+200 | `Ta` | (i32) -> i32 | `_abort` | `artemis.js@255473` | `114334` | `env._Unwind_RaiseException -> a.Ta` | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value | _(x2: 1 of 2: _abort type#23 (i32) -> i32)_
+201 | `Ob` | (i32,i64,i32) -> i32 | `___clock_gettime` | `artemis.js@254835` | `21968` | `wasi_snapshot_preview1.clock_time_get -> a.Ob` | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock | _(x2: 1 of 2: ___clock_gettime type#56 (i32,i64,i32) -> i32)_
+202 | `V` | (i32) -> void | `_exit` | `artemis.js@257105` | `197649` | `wasi_snapshot_preview1.proc_exit -> a.V` | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock | _(x2: 1 of 2: _exit type#17 (i32) -> void)_
+203 | `Q` | (i32) -> i32 | `_fd_close` | `artemis.js@257115` | `197685` | `wasi_snapshot_preview1.fd_close -> a.Q` | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock | _(x2: 1 of 2: _fd_close type#23 (i32) -> i32)_
+204 | `xb` | (i32,i64,i32,i32) -> i32 | `_fd_seek` | `artemis.js@257144` | `198118` | `wasi_snapshot_preview1.fd_seek -> a.xb` | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock | _(x2: 1 of 2: _fd_seek type#57 (i32,i64,i32,i32) -> i32)_
+205 | `Jb` | (i32,i32) -> i32 | `___sys_stat64` | `artemis.js@255435` | `113960` | `wasi_snapshot_preview1.fd_fdstat_get -> a.Jb` | yes | `fd` | packages/runtime-artemis/src/host/fd.ts (to be written) — @online-gal/vfs SyncFileBridge + a clock | _(x2: 1 of 2: ___sys_stat64 type#6 (i32,i32) -> i32)_
+206 | `I` | () -> void | `_emscripten_longjmp` | `artemis.js@256342` | `186470` | `env._emscripten_throw_longjmp -> a.I` | yes | `eh` | packages/runtime-artemis/src/host/eh.ts (to be written) — throw/abort, never a return value | _(x2: 1 of 2: _emscripten_longjmp type#1 () -> void)_
+
+## What this run found, and what it could not locate
+
+- names in the import section: **198** distinct, **207** entries (the difference is the repeated names below)
+- names the glue binds: **207/207**
+- rows with no locatable binding in the glue: **0**
+- rows whose implementation body was not found in the glue: **0**
+- names that appear more than once in the import section: **9** (`Ea`, `I`, `Jb`, `Ob`, `Q`, `Ta`, `Ub`, `V`, `xb`)
+
+  The repeats are the build's own doing, and each pair is two different functions that happen to share a field name:
+  - `a.Ea` #20 → `_fd_write` `(i32,i32,i32,i32) -> i32`
+  - `a.Ea` #198 → `_fd_write` `(i32,i32,i32,i32) -> i32`
+  - `a.I` #35 → `_emscripten_longjmp` `(i32,i32) -> void`
+  - `a.I` #206 → `_emscripten_longjmp` `() -> void`
+  - `a.Jb` #41 → `___sys_stat64` `(i32,i32) -> i32`
+  - `a.Jb` #205 → `___sys_stat64` `(i32,i32) -> i32`
+  - `a.Ob` #58 → `___clock_gettime` `(i32,i32) -> i32`
+  - `a.Ob` #201 → `___clock_gettime` `(i32,i64,i32) -> i32`
+  - `a.Q` #62 → `_fd_close` `(i32) -> i32`
+  - `a.Q` #203 → `_fd_close` `(i32) -> i32`
+  - `a.Ta` #72 → `_abort` `() -> void`
+  - `a.Ta` #200 → `_abort` `(i32) -> i32`
+  - `a.Ub` #76 → `_fd_read` `(i32,i32,i32,i32) -> i32`
+  - `a.Ub` #199 → `_fd_read` `(i32,i32,i32,i32) -> i32`
+  - `a.V` #77 → `_exit` `(i32) -> void`
+  - `a.V` #202 → `_exit` `(i32) -> void`
+  - `a.xb` #188 → `_fd_seek` `(i32,i32,i32,i32,i32) -> i32`
+  - `a.xb` #204 → `_fd_seek` `(i32,i64,i32,i32) -> i32`
+- runtime aliases read from the build manifest: **9** (`fd_write` → `a.Ea`, `_emscripten_throw_longjmp` → `a.I`, `fd_fdstat_get` → `a.Jb`, `clock_time_get` → `a.Ob`, `fd_close` → `a.Q`, `_Unwind_RaiseException` → `a.Ta`, `fd_read` → `a.Ub`, `proc_exit` → `a.V`, `fd_seek` → `a.xb`)
+- `todo` rows without a recorded reason: **0**
+- imports with no forwarder in `imports-forward.c`: **0**
+
+## Provenance
+
+| what | value |
+| --- | --- |
+| module | `a` (read from the glue: `var info={"a":asmLibraryArg}`) |
+| glue object | `var asmLibraryArg={` at byte 254810, 4611 bytes, 199 bindings |
+| module bytes | 41757498 |
+| module sha256 | `2b30f5c540729d1237021a6e90160de46a48f21832cdbfe5300f5b24c11e6c96` |
+| import entries decoded | 208 (207 func + 1 other) |
+
+Regenerate:
+
+```sh
+node ports/artemis/harness/glue/imports-map.mjs \
+  --wasm    <artifact-dir>/dist/artemis-bridge/build/bridge.wasm \
+  --glue    ports/artemis/vendor/artemis-sdk/WebAssembly/asyncify/artemis.js \
+  --forward <artifact-dir>/dist/artemis-bridge/build/imports-forward.c \
+  --aliases <artifact-dir>/dist/artemis-bridge/build/runtime-imports.json
+```
