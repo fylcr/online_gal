@@ -19,15 +19,19 @@
 //
 // Usage:
 //   node ports/artemis/harness/glue/imports-map.mjs \
-//     --wasm   <bridge.wasm> \
-//     --glue   <artemis.js> \
-//     --forward <imports-forward.c> \
+//     --wasm    <bridge.wasm> \
+//     --glue    <artemis.js> \
 //     --aliases <runtime-imports.json> \
 //     [--out-dir <dir>]        default: this script's directory
 //
-// `--forward` is optional; the C forwarders are corroborating evidence, not an input to
-// the classification.  Without it the `forwarded` column reads `-` and the table still
-// stands on the wasm import section plus the glue.
+// `--forward` is optional and is deliberately NOT part of the reproduction command.  The
+// generated `imports-forward.c` is a build artefact and is not tracked, so a clean checkout
+// cannot produce it and a command that names it is a command that cannot be followed.  The
+// `forwarded` column also answers a different question from the rest of the table: it
+// describes *how* a seam was implemented in this build, while every other column describes
+// what the module *needs*.  This table records the ABI.  With `--forward` the `forwarded`
+// column flips from `-` to `yes` on ~200 rows and the md gains an extra summary line -- a
+// 200-line diff that is a difference in how the table was made, not a change to the ABI.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -658,9 +662,15 @@ function renderMarkdown(model, args) {
   L.push('node ports/artemis/harness/glue/imports-map.mjs \\');
   L.push('  --wasm    <artifact-dir>/dist/artemis-bridge/build/bridge.wasm \\');
   L.push('  --glue    ports/artemis/vendor/artemis-sdk/WebAssembly/asyncify/artemis.js \\');
-  L.push('  --forward <artifact-dir>/dist/artemis-bridge/build/imports-forward.c \\');
   L.push('  --aliases <artifact-dir>/dist/artemis-bridge/build/runtime-imports.json');
   L.push('```');
+  L.push('');
+  L.push('That is the exact command the committed pair came out of, and the exact one the');
+  L.push('`Gate the committed import map against this build` CI step runs. Note there is no');
+  L.push('`--forward`: `imports-forward.c` is a build artefact and is not tracked, so a clean');
+  L.push('checkout cannot produce it -- and the `forwarded` column answers "how was this');
+  L.push('seam implemented in that build", while every other column here answers "what does');
+  L.push('the module need". This table records the ABI.');
   L.push('');
   return L.join('\n');
 }

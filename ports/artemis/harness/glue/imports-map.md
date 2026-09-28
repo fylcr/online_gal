@@ -307,6 +307,12 @@ Regenerate:
 node ports/artemis/harness/glue/imports-map.mjs \
   --wasm    <artifact-dir>/dist/artemis-bridge/build/bridge.wasm \
   --glue    ports/artemis/vendor/artemis-sdk/WebAssembly/asyncify/artemis.js \
-  --forward <artifact-dir>/dist/artemis-bridge/build/imports-forward.c \
   --aliases <artifact-dir>/dist/artemis-bridge/build/runtime-imports.json
 ```
+
+That is the exact command the committed pair came out of, and the exact one the
+`Gate the committed import map against this build` CI step runs. Note there is no
+`--forward`: `imports-forward.c` is a build artefact and is not tracked, so a clean
+checkout cannot produce it -- and the `forwarded` column answers "how was this
+seam implemented in that build", while every other column here answers "what does
+the module need". This table records the ABI.
