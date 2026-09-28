@@ -85,6 +85,108 @@
  *   * gzip OS byte -- forced to 3, because zlib writes the *host's* OS there. See "THE GZIP OS
  *               BYTE IS THE HOST, NOT THE ARCHIVE".
  *
+ * THE EIGHTH THING IS NOT PINNED, IT IS CHECKED: THE BUILD MUST BE FRESH
+ *
+ * The seven above are all decided *inside* this script, which is why they are pins: given the same
+ * tree, this script cannot produce different bytes. The eighth problem cannot be pinned that way,
+ * because it happens before the script is ever called -- the `dist/` it is about to archive may be
+ * older than the `src/` it was compiled from.
+ *
+ * CI is immune by construction: every run is a fresh checkout with no `.tsbuildinfo`, so
+ * `pnpm run build:packages` is always a full build and the `dist/` it archives is by construction
+ * newer than every source file. A developer is not: `tsc -b` is incremental, it rewrites only what
+ * changed, and a `git checkout`, a branch switch or a `git pull` advances the mtime of `src/**`
+ * without advancing `dist/**` by one byte.
+ *
+ * The failure mode is the worst kind, because it is silent. This is measured, not imagined: the
+ * `@online-gal/runtime-artemis` 0.1.0 tarball that CI published for `580cdd6` was 300,290 B /
+ * sha256 b2ce4294..., while a local build of the same commit was 299,954 B / 8af69e97... -- and the
+ * two entry lists were identical, with the tar streams the same length. The only files that
+ * differed were `dist/host/timefmt.{js,js.map,d.ts.map}`, compiled before the last edit to
+ * `src/host/timefmt.ts` had been made. Re-running the build made the local tarball byte-identical
+ * to the published one, which is the proof that the build was stale and not the packer.
+ *
+ * So rather than normalizing a stale `dist/` (which would ship yesterday's answer and call it
+ * today's), the packer refuses. It compares the newest mtime under `src/**` against the newest
+ * build witness of the package under test *and of every package in the vendored closure* -- an
+ * aggregate's bytes include its siblings' `dist/`, so a stale `vfs` is just as wrong as a stale
+ * `engines`. The witness is the newer of the newest file in `dist/` and `tsconfig.tsbuildinfo`,
+ * and it has to be: `tsc -b` is incremental, so a rebuild that finds nothing to do rewrites no
+ * output and leaves `dist/` permanently behind a source file whose content never changed, which is
+ * the state an ordinary `git checkout` leaves behind. That case is measured in the section on the
+ * guard, together with why letting `tsc` speak for itself is not allowed to hide a real edit. It is
+ * a guard and not a pin because nothing this script can do would fix it: only a rebuild can, so
+ * the only correct response is to stop and say so. See "BUILD FRESHNESS IS AN INPUT, NOT A
+ * PROPERTY OF THE ARCHIVE".
+ *
+ * AND ONE THING WAS NOT PINNED, NOT CHECKED, AND NOT EVEN NOTICEABLE: A BUILD CACHE IS NOT
+ * SOURCE
+ *
+ * The eight above all concern files this script *stages*. For its entire life the script also
+ * staged, without ever saying so, `tsconfig.tsbuildinfo` -- the incremental build cache `tsc -b`
+ * writes next to each project. It shipped in every published tarball (2 entries in
+ * `runtime-artemis`, 4 in `runtime-kag` and `runtime-ons`, 10 in the `engines` aggregate), and
+ * that is a reproducibility hole rather than a tidiness complaint, for a reason worth stating
+ * precisely because it is not obvious:
+ *
+ * `tsconfig.tsbuildinfo` records the sha256 of every source file **as the compiler read it**, i.e.
+ * before this script normalizes CRLF to LF. So a checkout whose sources arrive with CRLF line
+ * endings produces a cache whose embedded digests describe bytes that no longer exist in the
+ * archive. Line-ending normalization cannot repair it, because there is no line ending left to
+ * normalize: the contaminated value is a hash *of* the pre-normalization text, stored as a 64
+ * character string. Measured, not argued: building this repository once from LF sources and once
+ * from a CRLF checkout produced tarballs of identical length (8,130,560 B) whose 10 differing
+ * files were exactly the 10 `tsconfig.tsbuildinfo` files in the vendored closure -- 819 B larger
+ * in aggregate, sha256 `be179a37...` versus `68c172fe...`. Every other one of the 416 files was
+ * byte-identical, which is what makes this diagnostic hard to see by eye and easy to misattribute.
+ *
+ * The fix is not to normalize the cache, and not to rewrite hashes inside it: both would mean the
+ * archive carries a build cache that is *wrong* about the tree it sits in, and a consumer's `tsc`
+ * would then trust a cache describing source it does not have. A build cache is not source, and
+ * this archive already ships the thing a cache exists to accelerate -- `src/**` and `dist/**`
+ * together are sufficient to run a full build, and `tsc -b` regenerates the cache in seconds.
+ * Shipping it bought nothing and cost reproducibility, so it is now excluded by name, in one
+ * place, for the package under test and for every vendored sibling alike.
+ *
+ * Note what this is *not*: it is not a concession that line endings are unreproducible. The other
+ * 416 files prove they are handled -- the packer rewrites them before hashing, so LF and CRLF
+ * checkouts converge. This one file escaped because it stores a *derived* digest of the
+ * un-normalized bytes rather than the bytes themselves, and only removal closes that hole.
+ *
+ * AND ONE THING IS NEITHER PINNED NOR AN ENVIRONMENT LEAK: THE COMMITTED ENGINE BYTES MUST
+ * MATCH THE LEDGER
+ *
+ * The eight above are all about this script's own output. This one is about the repository, and it
+ * is here because of a defect that reached a published release.
+ *
+ * `ports/lib/engine-artifacts.json` pins every engine artifact by size and sha256, and its own
+ * `$comment` says what those hashes are for: they name the bytes a consumer can verify. Nothing
+ * enforced them. So `packages/runtime-ons/assets/onsyuri.html` was committed as LF 23,817 B while
+ * the ledger says 24,399 B -- the same number of characters, the 582 CRs missing, and `git status`
+ * clean the whole time, because the worktree file *was* the ledger's bytes. The aggregate package
+ * vendors the repository's copy, so `@online-gal/engines` 0.1.0 published 23,817 B of engine while
+ * the ledger and the ONS release both said 24,399 B, and the only reason anybody noticed was a human
+ * downloading the published tarball and comparing it against the ledger. Two machines had compared
+ * their worktrees; both were right and the repository was wrong.
+ *
+ * So the packer checks the ledger before it stages anything. This is a check and not a pin for the
+ * same reason freshness is: no normalization inside this script can recover bytes the repository no
+ * longer holds, and the correct response is to stop and say which file, what it should be, and what
+ * it is. It runs in CI, which is the point -- `build-packages.yml` calls this script, so the first
+ * run of the aggregate tarball would have caught it.
+ *
+ * There is no flag to switch it off, and that is deliberate. `--skip-freshness` exists because a
+ * stale `dist/` is a local condition a rebuild fixes in a second; a file whose committed bytes do
+ * not match the ledger is a repository fact, and the only fix is to commit the right bytes. A flag
+ * would be a way to publish the defect on purpose.
+ *
+ * Note the interaction with `--assets-from`, which is the opposite arrangement and still passes:
+ * the ONS workflow ships engine bytes from a *fresh build*, while the committed copy is what the
+ * aggregate vendors, and the two must agree or the same package exists in two forms. That is why
+ * this guard is not skipped when `--assets-from` is given, and why the version rule in
+ * `build-packages.yml` exists -- a build that changes the engine bytes has to be committed and the
+ * aggregate's version bumped in the same commit, or this fails.
+ *
  * WHAT "REPRODUCIBLE" ACTUALLY MEANS HERE
  *
  * Two claims, which used to be confused with each other:
@@ -113,8 +215,11 @@
  *   node .github/scripts/make-package.mjs --package packages/runtime-ons --out dist
  *   node .github/scripts/make-package.mjs --package packages/runtime-ons --out dist \
  *        --assets-from dist/ons          # take engine bytes from a CI build instead of assets/
+ *   node .github/scripts/make-package.mjs --package packages/runtime-ons --out dist \
+ *        --skip-freshness                # pack a deliberately stale dist/ (see below)
  *
- * Exit codes: 0 ok · 1 usage · 2 a required input is missing · 3 write failed.
+ * Exit codes: 0 ok · 1 usage · 2 a required input is missing, is invalid, the build is stale, or
+ * a committed engine file disagrees with the ledger · 3 write failed.
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -142,8 +247,13 @@ const USAGE = `usage: node .github/scripts/make-package.mjs --package <dir> --ou
                  this directory; a second copy under dist/assets/ is refused.
   --tarball-name override the output file name
   --source-date-epoch  mtime stamped into every tar entry (default 498073600 = 1985-10-26)
+  --skip-freshness     do not refuse to pack when src/ is newer than dist/ (default: refuse)
   --json         print one JSON object on stdout; human output goes to stderr
-  --quiet        print only the output path`;
+  --quiet        print only the output path
+
+Before anything is staged the committed engine bytes are verified against
+ports/lib/engine-artifacts.json. That check has no flag: a committed file that disagrees with the
+ledger is a repository fact, and only a commit can fix it.`;
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..');
@@ -161,6 +271,7 @@ const options = {
   epoch: 498073600,
   json: false,
   quiet: false,
+  skipFreshness: false,
 };
 
 const argv = process.argv.slice(2);
@@ -181,6 +292,7 @@ for (let index = 0; index < argv.length; index += 1) {
     case '--tarball-name': options.tarballName = next(); break;
     case '--source-date-epoch': options.epoch = Number(next()); break;
     case '--json': options.json = true; break;
+    case '--skip-freshness': options.skipFreshness = true; break;
     case '--quiet': options.quiet = true; break;
     default: fail(1, `unknown argument ${arg}\n\n${USAGE}`);
   }
@@ -193,6 +305,63 @@ if (!Number.isInteger(options.epoch) || options.epoch < 0) fail(1, '--source-dat
 const packageDir = resolve(repoRoot, options.packageDir);
 const manifestPath = join(packageDir, 'package.json');
 if (!existsSync(manifestPath)) fail(2, `no package.json in ${packageDir}`);
+
+// --- the engine-byte ledger --------------------------------------------------------------------
+//
+// Placed before the manifest is even read, because the ledger's subject is the repository rather than
+// the package being built: an `engines` aggregate is only as trustworthy as the bytes it vendors, and
+// `runtime-ons` is in that closure, so a corrupted engine file poisons every package that ships it.
+//
+// The lookup is by basename against a fixed set of candidate directories, and that is not a
+// convenience -- it is the narrowest thing that catches this defect without catching something else.
+// Measured, not guessed: a repo-wide basename search for the krkr ledger's `index.html` also finds
+// `ports/ons/harness/index.html`, which is 6,827 B / 253b38d0... where the ledger says 53,590 B /
+// 6c8c4994.... Searching the whole tree would either validate an unrelated file or fail the pack for
+// something this pack does not contain. The candidate set is instead "the directories the repository
+// keeps engine bytes in", and an entry that is not found there is skipped rather than failed, because
+// most ledger entries are *build outputs* that only exist on a runner: the six krkr files are
+// produced by `.github/scripts/build-krkr.sh` and are committed nowhere. Skipping is the honest
+// reading of "every file that is in the repository, must match", and the log says how many were
+// checked so a silent zero is visible.
+const LEDGER_CANDIDATE_DIRS = ['packages/runtime-ons/assets', 'assets', 'dist/assets'];
+const ledgerPath = join(repoRoot, 'ports', 'lib', 'engine-artifacts.json');
+let ledgerChecked = 0;
+if (existsSync(ledgerPath)) {
+  const ledgerBytes = readFileSync(ledgerPath);
+  if (ledgerBytes[0] === 0xef && ledgerBytes[1] === 0xbb && ledgerBytes[2] === 0xbf) {
+    fail(2, `${ledgerPath} starts with a UTF-8 BOM (ef bb bf); JSON does not allow one -- re-save it without the BOM and commit that`);
+  }
+  const ledger = JSON.parse(ledgerBytes.toString('utf8'));
+  for (const [group, groupEntry] of Object.entries(ledger)) {
+    if (group.startsWith('$') || !Array.isArray(groupEntry?.files)) continue;
+    for (const entry of groupEntry.files) {
+      const found = LEDGER_CANDIDATE_DIRS
+        .map((dir) => join(repoRoot, dir, entry.name))
+        .find((candidate) => existsSync(candidate));
+      if (!found) continue; // a build output that only exists on the runner; not ours to verify
+      const actual = readFileSync(found);
+      const actualSha256 = createHash('sha256').update(actual).digest('hex');
+      ledgerChecked += 1;
+      if (actual.length === entry.size && actualSha256 === entry.sha256) continue;
+      const crCount = actual.reduce((n, byte) => n + (byte === 0x0d ? 1 : 0), 0);
+      fail(2, `engine bytes do not match ${ledgerPath} (${group}/${entry.name}):
+  file     ${relative(repoRoot, found)}
+  ledger   ${entry.size} B  sha256 ${entry.sha256}
+  actual   ${actual.length} B  sha256 ${actualSha256}${actual.length !== entry.size || crCount > 0 ? `  (${crCount} CR byte(s))` : ''}
+  Every consumer that verifies the engine against the ledger will fail on this, and so will every
+  package that vendors it -- an aggregate ships the repository's copy, while the engine's own
+  workflow ships a fresh build, so the same release would carry two different copies.
+  This is almost always a checkout conversion, not a corrupted file. .gitattributes is
+  \`${'*'} text=auto eol=lf\`, which rewrites a text file in the worktree; an engine artefact is a
+  BUILD OUTPUT whose sha256-pinned bytes ARE the substance, so that subtree must be exempt:
+  git add --renormalize is not enough, the committed bytes are what has to change.
+    1. add the path to .gitattributes as \`-text -diff\` (see packages/runtime-ons/assets/**)
+    2. restore the correct bytes, then commit them
+    3. bump the version of every package that vendors this file -- @online-gal/engines at minimum,
+       because its version is what makes a stale aggregate distinguishable from a new one`);
+    }
+  }
+}
 
 const manifestBytes = readFileSync(manifestPath);
 // A UTF-8 BOM is not valid JSON, and `JSON.parse` would report it as a syntax error several
@@ -214,6 +383,171 @@ if (!manifest.version) fail(2, `${manifestPath} has no "version"`);
 const distDir = join(packageDir, 'dist');
 if (!existsSync(distDir)) {
   fail(2, `no dist/ in ${packageDir} -- run the package build first (npm run build:packages)`);
+}
+
+// --- the dependency closure -------------------------------------------------------------------
+//
+// Resolved *before* anything is staged, because both the freshness guard below and the vendoring
+// step need it, and because resolving it is the one part of the pack that can fail for a reason
+// that has nothing to do with the package under test: a workspace that is not installed. Failing
+// early means the staging directory is never created at all.
+
+function resolveClosure(manifest) {
+  const order = [];
+  const found = new Map();
+  const queue = [...Object.keys(manifest.dependencies ?? {})];
+  const seen = new Set(queue);
+  while (queue.length) {
+    const name = queue.shift();
+    // pnpm links workspace packages as `../../<dir>` from the package's own node_modules; npm-style
+    // `node_modules/<name>` is checked too so the script does not depend on which linker produced the
+    // tree. A package that is genuinely not installed is reported rather than silently skipped,
+    // because a tarball missing a transitive dep fails at the consumer's first import.
+    //
+    // The third candidate is the hoisted store `node_modules/.pnpm/node_modules/<name>`, and it is
+    // not a nicety: a package whose DIRECT deps are all installed still needs its TRANSITIVE ones
+    // vendored, and pnpm does not put those in its own `node_modules` unless they happen to be
+    // hoisted. `packages/engines` is the case in point -- its seven direct deps are linked, but its
+    // closure reaches `@online-gal/vfs` only through the six runtimes, and `vfs` is linked in
+    // `node_modules/.pnpm/node_modules/@online-gal/vfs` alone. Without this candidate the packer
+    // aborts with `dependency not installed: @online-gal/vfs` on a workspace that is installed
+    // perfectly well, which reads like a broken install rather than a missing lookup path.
+    const candidates = [
+      join(packageDir, 'node_modules', name),
+      join(repoRoot, 'node_modules', name),
+      join(repoRoot, 'node_modules', '.pnpm', 'node_modules', name),
+    ];
+    const located = candidates.find((candidate) => existsSync(join(candidate, 'package.json')));
+    if (!located) fail(2, `dependency not installed: ${name} (looked in ${candidates.join(', ')})`);
+    found.set(name, located);
+    order.push(name);
+    const depManifest = JSON.parse(readFileSync(join(located, 'package.json'), 'utf8'));
+    for (const next of Object.keys(depManifest.dependencies ?? {})) {
+      if (!seen.has(next)) { seen.add(next); queue.push(next); }
+    }
+  }
+  return { order, found };
+}
+
+const closure = resolveClosure(manifest);
+
+// --- build freshness --------------------------------------------------------------------------
+//
+// BUILD FRESHNESS IS AN INPUT, NOT A PROPERTY OF THE ARCHIVE.
+//
+// Everything this script pins is about the bytes between the tar invocation and the file on disk.
+// This one is about the bytes that arrived *already wrong*: a `dist/` compiled from an older `src/`.
+// The two are indistinguishable once tarred, and no amount of normalization can tell them apart,
+// because a stale build is not malformed -- it is a perfectly good build of a source tree that is
+// no longer the one on disk. Only the build can fix it, so the packer's only correct move is to
+// refuse and name the fix. See "THE EIGHTH THING IS NOT PINNED, IT IS CHECKED" in the header.
+//
+// The comparison is newest-src against newest-dist, never newest-src against oldest-dist. A partial
+// rebuild legitimately leaves some `dist/` entries older than some `src/` entries -- a `tsc -b` that
+// recompiled three of forty files did not become invalid, and comparing against the oldest entry
+// would refuse to pack every package that was ever built incrementally. The question is only whether
+// *anything* was compiled after the last edit, so the newest of each side is the whole test.
+//
+// And this test alone is wrong on a repo built with `tsc -b`, which was measured here rather than
+// assumed. Two findings, both real:
+//
+//   1. A single-file-tick false positive. `runtime-ons` came out as src 19:02:28.534 vs dist
+//      19:02:28.533 -- 0.7 ms apart, from one build. Directories cannot be witnesses at all: a
+//      directory's mtime is when its last entry was created, not a build record, and comparing one
+//      against a whole subtree collides with its own files. Only files count, below.
+//   2. The real one. `vfs` measured src 22:11:18.105 vs dist 21:40:00.491 -- 30 minutes of apparent
+//      staleness -- in a tree where `tsc -b --dry` says every project is up to date, and where
+//      re-running the build does NOT close the gap. `tsc -b` is incremental: it skips a project
+//      whose CONTENTS did not change, so it rewrites no files and `dist/` stays behind by an amount
+//      no rebuild repairs. A source file whose bytes are unchanged but whose mtime moved -- an
+//      ordinary `git checkout`, a `git pull`, a branch switch -- leaves the tree there, and that is
+//      what this repository looked like after a normal pull. Left to `dist/` alone, this guard would
+//      have refused to pack ONS and krkr -- both vendor `vfs` -- over a tree that is in fact fresh.
+//      It was proven fresh, not argued: `tsc -b --force` over that tree leaves `packages/vfs/dist`
+//      byte-identical.
+//
+// So the newest `dist/` file is not the only witness, and on its own it is the wrong one.
+// `tsc -b` writes `tsconfig.tsbuildinfo` for every project it reaches, INCLUDING the ones it decides
+// need no work, and it makes that decision against source *content* rather than mtimes. Its mtime
+// is therefore a strictly stronger record: it says "as of here the compiler examined this project's
+// sources and found its output current", which is exactly the claim being checked, and it is
+// refreshed even on the runs that write no bytes. Taking the newer of the two witnesses resolves
+// the measured case exactly -- for `vfs`, the tsbuildinfo at 22:11:20.027 postdates the 22:11:18.105
+// edit, and the project is fresh, because the edit changed nothing.
+//
+// It does not weaken the check against what it exists to catch. The failure it must never miss is
+// "edited a source, never rebuilt", and in that order the tsbuildinfo predates the edit, so the
+// comparison still fires. What the witness forgives is only a `touch` or checkout that happened and
+// was then followed by a build -- and a build is precisely the thing that settles whether the edit
+// mattered. It is the same ordering `tsc` itself relies on, because `tsc` reads those same mtimes.
+//
+// On CI the question does not arise: a fresh checkout has no tsbuildinfo, so the test falls back to
+// `dist/` alone, and a full build there always postdates the checkout.
+//
+// What no timestamp can catch, stated plainly: a content change whose mtime is not newer than both
+// witnesses -- an mtime-preserving write, or a timestamp moved backwards. That is beyond what a
+// build system can certify either; `tsc`'s own record is consulted for what it compiled, and the
+// pinned toolchain decides what it compiles with.
+//
+// A package with no `dist/`, or no `src/`, is skipped rather than failed. A pure-`src` package has
+// nothing to be stale against, and a vendored dependency that ships no compiled output is not
+// evidence of anything. Only a package that has BOTH sides is making a claim that can be checked.
+function newestMtime(dir) {
+  let newest = null;
+  let which = null;
+  const walk = (current) => {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      if (entry.name === 'node_modules') continue; // pnpm's links, not this package's sources
+      const path = join(current, entry.name);
+      const mtime = statSync(path).mtimeMs;
+      // Directories are not compiled, and one must never outrank a file: a build leaves directory
+      // mtimes at the moment it created the last entry inside them, and a single mtime comparison
+      // across a whole subtree is coarse enough that the two sides of the same second collide.
+      // Files only -- a directory cannot be "newer than the build" in any way that means staleness.
+      if (entry.isDirectory()) {
+        walk(path);
+      } else if (entry.isFile() && (newest === null || mtime > newest)) {
+        newest = mtime;
+        which = path;
+      }
+    }
+  };
+  if (existsSync(dir)) walk(dir);
+  return { newest, which };
+}
+
+const freshnessSubjects = [
+  { name: manifest.name, dir: packageDir },
+  ...closure.order.map((name) => ({
+    name,
+    dir: closure.found.get(name),
+  })),
+];
+
+let freshnessChecked = 0;
+if (options.skipFreshness) {
+  process.stderr.write('make-package: freshness check skipped (--skip-freshness); packaging dist/ as it stands\n');
+} else {
+  for (const subject of freshnessSubjects) {
+    const src = newestMtime(join(subject.dir, 'src'));
+    const built = newestMtime(join(subject.dir, 'dist'));
+    if (src.newest === null || built.newest === null) continue;
+    freshnessChecked += 1;
+    // The newer of two witnesses: the newest file `dist/` holds, and `tsconfig.tsbuildinfo`, which
+    // `tsc -b` rewrites even on a run that decides to compile nothing. See the note above. A project
+    // with no build info was never built by `tsc -b` (an editor's `tsc --noEmit`, or another
+    // builder), so it offers no witness and `dist/` stands alone.
+    const info = statSync(join(subject.dir, 'tsconfig.tsbuildinfo'), { throwIfNoEntry: false });
+    const stamp = Math.max(built.newest, info?.mtimeMs ?? 0);
+    if (src.newest > stamp) {
+      fail(2, `stale build: ${subject.name} -- ${relative(repoRoot, src.which)} is newer than the newest build witness: ${relative(repoRoot, join(subject.dir, 'dist'))} and ${relative(repoRoot, join(subject.dir, 'tsconfig.tsbuildinfo'))}
+  The archive would contain compiled output for an older source tree, and nothing about those bytes
+  looks wrong, so the result would be a package that silently differs from the one CI builds.
+  Rebuild and pack again:
+
+      pnpm run build:packages`);
+    }
+  }
 }
 
 // --- staging ---------------------------------------------------------------------------------
@@ -248,6 +582,22 @@ function measure(dir) {
 rmSync(stage, { recursive: true, force: true });
 mkdirSync(staged, { recursive: true });
 
+/**
+ * `tsc -b`'s incremental build cache, and nothing else.
+ *
+ * Excluded from every copy below -- the package under test and each vendored sibling -- by one
+ * shared predicate, so there is a single line to change if that ever stops being right. It is not
+ * a `node_modules` exclusion: a consumer's `tsc` regenerates it in seconds from the `src/**` and
+ * `dist/**` that ship beside it, whereas a stale cache inside an archive is worse than none,
+ * because a compiler trusts it. The reason it cannot simply be normalized is in the header: it
+ * holds sha256 digests of the sources *as the compiler read them*, so CRLF checkouts wrote
+ * digests describing bytes this script is about to rewrite. That is a difference no pass over the
+ * output can reach, and removing the file is the only thing that does.
+ */
+function shipping(src) {
+  return basename(src) !== 'tsconfig.tsbuildinfo';
+}
+
 // 1. the manifest, with the vendoring change and nothing else.
 const shipped = { ...manifest, dependencies: undefined };
 delete shipped.dependencies;
@@ -268,7 +618,7 @@ if (manifest.license && !shipped.license) {
 writeFileSync(join(staged, 'package.json'), `${JSON.stringify(shipped, null, 2)}\n`);
 
 // 2. compiled output.
-cpSync(distDir, join(staged, 'dist'), { recursive: true });
+cpSync(distDir, join(staged, 'dist'), { recursive: true, filter: shipping });
 
 // 2b. the sources, for two independent reasons.
 //
@@ -285,7 +635,7 @@ cpSync(distDir, join(staged, 'dist'), { recursive: true });
 //  back to the repository. See docs/fetch-engine-artifacts.md.
 const srcDir = join(packageDir, 'src');
 if (existsSync(srcDir)) {
-  cpSync(srcDir, join(staged, 'src'), { recursive: true });
+  cpSync(srcDir, join(staged, 'src'), { recursive: true, filter: shipping });
 }
 
 // 3. engine artifacts. `assets/` is what the runtime resolves (`new URL('../assets/', ...)` in
@@ -313,31 +663,8 @@ if (options.assetsFrom && existsSync(join(staged, 'dist', 'assets'))) {
 }
 
 // 4. the dependency closure, vendored.
-const vendored = [];
-const queue = [...Object.keys(manifest.dependencies ?? {})];
-const seen = new Set(queue);
-while (queue.length) {
-  const name = queue.shift();
-  // pnpm links workspace packages as `../../<dir>` from the package's own node_modules; npm-style
-  // `node_modules/<name>` is checked too so the script does not depend on which linker produced the
-  // tree. A package that is genuinely not installed is reported rather than silently skipped,
-  // because a tarball missing a transitive dep fails at the consumer's first import.
-  //
-  // The third candidate is the hoisted store `node_modules/.pnpm/node_modules/<name>`, and it is
-  // not a nicety: a package whose DIRECT deps are all installed still needs its TRANSITIVE ones
-  // vendored, and pnpm does not put those in its own `node_modules` unless they happen to be
-  // hoisted. `packages/engines` is the case in point -- its seven direct deps are linked, but its
-  // closure reaches `@online-gal/vfs` only through the six runtimes, and `vfs` is linked in
-  // `node_modules/.pnpm/node_modules/@online-gal/vfs` alone. Without this candidate the packer
-  // aborts with `dependency not installed: @online-gal/vfs` on a workspace that is installed
-  // perfectly well, which reads like a broken install rather than a missing lookup path.
-  const candidates = [
-    join(packageDir, 'node_modules', name),
-    join(repoRoot, 'node_modules', name),
-    join(repoRoot, 'node_modules', '.pnpm', 'node_modules', name),
-  ];
-  const found = candidates.find((candidate) => existsSync(join(candidate, 'package.json')));
-  if (!found) fail(2, `dependency not installed: ${name} (looked in ${candidates.join(', ')})`);
+const vendored = closure.order;
+for (const name of vendored) {
   const target = join(staged, 'node_modules', name);
   mkdirSync(dirname(target), { recursive: true });
   // `dereference` is what makes a pnpm symlink into the store copy as a real directory; without it
@@ -350,16 +677,11 @@ while (queue.length) {
   // 4.0 MB where 0.7 MB is honest. The closure is already vendored flat at the top level and Node
   // resolves upward, so each copy would be dead weight. Excluding the directory is what makes the
   // vendored tree *exactly* the closure and nothing more.
-  cpSync(found, target, {
+  cpSync(closure.found.get(name), target, {
     recursive: true,
     dereference: true,
-    filter: (src) => basename(src) !== 'node_modules',
+    filter: (src) => basename(src) !== 'node_modules' && shipping(src),
   });
-  vendored.push(name);
-  const depManifest = JSON.parse(readFileSync(join(found, 'package.json'), 'utf8'));
-  for (const next of Object.keys(depManifest.dependencies ?? {})) {
-    if (!seen.has(next)) { seen.add(next); queue.push(next); }
-  }
 }
 
 // 5. the licence and the notices.
@@ -564,6 +886,8 @@ if (!options.quiet) {
   process.stderr.write(`  vendored: ${vendored.length ? vendored.join(', ') : '(none)'}\n`);
   process.stderr.write(`  notices: ${shippedNotices.join(', ')}${vendoredNotices.length ? ` (+ ${vendoredNotices.join(', ')})` : ''}\n`);
   process.stderr.write(`  line endings: ${normalizedLineEndings ? `${normalizedLineEndings} file(s) normalized to LF` : 'already LF (assets/ exempt, always)'}\n`);
+  process.stderr.write(`  freshness: ${options.skipFreshness ? 'SKIPPED (--skip-freshness)' : `${freshnessChecked} package(s) checked, dist/ is not older than src/`}\n`);
+  process.stderr.write(`  engine ledger: ${ledgerChecked} committed file(s) verified against ports/lib/engine-artifacts.json\n`);
   process.stderr.write(`  tar      ${String(reported.tarSize).padStart(6)} B uncompressed  sha256 ${reported.tarSha256}\n`);
   process.stderr.write(`  ${String(size).padStart(6)} B  ${tgzSha256}  ${tarballName}\n`);
   process.stderr.write('  (compare tar sha256 across checkouts and machines; the .tgz sha256 is this toolchain\'s)\n');
@@ -591,6 +915,15 @@ if (options.json) {
     // repository's LF. Non-zero on a Windows worktree, zero in CI; the archive is the same either
     // way, which is the point. A non-zero value on CI means a CRLF file got committed.
     normalizedLineEndings,
+    // How many packages were compared before staging: the one under test plus every package in the
+    // vendored closure. It is the number that says the guard looked at the whole input and not just
+    // the package named on the command line, which is what an aggregate's bytes actually depend on.
+    freshness: { checked: freshnessChecked, skipped: options.skipFreshness },
+    // How many ledger-pinned engine files are committed in this repository and were checked against
+    // `ports/lib/engine-artifacts.json` before staging. On this repository it is 3 (the ons trio);
+    // it is 0 in a checkout that has no committed engine bytes, which is the case worth noticing,
+    // because a packer that checked nothing must not read as a packer that checked everything.
+    ledgerChecked,
     sourceDateEpoch: options.epoch,
   })}\n`);
 } else if (options.quiet) {

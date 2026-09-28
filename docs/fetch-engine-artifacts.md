@@ -127,14 +127,14 @@ engine's file names, a tag, or where a hash manifest lives. So the ONS build now
 **standard npm tarball** — the CI output *is* the package.
 
 ```bash
-pnpm add https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.2.tgz
+pnpm add https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.3.tgz
 ```
 
 ```jsonc
 // package.json
 {
   "dependencies": {
-    "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.2.tgz"
+    "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.3.tgz"
   }
 }
 ```
@@ -251,7 +251,7 @@ Verified locally:
 node .github/scripts/make-package.mjs --package packages/runtime-ons --out /tmp/a
 touch packages/runtime-ons/dist/index.js          # mtime changes, content does not
 node .github/scripts/make-package.mjs --package packages/runtime-ons --out /tmp/b
-cmp /tmp/a/online-gal-runtime-ons-0.1.2.tgz /tmp/b/online-gal-runtime-ons-0.1.2.tgz   # identical
+cmp /tmp/a/online-gal-runtime-ons-0.1.3.tgz /tmp/b/online-gal-runtime-ons-0.1.3.tgz   # identical
 ```
 
 There is one limit worth stating plainly, because it is the difference between a content change and
@@ -271,9 +271,100 @@ mount, for instance) the tarball picks up `-rwxrwxrwx` on 205 of its 209 files. 
 checkouts, different machines**: this is the claim the line-ending rule buys, and until that rule
 existed it was silently false — the earlier cross-toolchain run read the *same* CRLF worktree through
 WSL, so it could never have detected the difference. The anchor for the second claim is the
-published artifact, built from CI's LF checkout: `online-gal-runtime-ons-0.1.2.tgz` is
+published artifact, built from CI's LF checkout: `online-gal-runtime-ons-0.1.3.tgz` is
 **2,156,973 B**, sha256 `633edee6748c3fe…`, and its uncompressed tar stream is **6,389,760 B**,
 sha256 `ced5707a182c9…`. A local build on a CRLF worktree now reproduces both numbers exactly.
+
+The aggregate makes the same claim, and it is the one that was actually proved: `build-packages.yml`
+packs `@online-gal/engines` from CI's LF checkout, and the released
+`online-gal-engines-0.1.1.tgz` is **2,552,147 B**, sha256 `0717f7b568071fc…`, uncompressed tar stream
+**8,130,560 B**, sha256 `be179a378c0673…`. A pack of commit `1ee75ee` in a *fresh Windows worktree* —
+CRLF engine assets, Node 26, a full `pnpm install` and a full `build:packages` — reproduces all four
+numbers, `.tgz` sha256 included. Two checkouts, two operating systems, one byte.
+
+### Three things are checked, not pinned
+
+Pinning governs the bytes between `tar` and the file on disk. Two inputs are wrong *before* that, and
+no normalization can tell a good archive from a bad one, so `make-package.mjs` refuses instead. A
+third input is neither wrong nor pinnable — it is simply not the packer's to keep.
+
+**The build must be fresh.** A `dist/` compiled from an older `src/` archives cleanly and looks
+perfect, so the packer compares the newest `src/**` mtime against the newest build witness of the
+package *and of every package in the vendored closure* — an aggregate's bytes include its siblings'
+`dist/`, so a stale `vfs` is as wrong as a stale `engines`. The witness is the newer of the newest
+`dist/` file and `tsconfig.tsbuildinfo`, because `tsc -b` is incremental: a `git checkout` or a
+`git pull` moves a source file's mtime without changing its content, so a rebuild correctly writes
+nothing and `dist/` stays behind by an amount no rebuild repairs. A failure is exit 2, and
+`--skip-freshness` overrides it for the case where packing a deliberately stale tree is the point.
+`--json` reports `freshness.checked`.
+
+**The committed engine bytes must match the ledger.** `ports/lib/engine-artifacts.json` pins every
+engine artefact by size and sha256, and those hashes are only a claim until something checks them.
+For a while nothing did, and `packages/runtime-ons/assets/onsyuri.html` was committed as LF
+**23,817 B** where the ledger says **24,399 B** — the 582 CRs missing, `git status` clean the whole
+time because the *worktree* held the right bytes and the *blob* did not. The aggregate vendors the
+repository's copy, so `@online-gal/engines` 0.1.0 published 23,817 B of engine while the ledger and
+the ONS release both said 24,399 B, and it surfaced only when somebody downloaded the published
+tarball and compared it against the ledger. Two developers had compared their worktrees; both were
+right and the repository was wrong.
+
+The packer now verifies every ledger entry that is committed anywhere under the engine-asset
+directories, before it stages anything, and exits 2 naming the file, both digests, the CR count, and
+the fix. There is deliberately **no flag to skip it**: `--skip-freshness` exists because a stale
+`dist/` is a local condition a rebuild fixes in a second, while a committed file that disagrees with
+the ledger is a repository fact, and a flag would be a way to publish the defect on purpose.
+`--json` reports `ledgerChecked` (3 here — the ons trio; the six krkr files are build outputs that
+exist only on a runner, so they are skipped, and a `0` is reported rather than hidden).
+
+The fix is `.gitattributes`, not a re-save: `packages/runtime-ons/assets/**` is marked
+`-text -diff` (as `ports/artemis/vendor/**` already is), because an engine artefact is a **build
+output** whose sha256-pinned bytes *are* the substance, and `* text=auto eol=lf` must not get to
+decide them. After changing them, commit the bytes **and** bump the version of every package that
+vendors them — `@online-gal/engines` at minimum, since its ten vendored directories are frozen into
+its tarball and its version is what distinguishes a stale aggregate from a new one.
+
+### The build cache is not source
+
+`tsconfig.tsbuildinfo` used to ship in every tarball — 2 copies in `runtime-artemis`, 4 in
+`runtime-kag` and `runtime-ons`, 10 in the `engines` aggregate. It is `tsc -b`'s incremental cache,
+and it breaks reproducibility in a way that is easy to misread, so the mechanism is worth stating.
+
+The cache records the **sha256 of every source file as the compiler read it** — that is, *before* the
+packer normalizes CRLF to LF. A CRLF checkout therefore produces a cache whose embedded digests
+describe text that is no longer in the archive, and no normalization pass can fix it, because there
+is no line ending left to normalize: the contaminated value is a hash *of* the pre-normalized bytes,
+stored as a 64-character string. Measured, not argued: building this repository from LF sources and
+from a CRLF checkout gave tarballs of **identical length** (8,130,560 B) whose only differing files
+were exactly the 10 `tsconfig.tsbuildinfo` entries in the vendored closure — 819 B larger in total,
+tar sha256 `be179a378c0673…` against `68c172fef93c…`. The other 406 files were byte-identical, which
+is what makes this so easy to attribute to something else.
+
+So the packer excludes that one filename, for the package under test and every vendored sibling,
+through a single shared predicate. It is deliberately not *normalized*: rewriting hashes inside the
+file would ship a cache that is **wrong** about the tree it sits in, and a consumer's `tsc` trusts
+it. A cache is not source, and the archive already ships what a cache exists to accelerate — `src/**`
+and `dist/**` together rebuild in seconds, whereas a stale cache inside an archive is worse than none.
+
+This also retires the caveat on the numbers above. **Every tarball published before the cache was
+excluded contains the `tsconfig.tsbuildinfo` files counted here**, so the sizes and digests quoted
+earlier in this document describe archives that still carry the cache, and the new set is one version
+higher in every case. With the cache excluded, the same commit reproduces as:
+
+| package | `.tgz` bytes | `.tgz` sha256 | tar stream bytes | tar sha256 | files |
+| --- | --- | --- | --- | --- | --- |
+| `@online-gal/engines` | 2,497,069 | `3fe8f905d4d30ed1…` | 7,966,720 | `65e0b298242d5601…` | 406 |
+| `@online-gal/runtime-ons` | 2,136,169 | `fc776eab32a0d842…` | 6,318,080 | `4b4855cdf62cf9a7…` | 207 |
+| `@online-gal/runtime-kag` | 367,243 | `31ff7672e950f048…` | 1,720,320 | `e03d8f5f850b098f…` | 236 |
+| `@online-gal/runtime-artemis` | 343,296 | `42d6c53899c65379…` | 1,474,560 | `ccce1983b9cb5fb7…` | 192 |
+
+Those four rows were each verified as **byte-identical between an LF and a CRLF checkout of the same
+commit** — 7,966,720 B and `65e0b298242d5601…` from both — which is the cross-checkout claim this
+document previously could only make for the aggregate. Against the corresponding published tarballs
+the only change is the removed cache: `runtime-ons` 211 → 207 files and `runtime-kag` 240 → 236,
+with **0 files differing in content**. Every tarball was then installed with `pnpm add` into a
+directory outside this repository and every `@online-gal/*` specifier inside it was imported
+(10/10 for the aggregate, 4/4 for `runtime-ons` and `runtime-kag`, 2/2 for `runtime-artemis`), with
+`tsconfig.tsbuildinfo` still present **0** times in the installed tree.
 
 ### Licensing: GPL-3.0 propagates
 
