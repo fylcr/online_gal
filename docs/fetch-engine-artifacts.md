@@ -172,6 +172,13 @@ second restored those 117 and finished configure in 12s. The six published files
 sha256 on both sides, and identical to the run from before the cache existed — a hit and a miss
 really do produce the same bytes.
 
+Then the key itself changed, and the bracket was re-run over the key the repository actually ships
+rather than assumed to still hold. Run `36369745639` reported `Cache not found for input keys:
+…-13dda190f837…`, entered configure with `0` entries, took 3022s and saved 117; run `36374373996`,
+the same commit dispatched by hand, restored that key, reported `## vcpkg binary cache entries on
+entry: 117` and finished configure in **12s**. Both produced the same six sha256 values as each other
+and as this manifest. So the extra key component costs exactly one cold rebuild and changes no byte.
+
 The key names the vcpkg commit, the upstream commit and the hash of the dependency manifests. The
 upstream commit is in there because it is what `SOURCE_DATE_EPOCH` is derived from, and the cached
 archives embed that timestamp: a moved pin starts from an empty directory and rebuilds under the new
