@@ -78,7 +78,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const USAGE = `usage: node .github/scripts/smoke-consumer.mjs <tarball.tgz> [options]
 
   <tarball.tgz>   the packed aggregate to install, e.g.
-                  dist/packages/online-gal-engines-0.1.3.tgz
+                  dist/packages/online-gal-engines-0.1.4.tgz
 
   --keep                 leave the temporary consumer directory in place and print its path
   --temp-dir DIR         use DIR instead of a fresh temporary directory

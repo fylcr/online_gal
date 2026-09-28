@@ -148,20 +148,20 @@ release URL is the dependency:
   "dependencies": {
     "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.3.tgz",
     "@online-gal/runtime-kag": "https://github.com/fylcr/online_gal/releases/download/engine-krkr-20260920/online-gal-runtime-kag-0.1.1.tgz",
-    "@online-gal/runtime-artemis": "https://github.com/fylcr/online_gal/releases/download/engine-artemis-bridge-asyncify-9f62262/online-gal-runtime-artemis-0.1.2.tgz",
+    "@online-gal/runtime-artemis": "https://github.com/fylcr/online_gal/releases/download/engine-artemis-bridge-asyncify-9f62262/online-gal-runtime-artemis-0.1.3.tgz",
     // The aggregate, from the workflow that builds packages and nothing else. It carries all six
     // runtimes at once, which is why it needs its own trigger: no engine workflow builds all six,
     // and the packer drops `dependencies`, so a stale vendored provider would be invisible to the
     // consumer. `build-packages.yml` builds every package from source, so its ten vendored
     // directories are all rebuilt in the same job that packs them.
-    "@online-gal/engines": "https://github.com/fylcr/online_gal/releases/download/engine-packages-0.1.3/online-gal-engines-0.1.3.tgz"
+    "@online-gal/engines": "https://github.com/fylcr/online_gal/releases/download/engine-packages-0.1.4/online-gal-engines-0.1.4.tgz"
   }
 }
 ```
 
 Three of these four resolve against a published release today: `runtime-ons` 0.1.3 under
-`engine-ons-0.7.7beta`, `runtime-kag` 0.1.1 under `engine-krkr-20260920`, and the aggregate 0.1.3
-under `engine-packages-0.1.3` — which is the tag `build-packages.yml` derives from the package
+`engine-ons-0.7.7beta`, `runtime-kag` 0.1.1 under `engine-krkr-20260920`, and the aggregate 0.1.4
+under `engine-packages-0.1.4` — which is the tag `build-packages.yml` derives from the package
 version, so a version bump is what publishes it. The artemis URL is the exception: it is what the
 *next* build of `build-wasm-artemis-bridge.yml` will publish, under the release tag that workflow
 already uses (`engine-artemis-bridge-asyncify-9f62262`), and that workflow only publishes when
@@ -191,7 +191,7 @@ incremental build cache, which the packer now excludes. It records the sha256 of
 describing text that was no longer in the archive, and no normalization pass could repair a digest of
 bytes that were already gone. A CRLF and an LF checkout of the same commit therefore gave tarballs
 of identical length that still differed in those 2–10 files and in nothing else. They are gone: the
-current releases (`runtime-ons` 0.1.3, `runtime-kag` 0.1.1, `engines` 0.1.3) each contain **0** of
+current releases (`runtime-ons` 0.1.3, `runtime-kag` 0.1.1, `engines` 0.1.4) each contain **0** of
 them, and a CRLF checkout of `8482272` now packs to the same `2,553,631` B /
 `e674dfd15b7768f0…` as the LF one. Their sizes and digests are in `fetch-engine-artifacts.md`.
 
@@ -239,7 +239,7 @@ sitting next to it, a `dist/` that was never compiled. So `build-packages.yml` r
 and before the release — and the step fails the job if any of it does not hold:
 
 ```
-node .github/scripts/smoke-consumer.mjs dist/packages/online-gal-engines-0.1.3.tgz
+node .github/scripts/smoke-consumer.mjs dist/packages/online-gal-engines-0.1.4.tgz
 ```
 
 The script creates a consumer directory **outside the repository** (under `RUNNER_TEMP` on a
@@ -259,6 +259,14 @@ thing this document claims it is:
   deep-import, which is the part of the public surface a flat `exports` map does not cover;
 - the repository's `pnpm-lock.yaml` is unchanged afterwards.
 
+A vendored copy is the *source* directory, so it keeps its own manifest: `scripts.build`, and a
+`dependencies` block whose specs are `workspace:*`. That is not an oversight — resolution inside the
+archive is by directory, because the archive already contains the whole `node_modules` tree, so
+nothing ever asks a registry to satisfy those specs. It does mean an install run *inside* an
+extracted aggregate is not supported: the paths are laid out, not resolvable. `engines`' own shipped
+manifest is the one the packer rewrites (its `dependencies` and `scripts` are dropped), because that
+is the manifest a consumer's installer reads.
+
 Every assertion prints the value it actually saw, and the run ends with a `N/M assertions held` line
 and a non-zero exit if any of them did not hold — so a green step says what it checked and a red one
 says what it found, instead of a digest that only proves the bytes did not change.
@@ -274,7 +282,7 @@ workspace member and **rewrites the repository's `pnpm-lock.yaml`**, which is wh
 directory has to be outside the repository. To reproduce the hazard and watch the guard fire:
 
 ```
-node .github/scripts/smoke-consumer.mjs dist/packages/online-gal-engines-0.1.3.tgz \
+node .github/scripts/smoke-consumer.mjs dist/packages/online-gal-engines-0.1.4.tgz \
   --allow-in-repo-temp --temp-dir .test/consumer-check
 # ::error::the repository lockfile is not dirty: got  M pnpm-lock.yaml; expected (empty)
 git checkout -- pnpm-lock.yaml
