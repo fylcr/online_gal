@@ -1979,7 +1979,10 @@ node ports/artemis/tools/real-game-test.mjs --game <松散树> --engine <candida
 编译），所以 `ports/lib/engine-artifacts.json` 里它那两项一度描述的是本机构建——而台账的全部
 含义就是「这些字节出自哪一个构建」，那一版答的是本机。pin 前移到 `9f622629f595` 后，
 `build-wasm-artemis.yml` 在 runner 上产出了**新 pin** 的第一份制品，台账随即换成 runner 的
-字节（`artemis-web-android.wasm` 1,151,025 B / `a1787043…`）。这份制品随后在真实的
+字节（`artemis-web-android.wasm` 1,151,025 B / `a1787043…`）。而且它在 runner 上**可复现**：
+同一个 pin 的两次构建（run 36363984069 与 36368756255）产出的两个文件逐字节相同，js 仍是
+原来的 182,842 B / `a1c03dd6…`——台账里 js 那一项没动，不是因为没人管它，而是因为两边的 js
+本来就一样。这份制品随后在真实的
 `.test/test-games/Artemis/`（`root.pfs` 2,690,454,559 B + `root.pfs.000` 3,355,688,890 B）
 上跑过，对照 pin 之前的本机旧模块（1,147,110 B / `79dce328…`）：同一张
 `android-host.html`、同一个 `?pack=/root.pfs`、同一台无头 Edge，两侧都是画布 `756x488`、
