@@ -1,0 +1,229 @@
+# Every engine runtime package, built and packed with no engine build at all.
+#
+# WHY THIS EXISTS, AND WHY IT IS NOT ANOTHER ENGINE WORKFLOW
+#
+# Each engine's own workflow builds that engine's wasm and packs that engine's runtime package, which
+# is the right shape when the package carries the engine bytes: `@online-gal/runtime-ons` is the one
+# package whose `dist/wasm-runtime.js` reads its engine out of the package, so the wasm has to be
+# built and the fresh copy shipped (`--assets-from`). The other five load their engine from a URL the
+# caller supplies and need no engine build to package.
+#
+# `@online-gal/engines` is the cross-engine package, and it has exactly one consumer need that none of
+# the six can meet: it vendors all six runtimes *plus* engine-api, vfs, image-codec and player-host,
+# and the packer deliberately drops `dependencies` (a `workspace:*` specifier cannot be resolved
+# outside this monorepo, so shipping it would make the tarball uninstallable). With `dependencies`
+# gone, a vendored copy is the ONLY copy, and a consumer cannot tell a stale provider from a current
+# one -- it just gets a runtime that silently does not run. So it must never be published from a
+# single engine's job: that job builds one runtime's `dist/` from this commit and vendors the other
+# five as they sit in the tree, which is the exact failure. Here, one `pnpm run build:packages`
+# compiles every runtime in the closure from one commit, and all ten vendored directories come from
+# that single build.
+#
+# There is no Emscripten, no vcpkg and no upstream checkout here, and that is the point: the job is
+# a TypeScript build plus seven tar steps, and it is written to finish inside three minutes. An
+# engine workflow takes tens of minutes because it is compiling a C/C++ engine; this one is not.
+#
+# WHAT `paths` DOES AND DOES NOT LIST, AND WHY
+#
+# The list is the artifact closure, judged by "does it change the bytes of the tarball this job
+# publishes?". `packages/**` is listed in full -- for this job the product is *all* of them, so every
+# one of them is in the closure. `pnpm-lock.yaml` is there for ONS's reason: the shipped `dist/` is
+# compiled by the TypeScript version the lockfile pins, so a dependency bump can change the output
+# bytes. `LICENSE` and `THIRD_PARTY_NOTICES.md` are there because they land verbatim at the archive
+# root (GPL-3.0 §5(a)), and `make-package.mjs` fails the build outright if either is missing.
+#
+# `ports/**` is deliberately NOT listed, and this needs stating rather than leaving to inference:
+# this job builds no engine bytes at all. In particular, the `assets/` that ship inside
+# `@online-gal/runtime-ons` are the ones committed in this repository, not a fresh ONS build --
+# `build:packages` compiles TypeScript and copies the harness `.mjs` files, and it deliberately does
+# NOT copy the engine binaries (see `packages/runtime-ons/scripts/copy-runtime-assets.mjs`, which
+# explains why: a checkout copy and a build copy disagree on line endings). The aggregate package
+# therefore pins the committed engine bytes, and `@online-gal/runtime-ons` published by the ONS
+# workflow ships the freshly built ones. They are byte-identical today (html 24,399 B `78d57d84…`,
+# js 198,947 B `c88398fe…`, wasm 4,660,610 B `85419fe5…`, matching `ports/lib/engine-artifacts.json`),
+# and an edit to `packages/runtime-ons/assets/**` is caught by this workflow's own `paths` because
+# that directory is inside `packages/**`. They can still diverge after an ONS rebuild that does not
+# commit its output; see the version rule below.
+#
+# THE VERSION RULE: A STALE VENDOR IS INVISIBLE, SO THE VERSION IS THE CONTRACT
+#
+# Ten vendored directories are frozen into one archive. If any of them changes -- a runtime's
+# `dist/`, a vendored dependency, or ONS's `assets/` -- the published `@online-gal/engines@0.1.0`
+# is no longer the code in this tree, and because `dependencies` is dropped there is nothing in the
+# tarball that would tell a consumer. So: **bump `packages/engines/package.json`'s version in the
+# same commit as any change to a vendored package or to ONS's `assets/`.** The first release is
+# 0.1.0, matching the version already in the tree. This is a convention rather than something the
+# workflow can enforce for you, and the reason is stated here so a future reader knows it is load
+# bearing: the alternative would be a resolver that could see the versions, which is exactly what
+# dropping `dependencies` makes impossible.
+name: Build packages (no engine build)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-packages.yml'
+      - '.github/scripts/make-package.mjs'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - 'LICENSE'
+      - 'THIRD_PARTY_NOTICES.md'
+  pull_request:
+    paths:
+      - '.github/workflows/build-packages.yml'
+      - '.github/scripts/make-package.mjs'
+      - 'packages/**'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish online-gal-engines-<version>.tgz as a GitHub Release'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # The whole job is a TypeScript compile and seven tar steps. This bound is not decoration: if a
+    # change ever makes it hit the limit, that change pulled a C/C++ engine build into this workflow,
+    # which would mean it belongs in that engine's workflow instead.
+    timeout-minutes: 15
+    outputs:
+      # The release this workflow creates, for a caller that wants to link it without re-deriving
+      # the tag. It is the version, not the commit, for the reason the publish step gives.
+      release-tag: engine-packages-${{ steps.package.outputs.version }}
+      package-file: ${{ steps.package.outputs.file }}
+      package-files: ${{ steps.package.outputs.files }}
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # `corepack enable` then a bare `pnpm` is the modern form; `corepack prepare` is deprecated.
+      # What pins the version is `packageManager` in this repository's own package.json, which
+      # corepack reads -- so the version is never written twice.
+      - name: Install pnpm
+        run: |
+          set -eu
+          corepack enable
+          pnpm --version
+
+      # `--frozen-lockfile` rather than a bare install: this job's whole value is that the shipped
+      # bytes are a function of one commit, and a lockfile that has to be updated mid-build is a
+      # lockfile that is not the one the release promises. `packages/engines` already has an
+      # importer in `pnpm-lock.yaml`, so this succeeds on a clean clone.
+      - name: Install workspace dependencies
+        run: |
+          set -eu
+          pnpm install --frozen-lockfile
+
+      - name: Build the packages
+        run: |
+          set -eu
+          pnpm run build:packages
+
+      # The set of packages, and what is deliberately absent from it.
+      #
+      #   * `packages/engines` -- the product. Its own tarball is the only one this workflow
+      #     publishes (see the publish step).
+      #   * the six runtimes -- packed so the aggregate's vendored tree is visible as tarballs in
+      #     the workflow artifact, and because a runtime published from here would be built without
+      #     its engine. The runtime tarballs are NOT released from here; each engine's own workflow
+      #     owns its package, because that is the job that builds the engine it carries.
+      #   * `packages/core` -- excluded: it is the application shell (10 dependencies, the DOM
+      #     harness, the debug overlay), not an engine runtime, and it is the one package here whose
+      #     tree no consumer of these packages would install. Shipping it would add megabytes to the
+      #     artifact and imply support this workflow does not offer.
+      #   * `packages/tjs2-bytecode` -- excluded: it is a bytecode-format library used by the
+      #     TyranoScript runtime rather than a runtime in its own right, and it is not in any
+      #     runtime's dependency closure, so nothing here would reference it. `make-package.mjs`
+      #     vendors dependencies, so if a runtime ever gains it, the aggregate picks it up by
+      #     itself and this list does not need changing.
+      #
+      # `--quiet` makes the packer print the absolute tarball path and nothing else, so this step does
+      # not guess a file name with `ls` -- which would silently pick the wrong file the day a
+      # `.tgz` already exists in the output directory.
+      - name: Pack the packages
+        id: package
+        env:
+          # A single line, because it is consumed as a list. Adding a package here is the only way
+          # to publish a new runtime from this workflow, and the list is deliberately explicit
+          # rather than a `packages/*` glob: a glob would sweep in `core` and `tjs2-bytecode` on
+          # the day somebody adds a package, and would pack a package with no `dist/` on a partial
+          # build.
+          PACKAGE_DIRS: packages/engines packages/runtime-ons packages/runtime-kag packages/runtime-siglus packages/runtime-artemis packages/runtime-tyrano packages/runtime-web
+        run: |
+          set -eu
+          rm -rf dist/packages
+          files=''
+          count=0
+          for dir in $PACKAGE_DIRS; do
+            name=$(node .github/scripts/make-package.mjs --package "$dir" --out dist/packages --quiet)
+            files="$files $name"
+            count=$((count + 1))
+            echo "## packed $name"
+          done
+          test "$count" -gt 0 || { echo "::error::PACKAGE_DIRS is set but no package was packed"; exit 1; }
+          # The aggregate's own version, read from the tree rather than assembled from a pattern, so
+          # the release tag and the asset name cannot drift from the manifest that was just packed.
+          # `make-package.mjs` derives the file name from the same field, so reading it here and
+          # asserting the file exists is what turns a typo into a step failure instead of a
+          # release with a confusingly named asset.
+          version=$(node -e "process.stdout.write(require('./packages/engines/package.json').version)")
+          aggregate="online-gal-engines-$version.tgz"
+          test -f "dist/packages/$aggregate" || {
+            echo "::error::expected dist/packages/$aggregate to exist after packing; the version and the file name disagree"
+            exit 1
+          }
+          {
+            echo "file=${files# }"
+            echo "files=${files# }"
+            echo "version=$version"
+            echo "aggregate=$aggregate"
+          } >> "$GITHUB_OUTPUT"
+          echo "## packed $count package(s): $files"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: dist/packages/*.tgz
+          if-no-files-found: error
+          retention-days: 90
+
+      # The tag is the package version, not a short sha. A release named after the version is what a
+      # consumer's `pnpm add` line can be written against and never has to be edited, and the
+      # version is the number the staleness rule above is enforced with. A sha-tagged release would
+      # make a new URL every commit even when nothing about the package changed, which is the same
+      # "every rebuild looks like a content change" problem the packer exists to avoid. `--clobber`
+      # below means a rebuild of the same version replaces the asset rather than failing.
+      - name: Publish the aggregate package
+        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          tag='engine-packages-${{ steps.package.outputs.version }}'
+          echo "## publishing to $tag"
+          gh release view "$tag" >/dev/null 2>&1 || \
+            gh release create "$tag" \
+              --title "packages @ ${{ steps.package.outputs.version }}" \
+              --notes "All engine runtime packages and the aggregate \`@online-gal/engines\` built from ${{ github.sha }} on run [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+          No engine bytes are built by this workflow: \`@online-gal/runtime-ons\` here carries the \`assets/\` committed in this repository. The freshly built ones are in the ONS release." \
+              --target "${{ github.sha }}"
+          # Only the aggregate goes up. The six runtime tarballs stay as workflow artifacts for
+          # inspection; publishing them from here too would put two archives of the same version in
+          # two different releases with different bytes, because only the ONS workflow builds the
+          # ONS engine. `ports/lib/fetch-engine.mjs` fetches the loose engine files by name, so its
+          # input is untouched either way.
+          tgz="dist/packages/${{ steps.package.outputs.aggregate }}"
+          gh release upload "$tag" "$tgz" --clobber
+          echo "## published $(basename "$tgz") to $tag"

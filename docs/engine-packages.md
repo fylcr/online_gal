@@ -148,12 +148,13 @@ release URL is the dependency:
   "dependencies": {
     "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.2.tgz",
     "@online-gal/runtime-kag": "https://github.com/fylcr/online_gal/releases/download/engine-krkr-20260920/online-gal-runtime-kag-0.1.0.tgz",
-    "@online-gal/runtime-artemis": "https://github.com/fylcr/online_gal/releases/download/engine-artemis-bridge-asyncify-9f62262/online-gal-runtime-artemis-0.1.0.tgz"
-    // No "@online-gal/engines" entry yet, on purpose. A tarball exists only for a package whose
-    // workflow sets `package-dir`, and this one is published by no workflow -- it depends on all six
-    // runtime packages at once, and no engine workflow builds all six, so any tarball published
-    // today would vendor five stale providers. It builds and installs correctly by hand; it just
-    // has no correct trigger. See the section in docs/fetch-engine-artifacts.md.
+    "@online-gal/runtime-artemis": "https://github.com/fylcr/online_gal/releases/download/engine-artemis-bridge-asyncify-9f62262/online-gal-runtime-artemis-0.1.0.tgz",
+    // The aggregate, from the workflow that builds packages and nothing else. It carries all six
+    // runtimes at once, which is why it needs its own trigger: no engine workflow builds all six,
+    // and the packer drops `dependencies`, so a stale vendored provider would be invisible to the
+    // consumer. `build-packages.yml` builds every package from source, so its ten vendored
+    // directories are all rebuilt in the same job that packs them.
+    "@online-gal/engines": "https://github.com/fylcr/online_gal/releases/download/engine-packages-0.1.0/online-gal-engines-0.1.0.tgz"
   }
 }
 ```
@@ -164,7 +165,8 @@ build of those workflows will publish, under the release tags those workflows al
 the push that adds `package-dir`", not as something to paste into a build today. The artemis one has
 a second condition on top: `build-wasm-artemis-bridge.yml` only publishes when `publish` is set or
 `vars.ARTEMIS_PUBLISH_ARTIFACTS` is `true`, because that engine is deliberately withheld while its
-SDK terms are unsettled. It is not cleared to publish yet.
+SDK terms are unsettled. It is not cleared to publish yet. The fourth is the one this repository's
+`build-packages.yml` publishes on its first successful run, under the tag `engine-packages-0.1.0`.
 
 A tarball per engine is the right default here, because the engine workflows are the thing that
 actually build these packages and they build one engine each. Note that only the ONS tarball carries
@@ -172,14 +174,18 @@ its engine bytes: `@online-gal/runtime-kag` and `@online-gal/runtime-artemis` lo
 a URL the caller supplies, so adding `--assets-from` to those workflows would put megabytes in the
 archive that no code path reads.
 
-`@online-gal/engines` builds the same way as any other package, so `make-package.mjs --package
-packages/engines` produces its tarball the moment a workflow names it in `package-dir`; until
-then the supported routes are the workspace dependency above or a checkout of this repository. The
-consumer still picks engines the same way — the tarball ships the compiled `dist/`, and the six
-runtime packages come in as its vendored `node_modules/`, so `import { selectEngine } from
-'@online-gal/engines'` works without compiling anything locally. See
-`docs/fetch-engine-artifacts.md` for the tarball format, the reproducibility guarantees, and the
-token a consumer needs on this private repository.
+`@online-gal/engines` gets its own workflow, `.github/workflows/build-packages.yml`, and that file
+is the whole reason the aggregate can be published at all. It is not another engine workflow: it
+installs dependencies, runs `pnpm run build:packages`, and packs — no Emscripten, no vcpkg, no
+upstream checkout, well inside three minutes. What makes that correct rather than merely fast is
+that it rebuilds *all* the packages the aggregate vendors, in the same job, before packing, so the
+closure cannot be stale. It publishes only `online-gal-engines-<version>.tgz`; the per-engine
+tarballs stay as workflow artifacts, because publishing those from here too would put two
+byte-different archives of one version in two different releases. The consumer still picks engines
+the same way — the tarball ships the compiled `dist/`, and the ten vendored packages come in as
+its `node_modules/`, so `import { selectEngine } from '@online-gal/engines'` works without
+compiling anything locally. See `docs/fetch-engine-artifacts.md` for the tarball format, the
+reproducibility guarantees, and the token a consumer needs on this private repository.
 
 One consequence of that vendoring is worth knowing before it surprises someone. The aggregate
 package's copy of `runtime-ons` is the one committed in this repository, engine bytes included, and
@@ -189,6 +195,12 @@ agree as things stand. They take the bytes from different places, though: the ag
 `--assets-from`, so it takes whatever is committed, while `@online-gal/runtime-ons` takes the fresh
 build. Rebuild ONS and then either commit the new assets or bump both packages together — otherwise
 the aggregate would keep shipping the previous engine under a version that claims otherwise.
+
+That rule generalises. `build-packages.yml` freezes ten vendored directories, so **any change to a
+vendored package, or to ONS's `assets/`, has to bump `packages/engines`'s version in the same
+commit.** The version is what a consumer's `pnpm add` line points at, so a change to any part of
+the closure without a bump is a lie about identity: the URL would still serve the previous engine.
+The workflow carries the same rule in its comment, and the first release is 0.1.0.
 
 ### GPL-3.0-or-later
 

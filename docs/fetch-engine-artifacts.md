@@ -300,15 +300,18 @@ and forgotten:
   not change the engine's license, and where the two differ the engine's own terms apply. Check the
   engine's license before redistributing a package containing it.
 
-### Which engines get a package, and why the cross-engine one does not (yet)
+### Which engines get a package, and who builds the aggregate
 
-Three tarballs are published today, one per engine workflow that has a `package-dir`:
+Four tarballs are published. Three come from the engine workflows, one per engine, each carrying
+that engine's own compiled `dist/`; the fourth is the cross-engine registry, built by a workflow
+that exists only to build packages.
 
 | package | built by | engine bytes in the tarball? |
 | --- | --- | --- |
 | `@online-gal/runtime-ons` | `build-wasm-ons.yml` | yes — `assets/`, because `dist/wasm-runtime.js` resolves `new URL('../assets/', import.meta.url)` |
 | `@online-gal/runtime-kag` | `build-wasm-krkr.yml` | no — the wasm is a URL-served page, not a file beside the module |
 | `@online-gal/runtime-artemis` | `build-wasm-artemis-bridge.yml` | no — the module is loaded by URL from a caller-supplied location |
+| `@online-gal/engines` | `build-packages.yml` | yes, but only the **committed** ONS `assets/` — this workflow builds no engine |
 
 The "no" rows are deliberate, and passing `--assets-from` anyway would be actively misleading: the
 artifacts would land in the archive as `assets/`, where **no code path in those packages reads
@@ -318,18 +321,36 @@ specifically, `configureKirikiriWasm({ pageUrl })` decides where the engine come
 it cannot be baked into the package. The engine half of those releases keeps the route it already
 had: the run's `wasm-krkr` artifact and the `engine-krkr-20260920` release.
 
-`@online-gal/engines` is the cross-engine registry, and it is deliberately **not** published. It
-depends on all six runtime packages at once, and no engine workflow builds all six — ONS's job has
-ONS alone, krkr's has krkr alone, the artemis bridge's has artemis alone. Publishing it from any of
-them would mean shipping a tarball whose other five providers are vendored from whatever stale
-`dist/` happens to be on that runner, which is a worse failure than not publishing it: the vendoring
-design deliberately drops `dependencies` because nothing outside the monorepo can resolve
-`workspace:*`, so a stale copy is invisible to the consumer and the failure surfaces as a provider
-silently missing at runtime. Its tarball builds and installs correctly by hand — 2.5 MB, all ten
-vendored dependencies resolving inside the package — so this is a trigger-graph decision, not a
-packaging limitation. The way to ship it is a workflow whose job builds the whole package set, which
-is a larger change than adding one input to three existing ones, and it is worth doing separately
-rather than half-wired here.
+`@online-gal/engines` depends on all six runtime packages at once, and no engine workflow builds all
+six — ONS's job has ONS alone, krkr's has krkr alone, the artemis bridge's has artemis alone.
+Publishing it from any of them would mean shipping a tarball whose other five providers are vendored
+from whatever stale `dist/` happens to be on that runner, which is a worse failure than not
+publishing it: the vendoring design deliberately drops `dependencies` because nothing outside the
+monorepo can resolve `workspace:*`, so a stale copy is invisible to the consumer and the failure
+surfaces as a provider silently missing at runtime. Its tarball builds and installs correctly by
+hand — 2.5 MB, all ten vendored dependencies resolving inside the package — so this was a
+trigger-graph problem, not a packaging limitation, and the answer was a workflow rather than an
+input.
+
+`.github/workflows/build-packages.yml` is that answer. Its single job checks out, installs with
+`--frozen-lockfile`, runs `pnpm run build:packages`, and packs — no Emscripten, no vcpkg, no
+upstream checkout, so it finishes in a couple of minutes. Rebuilding *all* the packages in the same
+job that packs them is what makes the vendored closure correct rather than merely plausible. It
+packs the six runtimes and the aggregate (and **not** `packages/core`, the app shell, nor
+`packages/tjs2-bytecode`, a bytecode library that is in no runtime's closure), and it publishes
+**only** `online-gal-engines-<version>.tgz`; the per-engine tarballs remain workflow artifacts,
+because publishing them from here as well would put two byte-different archives of one version in
+two different releases. The tag is `engine-packages-<version>`, so a consumer's `pnpm add` line
+never needs editing.
+
+**The version rule.** That aggregate freezes ten vendored directories, so **any change to a
+vendored package, or to ONS's `assets/`, requires bumping `packages/engines`'s version in the same
+commit.** The version is what a consumer's dependency line points at, so a change to any part of
+the closure without a bump is a false claim about identity: that URL would still serve the previous
+engine. The first release is 0.1.0. Note the asymmetry that makes this more than bookkeeping — the
+aggregate has no `--assets-from`, so its `runtime-ons` carries the `assets/` **committed in this
+repository**, byte-identical to `ports/lib/engine-artifacts.json` today; only `@online-gal/runtime-ons`
+itself takes the fresh engine build. After an ONS rebuild, commit the new assets or bump both.
 
 ## Where the bytes come from
 

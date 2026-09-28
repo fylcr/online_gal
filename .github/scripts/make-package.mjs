@@ -468,18 +468,22 @@ normalizeModes(staged);
 // worktree's line endings are a property of the machine, not an input. Two guards keep this from
 // eating data:
 //
-//   * `package/assets/` is skipped entirely. Those are engine artefacts whose exact bytes are
-//     pinned by hash in `ports/lib/engine-artifacts.json`, and they are committed CRLF: rewriting
-//     them would break the identity every consumer checks.
+//   * ANY `assets/` directory is skipped, at any depth. Those are engine artefacts whose exact
+//     bytes are pinned by hash in `ports/lib/engine-artifacts.json`, and they are committed CRLF:
+//     rewriting them would break the identity every consumer checks. The check has to be on the
+//     directory NAME and not on a single path, because an aggregate package vendors a whole runtime
+//     *with its own `assets/`* under `node_modules/@online-gal/<runtime>/assets/` -- matching only
+//     the top-level one silently rewrote the engine bytes inside the vendored copy while leaving the
+//     standalone tarball correct, so the same package existed in two byte forms depending on which
+//     tarball a consumer installed.
 //   * a file containing a NUL byte is treated as binary and left alone. A wasm blob that happens to
 //     contain 0x0d must not be rewritten, and NUL is the conventional signal that it is one.
 function normalizeLineEndings(dir) {
-  const assetsRoot = join(staged, 'assets');
   let changed = 0;
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (resolve(path) === resolve(assetsRoot)) continue; // pinned engine bytes, byte for byte
+      if (entry.name === 'assets') continue; // pinned engine bytes, byte for byte, at any depth
       changed += normalizeLineEndings(path);
     } else if (entry.isFile()) {
       const bytes = readFileSync(path);
