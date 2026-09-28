@@ -19,7 +19,7 @@
 
 import { createArtemisFdImports, type ArtemisFdHost } from './fd.js';
 import { ArtemisMemory, createArtemisMemory, type MemoryLike } from './memory.js';
-import { MemoryByteSource, type SyncByteSource } from './fs.js';
+import { MemoryByteSource, ChrDevice, type SyncByteSource } from './fs.js';
 import { ArtemisFs } from './tree.js';
 import { gameSourceByteSource } from '@online-gal/vfs/archives';
 import type { GameSource } from '@online-gal/engine-api';
@@ -216,6 +216,61 @@ export async function entriesFromPfs(
     entries.push([`${archive}${name}`, bytes]);
   }
   return entries;
+}
+
+/**
+ * The `fd` bucket's view of the standard streams, as the official glue's `createStandardStreams`
+ * opens them: fd 0 read-only, fd 1 and fd 2 both write-only, all three pointing at a terminal.
+ *
+ * The guest is handed no path — it inherits these three fds, and `/dev/std*` only ever appear if
+ * something opens them by name. The glue makes `/dev/stderr` a link to `/dev/tty1` rather than to
+ * `/dev/tty`, which is a detail the host reproduces because a program that writes to stderr and a
+ * program that writes to tty1 are the same fd here, and conflating them would make one of the two
+ * silently disappear.
+ */
+export interface ArtemisStandardStreams {
+  /** fd 0, read-only. */
+  readonly stdin: number;
+  /** fd 1, write-only. */
+  readonly stdout: number;
+  /** fd 2, write-only — the glue's tty1, not tty. */
+  readonly stderr: number;
+}
+
+/**
+ * Creates the `/dev` and `/proc` entries the glue's `FS.staticInit` creates at load time, and
+ * returns the three fds `FS.init` → `createStandardStreams` opens on them.
+ *
+ * The order and the paths are copied from the glue rather than chosen, because the guest is written
+ * against them: `isatty(1)` has to be true, `/proc/self/fd` has to exist, and `/dev/shm` has to be
+ * a writable directory for shared memory. What is *not* copied is the glue's fake `/proc/self/fd`
+ * mount — its readlink returns an in-memory descriptor path, and this host's `fd` bucket answers
+ * from the live stream table instead, so a directory is the honest shape.
+ *
+ * `addChrdev` is used for all of them because the glue's `/dev/null` is a character device with its
+ * own byte callbacks, and a host that registered a plain file would answer `open` on it with
+ * success and then hand the guest a length it can seek, which no tty does. A chrdev is a SINK, not
+ * a mount: its write op is a plain function with no read-only state, so `/dev/tty` has to be in the
+ * write scope. `addChrdev` puts it there.
+ *
+ * This is idempotent: a second call re-uses the nodes the first one made, so a session that
+ * already mounted a package at `/dev` keeps it.
+ */
+export function initArtemisStandardStreams(fs: ArtemisFs): ArtemisStandardStreams {
+  // `FS.staticInit` runs at glue load, before any argument parsing.
+  fs.mkdirp('/tmp');
+  fs.mkdirp('/home/web_user');
+  fs.mkdirp('/dev/shm/tmp');
+  fs.mkdirp('/proc/self/fd');
+  for (const path of ['/dev/null', '/dev/tty', '/dev/tty1', '/dev/random', '/dev/urandom']) {
+    fs.addChrdev(path, new ChrDevice());
+  }
+  // `createStandardStreams` opens 0, 1 and 1 — not 2. stderr is a *link* to tty1, so the guest
+  // writes to fd 2 only if it dups or opens it, and the glue hands it 1.
+  const stdin = fs.open('/dev/tty', 0);
+  const stdout = fs.open('/dev/tty', 1);
+  const stderr = fs.open('/dev/tty1', 1);
+  return { stdin, stdout, stderr };
 }
 
 /** Re-exported for callers that only need the memory interface. */

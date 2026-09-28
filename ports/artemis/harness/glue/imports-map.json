@@ -242,7 +242,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -306,7 +306,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -354,7 +354,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1058,7 +1058,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1170,7 +1170,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1634,7 +1634,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1698,7 +1698,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1762,7 +1762,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1810,7 +1810,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1874,7 +1874,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -1938,7 +1938,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2066,7 +2066,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2194,7 +2194,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2258,7 +2258,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2322,7 +2322,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2386,7 +2386,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2402,7 +2402,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2450,7 +2450,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2514,7 +2514,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2578,7 +2578,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2754,7 +2754,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2770,7 +2770,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2818,7 +2818,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2834,7 +2834,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2882,7 +2882,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2946,7 +2946,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -2962,7 +2962,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -3058,7 +3058,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -3090,7 +3090,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {
@@ -3154,7 +3154,7 @@
       "bucket": "async",
       "rule": "^invoke_",
       "todoReason": null,
-      "owner": "planned: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3",
+      "owner": "landed: packages/runtime-artemis/src/host/async.ts — the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module's own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3",
       "duplicate": null
     },
     {

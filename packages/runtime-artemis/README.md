@@ -4,8 +4,9 @@ Runtime support for the Artemis (舰队Collection / 苍翼) engine bridge.
 
 This package holds the **PFS reader** that the existing `src/index.ts` exports,
 the **modern host** under `src/host/` that replaces the official emscripten glue
-for the `fd` bucket, and — since the `runtime` / `eh` / `asyncify` buckets — the
-first host that **boots `bridge.wasm` with no official glue at all**.
+for the `fd` bucket, and — since the `runtime` / `eh` / `asyncify` / `async`
+buckets — the first host that **boots `bridge.wasm` with no official glue at
+all** and runs the guest's `main` to a return.
 
 ## The host, in one paragraph
 
@@ -16,8 +17,10 @@ authoritative classification of those 207 is
 its official `artemis.js` counterpart, and the bucket that decides who
 implements it. Buckets land here in the order the port claims them: **`fd`
 (48 rows / 41 short names)** on top of `@online-gal/vfs`, then **`runtime` (8),
-`eh` (17 / 15) and `asyncify` (4)**, then `boot.ts`, which assembles all of them
-with a counted stub for every row that is still somebody else's work. The host
+`eh` (17 / 15), `asyncify` (4) and `async` (30)**, then `boot.ts`, which
+assembles all of them with a counted stub for every row that is still somebody
+else's work. That is **98 distinct short names covering 107 of the 207 rows**,
+leaving the `gl` bucket (99 rows) and `todo` (1) — 100 counted stubs. The host
 does not allocate the wasm memory, does not dlopen anything, and never executes
 the minified glue.
 
@@ -32,15 +35,53 @@ the minified glue.
 | `host/layout.ts` | `writeStat64` (96 B, i64 as lo/hi words), `writeDirent64` (stride 280), `doPreadv` / `doPwritev`. |
 | `host/timefmt.ts` | `struct tm` (44 B), `localtime_r` / `gmtime_r` / `mktime`, `strftime`, `clock_gettime`, `TimeZoneNames`. |
 | `host/fd.ts` | `createArtemisFdImports(host)` — the 41-key import table. |
-| `host/bridge.ts` | `createArtemisFdTable`, `createBridgeMemory`, `mountArtemisTree`, `entriesFromPfs`, `ARTEMIS_FD_IMPORTS`. |
+| `host/bridge.ts` | `createArtemisFdTable`, `createBridgeMemory`, `mountArtemisTree`, `entriesFromPfs`, `initArtemisStandardStreams`, `ARTEMIS_FD_IMPORTS`. |
 | `host/asyncify.ts` | `createArtemisAsyncifyImports(host)` — 4 keys: the `wget_data` family and `memcpy_big`. |
 | `host/runtime.ts` | `createArtemisRuntimeImports(host)` — 8 keys: `TempRet0`, `asm_const_int`, `run_script_string`, `resize_heap`, the mutexattr trio. `ArtemisTempRet0` lives here and is **shared with `eh`**. |
 | `host/eh.ts` | `createArtemisEhImports(host)` — 15 keys over 17 rows: the C++ exception ABI (`allocate_exception` … `rethrow`) plus `assert_fail`, `longjmp`, `_abort` / `_Unwind_RaiseException`. Raises `ArtemisCppThrow` / `ArtemisLongjmp` / `ArtemisExit`. |
-| `host/boot.ts` | `createArtemisBootTable(setup)` — merges the four real buckets, stubs the rest, and returns `{ imports, trace, temp, attachExports }`. `formatBootTrace` renders the per-bucket measurement. |
+| `host/async.ts` | `createArtemisAsyncImports(host)` — the 30 `invoke_*` re-entry trampolines, generated from one factory. `ARTEMIS_ASYNC_FORWARDS` / `ARTEMIS_ASYNC_HELPERS` name the guest exports they dispatch through. |
+| `host/boot.ts` | `createArtemisBootTable(setup)` — merges the five real buckets, stubs the rest, and returns `{ imports, trace, temp, attachExports, boot }`. `boot(instance, args)` runs the official startup sequence; `formatBootTrace` renders the per-bucket measurement. |
 
 Zero runtime dependencies beyond `@online-gal/vfs`.
 
 ## Booting `bridge.wasm` with no glue
+
+The control this is measured against is the official glue's own startup
+sequence, read out of `ports/artemis/vendor/artemis-sdk/WebAssembly/asyncify/artemis.js`
+rather than assumed:
+
+```
+preRun([])
+  initRuntime()      FS.init()  →  createStandardStreams
+                     TTY.init() →  (a no-op)
+                     SOCKFS.root = FS.mount(SOCKFS, {}, null)
+                     callRuntimeCallbacks(__ATINIT__)
+  preMain()          FS.ignorePermissions = false
+                     callRuntimeCallbacks(__ATMAIN__)
+  callMain(args)     argv built on the guest's own stackAlloc; _main(argc, argv)
+  postRun([])
+```
+
+Four things about that sequence are not guessable and each cost real debugging:
+
+1. **The constructor pass is the export `Mc`, not `__wasm_call_ctors`.** The
+   export literally named `__wasm_call_ctors` is **inert** — it makes zero
+   import calls. `Mc` is the real pass: five calls, `Fb Eb Bb Ab Aa`. It also
+   runs *inside* `initRuntime`, because it is the one member of `__ATINIT__` —
+   not before it, which is the order you would write by hand.
+   `__ATMAIN__` is **empty**, so nothing runs between it and `main`.
+2. **`attachExports` resolves the SHORT names.** `$c` and `ad` are the
+   `___cxa_can_catch` and `___cxa_is_pointer_type` *exports*; the long names are
+   the *imports* and are absent from the export list, so `eh.ts` keeps
+   `canCatch` / `isPointerType` mutable. The `async` bucket resolves `Xc`
+   (`stackSave`), `Yc` (`stackRestore`), `_c` (`_setThrew`) and the 30 dynCalls
+   the same way.
+3. **One `WebAssembly.Memory`, wrapped once.** The memory *import* demands the
+   raw object; the wrapper's views come from the same object. Constructing two
+   buffers for one memory detaches them from each other on grow.
+4. **Overrides installed after `new WebAssembly.Instance` reach nothing.** V8
+   captures import functions at instantiate time. An override patched in
+   afterwards silently never runs — which reads as "the trampoline dispatched 0".
 
 ```ts
 import { createArtemisBootTable } from './host/boot.js';
@@ -53,83 +94,164 @@ const boot = createArtemisBootTable({ spec, memory, fs: new ArtemisFs() });
 
 const instance = new WebAssembly.Instance(module, { a: { ...boot.imports, a: wasmMemory } });
 boot.attachExports(instance);
+const result = boot.boot(instance, []);   // the sequence above
+console.log(result.returned);             // -1 in the real package, with no gl bucket
 ```
 
-Five things about that sequence are not guessable and each cost real debugging:
+`boot()` builds argv the way `callMain` does, on the guest's own `Zc`
+`stackAlloc`: `argc + 1` slots, `argv[0] = thisProgram` (`"./this.program"`),
+`argv[argc] = 0`. Nothing here is emscripten's own allocator.
 
-1. **The constructor pass is the export `Mc`, not `__wasm_call_ctors`.** The
-   export literally named `__wasm_call_ctors` is **inert** — it makes zero
-   import calls. `Mc` is the real pass: five calls, `Fb Eb Bb Ab Aa`.
-2. **`attachExports` resolves the SHORT names `$c` and `ad`.** Those are the
-   `___cxa_can_catch` and `___cxa_is_pointer_type` *exports*; the long names are
-   the *imports* and are absent from the export list. `eh.ts` keeps
-   `canCatch` / `isPointerType` mutable precisely because they back wasm
-   exports.
-3. **One `WebAssembly.Memory`, wrapped once.** The memory *import* demands the
-   raw object; the wrapper's views come from the same object. Constructing two
-   buffers for one memory detaches them from each other on grow.
-4. **Overrides installed after `new WebAssembly.Instance` reach nothing.** V8
-   captures import functions at instantiate time. An override patched in
-   afterwards silently never runs — which reads as "the trampoline dispatched 0".
-5. **The `async` bucket is a table dispatch, not 30 call sites.** Every
-   `invoke_*` glue body is the same five lines (`stackSave` / `dynCall_*` /
-   `stackRestore`-on-throw / re-raise-unless-integer-or-longjmp / `_setThrew`).
-   Guest table export `Lc` holds 3613 entries and the element section is a bare
-   `funcidx` vector with base 1, so the table's own slots, not the body, decide
-   where a trampoline lands.
+One deliberate omission: `SOCKFS`. The glue mounts a socket filesystem at the
+root, but no row in the spec reaches it — `O` (`___sys_socketcall`) is the only
+socket seam, and it is the `fd` bucket's business. Mounting a filesystem nothing
+can reach would be a decoration, not a port.
 
-### Where it stops, and why that is honest
+### The `async` bucket is 30 forwarders, not 30 call sites
 
-`_main` (`Qc`) is reached and then traps:
+Every `invoke_*` glue body is the same five lines — `stackSave` / `dynCall_*` /
+`stackRestore`-on-throw / re-raise-unless-integer-or-`"longjmp"` / `_setThrew(1,0)`
+— and the `dynCall_*` it calls is a **named export forwarder**: the glue writes
+`Module["dynCall_iii"] = Module["asm"]["cd"]`, and `cd` is an export of the
+bridge. So the host hands the arguments to the guest's own dispatcher, which
+does the table lookup, the argument marshalling and the `__THREW__` bookkeeping
+inside the module. Nothing here reimplements a guest function table, and no
+`Lc` access is needed.
 
-```
-_main(10224) → w2c_artemis_Qc(656) → main(660) → wasm_rt_trap(10286)
-             → __assert_fail(10313) → abort(10369) → _abort_js(10315, unreachable)
-```
+The mapping is not derivable and is recorded in `ARTEMIS_ASYNC_FORWARDS`
+(`Ba→Nd Ca→Md D→md P→Od Ra→qd … x→xd y→pd`, 30 rows, 1:1). **Arity does not
+identify the target** — none of the 30 has a same-arity export — and the wasm
+type barely does (only `Ca→Md`, `ba→Pd`, `rc→Gd`, `t→td`, `tc→Ed` are unique).
+The glue has to be read, which is why the table is a committed artefact rather
+than something re-derived at boot.
 
-**`wasm_rt_trap` is called by `main` directly**, and the firing site is main's
-**site 2, insn 492 @560873, `i32.const 5`** — trap code 5, "Unreachable
-instruction executed", which is a per-argument **type-tag check** in the guest's
-own generated code. (Main's site 1 is the 500-frame depth guard and cannot fire:
-main entered once and the cell read 0 at entry, against a max of 4 at import
-boundaries. Function 657 is a 91 B wrapper with **zero** trap sites.)
+### Where it stops now: the `gl` bucket, which is honest
 
-This is not a host failure, and it is not stub-return values. A pass in which
-**every** stubbed name threw its own name instead of answering 0 reached the
-first trampoline and trapped *inside* it, with no further import calls at all.
-Table slot 2011 resolves to function 5326, whose direct-call graph is 31
-functions with zero self-calls and zero cycles, so there is no runaway loop
-either. bridge.wasm is stripped (no `name` section), so the diagnosis is a code
--section walk, not a symbol lookup.
+`main` is reached and **returns `-1`**. It does not trap, abort, or throw: the
+trampolines dispatch into the guest, the guest parses its own configuration, sets
+up its save directory, asks for a window, and declines to continue without one.
+The last import of the run is `oc = _glfwInit ()` returning 0 — which is
+glfw's own success value, so the host is not lying to the guest; the guest is
+deciding for itself that there is no display.
 
-Four of the guest's own 14 `__syscall_<name>` gaps are worth naming here: the
+Measured on the real package (`root.pfs` mounted lazily at `/`, 2.69 GB):
+
+| step | what the guest did |
+| --- | --- |
+| `_environ_sizes_get`, `_environ_get "USER=web_user"` | environment block |
+| `Mc` | 5 constructor-pass calls (`Fb Eb Bb Ab Aa`) |
+| `___sys_open "/root.pfs"` → fd 6, read, close | mounted package |
+| `___sys_open "system.ini"` → fd 7, `_fd_seek` ×5, `_fd_read` | reads the **real 3,618 B** `system.ini` |
+| `_emscripten_memcpy_big` ×2 | moves those 3,618 bytes |
+| `___sys_mkdir "/savedata_sync"`, `open "dummy"`, `unlink`, `chdir` | sets up its own save dir |
+| `___sys_ioctl(6, 21523)` → `-59` (`ENOTTY`) | asks the save fd for terminal attributes |
+| `_glfwInit ()` → 0, then **`return -1`** | no display, so no game |
+
+Running the identical sequence with an **empty** package (no archive mounted)
+produces the same 16 calls and the same `-1` — the exits are the guest's own
+"no display" decision in both cases, not a value the host supplied. What the
+real package adds is everything between: 1,175 dispatched `async` re-entries
+instead of 16, and a `system.ini` read out of a real archive.
+
+So the wall is `gl`, and it is one bucket: 99 rows, 91 distinct names. Four of
+the guest's own 14 `__syscall_<name>` gaps are worth naming here as well — the
 guest prints `warning: unsupported syscall: __syscall_<name>` and **continues**,
-so these are the concrete syscalls this port has no route for —
-`mprotect`, `acct`, `socketpair`, `mremap`, `munlockall`, `mlockall`, `munlock`,
-`mlock`, `madvise`, `mincore`, `getrusage`, `wait4`, `prlimit64`, `getresgid32`.
+so these are the concrete syscalls this port has no route for: `mprotect`,
+`acct`, `socketpair`, `mremap`, `munlockall`, `mlockall`, `munlock`, `mlock`,
+`madvise`, `mincore`, `getrusage`, `wait4`, `prlimit64`, `getresgid32`.
+
+### The control: what the official path actually does
+
+Everything above is a claim about **our** host, so the only way to believe it
+is to ask the official path the same questions. The control is the official
+module under the official glue in a real browser, serving
+`.test/artemis-official-async/deploy-ctrl` (the probe is
+`.test/team-artemis/a3-ctrl.mjs`; it is gitignored with the rest of `.test/`).
+
+It patches **no import**. The channel is page-side: the glue's own `callMain`
+does `var entryFunction = Module["_main"]` — a property lookup at call time, not
+a captured binding — so wrapping `Module._main` from the page intercepts the
+real call with the real `argc`/`argv` and the real outcome. The wrapper has to be
+armed on a timer, because the glue publishes `_main` only together with the wasm
+instance, hundreds of milliseconds after the page's own 8-key `Module` object
+appears, and enters `main` a millisecond or two later.
+
+| question | official | ours |
+| --- | --- | --- |
+| `argc` / `argv` | `1` / `["./this.program"]` | same |
+| `thisProgram` | `"./this.program"` | same |
+| callbacks after `__ATMAIN__` | none — `__ATMAIN__` is empty | same |
+| does `_main` return? | **no** — it throws the string `"unwind"` | returns `-1` |
+
+The first three match, which is what the startup sequence above predicted. The
+fourth is the interesting one, and it corrects the shape of the work rather than
+the diagnosis:
+
+**The official `main` never returns.** It throws `"unwind"`, which is the
+Asyncify unwind — the guest parks mid-run waiting for an async event (a
+finished download, a timer) and is resumed later by the glue's rewind. The
+glue's `callMain` catches exactly that case and returns cleanly
+(`else if (e == "unwind") { noExitRuntime = true; return }`), which is why the
+page survives and keeps drawing. Confirmed on the live page: `calledRun: true`,
+a **non-black frame** (`mean 173.38`, `max 255`, 87% lit), 24 game requests and
+18,240 bytes fetched, the guest loading `index.lua`, `trial.ini`,
+`save9999.dat`, `index.dat` and then decoding real PNGs.
+
+So `-1` is not the shape a finished run has. It is the shape a run has when the
+guest asks for a display, is told there is none, and gives up — which is exactly
+what our run is, and the only difference between the two is the one import:
+`oc = _glfwInit ()`. The glue's `_glfwInit` returns 1 and the guest proceeds;
+ours returns 0 — glfw's own `GLFW_FALSE` — and the guest declines. Returning 0 is
+the honest answer for a host with no display, but it means the `gl` bucket is
+not a formality to be filled in afterwards: **a host with a real canvas must
+return 1 there, and a correct `gl` will not make `main` return either — it will
+make it park in `"unwind"` and resume.** Building `gl` against the wrong
+success shape is the trap here.
+
+Two harness facts are worth keeping, because both first looked like a guest that
+stops early:
+
+- The control's data package (`deploy-ctrl/web/artemis.data`, a `pf66` file)
+  carries a **hardcoded** `ASYNCIFY_URL = http://127.0.0.1:4702/game/`. The
+  guest fetches its assets from that port, not from the page's own origin. Serve
+  on any other port and every asset dies with `ERR_CONNECTION_REFUSED`, which
+  reads exactly like a guest that gives up and is nothing of the sort.
+- `argv[i]` is a pointer to NUL-terminated **UTF-8 bytes**, not a UTF-32 string.
+  Reading those bytes as 32-bit words returns confident, plausible mojibake
+  (`"⼮獩潲浡ᕀ"`) with no error at all. A mis-specified width in a memory reader
+  does not fail; it lies.
 
 ## The per-bucket measurement
 
 `formatBootTrace(boot.trace)` is the deliverable the Lead asked for — a table of
 short name → call count per bucket, so "did the guest actually reach our code" is
-a measurement rather than a hope. From the current run:
+a measurement rather than a hope. From the current run, with the real package
+mounted and the `async` bucket dispatching:
 
 | bucket | calls | short names | called |
 | --- | ---: | ---: | ---: |
-| `async` | 7 | 30 | 6 |
-| `asyncify` | 0 | 4 | 0 |
+| `async` | 1175 | 30 | 12 |
+| `asyncify` | 2 | 4 | 1 |
 | `eh` | 0 | 15 | 0 |
-| `fd` | 2 | 41 | 2 |
-| `gl` | 0 | 99 | 0 |
+| `fd` | 19 | 41 | 10 |
+| `gl` | 1 | 99 | 1 |
 | `runtime` | 3 | 8 | 3 |
 | `todo` | 0 | 1 | 0 |
 
-The seven `async` calls are the measurement, not a failure: the guest asked for
-seven Asyncify re-entries (`invoke_iii` twice, then `invoke_vi`, `invoke_ii`,
-`invoke_iiii`, `invoke_viii`, `invoke_viiii`) and tripped its type-tag check
-right after. That bucket is not this task's work, and a stub that *counts* is the
-honest state of the port — a silent one would hide it. The three `runtime` calls
-are `Aa` / `Ab` / `Bb` from the `Mc` constructor pass.
+The `async` count is the headline: 1,175 re-entries into the guest's own code
+from a host that implements no guest logic of its own. The single `gl` call is
+`_glfwInit`, and it is the last import of the run. The three `runtime` calls are
+`Aa` / `Ab` / `Bb` from the `Mc` constructor pass.
+
+An earlier run, before the `async` bucket dispatched, put `main` into a
+`wasm_rt_trap` 3 instructions after a stubbed trampoline returned — and the
+diagnosis was wrong in a way worth recording. The site was a pure **memory**
+access through a struct pointer (`call_indirect: 0` in the whole window), so it
+could not be a table-slot problem, and the "500-frame recursion" reading was a
+block-depth misreading: the `br_if` *exits* the block and lands on the
+`i32.const 5 / call wasm_rt_trap` pair. What actually fixed it was giving the
+trampolines the module's own `dynCall_*` exports, so the guest's real function
+table and its `__THREW__` bookkeeping run instead of a zero.
 
 `counted()` increments the counter **before** the body runs, so a row that
 unwinds (`Ta` aborts, `I` longjmps, `q` fails an assert) still appears in the
@@ -243,6 +365,50 @@ is not a neutral stub.** It makes every allocation-dependent row report 0 bytes
 and every errno assertion read the heap base, which reads as a host bug rather
 than a missing allocator. The harnesses here bump-allocate for real.
 
+## The glue is an input, not a constant
+
+The spec this package dispatches against was generated from **one specific
+glue file**, and the two glues in the tree are **not the same bytes**:
+
+| glue | size | sha256 (head) |
+| --- | ---: | --- |
+| `ports/artemis/vendor/artemis-sdk/WebAssembly/asyncify/artemis.js` | 276,695 B | `a3e65b92` |
+| `.test/artemis-official-async/deploy/web/artemis.js` | 276,697 B | `f759f8b3` |
+
+The first difference is at **byte 4495** — an embedded `adPackage` table reads
+`end:236` in one and `end:3817` in the other — which shifts every later function
+by a uniform **+2 bytes**. So a table generated from the vendor glue places every
+`impl` offset after byte 4495 two bytes early against the deploy build, and a
+2×2 cross check (vendor↔vendor, deploy↔deploy, and both cross pairs) fails both
+cross pairs on exactly that. The table now records `totals.moduleSha256` and
+`totals.glueSha256`, and `verify-imports-map.mjs` refuses any table whose
+provenance does not match the inputs it was handed.
+
+Two consequences for the work in this package:
+
+- **Instrument the browser path with the table generated from the DEPLOY glue.**
+  The control run (official module + official glue + a real game in a browser)
+  is what the deploy table describes. The vendor table is for the vendor binary.
+  A control whose numbers were read off the wrong table would be measuring
+  nothing.
+- **Regenerate for the inputs you actually have.** The committed pair came out
+  of the bare command, with **no `--forward`**:
+
+  ```bash
+  node ports/artemis/harness/glue/imports-map.mjs \
+    --wasm   <this build's bridge.wasm> \
+    --glue   ports/artemis/vendor/artemis-sdk/WebAssembly/asyncify/artemis.js \
+    --aliases <this build's runtime-imports.json> \
+    --out-dir <dir>
+  ```
+
+  `imports-forward.c` is generated by the build and is **not tracked**
+  (`git ls-files` finds no such file), so a clean checkout cannot produce it —
+  and passing it flips every row's `forwarded` from `-` to `yes`, about 200
+  lines of diff that record *how* a seam was implemented in that build, while
+  every other column records *what the module needs*. This table records the
+  ABI. `--forward` is still accepted as corroboration, not as an input.
+
 ## Verification
 
 Every gate below is reproducible from the repo root, and all of them are green:
@@ -256,7 +422,21 @@ node --test .test/team-artemis/fd-host.test.ts     # 14 tests, 0 failures
 node .test/team-artemis/reconcile-t17-imports.mjs  # ALL 51 CHECKS PASS
 node --test .test/team-artemis/t17-host.test.ts     # 46 tests, 0 failures
 node .test/team-artemis/boot-bridge.mjs            # the per-bucket table
+node .test/team-artemis/count-coverage.mjs          # 98 names / 107 rows / 100 stubs
+bash .test/team-artemis/gate-step.sh                # GATE EXIT 0
 ```
+
+`count-coverage.mjs` is the check that keeps this README honest: it reads
+`imports-map.json`, imports the **compiled** factories, unions their
+`Object.keys`, and reconciles against the spec rows. It is how the numbers in
+this file were established rather than counted by hand.
+
+`gate-step.sh` is the body of the CI step *Gate the committed import map against
+this build* (`.github/workflows/build-wasm-reusable.yml`) run locally against
+the CI bridge build. It regenerates the pair with **no `--forward`**, `cmp`s
+both files against the committed ones (byte-identical), and re-runs
+`verify-imports-map.mjs` — `ALL CHECKS PASS`. That is the same proof CI runs on
+every build, so the table in this repo cannot silently drift from the binary.
 
 `reconcile-t17-imports.mjs` proves the 29 task-17 rows are 27 short names with
 exactly `I` and `Ta` doubled, that each compiled factory's `Object.keys` equals
@@ -311,5 +491,5 @@ verification, not shipped tests.
 `src/index.ts` still re-exports only `./sha1.js ./pfs.js ./probe.js
 ./runtime.js`. `host/` is **not** re-exported. That is deliberate and settled:
 the public surface is added only once the host can do one complete thing, and
-`bridge.ts` still stubs 159 of the 207 imports. Import from `./host/bridge.js`
-or `./host/boot.js` until that changes.
+the boot table still counts **100 of the 207 imports** as stubs. Import from
+`./host/bridge.js` or `./host/boot.js` until that changes.

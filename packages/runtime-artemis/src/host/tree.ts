@@ -363,10 +363,21 @@ export class ArtemisFs {
     return dir;
   }
 
-  /** Register a character device — the game's tty probe target. */
+  /**
+   * Register a character device — the game's tty probe target.
+   *
+   * A character device is always writable, and that is not a simplification. In the glue a chrdev's
+   * write op is a plain function with no read-only state anywhere: `FS.open("/dev/tty", 1)` cannot
+   * fail, and neither can `open("/dev/null", 1)`. This host otherwise denies a write to anything
+   * outside `writeScope` with EROFS, which is how a mounted package layer stays read-only — but
+   * applying that to a chrdev would make the standard streams unopenable for writing, and the guest
+   * would lose stdout at `FS.init` rather than at the first `printf`. The tty is a sink, not a
+   * mount, so it joins the write scope here.
+   */
   addChrdev(path: string, device?: ChrDevice): FsNode {
     const resolved = this.resolve(path, true);
     if (resolved.node) {
+      this.writeScope.add(resolved.node);
       return resolved.node;
     }
     if (!resolved.parent) {
@@ -378,6 +389,7 @@ export class ArtemisFs {
     }
     node.parent = resolved.parent;
     resolved.parent.children.set(node.name, node);
+    this.writeScope.add(node);
     return node;
   }
 

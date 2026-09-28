@@ -408,9 +408,9 @@ const OWNER = {
     note: 'the spill; see docs §18.3 — all 4 rows, via a synchronous `resolve` callback rather than the XHR/Asyncify unwinder',
   },
   async: {
-    status: 'planned',
+    status: 'landed',
     port: 'packages/runtime-artemis/src/host/async.ts',
-    note: 'the one seam: 30 `invoke_*` table-dispatch trampolines, none implemented — 0 calls reach a real table yet; see docs §18.3',
+    note: 'the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module\'s own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3',
   },
   eh: {
     status: 'landed',
