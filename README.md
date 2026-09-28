@@ -822,3 +822,30 @@ patch——最初全都躺在 `.test/` 里，结果**没有任何东西能推送
 > 因此：**AetherKiri、Kirikiroid2、Tyranor-Next 与 artemis-compat 的代码都可以移植或转录。**
 > 引入任何移植代码时，必须在本文件与 `THIRD_PARTY_NOTICES.md` 中追加对应的版权声明与来源说明。
 > 官方 Artemis SDK **不在此列**：它只能作为校验用的对照物，不能据此再分发。
+
+### 包与下游义务
+
+`packages/*` 的 12 个包与 `apps/app` 都带 `"license": "GPL-3.0-or-later"`，并且全部
+`private: true`：它们**不发布到 npm**。复用方式是从 GitHub release 取包 tarball
+（取法与私有仓库所需 token 见 [`docs/fetch-engine-artifacts.md`](docs/fetch-engine-artifacts.md)），
+或直接以 git 依赖引入。
+
+这条选择带来一个对下游的硬约束，写在这里是为了让人一开始就知道，而不是在分发前才发现：
+**以任何方式链接或改编这些包的项目，其分发必须同样以 GPL-3.0（or later）授权，并提供对应源代码。**
+这不是本仓库追加的条款，而是 GPL-3.0 本身的效力。
+
+### 官方 Artemis SDK 在收敛成一份出货形态之后是什么
+
+它的用途只剩一个：作为 `wasm2c` 的**转译输入**（出货模块沿用它那套导入/导出面当外壳）。
+因此「出货的模块里是否只剩我们自己的代码」必须按实测回答，而不是按印象回答：
+
+- 引擎语义层是完整的 —— 46 个 tag 根函数沿调用图三层的闭包共 **318 个函数 / 505,768 行**，
+  覆盖 **100% 的 tag 语义**（占全文 5,609 个函数的 5.7%、却占 2,705,479 行的 18.7%）；
+- 函数总量层不是 —— `ports/artemis/src/` 是 **157 个手写产品**，而模块共 **5,610 个函数**
+  （`.wasm2c.c` 里 `w2c_artemis_fNNN` 唯一名实测），其余由 `wasm2c` 的机器转译体填充，
+  是渲染/数学/压缩/字体这类叶节点。
+
+要让后者也成立，只有两条路：把叶节点换成**真上游库源码**（zlib / freetype / Lua 它们自己那份，
+而不是转译 SDK 里的副本），或者补完
+[`docs/artemis-wasm-transcription-handoff.md`](docs/artemis-wasm-transcription-handoff.md) §12
+列的三件欠账（`f3744` 的切分、batch-4B 余量、P4 长尾）。
