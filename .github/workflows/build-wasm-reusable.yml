@@ -137,6 +137,17 @@ on:
         required: false
         type: boolean
         default: false
+      glue-import-map:
+        description: 'Path to the tracked glue (artemis.js) the committed import map in
+                      ports/artemis/harness/glue/ was generated from, or empty to skip the
+                      import-map gate. Only the bridge has one: the committed table is that
+                      module''s import surface, byte for byte, so it can only be compared against
+                      a build of the same module AND the same glue. A sync bridge is a different
+                      module against a different glue, and the table says nothing about it — see
+                      the gate step below.'
+        required: false
+        type: string
+        default: ''
     outputs:
       manifest:
         description: 'The generated manifest JSON'
@@ -326,6 +337,110 @@ jobs:
           BUILD_ENV_EOF
           fi
           bash "${{ inputs.build-script }}"
+
+      # The import map in ports/artemis/harness/glue/ is a committed claim about one specific
+      # module's import surface: every row's impl offset is an index into one specific glue file.
+      # The claim is cheap to believe and expensive to be wrong about -- a module rebuilt with one
+      # more or one fewer import makes all 405 offset checks fire at once and read like a corrupt
+      # table, which is why nothing but a local gate used to stand behind it. This step is that
+      # local gate, run in CI against the module THIS job just built: the table has to be
+      # reproducible from this build's bytes, and an independent checker that re-decodes the import
+      # section has to agree with the file on disk.
+      #
+      # Only the bridge sets `glue-import-map`. A `sync` build must leave it empty: that is a
+      # different module against a different glue, and the committed table says nothing about it
+      # (measured -- the generator refuses to emit for it at all, two rows without a citation).
+      - name: Gate the committed import map against this build
+        if: inputs.glue-import-map != ''
+        env:
+          GATE_BUILD_DIR: ${{ inputs.artifact-dir }}
+          GATE_GLUE: ${{ inputs.glue-import-map }}
+        run: |
+          set -eu
+          # --- identity first -------------------------------------------------
+          #
+          # A criterion that cannot say which bytes it judged is not a criterion. Both
+          # digests go out before anything is compared, so a failure names the module and the
+          # glue that produced it instead of asking a reader to go and work it out.
+          WASM="$GATE_BUILD_DIR/bridge.wasm"
+          ALIASES="$GATE_BUILD_DIR/runtime-imports.json"
+          GLUE="$GATE_GLUE"
+          MAP_JSON=ports/artemis/harness/glue/imports-map.json
+          MAP_MD=ports/artemis/harness/glue/imports-map.md
+          # `sha256sum x | cut -d' ' -f1` is not the way to say "absent": cut succeeds on empty
+          # input, so a missing file yields a blank digest rather than a failure, and an identity
+          # line with a blank in it is exactly the sort of thing a reader trusts. Test the file.
+          digest() { if [ -s "$1" ]; then sha256sum "$1" | cut -d' ' -f1; else echo '(absent)'; fi; }
+          echo "## gate: wasm   $WASM  $(digest "$WASM")"
+          echo "## gate: glue   $GLUE  $(digest "$GLUE")"
+          echo "## gate: map    $MAP_JSON"
+          echo "## gate: map    $MAP_MD"
+
+          # The generator is the criterion here, so it gets to be pedantic about its own
+          # inputs: a missing file must fail the step, not be read as `undefined` and hashed.
+          for f in "$WASM" "$ALIASES" "$GLUE" "$MAP_JSON" "$MAP_MD"; do
+            [ -s "$f" ] || { echo "::error::the import-map gate needs $f and it is missing or empty"; exit 1; }
+          done
+
+          # --- 1. the table is what THIS build's ABI produces ------------------
+          #
+          # Regenerated into a scratch directory rather than over the committed files: a
+          # regeneration that is correct must leave the working tree untouched, and one that is
+          # wrong has to be able to print its own diff next to the committed one.
+          #
+          # No `--forward` here on purpose. The committed pair was generated without it, and
+          # passing this build's imports-forward.c flips every row's `forwarded` from `-` to
+          # `yes` -- a 200-line diff that is a difference in how the table was made, not in
+          # what the module needs.
+          OUT="$(mktemp -d)"
+          echo "## gate: out    $OUT"
+          node ports/artemis/harness/glue/imports-map.mjs \
+            --wasm    "$WASM" \
+            --glue    "$GLUE" \
+            --aliases "$ALIASES" \
+            --out-dir "$OUT"
+
+          # `cmp` rather than a hash comparison, and the diff is printed only on failure: a
+          # regenerated 800-line table that differs in one bucket total is a 40-line diff, and a
+          # failed step that dumps 800 lines is the reason nobody reads a failed step.
+          mismatch=0
+          for name in imports-map.json imports-map.md; do
+            case "$name" in
+              *.json) committed="$MAP_JSON" ;;
+              *)      committed="$MAP_MD" ;;
+            esac
+            if cmp -s "$OUT/$name" "$committed"; then
+              echo "## gate: $name byte-identical to the committed file"
+              continue
+            fi
+            mismatch=1
+            echo "::error::$name no longer matches what this build produces:"
+            diff -u "$committed" "$OUT/$name" | head -40 || true
+          done
+          if [ "$mismatch" -ne 0 ]; then
+            echo "::error::the committed table in $MAP_JSON / $MAP_MD is not what $GLUE ($(sha256sum "$GLUE" | cut -d' ' -f1)) and $WASM ($(sha256sum "$WASM" | cut -d' ' -f1)) produce. Regenerate it for these inputs (ports/artemis/harness/glue/README.md) and commit both files."
+            exit 1
+          fi
+          echo "## gate: the committed table is byte-identical to a regeneration from this build"
+
+          # --- 2. the independent checker agrees ------------------------------
+          #
+          # Its exit status is the verdict and is read directly rather than through a pipe: a
+          # `node ... | tail` pipeline returns tail's status, and a table that failed every
+          # offset check would then pass. The checker re-decodes the import section with its own
+          # reader, so this is a second opinion and not the generator marking its own work.
+          if ! node ports/artemis/harness/glue/verify-imports-map.mjs \
+                --wasm "$WASM" \
+                --glue "$GLUE" \
+                --json "$MAP_JSON" \
+                --md   "$MAP_MD" > "$OUT/verify.txt" 2>&1; then
+            tail -40 "$OUT/verify.txt"
+            echo "::error::verify-imports-map.mjs failed on this build's module and the committed table"
+            exit 1
+          fi
+          tail -1 "$OUT/verify.txt"
+          echo "## gate: the independent checker passes on the committed table"
+          rm -rf "$OUT"
 
       # Resolved before the manifest because the manifest records the tag its download URLs are
       # built from -- the fetch side turns `repository` + `releaseTag` + name into a URL, so the two
