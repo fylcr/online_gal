@@ -1975,6 +1975,20 @@ node ports/artemis/tools/real-game-test.mjs --game <松散树> --engine <candida
 判据在 17.6 那条注里——**请求数 + lit% + frames**。此外这台台子**双侧都会 flake**：
 批 3 记的 6 跑里，2 跑官方没渲染、2 跑候选 stalled，所以单跑一次不构成证据。）
 
+**部署的那一份现在出自 runner，不再是本机构建。** artemis 没有 release（引擎对着专有 SDK
+编译），所以 `ports/lib/engine-artifacts.json` 里它那两项一度描述的是本机构建——而台账的全部
+含义就是「这些字节出自哪一个构建」，那一版答的是本机。pin 前移到 `9f622629f595` 后，
+`build-wasm-artemis.yml` 在 runner 上产出了**新 pin** 的第一份制品，台账随即换成 runner 的
+字节（`artemis-web-android.wasm` 1,151,025 B / `a1787043…`）。这份制品随后在真实的
+`.test/test-games/Artemis/`（`root.pfs` 2,690,454,559 B + `root.pfs.000` 3,355,688,890 B）
+上跑过，对照 pin 之前的本机旧模块（1,147,110 B / `79dce328…`）：同一张
+`android-host.html`、同一个 `?pack=/root.pfs`、同一台无头 Edge，两侧都是画布 `756x488`、
+`litPct 86.90`、`signature 1acafc51`、`mean r180.12 g168.70 b170.81`，**1,106,784 个通道
+字节里 0 个不同**，73 条宿主日志、`draw[901]` 的层表、1120 条控制台条目都逐字相同。
+⇒ 「runner 产出的字节能跑真实游戏」在 artemis 上是量出来的，而且它换掉的那一份是同一帧。
+（取字节这条路是 `ports/artemis/build/serve-range.mjs`：页面只认 `206`，所以它不能换成
+`coi-server.py`。）
+
 ### 18.5 本节与 §7/§10 的关系
 
 §7 的「原 1/2/4」之所以能从「尚未完成」里划掉，靠的就是本节这条路线：Web 宿主与渲染
