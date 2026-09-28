@@ -65,6 +65,19 @@ on:
       - 'ports/artemis/REWRITE.md'
       - 'ports/artemis/tools/real-game-test.mjs'
       - 'ports/artemis/vendor/artemis-sdk/WebAssembly/**'
+      # The `package-dir` closure. `@online-gal/runtime-artemis` is now packed into a published
+      # tarball by this workflow, so an edit to the package or to either dependency it vendors
+      # changes the released bytes. Judged by "is it inside the published artifact", not "does it get
+      # compiled": the earlier `8845051` BOM sweep touched only files outside every artifact's
+      # closure and correctly triggered no run, whereas `src/` edits are all shipped -- `src/` is
+      # in the tarball because every exports map routes `types` to source, and because GPL-3.0
+      # §5(b) requires the corresponding source to travel with the work.
+      - '.github/scripts/make-package.mjs'
+      - 'packages/runtime-artemis/**'
+      - 'packages/engine-api/**'
+      - 'packages/vfs/**'
+      - 'LICENSE'
+      - 'THIRD_PARTY_NOTICES.md'
       # NOT 'ports/lib/engine-artifacts.json'. That file records what the publish step
       # produced -- it is an output of this pipeline, not an input to it. Listing it means
       # every hash update, which is a one-line edit, rebuilds every engine.
@@ -73,6 +86,10 @@ on:
       - '.github/scripts/build-artemis-bridge.sh'
       - 'ports/artemis/src/**'
       - 'ports/artemis/reverse/**'
+      - '.github/scripts/make-package.mjs'
+      - 'packages/runtime-artemis/**'
+      - 'packages/engine-api/**'
+      - 'packages/vfs/**'
   workflow_dispatch:
     inputs:
       publish:
@@ -136,6 +153,31 @@ jobs:
       # from the proprietary SDK's binary. That host build is retired now; this is the only Artemis
       # form that ships, and it is gated the same way.
       publish: ${{ (inputs.publish || vars.ARTEMIS_PUBLISH_ARTIFACTS == 'true') && github.event_name != 'pull_request' }}
+      # The runtime package, packed by THIS job (the `bridge` job, which `uses` the reusable
+      # workflow). The `real-game` job below has `needs: bridge` and is skipped unless a game tree is
+      # supplied, and that is irrelevant here: `real-game` is a *consumer* of the bridge job's
+      # artifact, not a producer of the package. Every packaging step lives inside the reusable
+      # workflow's single `build` job, so the tarball exists whether `real-game` runs, is skipped, or
+      # is still waiting.
+      #
+      # NO `--assets-from`, for the same reason krkr has none. This engine is a wasm *module* loaded
+      # by URL (`bridge.wasm`), and the package resolves it from a caller-supplied location rather
+      # than from an `assets/` directory beside the module -- there is no `assets/` concept in
+      # `@online-gal/runtime-artemis` to satisfy. Passing this job's `artifact-dir`
+      # (`dist/artemis-bridge/build`) would drop `bridge.wasm` into `assets/` where nothing reads it.
+      # The engine module keeps its existing route: the `wasm-artemis-bridge` artifact and, when
+      # this engine is cleared to publish, the `engine-artemis-bridge-<flavour>-<commit>` release.
+      #
+      # NOTE on what the tarball contains: `@online-gal/runtime-artemis` vendors its closure
+      # (engine-api, vfs) from the working tree, and the package's `src/` ships because every
+      # exports map in this repository routes `types` to source and GPL-3.0 §5(b) requires the
+      # corresponding source to travel with the work. If `packages/runtime-artemis/src/host/`
+      # carries work in progress, it is inside the tarball -- a package is a snapshot of the tree at
+      # the packed commit, and hiding part of `src/` would make the §5(b) obligation false.
+      #
+      # The closure is vendored, so a change to engine-api or vfs makes this published tarball stale
+      # and requires a version bump.
+      package-dir: packages/runtime-artemis
 
   # The real-game test is a separate job because it needs a display-driving Chrome and a game tree,
   # and a failure there means something different from a failure in the structural gates: the module

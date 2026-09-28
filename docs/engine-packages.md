@@ -146,13 +146,31 @@ release URL is the dependency:
 ```jsonc
 {
   "dependencies": {
-    "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.2.tgz"
-    // No "@online-gal/engines" entry yet, on purpose: a tarball exists only for a package whose
-    // workflow sets `package-dir`, and so far only the ONScripter workflow does. A URL here would
-    // be a 404 that only shows up at install time, so there is no URL here.
+    "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.2.tgz",
+    "@online-gal/runtime-kag": "https://github.com/fylcr/online_gal/releases/download/engine-krkr-20260920/online-gal-runtime-kag-0.1.0.tgz",
+    "@online-gal/runtime-artemis": "https://github.com/fylcr/online_gal/releases/download/engine-artemis-bridge-asyncify-9f62262/online-gal-runtime-artemis-0.1.0.tgz"
+    // No "@online-gal/engines" entry yet, on purpose. A tarball exists only for a package whose
+    // workflow sets `package-dir`, and this one is published by no workflow -- it depends on all six
+    // runtime packages at once, and no engine workflow builds all six, so any tarball published
+    // today would vendor five stale providers. It builds and installs correctly by hand; it just
+    // has no correct trigger. See the section in docs/fetch-engine-artifacts.md.
   }
 }
 ```
+
+The first URL resolves against a published release today. The second and third are what the *next*
+build of those workflows will publish, under the release tags those workflows already use
+(`engine-krkr-20260920`, `engine-artemis-bridge-asyncify-9f62262`) — so treat them as "present after
+the push that adds `package-dir`", not as something to paste into a build today. The artemis one has
+a second condition on top: `build-wasm-artemis-bridge.yml` only publishes when `publish` is set or
+`vars.ARTEMIS_PUBLISH_ARTIFACTS` is `true`, because that engine is deliberately withheld while its
+SDK terms are unsettled. It is not cleared to publish yet.
+
+A tarball per engine is the right default here, because the engine workflows are the thing that
+actually build these packages and they build one engine each. Note that only the ONS tarball carries
+its engine bytes: `@online-gal/runtime-kag` and `@online-gal/runtime-artemis` load their engine from
+a URL the caller supplies, so adding `--assets-from` to those workflows would put megabytes in the
+archive that no code path reads.
 
 `@online-gal/engines` builds the same way as any other package, so `make-package.mjs --package
 packages/engines` produces its tarball the moment a workflow names it in `package-dir`; until

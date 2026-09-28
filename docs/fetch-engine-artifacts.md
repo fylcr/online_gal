@@ -275,6 +275,37 @@ and forgotten:
   not change the engine's license, and where the two differ the engine's own terms apply. Check the
   engine's license before redistributing a package containing it.
 
+### Which engines get a package, and why the cross-engine one does not (yet)
+
+Three tarballs are published today, one per engine workflow that has a `package-dir`:
+
+| package | built by | engine bytes in the tarball? |
+| --- | --- | --- |
+| `@online-gal/runtime-ons` | `build-wasm-ons.yml` | yes — `assets/`, because `dist/wasm-runtime.js` resolves `new URL('../assets/', import.meta.url)` |
+| `@online-gal/runtime-kag` | `build-wasm-krkr.yml` | no — the wasm is a URL-served page, not a file beside the module |
+| `@online-gal/runtime-artemis` | `build-wasm-artemis-bridge.yml` | no — the module is loaded by URL from a caller-supplied location |
+
+The "no" rows are deliberate, and passing `--assets-from` anyway would be actively misleading: the
+artifacts would land in the archive as `assets/`, where **no code path in those packages reads
+them**, producing a tarball that looks self-contained while being wrong about what it is. For krkr
+specifically, `configureKirikiriWasm({ pageUrl })` decides where the engine comes from and
+`findKiriMount()` then mounts `?xp3=` or `?game=` against it — the engine is wherever the URL says, so
+it cannot be baked into the package. The engine half of those releases keeps the route it already
+had: the run's `wasm-krkr` artifact and the `engine-krkr-20260920` release.
+
+`@online-gal/engines` is the cross-engine registry, and it is deliberately **not** published. It
+depends on all six runtime packages at once, and no engine workflow builds all six — ONS's job has
+ONS alone, krkr's has krkr alone, the artemis bridge's has artemis alone. Publishing it from any of
+them would mean shipping a tarball whose other five providers are vendored from whatever stale
+`dist/` happens to be on that runner, which is a worse failure than not publishing it: the vendoring
+design deliberately drops `dependencies` because nothing outside the monorepo can resolve
+`workspace:*`, so a stale copy is invisible to the consumer and the failure surfaces as a provider
+silently missing at runtime. Its tarball builds and installs correctly by hand — 2.5 MB, all ten
+vendored dependencies resolving inside the package — so this is a trigger-graph decision, not a
+packaging limitation. The way to ship it is a workflow whose job builds the whole package set, which
+is a larger change than adding one input to three existing ones, and it is worth doing separately
+rather than half-wired here.
+
 ## Where the bytes come from
 
 `ports/lib/engine-artifacts.json` records, per engine, the upstream repository and commit the

@@ -44,6 +44,12 @@ on:
       - 'packages/image-codec/**'
       - 'packages/player-host/**'
       - 'pnpm-lock.yaml'
+      # Both land verbatim in the tarball root as `package/LICENSE` and
+      # `package/THIRD_PARTY_NOTICES.md` -- GPL-3.0 §5(a) requires the licence to travel with the
+      # work, so an edit to either changes the published bytes. `make-package.mjs` fails the build
+      # outright if either file is missing, which is the other half of why they are listed here.
+      - 'LICENSE'
+      - 'THIRD_PARTY_NOTICES.md'
       - '.github/upstream-pins.json'
       - 'ports/env.sh'
       - 'ports/ons/build/**'
@@ -105,6 +111,13 @@ jobs:
       # first engine wired up; `krkr` and the rest follow once this path is proven, and an engine
       # with no `package-dir` still builds and publishes exactly as before.
       package-dir: packages/runtime-ons
+      # ONScripter is the one engine whose runtime reads its engine files out of the package:
+      # `dist/wasm-runtime.js` resolves them as `new URL('../assets/', import.meta.url)` — that
+      # file's parent directory is the package root, so they land in `<package>/assets/`. Without
+      # them the tarball installs cleanly and then fails on the first frame. That makes the boolean
+      # opt-IN rather than a default: krkr's engine is a URL-served page with no `assets/` at all,
+      # and silently handing it this flag would ship a tarball full of megabytes no code path reads.
+      package-engine-assets: true
       # A pull request builds and checks but must not publish: a PR's bytes are unreviewed, and a
       # release is a public promise that these are the bytes the manifest describes.
       # `inputs.publish` is an empty string on `push` (no `inputs` context for that event), and GitHub

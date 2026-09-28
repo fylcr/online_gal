@@ -120,10 +120,23 @@ on:
         default: ''
       package-dir:
         description: 'Runtime package directory to pack into an npm tarball, e.g. packages/runtime-ons.
-                      Empty = build the engine only, with no package (the krkr/artemis case).'
+                      Space-separated for several. Empty = build the engine only, with no package.'
         required: false
         type: string
         default: ''
+      package-engine-assets:
+        description: 'Whether the tarball carries the engine files this run just built, as
+                      package/assets/ (--assets-from inputs.artifact-dir). Only ONS works that way:
+                      its runtime resolves new URL("../assets/", import.meta.url) — the parent
+                      directory of the compiled dist/wasm-runtime.js is the package root, so they
+                      land in <package>/assets/ — and a tarball without them imports fine and
+                      fails on the first frame. The other runtimes mount
+                      a URL-served page instead, so they carry no engine bytes and this stays false.
+                      A true value with more than one package-dir is refused, because one
+                      artifact-dir cannot honestly be the engine bytes for two different packages.'
+        required: false
+        type: boolean
+        default: false
     outputs:
       manifest:
         description: 'The generated manifest JSON'
@@ -134,6 +147,11 @@ on:
       package-file:
         description: 'File name of the npm tarball (empty when package-dir is empty)'
         value: ${{ jobs.build.outputs.package-file }}
+      package-files:
+        description: 'Space-separated file names of every npm tarball this run produced, in the
+                      order the packages were given. One name for a single package, so a caller that
+                      only ever packages one engine does not have to change when a second appears.'
+        value: ${{ jobs.build.outputs.package-files }}
 
 permissions:
   contents: write
@@ -156,6 +174,7 @@ jobs:
       manifest: ${{ steps.manifest.outputs.json }}
       release-tag: ${{ steps.tag.outputs.tag }}
       package-file: ${{ steps.package.outputs.file }}
+      package-files: ${{ steps.package.outputs.files }}
     steps:
       - name: Check out this repository
         uses: actions/checkout@v4
@@ -402,16 +421,45 @@ jobs:
         if: inputs.package-dir != ''
         run: |
           set -eu
+          # `package-dir` is space-separated so one job can ship both a per-engine package and a
+          # cross-engine one, and each becomes its own tarball: `online-gal-<name>-<version>.tgz` is
+          # derived from the manifest, so two packages never collide in `dist/packages` and the
+          # "upload every *.tgz" steps below stay correct without knowing how many there are.
+          #
           # `--quiet` makes the script print the absolute tarball path and nothing else, so this
           # step does not have to guess the file name with `ls` -- which would silently pick the
           # wrong file the day a second .tgz ever lands in the output directory.
-          file="$(node .github/scripts/make-package.mjs \
-            --package "${{ inputs.package-dir }}" \
-            --assets-from "${{ inputs.artifact-dir }}" \
-            --out dist/packages \
-            --quiet)"
-          echo "file=$(basename "$file")" >> "$GITHUB_OUTPUT"
-          echo "## package: $file"
+          files=''
+          count=0
+          for dir in ${{ inputs.package-dir }}; do
+            if [ "${{ inputs.package-engine-assets }}" = 'true' ]; then
+              assets=(--assets-from "${{ inputs.artifact-dir }}")
+            else
+              # Deliberately NOT passing --assets-from for the runtimes whose engine is a
+              # URL-served page rather than a file beside the module. Pointing --assets-from at this
+              # job's artifact-dir would copy `index.wasm index.js vlfs.js ...` into the package as
+              # `assets/`, which nothing in those packages ever reads -- a tarball that looks
+              # complete and is carrying four megabytes of files no code path can find.
+              assets=()
+            fi
+            file="$(node .github/scripts/make-package.mjs \
+              --package "$dir" \
+              "${assets[@]}" \
+              --out dist/packages \
+              --quiet)"
+            echo "## package: $file"
+            name="$(basename "$file")"
+            if [ "$count" -eq 0 ]; then
+              # `package-file` is the name of the FIRST package, kept as its own output so a caller
+              # that packages exactly one engine keeps working untouched. New callers should read
+              # `package-files` and not assume a single name.
+              echo "file=$name" >> "$GITHUB_OUTPUT"
+            fi
+            files="${files:+$files }$name"
+            count=$((count + 1))
+          done
+          test "$count" -gt 0 || { echo "::error::package-dir is set but no package was packed"; exit 1; }
+          echo "files=$files" >> "$GITHUB_OUTPUT"
 
       # Uploaded as its own artifact so a run can be consumed without waiting for a release, and so
       # the tarball and the loose files can be verified against each other in one download.

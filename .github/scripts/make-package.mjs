@@ -265,8 +265,9 @@ if (existsSync(srcDir)) {
   cpSync(srcDir, join(staged, 'src'), { recursive: true });
 }
 
-// 3. engine artifacts. `assets/` is what the runtime resolves (`new URL('../../assets/', ...)` in
-// dist/wasm-runtime.js), so a package without it imports fine and then fails on the first frame.
+// 3. engine artifacts. `assets/` is what the runtime resolves (`new URL('../assets/', ...)` in
+// dist/wasm-runtime.js, whose parent directory is the package root), so a package without it
+// imports fine and then fails on the first frame.
 // In CI the freshly built bytes win over the committed ones, which is the whole point of shipping
 // the build output.
 const assetsSource = options.assetsFrom ? resolve(repoRoot, options.assetsFrom) : join(packageDir, 'assets');
@@ -298,9 +299,19 @@ while (queue.length) {
   // `node_modules/<name>` is checked too so the script does not depend on which linker produced the
   // tree. A package that is genuinely not installed is reported rather than silently skipped,
   // because a tarball missing a transitive dep fails at the consumer's first import.
+  //
+  // The third candidate is the hoisted store `node_modules/.pnpm/node_modules/<name>`, and it is
+  // not a nicety: a package whose DIRECT deps are all installed still needs its TRANSITIVE ones
+  // vendored, and pnpm does not put those in its own `node_modules` unless they happen to be
+  // hoisted. `packages/engines` is the case in point -- its seven direct deps are linked, but its
+  // closure reaches `@online-gal/vfs` only through the six runtimes, and `vfs` is linked in
+  // `node_modules/.pnpm/node_modules/@online-gal/vfs` alone. Without this candidate the packer
+  // aborts with `dependency not installed: @online-gal/vfs` on a workspace that is installed
+  // perfectly well, which reads like a broken install rather than a missing lookup path.
   const candidates = [
     join(packageDir, 'node_modules', name),
     join(repoRoot, 'node_modules', name),
+    join(repoRoot, 'node_modules', '.pnpm', 'node_modules', name),
   ];
   const found = candidates.find((candidate) => existsSync(join(candidate, 'package.json')));
   if (!found) fail(2, `dependency not installed: ${name} (looked in ${candidates.join(', ')})`);
