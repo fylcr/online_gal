@@ -118,6 +118,12 @@ on:
         required: false
         type: string
         default: ''
+      package-dir:
+        description: 'Runtime package directory to pack into an npm tarball, e.g. packages/runtime-ons.
+                      Empty = build the engine only, with no package (the krkr/artemis case).'
+        required: false
+        type: string
+        default: ''
     outputs:
       manifest:
         description: 'The generated manifest JSON'
@@ -125,6 +131,9 @@ on:
       release-tag:
         description: 'The release tag the artifacts were published under'
         value: ${{ jobs.build.outputs.release-tag }}
+      package-file:
+        description: 'File name of the npm tarball (empty when package-dir is empty)'
+        value: ${{ jobs.build.outputs.package-file }}
 
 permissions:
   contents: write
@@ -146,6 +155,7 @@ jobs:
     outputs:
       manifest: ${{ steps.manifest.outputs.json }}
       release-tag: ${{ steps.tag.outputs.tag }}
+      package-file: ${{ steps.package.outputs.file }}
     steps:
       - name: Check out this repository
         uses: actions/checkout@v4
@@ -350,6 +360,70 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+      # The package is the point of the pipeline: a consumer installs this and never compiles a
+      # wasm. The raw files above stay published unchanged, because `ports/lib/fetch-engine.mjs`
+      # downloads them by name and does not know about packages -- replacing that interface would
+      # break every port and the hash manifest for no gain.
+      #
+      # Three things have to be true for the tarball to be installable at all, and each of them is
+      # a thing that is easy to lose in a later edit:
+      #
+      #   1. the packages must be BUILT, not just checked out -- `make-package.mjs` refuses a
+      #      `dist/` that does not exist, because a tarball with an empty `dist` installs and then
+      #      fails on the consumer's first import, which is the worst shape a failure can take.
+      #   2. pnpm must be installed first, for the dependency vendoring.
+      #   3. the engine bytes that just got built are fed in with `--assets-from`, so the package
+      #      carries THIS run's wasm rather than the committed one. The whole reason to package a
+      #      build is to ship the build.
+      - name: Install pnpm
+        if: inputs.package-dir != ''
+        run: |
+          set -eu
+          # `corepack enable` then a bare `pnpm` is the modern form; `corepack prepare` is deprecated
+          # and is not what pins the version. What pins it is `packageManager` in the repository's
+          # own package.json, which corepack reads -- so the version is never written twice.
+          corepack enable
+          pnpm --version
+
+      - name: Install workspace dependencies
+        if: inputs.package-dir != ''
+        run: |
+          set -eu
+          pnpm install --frozen-lockfile
+
+      - name: Build the packages
+        if: inputs.package-dir != ''
+        run: |
+          set -eu
+          pnpm run build:packages
+
+      - name: Pack the runtime package
+        id: package
+        if: inputs.package-dir != ''
+        run: |
+          set -eu
+          # `--quiet` makes the script print the absolute tarball path and nothing else, so this
+          # step does not have to guess the file name with `ls` -- which would silently pick the
+          # wrong file the day a second .tgz ever lands in the output directory.
+          file="$(node .github/scripts/make-package.mjs \
+            --package "${{ inputs.package-dir }}" \
+            --assets-from "${{ inputs.artifact-dir }}" \
+            --out dist/packages \
+            --quiet)"
+          echo "file=$(basename "$file")" >> "$GITHUB_OUTPUT"
+          echo "## package: $file"
+
+      # Uploaded as its own artifact so a run can be consumed without waiting for a release, and so
+      # the tarball and the loose files can be verified against each other in one download.
+      - name: Upload package
+        if: inputs.package-dir != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}-package
+          path: dist/packages/*.tgz
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Publish release
         if: inputs.publish
         env:
@@ -371,3 +445,12 @@ jobs:
           done
           gh release upload "$tag" manifest.json --clobber
           echo "## published $uploaded file(s) + manifest.json to $tag"
+          # The tarball is an ADDITIONAL asset, not a replacement: `fetch-engine.mjs` still fetches
+          # the loose files by name and must keep working. Uploaded last so a failure here cannot
+          # cost the loose assets above.
+          if [ -n "${{ inputs.package-dir }}" ]; then
+            for tgz in dist/packages/*.tgz; do
+              gh release upload "$tag" "$tgz" --clobber
+              echo "## published $(basename "$tgz") to $tag"
+            done
+          fi

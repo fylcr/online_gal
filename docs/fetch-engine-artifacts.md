@@ -116,6 +116,124 @@ machine with no network. The message names the file, the URL it tried, and the c
 from source instead. There is no stack trace and no silent success: a fetch that cannot deliver says
 so and exits non-zero.
 
+## Installing a runtime package instead of fetching loose files
+
+`ports/lib/fetch-engine.mjs` is the right interface *inside this repository* — it hashes against
+`ports/lib/engine-artifacts.json` and writes into a fixed directory. A downstream project wants
+something else: a dependency it can declare, install and upgrade like any other, without knowing the
+engine's file names, a tag, or where a hash manifest lives. So the ONS build now also publishes a
+**standard npm tarball** — the CI output *is* the package.
+
+```bash
+pnpm add https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.0.tgz
+```
+
+```jsonc
+// package.json
+{
+  "dependencies": {
+    "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.0.tgz"
+  }
+}
+```
+
+Then the runtime is an ordinary import, and the engine wasm it needs travels with it:
+
+```js
+import { OnscripterRuntime } from '@online-gal/runtime-ons';
+```
+
+The loose release assets are **unchanged** and still published. `fetch-engine.mjs` downloads them by
+name, knows nothing about packages, and keeps working exactly as before — the tarball is an
+additional asset, not a replacement.
+
+### The repository is private, so a tarball URL needs a token too
+
+The `404`-on-unauthenticated problem from the section above applies identically: a release asset in a
+private repository answers an anonymous request with `404`, which a package manager reports as a
+transient or generic network error rather than "you need a token". Put the token in
+`.npmrc` (or `NPM_TOKEN` in CI) rather than on the command line, where it lands in shell history and
+in CI logs:
+
+```ini
+# .npmrc
+//github.com/fylcr/online_gal/:_authToken=${NPM_TOKEN}
+always-auth=true
+```
+
+### Why the tarball has its dependencies inside it
+
+The archive is not a repackaged `dist/`. `packages/runtime-ons/package.json` declares its
+dependencies as `workspace:*`, and that is a hard blocker for a distributed tarball — pnpm rejects
+it with `ERR_PNPM_WORKSPACE_PKG_NOT_FOUND` and npm with `EUNSUPPORTEDPROTOCOL`, both *before* the
+archive is even extracted. Rewriting the protocol does not help either, because those packages are
+`private: true` and were never published (`ERR_PNPM_FETCH_404` on the registry), and a `file:`
+rewrite fails differently: pnpm resolves `file:` relative to the **consumer's** `node_modules`, not
+to the package declaring it.
+
+So `.github/scripts/make-package.mjs` vendors the dependency closure into
+`package/node_modules/@online-gal/*` as real directories and drops the `dependencies` map from the
+shipped manifest. That is what makes the install work offline, against a private monorepo, with no
+registry. The cost is honest and worth stating: the closure is frozen into the archive, so a
+consumer upgrading the runtime also picks up new copies of `engine-api`, `vfs`, `image-codec` and
+`player-host`. The version in the tarball name is the single thing that should be bumped when those
+change.
+
+Vendoring the closure *flat* — once each, at the top level — is not just tidiness. Each workspace
+package's own `node_modules` contains pnpm's links back to its siblings, so a naive recursive copy
+reproduces the whole closure inside every member of it: 13 copies of 4 packages and 4.0 MB where
+1.2 MB is honest. Node resolves upward, so the nested copies would be dead weight.
+
+### The tarball also carries the sources
+
+`package/src/**` ships alongside `package/dist/**`, for two independent reasons.
+
+The mechanical one: every package here routes types to the source — the exports map is
+`{"types": "./src/index.ts", "default": "./dist/index.js"}` — and TypeScript resolves `types` first.
+A tarball without `src/` gives a TypeScript consumer a types condition pointing at a file that is
+not there. The vendored siblings need `src/` for exactly this reason, so shipping it for only the
+package under test would be the inconsistency.
+
+The licensing one, which is not negotiable: this is GPL-3.0-or-later, and the GPL requires that
+recipients of the covered work receive the corresponding source. `dist/*.js` alone is not that.
+Shipping `src/` is how a single tarball satisfies that obligation without the consumer having to
+know to go back to the repository.
+
+### The tarball is reproducible
+
+Two runs over the same inputs produce byte-identical archives (`sha256` equal), because the build
+pins the three things that vary by default: every entry's mtime is
+`--mtime=@498073600` (1985-10-26, the earliest a zip can represent), entries are `--sort=name` so
+filesystem readdir order cannot leak in, and owner/group are forced to `0`. The gzip header carries
+no timestamp either — that one is not free: `tar -czf` writes the current time into it, so two runs
+of the *identical* tar stream would otherwise differ. Verified locally:
+
+```bash
+node .github/scripts/make-package.mjs --package packages/runtime-ons --out /tmp/a
+touch packages/runtime-ons/dist/index.js          # mtime changes, content does not
+node .github/scripts/make-package.mjs --package packages/runtime-ons --out /tmp/b
+cmp /tmp/a/online-gal-runtime-ons-0.1.0.tgz /tmp/b/online-gal-runtime-ons-0.1.0.tgz   # identical
+```
+
+### Licensing: GPL-3.0 propagates
+
+These packages are `private: true`, are never published to npm, and are licensed
+**GPL-3.0-or-later** — the same license as this repository. That is not a formality to be noted once
+and forgotten:
+
+- **A project that installs one of these tarballs is a combined work, so it must also be
+  GPL-3.0-or-later**, and must distribute its own source. Linking `@online-gal/runtime-ons` into a
+  proprietary product and shipping it is a licence violation, not a grey area.
+- **Redistribution needs the GPL text and the corresponding source**, and the notices must survive.
+  The `package.json` inside every tarball carries `"license": "GPL-3.0-or-later"`, which is the
+  machine-readable half of that obligation; the `src/**` inside it is the other half. The engine
+  bytes under `assets/` carry their own upstream terms and must keep their own notices alongside.
+- The upstream engines keep **their own** licenses, and they are not all GPL. OnscripterYuri ships
+  under its own terms; the KiriKiroid2 and Artemis lines are separately licensed (Artemis is built
+  against a proprietary SDK and is deliberately not published at all). Publishing a *package* does
+  not change the engine's license, and where the two differ the engine's own terms apply. Check the
+  engine's license before redistributing a package containing it.
+
 ## Where the bytes come from
 
 `ports/lib/engine-artifacts.json` records, per engine, the upstream repository and commit the

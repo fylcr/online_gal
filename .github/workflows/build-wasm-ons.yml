@@ -22,6 +22,28 @@ on:
       - '.github/workflows/build-wasm-reusable.yml'
       - '.github/scripts/build-ons.sh'
       - '.github/scripts/make-manifest.mjs'
+      # Added when packaging was wired in, because from that point the script is an input to this
+      # pipeline in exactly the way `build-ons.sh` and `make-manifest.mjs` already are: change it
+      # and the published tarball changes, so it must be able to trigger a rebuild.
+      - '.github/scripts/make-package.mjs'
+      # The packager ships `packages/runtime-ons` with its dependency closure materialised into
+      # `package/node_modules/@online-gal/*`, so this package and the four siblings the tarball
+      # vendors ARE the published artifact. Changing one of them without a rebuild leaves the
+      # release serving bytes that no longer match the source -- the exact failure the tarball
+      # exists to prevent. `pnpm-lock.yaml` is the same argument one step removed: the tarball's
+      # `dist/` is compiled by the TypeScript version the lockfile pins.
+      #
+      # Deliberately NOT listed: the other eight `packages/*`. They are compiled by
+      # `pnpm run build:packages` as well, so an edit there can break the packaging step -- but it
+      # cannot change what this pipeline publishes, and listing them would rebuild the ONS engine
+      # wasm for edits that cannot reach it. The line being drawn is "is it inside the
+      # artifact?", not "does it get compiled?".
+      - 'packages/runtime-ons/**'
+      - 'packages/engine-api/**'
+      - 'packages/vfs/**'
+      - 'packages/image-codec/**'
+      - 'packages/player-host/**'
+      - 'pnpm-lock.yaml'
       - '.github/upstream-pins.json'
       - 'ports/env.sh'
       - 'ports/ons/build/**'
@@ -77,6 +99,12 @@ jobs:
       # consumer downloads from (`ports/lib/engine-artifacts.json`), so it is pinned visibly in every
       # engine workflow rather than being derivable in one and spelled out in another.
       release-tag: engine-ons-0.7.7beta
+      # Packaging is what makes the build output consumable. A consumer runs
+      # `pnpm add https://github.com/fylcr/online_gal/releases/download/<tag>/online-gal-runtime-ons-<version>.tgz`
+      # and gets a runtime that needs no Emscripten SDK and no wasm build of its own. This is the
+      # first engine wired up; `krkr` and the rest follow once this path is proven, and an engine
+      # with no `package-dir` still builds and publishes exactly as before.
+      package-dir: packages/runtime-ons
       # A pull request builds and checks but must not publish: a PR's bytes are unreviewed, and a
       # release is a public promise that these are the bytes the manifest describes.
       # `inputs.publish` is an empty string on `push` (no `inputs` context for that event), and GitHub
