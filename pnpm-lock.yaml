@@ -102,6 +102,30 @@ importers:
 
   packages/engine-api: {}
 
+  packages/engines:
+    dependencies:
+      '@online-gal/engine-api':
+        specifier: workspace:*
+        version: link:../engine-api
+      '@online-gal/runtime-artemis':
+        specifier: workspace:*
+        version: link:../runtime-artemis
+      '@online-gal/runtime-kag':
+        specifier: workspace:*
+        version: link:../runtime-kag
+      '@online-gal/runtime-ons':
+        specifier: workspace:*
+        version: link:../runtime-ons
+      '@online-gal/runtime-siglus':
+        specifier: workspace:*
+        version: link:../runtime-siglus
+      '@online-gal/runtime-tyrano':
+        specifier: workspace:*
+        version: link:../runtime-tyrano
+      '@online-gal/runtime-web':
+        specifier: workspace:*
+        version: link:../runtime-web
+
   packages/image-codec:
     dependencies:
       '@online-gal/vfs':

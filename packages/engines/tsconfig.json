@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../engine-api" },
+    { "path": "../runtime-kag" },
+    { "path": "../runtime-ons" },
+    { "path": "../runtime-siglus" },
+    { "path": "../runtime-artemis" },
+    { "path": "../runtime-tyrano" },
+    { "path": "../runtime-web" }
+  ]
+}

@@ -12,6 +12,7 @@
     { "path": "packages/runtime-artemis" },
     { "path": "packages/runtime-web" },
     { "path": "packages/runtime-tyrano" },
-    { "path": "packages/core" }
+    { "path": "packages/core" },
+    { "path": "packages/engines" }
   ]
 }

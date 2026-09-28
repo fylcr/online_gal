@@ -1,0 +1,27 @@
+{
+  "name": "@online-gal/engines",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@online-gal/engine-api": "workspace:*",
+    "@online-gal/runtime-kag": "workspace:*",
+    "@online-gal/runtime-ons": "workspace:*",
+    "@online-gal/runtime-siglus": "workspace:*",
+    "@online-gal/runtime-artemis": "workspace:*",
+    "@online-gal/runtime-tyrano": "workspace:*",
+    "@online-gal/runtime-web": "workspace:*"
+  }
+}
