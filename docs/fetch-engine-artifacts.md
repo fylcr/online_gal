@@ -272,15 +272,19 @@ checkouts, different machines**: this is the claim the line-ending rule buys, an
 existed it was silently false — the earlier cross-toolchain run read the *same* CRLF worktree through
 WSL, so it could never have detected the difference. The anchor for the second claim is the
 published artifact, built from CI's LF checkout: `online-gal-runtime-ons-0.1.3.tgz` is
-**2,156,973 B**, sha256 `633edee6748c3fe…`, and its uncompressed tar stream is **6,389,760 B**,
-sha256 `ced5707a182c9…`. A local build on a CRLF worktree now reproduces both numbers exactly.
+**2,136,169 B**, sha256 `df2d59c9453ee02db8f3e5b9eef04a79cbc6aa7a4767f34b5a161a8223a7fa40`, and its
+uncompressed tar stream is **6,318,080 B**, sha256
+`00f4255d9050a4cccdf618bdbb3c2edef45cc0512a0dbe3dcd06405ec8cf70e3`. A local build on a CRLF
+worktree now reproduces both numbers exactly.
 
 The aggregate makes the same claim, and it is the one that was actually proved: `build-packages.yml`
 packs `@online-gal/engines` from CI's LF checkout, and the released
-`online-gal-engines-0.1.1.tgz` is **2,552,147 B**, sha256 `0717f7b568071fc…`, uncompressed tar stream
-**8,130,560 B**, sha256 `be179a378c0673…`. A pack of commit `1ee75ee` in a *fresh Windows worktree* —
-CRLF engine assets, Node 26, a full `pnpm install` and a full `build:packages` — reproduces all four
-numbers, `.tgz` sha256 included. Two checkouts, two operating systems, one byte.
+`online-gal-engines-0.1.3.tgz` is **2,553,631 B**, sha256
+`e674dfd15b7768f08ae441391f3361f7a11455a82350890e0eda05d894b5c3a4`, uncompressed tar stream
+**8,171,520 B**, sha256 `434c98ff3ef1517b902b5316ec12cbd611165defe92f4c50adc3b497a8133184`. A pack
+of the same commit in a *fresh Windows worktree* — CRLF engine assets, Node 26, a full `pnpm install`
+and a full `build:packages` — reproduces all four numbers, `.tgz` sha256 included. Two checkouts,
+two operating systems, one byte.
 
 ### Three things are checked, not pinned
 
@@ -337,7 +341,9 @@ stored as a 64-character string. Measured, not argued: building this repository 
 from a CRLF checkout gave tarballs of **identical length** (8,130,560 B) whose only differing files
 were exactly the 10 `tsconfig.tsbuildinfo` entries in the vendored closure — 819 B larger in total,
 tar sha256 `be179a378c0673…` against `68c172fef93c…`. The other 406 files were byte-identical, which
-is what makes this so easy to attribute to something else.
+is what makes this so easy to attribute to something else. Those two digests and that length describe
+the cache-carrying tarball of `@online-gal/engines` 0.1.1, which has since been withdrawn; they are
+kept here as the record of the defect, and the table below gives the published replacement.
 
 So the packer excludes that one filename, for the package under test and every vendored sibling,
 through a single shared predicate. It is deliberately not *normalized*: rewriting hashes inside the
@@ -347,24 +353,32 @@ and `dist/**` together rebuild in seconds, whereas a stale cache inside an archi
 
 This also retires the caveat on the numbers above. **Every tarball published before the cache was
 excluded contains the `tsconfig.tsbuildinfo` files counted here**, so the sizes and digests quoted
-earlier in this document describe archives that still carry the cache, and the new set is one version
-higher in every case. With the cache excluded, the same commit reproduces as:
+earlier in that paragraph describe archives that still carry the cache, and the published set is one
+version higher in every case. The published archives, measured rather than remembered:
 
-| package | `.tgz` bytes | `.tgz` sha256 | tar stream bytes | tar sha256 | files |
-| --- | --- | --- | --- | --- | --- |
-| `@online-gal/engines` | 2,497,069 | `3fe8f905d4d30ed1…` | 7,966,720 | `65e0b298242d5601…` | 406 |
-| `@online-gal/runtime-ons` | 2,136,169 | `fc776eab32a0d842…` | 6,318,080 | `4b4855cdf62cf9a7…` | 207 |
-| `@online-gal/runtime-kag` | 367,243 | `31ff7672e950f048…` | 1,720,320 | `e03d8f5f850b098f…` | 236 |
-| `@online-gal/runtime-artemis` | 343,296 | `42d6c53899c65379…` | 1,474,560 | `ccce1983b9cb5fb7…` | 192 |
+| package | release | `.tgz` bytes | `.tgz` sha256 | tar stream bytes | tar sha256 | files |
+| --- | --- | --- | --- | --- | --- | --- |
+| `@online-gal/engines` 0.1.3 | `engine-packages-0.1.3` | 2,553,631 | `e674dfd15b7768f0…` | 8,171,520 | `434c98ff3ef1517b…` | 426 |
+| `@online-gal/runtime-ons` 0.1.3 | `engine-ons-0.7.7beta` | 2,136,169 | `df2d59c9453ee02d…` | 6,318,080 | `00f4255d9050a4cc…` | 207 |
+| `@online-gal/runtime-kag` 0.1.1 | `engine-krkr-20260920` | 367,243 | `ac3ffb26f1bc1cfab…` | 1,720,320 | `7f77eb8b3ee03b58…` | 236 |
+| `@online-gal/runtime-artemis` 0.1.2 | *not published* | 343,296 | `f78e1d2194d0e4a4…` | 1,474,560 | `ffc9035cd5edee0d…` | 192 |
 
-Those four rows were each verified as **byte-identical between an LF and a CRLF checkout of the same
-commit** — 7,966,720 B and `65e0b298242d5601…` from both — which is the cross-checkout claim this
-document previously could only make for the aggregate. Against the corresponding published tarballs
-the only change is the removed cache: `runtime-ons` 211 → 207 files and `runtime-kag` 240 → 236,
-with **0 files differing in content**. Every tarball was then installed with `pnpm add` into a
-directory outside this repository and every `@online-gal/*` specifier inside it was imported
-(10/10 for the aggregate, 4/4 for `runtime-ons` and `runtime-kag`, 2/2 for `runtime-artemis`), with
-`tsconfig.tsbuildinfo` still present **0** times in the installed tree.
+The first three rows were each re-measured from the released asset and reproduced byte-for-byte by a
+local pack of the same commit — `.tgz` sha256 included — which is the cross-checkout claim this
+document previously could only make for the aggregate. The aggregate is the one that carries a
+committed engine, so it is the one that can be rebuilt against a *different* line-ending checkout
+without changing the engine bytes: a worktree of `8482272` converted wholesale to CRLF, installed
+and rebuilt, packs to the same `2,553,631` B and the same tar sha256 `434c98ff3ef1517b…` as the LF
+one, with 109 files normalized on the way in. `tsconfig.tsbuildinfo` appears **0** times in all four
+archives. The artemis row is a local build: that engine is deliberately not published, so it has no
+release to measure and the number is here only to show what a fourth row would look like.
+
+Against the pre-cache published tarballs the only change is the removed cache: `runtime-ons`
+211 → 207 files and `runtime-kag` 240 → 236, with **0 files differing in content**. Every tarball
+was then installed with `pnpm add` into a directory outside this repository and every
+`@online-gal/*` specifier inside it was imported (10/10 for the aggregate, 4/4 for `runtime-ons` and
+`runtime-kag`, 2/2 for `runtime-artemis`), with `tsconfig.tsbuildinfo` still present **0** times in
+the installed tree.
 
 ### Licensing: GPL-3.0 propagates
 

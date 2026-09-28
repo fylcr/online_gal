@@ -159,18 +159,18 @@ release URL is the dependency:
 }
 ```
 
-The first URL resolves against a published release today. The second and third are what the *next*
-build of those workflows will publish, under the release tags those workflows already use
-(`engine-krkr-20260920`, `engine-artemis-bridge-asyncify-9f62262`) — so treat them as "present after
-the push that adds `package-dir`", not as something to paste into a build today. The artemis one has
-a second condition on top: `build-wasm-artemis-bridge.yml` only publishes when `publish` is set or
-`vars.ARTEMIS_PUBLISH_ARTIFACTS` is `true`, because that engine is deliberately withheld while its
-SDK terms are unsettled. It is not cleared to publish yet. The fourth is the one this repository's
-`build-packages.yml` publishes on its first successful run, under the tag `engine-packages-<version>`
-— `engine-packages-0.1.3` as of the commit that made the committed ONS engine files byte-exact (see the
-note on `packages/runtime-ons/assets/**` in `.gitattributes`; 0.1.0 was published with the LF checkout
-form of `onsyuri.html` and then withdrawn, because the aggregate is the one tarball that vendors the
-committed copy rather than a fresh build).
+Three of these four resolve against a published release today: `runtime-ons` 0.1.3 under
+`engine-ons-0.7.7beta`, `runtime-kag` 0.1.1 under `engine-krkr-20260920`, and the aggregate 0.1.3
+under `engine-packages-0.1.3` — which is the tag `build-packages.yml` derives from the package
+version, so a version bump is what publishes it. The artemis URL is the exception: it is what the
+*next* build of `build-wasm-artemis-bridge.yml` will publish, under the release tag that workflow
+already uses (`engine-artemis-bridge-asyncify-9f62262`), and that workflow only publishes when
+`publish` is set or `vars.ARTEMIS_PUBLISH_ARTIFACTS` is `true`, because that engine is deliberately
+withheld while its SDK terms are unsettled. It is not cleared to publish yet, so treat that one as
+"present after the push that sets `package-dir` and the flag", not as something to paste into a
+build today. The aggregate's own 0.1.0 was published with the LF checkout form of `onsyuri.html` and
+then withdrawn, because the aggregate is the one tarball that vendors the committed copy rather than
+a fresh build (see the note on `packages/runtime-ons/assets/**` in `.gitattributes`).
 
 That withdrawal is why the packer now checks the engine ledger itself. `ports/lib/engine-artifacts.json`
 pins every engine artefact by size and sha256, and those hashes check the bytes that ship — but they
@@ -185,14 +185,15 @@ vendors them. The check is skipped for ledger entries that exist only as build o
 files), and `--json` reports `ledgerChecked` so a run that checked nothing is visible rather than
 looking like a run that checked everything.
 
-Every tarball published so far also carries a few `tsconfig.tsbuildinfo` files — `tsc -b`'s
+Every tarball published before `8482272` also carried a few `tsconfig.tsbuildinfo` files — `tsc -b`'s
 incremental build cache, which the packer now excludes. It records the sha256 of each source file
 *as the compiler read it*, i.e. before CRLF is normalized to LF, so a CRLF checkout produced caches
 describing text that was no longer in the archive, and no normalization pass could repair a digest of
 bytes that were already gone. A CRLF and an LF checkout of the same commit therefore gave tarballs
-of identical length that still differed in those 2–10 files and in nothing else. They are gone now;
-the new sizes and digests are in `fetch-engine-artifacts.md`, and the next release of each package
-will be one version higher than the one quoted above.
+of identical length that still differed in those 2–10 files and in nothing else. They are gone: the
+current releases (`runtime-ons` 0.1.3, `runtime-kag` 0.1.1, `engines` 0.1.3) each contain **0** of
+them, and a CRLF checkout of `8482272` now packs to the same `2,553,631` B /
+`e674dfd15b7768f0…` as the LF one. Their sizes and digests are in `fetch-engine-artifacts.md`.
 
 A tarball per engine is the right default here, because the engine workflows are the thing that
 actually build these packages and they build one engine each. Note that only the ONS tarball carries
