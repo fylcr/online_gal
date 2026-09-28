@@ -67,11 +67,26 @@
     "machine that does not already have the file reports it as unavailable (exit 2) and the caller",
     "falls back to building from source.",
     "",
-    "AND THE TRAP INSIDE THAT OPT-IN: the `artemis` entry below describes a local Windows build, so",
-    "turning `ARTEMIS_PUBLISH_ARTIFACTS` on does not by itself make fetches work -- it publishes",
-    "runner-built bytes that do not match the entry, which then fail verification (exit 3) and fall",
-    "back to a source build, i.e. exactly the failure this file exists to prevent. Whoever enables it",
-    "must also replace the `artemis` hashes with the ones from the release it just created."
+    "WHAT THE `artemis` ENTRY DESCRIBES, AND WHAT ENABLING THE OPT-IN NOW MEANS",
+    "",
+    "It holds the runner's build at the current pin, read from the artifact of a successful run",
+    "(`gh run download -n wasm-artemis`) rather than typed from a local build -- so enabling",
+    "`publish_artifacts` / `ARTEMIS_PUBLISH_ARTIFACTS` now publishes bytes that match this table. An",
+    "earlier revision of this file described a Windows build, which made the opt-in a trap: it would",
+    "have published runner bytes that failed verification against a local hash, i.e. exactly the",
+    "failure this file exists to prevent.",
+    "",
+    "There is no runner-vs-local byte comparison for artemis, because the pin moved in the same breath",
+    "as this wasm was first built on the runner. What was measured instead is behavioural. The pre-pin",
+    "local pair and the runner pair were each served with",
+    "`ports/artemis/build/serve-range.mjs` over the real 2.7 GB `root.pfs` and driven in a browser for",
+    "60 s: same canvas, the same 73 host log messages, the same `draw[901]: drawn=15 ghost=10/110`",
+    "layer list, and a frame differing in 0 of 1,106,784 channel bytes.",
+    "",
+    "Deploy the pair together. `web-deploy.sh` copies the wasm, the JS, the worker and",
+    "`android-host.html` as one product; the wasm is not a drop-in for the official glue, so",
+    "`tools/real-game-test.mjs --engine <wasm>` alone -- which swaps only the wasm into the official",
+    "page -- fails to instantiate. That is the wrong subject for this artifact, not a regression."
   ],
   "ons": {
     "version": "0.7.7beta",
@@ -107,7 +122,7 @@
     "repository": "https://github.com/fylcr/online_gal",
     "releaseTag": "engine-artemis-9f62262",
     "files": [
-      { "name": "artemis-web-android.wasm", "size": 1147110, "sha256": "79dce328b57ba5ef3bdd7e212bb8daedf3e165c720269e43e95b7ee3285cad6a" },
+      { "name": "artemis-web-android.wasm", "size": 1151025, "sha256": "a1787043e8ee02837a3d16eeca94dc3cc8ee6ffc624cd783d85efcec9ec1da7a" },
       { "name": "artemis-web-android.js", "size": 182842, "sha256": "a1c03dd659ebc23c91bbb83627c8fb521ca9c1d69672165fb69f65eeaf47953f" }
     ]
   }
