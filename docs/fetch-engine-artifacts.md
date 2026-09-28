@@ -76,6 +76,19 @@ under `pwa/`: GitHub release assets are flat names, so a nested fetch destinatio
 mechanism in both the publish step and `fetch-engine.mjs`. That work is deliberately not done here.
 Anyone deploying KiriKiri needs those files from upstream `platforms/web/` alongside the fetched set.
 
+**The fetched `krkr` set is not only hash-checked; it boots a real game.** The six files were taken from
+the artifact of `workflow_dispatch` run 36367138923 (`publish=false`, so no release was touched), hashed
+against `ports/lib/engine-artifacts.json` — all six match — then served from
+`ports/artemis/build/serve-range.mjs` beside a hardlink to the shipping game's `data.xp3`
+(2,312,777,571 B) and driven in Edge by `ports/krkr/kirikiroid2/browser-test/kiri-shot.mjs` at
+`?xp3=/data.xp3`. The page reported
+`{"title":"krkr2","canvas":"756x488","body":"Kirikiroid2 Web Running..."}`, and the canvas was not blank:
+87.09% of pixels above luminance 24, 50.17% above 200, mean colour `r174.67 g161.10 b156.41`,
+signature `f007553e`. `"Running..."` alone is equally consistent with an engine that booted and drew
+nothing, which is why the numbers are recorded rather than the status text. The server's log shows the
+load the port exists for: `206` responses in 262,144-byte chunks at scattered offsets (511 MB, 982 MB
+and 1.6 GB into a 2.3 GB file), so the game arrived on demand instead of as a whole-file download.
+
 ## Fetching
 
 ```bash
