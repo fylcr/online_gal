@@ -64,6 +64,7 @@ on:
     paths:
       - '.github/workflows/build-packages.yml'
       - '.github/scripts/make-package.mjs'
+      - '.github/scripts/smoke-consumer.mjs'
       - 'packages/**'
       - 'pnpm-lock.yaml'
       - 'LICENSE'
@@ -72,6 +73,7 @@ on:
     paths:
       - '.github/workflows/build-packages.yml'
       - '.github/scripts/make-package.mjs'
+      - '.github/scripts/smoke-consumer.mjs'
       - 'packages/**'
   workflow_dispatch:
     inputs:
@@ -189,6 +191,39 @@ jobs:
             echo "aggregate=$aggregate"
           } >> "$GITHUB_OUTPUT"
           echo "## packed $count package(s): $files"
+
+      # THE GATE ON THE CLAIM MADE AT THE TOP OF THIS FILE
+      #
+      # The header argues that a vendored copy is the ONLY copy once `dependencies` is dropped, and
+      # that a stale vendor is therefore invisible to a consumer. That argument is worth nothing
+      # unless the archive is actually installed and used before it is published, because every
+      # failure mode it describes -- a package missing from the closure, an import that only
+      # resolves because the monorepo happens to be on disk, a `dist/` that was never built -- is
+      # invisible to a tar step and to a hash. A tarball can be perfectly reproducible and still
+      # not be installable, and the only thing that can tell the two apart is an install.
+      #
+      # So this runs the archive through a real consumer: a fresh directory OUTSIDE the repository,
+      # `pnpm add` of the packed `.tgz`, then the assertions. It sits after the pack step because it
+      # consumes the pack step's output, and before both the upload and the publish because an
+      # archive that cannot be installed must not become a release -- the point of the publish is
+      # that `pnpm add @online-gal/engines@0.1.3` works, and that is precisely what this asserts.
+      #
+      # `--offline` is not an optimisation. The aggregate declares no `dependencies` and its whole
+      # closure is vendored inside the archive, so a correct archive needs to install with no
+      # registry reachable; a version that quietly starts depending on the network is exactly the
+      # regression this catches. `--ignore-scripts` for the same reason: a published package's
+      # install must not be able to run code, and if a future dependency needs a build step that
+      # has to be a deliberate, reviewed change rather than something a consumer discovers.
+      #
+      # The script asserts the repository's `pnpm-lock.yaml` is untouched afterwards. A pnpm install
+      # below this workspace root is treated as a workspace member and rewrites that lockfile, which
+      # is why the consumer lives in `RUNNER_TEMP`. The assertion turns that hazard into a test
+      # rather than a comment in a header.
+      - name: Smoke-test the aggregate as an installed package
+        run: |
+          set -eu
+          node .github/scripts/smoke-consumer.mjs \
+            "dist/packages/${{ steps.package.outputs.aggregate }}"
 
       - name: Upload package
         uses: actions/upload-artifact@v4

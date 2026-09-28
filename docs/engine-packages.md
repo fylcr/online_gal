@@ -229,6 +229,61 @@ commit.** The version is what a consumer's `pnpm add` line points at, so a chang
 the closure without a bump is a lie about identity: the URL would still serve the previous engine.
 The workflow carries the same rule in its comment, and the first release is 0.1.0.
 
+### The aggregate is installed before it is published
+
+Everything above is a promise about a tarball. A tar step and a digest cannot tell whether the
+archive is *installable*, because a perfectly reproducible archive can still be unusable: a package
+missing from the vendored closure, an import that only resolves because this monorepo happens to be
+sitting next to it, a `dist/` that was never compiled. So `build-packages.yml` runs
+`.github/scripts/smoke-consumer.mjs` on the packed `.tgz` — after the pack step, before the upload
+and before the release — and the step fails the job if any of it does not hold:
+
+```
+node .github/scripts/smoke-consumer.mjs dist/packages/online-gal-engines-0.1.3.tgz
+```
+
+The script creates a consumer directory **outside the repository** (under `RUNNER_TEMP` on a
+runner, `os.tmpdir()` elsewhere), writes a minimal `package.json`, runs
+`pnpm add file:… --offline --ignore-scripts`, and then asserts that the installed package is the
+thing this document claims it is:
+
+- the consumer's top level has exactly one `@online-gal/` package, `engines`;
+- the installed manifest declares no `dependencies`, so nothing can be satisfied from outside the
+  archive;
+- `listEngines()`, `engineProviders()` and `ENGINE_PACKAGES` each report all eight runtimes, with
+  no duplicate runtime id;
+- all ten vendored packages resolve *and* `import()` **from inside the archive**, while the
+  consumer's own top level cannot resolve any of them (`MODULE_NOT_FOUND`) — the executable form of
+  "a vendored copy is the only copy";
+- `@online-gal/runtime-artemis`'s `dist/host/{boot,eh,runtime,asyncify,fd,bridge}.js` all
+  deep-import, which is the part of the public surface a flat `exports` map does not cover;
+- the repository's `pnpm-lock.yaml` is unchanged afterwards.
+
+Every assertion prints the value it actually saw, and the run ends with a `N/M assertions held` line
+and a non-zero exit if any of them did not hold — so a green step says what it checked and a red one
+says what it found, instead of a digest that only proves the bytes did not change.
+
+`--offline` and `--ignore-scripts` are deliberate, not defensive. The aggregate has no
+`dependencies` and its whole closure is vendored, so a correct archive must install with no registry
+reachable — a version that starts reaching for the network is the regression. And a published
+package's install must not be able to run code, so if a future dependency needs a build step that
+has to be a reviewed change rather than something a consumer finds out about.
+
+The lockfile assertion is not ceremony. A `pnpm install` below this workspace root is treated as a
+workspace member and **rewrites the repository's `pnpm-lock.yaml`**, which is why the consumer
+directory has to be outside the repository. To reproduce the hazard and watch the guard fire:
+
+```
+node .github/scripts/smoke-consumer.mjs dist/packages/online-gal-engines-0.1.3.tgz \
+  --allow-in-repo-temp --temp-dir .test/consumer-check
+# ::error::the repository lockfile is not dirty: got  M pnpm-lock.yaml; expected (empty)
+git checkout -- pnpm-lock.yaml
+```
+
+If you see that error without meaning to reproduce it, `git checkout -- pnpm-lock.yaml` and make sure
+the consumer directory is not inside the checkout. The flag exists so this can be demonstrated; it
+is not a supported mode.
+
 ### GPL-3.0-or-later
 
 Every package in the workspace — including this one — is `private: true` and licensed
