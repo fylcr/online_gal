@@ -156,13 +156,27 @@ Only `krkr` needs any of this: it is the one engine whose tree carries a `string
 `__DATE__`, the one that ships a zipped asset bundle, and the one whose wasm embeds a port that
 vcpkg builds at configure time.
 
-**A vcpkg binary cache would undo this, which is why there is not one yet.** Building `krkr` takes
-about an hour on a runner and most of it is vcpkg compiling OpenCV from source. Caching those
-binaries is the obvious optimisation and it is deliberately deferred: OpenCV writes its `Timestamp:`
-when OpenCV itself is configured, so a cached `libopencv_core4.a` carries the timestamp it had when
-it was cached, and a single cache miss or eviction would change `index.wasm`’s hash while every
-source stayed identical. A cache is only safe here once its key includes `SOURCE_DATE_EPOCH`; until
-that is measured, the slow build is the reproducible one.
+**The vcpkg binary cache is back, and it is safe for a reason that was measured rather than argued.**
+Building `krkr` used to cost about an hour on a runner, and most of it was vcpkg compiling OpenCV
+from source — 38 of the 48 minutes, in the run that measured this. It was deferred once, for the
+reason above: OpenCV writes its `Timestamp:` when OpenCV
+itself is configured, so a cached `libopencv_core4.a` carries the timestamp it had when it was
+cached, and a miss or an eviction could then change `index.wasm`’s hash while every source stayed
+identical. What reopened the question was `lukka/run-vcpkg`’s own cache turning out to store nothing
+at all: the repository’s cache listing held exactly one entry, the emsdk tree, after every run, and
+the Build step’s environment listed neither `ACTIONS_CACHE_URL` nor `ACTIONS_RUNTIME_TOKEN`. So
+`build-krkr.sh` now points `VCPKG_BINARY_SOURCES` at a `files` directory that
+`build-wasm-reusable.yml` saves with `actions/cache`, and two runs over the same commit bracket the
+change: the first went in with `0` entries, spent 38m01s in configure and left 117 behind; the
+second restored those 117 and finished configure in 12s. The six published files were identical by
+sha256 on both sides, and identical to the run from before the cache existed — a hit and a miss
+really do produce the same bytes.
+
+The key names the vcpkg commit, the upstream commit and the hash of the dependency manifests. The
+upstream commit is in there because it is what `SOURCE_DATE_EPOCH` is derived from, and the cached
+archives embed that timestamp: a moved pin starts from an empty directory and rebuilds under the new
+epoch instead of restoring archives that carry the previous one. That is the precondition this
+paragraph used to ask for, met by the key rather than left to vcpkg’s own ABI hash.
 
 ## Forcing a build from source
 

@@ -292,11 +292,17 @@ fi
 # This block deliberately runs *after* the setup step, in the shell that will spawn cmake, so that
 # the value exported here is the one vcpkg reads.
 #
-# A binary cache is a build-speed input only. vcpkg decides hits itself, per package, from the ABI
-# hash of that package's inputs -- which `VCPKG_KEEP_ENV_VARS` above folds this run's
-# `SOURCE_DATE_EPOCH` into. A stale or half-populated cache therefore degrades to a partial
-# rebuild; it cannot change what the build produces. Deleting `.vcpkg-binary-cache` would make a
-# run slow, not different.
+# A binary cache is a build-speed input only, and that is measured rather than argued. Two runs over
+# this same commit bracket a cache fill: the first went in with `0` entries, spent 38m01s in
+# configure and left `117` behind; the second restored those 117 and finished configure in 12s. All
+# six files were identical by sha256 in both, and identical to the run before the cache existed. A
+# miss and a hit therefore produce the same bytes, and deleting `.vcpkg-binary-cache` makes a run
+# slow, not different.
+#
+# What keeps that true across an upstream pin move is the cache *key* rather than vcpkg's own ABI
+# hash: `build-wasm-reusable.yml` names the upstream commit in the key, and that commit's time is
+# what `SOURCE_DATE_EPOCH` is derived from below. A moved pin starts from an empty directory and
+# rebuilds under the new epoch instead of restoring archives that carry the old one.
 # ---------------------------------------------------------------------------------------------
 if [ -n "${VCPKG_BINARY_CACHE:-}" ]; then
   mkdir -p "$VCPKG_BINARY_CACHE"
@@ -314,6 +320,7 @@ echo "== cmake configure (from $REPO) =="
 KRKR2_VERSION="$(git -C "$REPO" rev-parse --short=12 HEAD)"
 echo "## KRKR2_BUILD_VERSION: $KRKR2_VERSION"
 STATUS=1
+SECONDS=0
 for attempt in 1 2 3; do
   echo "  attempt $attempt/3"
   if EMSDK="$EMSDK_DIR" VCPKG_ROOT="$VCPKG_ROOT" \
@@ -331,12 +338,14 @@ for attempt in 1 2 3; do
   sleep $((attempt * 15))
 done
 echo "## cmake configure exit: $STATUS"
+# The elapsed time is the readable hit/miss signal: a hit is seconds, a miss is tens of minutes.
+echo "## cmake configure took ${SECONDS}s"
 [ "$STATUS" -eq 0 ] || exit "$STATUS"
 
-# vcpkg announces a binary-cache hit as `Restored N package(s) from <path>` and a miss by naming each
-# package it has to build. The whole configure transcript goes to a file that is tailed only on
-# failure, so without this the run log cannot tell a working cache from a broken one -- which is
-# exactly how the dead `x-gha` backend went unnoticed.
+# vcpkg names every package it installs, whether it unpacks it from the cache or builds it, and the
+# whole transcript goes to a file that is tailed only on failure. So print the tail of that list,
+# which together with the elapsed time above says whether the cache was used -- the distinction the
+# dead `x-gha` backend hid, because nothing in the run log showed it.
 if [ -n "${VCPKG_BINARY_CACHE:-}" ]; then
   grep -aE "Restored [0-9]+ package|Building [^ ]*:|Installing [0-9]+/" /tmp/krkr2-configure.log     | tail -20 | sed 's/^/     /'
   echo "## vcpkg binary cache entries on exit: $(find "$VCPKG_BINARY_CACHE" -type f | wc -l)"

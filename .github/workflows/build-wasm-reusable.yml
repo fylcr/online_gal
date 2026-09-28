@@ -229,8 +229,8 @@ jobs:
           echo "$(dirname "$EMSDK_NODE")" >> "$GITHUB_PATH"
           emcc --version | head -1
 
-      # vcpkg's binary cache is the difference between a ~5-minute and a ~50-minute configure: with
-      # no cache at all, the manifest install rebuilds OpenCV, boost, bullet and 7zip from source for
+      # vcpkg's binary cache is the difference between a 12-second and a 38-minute configure: with no
+      # cache at all, the manifest install rebuilds OpenCV, boost, bullet and 7zip from source for
       # `wasm32-emscripten` on every single run.
       #
       # `lukka/run-vcpkg` already points vcpkg at a binary cache -- it writes
@@ -244,21 +244,25 @@ jobs:
       # its value is the one vcpkg actually uses.
       #
       # The run that introduces this still pays full price: nothing is cached until it finishes, and
-      # only the run after it benefits. Expect the configure stage to fall from ~50 minutes to a
-      # download, and read the `Restored N package(s)` line the build script now prints to confirm
-      # the cache is why.
+      # only the run after it benefits. That pair has since been measured on this repository: 38m01s
+      # in configure with an empty directory, 117 archives left behind, and then -- same commit,
+      # publishing off, nothing else changed -- 12s in configure with those 117 restored. All six
+      # published files were identical by sha256 on both sides.
       #
-      # The key is the vcpkg commit plus the hash of the dependency manifests; `restore-keys` keeps
-      # the newest entry for the same vcpkg commit reachable when a manifest changes, which is what
-      # makes adding one dependency cost one package instead of all of them.
+      # The key names three things. The vcpkg commit pins the tooling, and the hash of the dependency
+      # manifests is what makes adding one dependency cost one package instead of all of them. The
+      # upstream commit is there because it is what `SOURCE_DATE_EPOCH` is derived from in
+      # `build-krkr.sh`, and the archives this caches embed that timestamp: a moved pin has to start
+      # from an empty directory rather than restore archives carrying the previous epoch. At a fixed
+      # pin the component is a constant, so it does not change which archives come back.
       - name: Cache vcpkg binary artifacts
         if: inputs.vcpkg-commit != ''
         uses: actions/cache@v4
         with:
           path: ${{ env.VCPKG_BINARY_CACHE }}
-          key: vcpkg-binary-${{ runner.os }}-${{ inputs.vcpkg-commit }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
+          key: vcpkg-binary-${{ runner.os }}-${{ inputs.vcpkg-commit }}-${{ inputs.upstream-commit }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
           restore-keys: |
-            vcpkg-binary-${{ runner.os }}-${{ inputs.vcpkg-commit }}-
+            vcpkg-binary-${{ runner.os }}-${{ inputs.vcpkg-commit }}-${{ inputs.upstream-commit }}-
 
       - name: Set up vcpkg
         if: inputs.vcpkg-commit != ''
