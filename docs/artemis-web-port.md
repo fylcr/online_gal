@@ -1852,7 +1852,7 @@ sync 侧的笔记（`reverse/p2-sync-rewrite-progress.md`）自己第一行就�
 
 | 锚 | 判据 | 工具 |
 | --- | --- | --- |
-| 行为锚 | 真实游戏稳定帧，双侧像素级一致 | `ports/artemis/tools/real-game-test.mjs --hashlist` |
+| 行为锚 | 真实游戏稳定帧，双侧像素级一致（**证 ABI：同输入同输出**；松散树不供数，渲染保真不由此锚承担——见 §18.4 的更正与 packs 那条线） | `ports/artemis/tools/real-game-test.mjs --hashlist` |
 | 调用锚 | 剖析计数逐位相同（`calls` + `first-run order` 双同） | `instrument-profile.py` / `profile-report.mjs` |
 | 模块锚 | `wasm-diff` 66/66 不回退；`npm test` 416 绿 | `reverse/wasm-diff.mjs` |
 | 保真锚 | R0/R1 产物反映射后 α-IDENTICAL | `reverse/fidelity-alpha-diff.py` |
@@ -2002,8 +2002,19 @@ node ports/artemis/tools/real-game-test.mjs --game <松散树> --engine <candida
 **且**它确实去取了游戏资源——只渲染一个欢迎页、没读游戏，不算跑起来了。
 
 **结果**：自建 asyncify 模块的稳定帧与官方构建**像素级相同**——
-`550f7464`，87 个文件被服务。至此「一个从 wasm2c 输出重建的模块可以成为官方胶水下的
-即插即用件」不再是推断，而是被真游戏在真浏览器里兑现了的事实。
+`550f7464`，87 个文件被服务。⇒「一个从 wasm2c 输出重建的模块可以成为官方胶水下的
+**即插即用件**」不再是推断：它在真浏览器里与官方构建**同输入同输出**。
+
+> ⚠ **但这次像素一致不能当渲染证据，2026-09-29 实测更正。** 引擎要的资源名**全部无扩展名**
+> （`image/bg/black`、`debug/lua/index.lua`、`font/extra`…），而这份松散树 29,224 个文件里
+> **零个无扩展名**（15,401 `.ogg` / 7,867 `.png` / 5,647 `.sli` / 218 `.ast` / 57 `.lua` / 14 `.tbl`），
+> `serve-range.mjs:87-98` 又对不在磁盘上的路径直接 404、**没有扩展名回退** ⇒ 那 24 条游戏请求
+> **全 404**：实测 `netCounts {200:3, 404:24}`、`gameBytesByStatus {404:0}`、控制台 24 条
+> `Download file <name> failed.`（`.test/team-artemis/a17-out.json`），两张帧的 stats 是
+> `mean 218.09→173.38`、`lit 87.5%→87.39%`、`distinct16 16`（16 个亮度桶全占、零游戏字节）
+> 的**占位画面**。所以「87 个文件被服务」是**请求数**、不是供给量，exit 0 里那条
+> 「确实去取了游戏资源」在松散树上只被请求数满足。**这条 bench 证的是 ABI（同输入同输出），
+> 不是渲染保真**；渲染锚在下一段那条路线上，而且必须用**包**供数。
 
 （`550f7464` 是那一次的实测值，不是永久判据：窗口尺寸一变它就会漂，
 判据在 17.6 那条注里——**请求数 + lit% + frames**。此外这台台子**双侧都会 flake**：

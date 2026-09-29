@@ -602,6 +602,19 @@ tree is deliberately "the official module plus the official glue", so our rewrit
 against the engine it replaces rather than against itself. A failure there means the rewrite is
 wrong, not that the harness is.
 
+**What that yardstick can and cannot measure (measured 2026-09-29).** On the loose tree it measures
+**ABI-level equivalence**: both sides run the same import trace and produce the same output for the
+same inputs. It does **not** measure rendering fidelity, because that deployment supplies no game
+bytes at all — the engine asks for extension-less names (`image/bg/black`, `debug/lua/index.lua`)
+while every one of the tree's 29,224 files has an extension, and `serve-range.mjs` has no
+extension-less fallback, so all 24 asset requests are 404 (`netCounts {200:3, 404:24}`,
+`gameBytesByStatus {404:0}`, 24× `Download file <name> failed.`, frames at `lit 87.5/87.39%` and
+`distinct16 16` — placeholder content, not the title screen). Rendering is measured on **packs**
+instead: `node ports/artemis/build/serve-range.mjs <dir with root.pfs> 4650`, where `/__packs`
+lists `root.pfs` first and the page's byte source only accepts `206`; the retired Android-shim host
+page in the same directory is the known-good reference for that path. See
+`docs/artemis-web-port.md` §18.4.
+
 - `ports/lib/ref.mjs` is the shared path helper; the fetch script resolves the repository root
   through it rather than counting `..` segments of its own.
 - `packages/runtime-ons/scripts/copy-runtime-assets.mjs` is the only thing that moves ONS assets into
