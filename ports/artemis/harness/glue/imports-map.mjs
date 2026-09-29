@@ -393,9 +393,9 @@ function classify(name, fn) {
 // ---------------------------------------------------------------------------
 const OWNER = {
   gl: {
-    status: 'planned',
+    status: 'landed',
     port: 'packages/runtime-artemis/src/host/gl.ts',
-    note: 'the real WebGL2 context, forwarded verbatim — not started; 99 rows',
+    note: 'the real WebGL2 context, forwarded verbatim, plus the glfw/al/event seams — 79 of the 99 rows are real; the other 20 are deliberate, documented refusals that still answer their per-call value: 19 `_al*`/`_alc*` audio rows (no AudioContext in this host, so they take OpenAL\'s own "no device/no context" answers, and `_alGetError` returns AL_INVALID_OPERATION 40964 rather than a default 0) and `_emscripten_enter_soft_fullscreen`; the refusals themselves are named in ARTEMIS_GL_REFUSED/ARTEMIS_GL_AUDIO_ANSWER in gl.ts',
   },
   fd: {
     status: 'landed',

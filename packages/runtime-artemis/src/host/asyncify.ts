@@ -31,7 +31,18 @@ export interface ArtemisWgetRequest {
   readonly body: string;
 }
 
-/** A resolver answers a request synchronously. A session with a real fetcher returns its bytes. */
+/**
+ * A resolver answers a request **synchronously**, and that is a contract rather than a convenience:
+ * these three rows are called from the guest's own thread, which cannot be suspended from here, so a
+ * resolver that returns a `Promise` has to be rejected instead of awaited.
+ *
+ * The alternative is worse than it looks. `Uint8Array` and `Promise` are both objects, so an
+ * `await`-shaped resolver passes every `?? null` check and lands in the success path, where
+ * `bytes.length` is `undefined`, `*pnum` is written as 0 and `*perror` as 0 — a download the guest
+ * is told succeeded, with no bytes in it. The guest then measures the file it just saved, finds it
+ * empty, and carries on with a silently wrong world. A session that wants a network fetch has to
+ * warm a cache (or prefetch) and answer from it; that is the same seam the browser build uses.
+ */
 export type ArtemisWgetResolver = (request: ArtemisWgetRequest) => Uint8Array | null;
 
 /** What a session must supply for the three download rows to fetch anything. */
@@ -110,8 +121,11 @@ export function createArtemisAsyncifyImports(host: ArtemisAsyncifyHost): Artemis
   /**
    * Runs the resolver, if there is one, and returns the bytes.
    *
-   * A resolver that throws is a host defect, not a guest-visible failure, so it is re-raised as
-   * {@link ArtemisHostError} rather than being reported as a failed download.
+   * A resolver that returns anything other than a `Uint8Array` or `null` is a **host defect, not a
+   * guest-visible failure**, so it is re-raised as {@link ArtemisHostError} rather than reported as a
+   * failed download. The `then` check is the load-bearing part: a `Promise` is an object, so without
+   * it a resolver written as `async` sails through the `?? null` guard and is stored as a successful
+   * download of `undefined` bytes, which the guest cannot distinguish from an empty file.
    */
   const fetch = (request: ArtemisWgetRequest, what: string): Uint8Array | null => {
     if (!host.resolve) {
@@ -124,7 +138,20 @@ export function createArtemisAsyncifyImports(host: ArtemisAsyncifyHost): Artemis
     } catch (error) {
       throw new ArtemisHostError(`artemis ${what} resolver threw: ${String(error)}`);
     }
-    return bytes ?? null;
+    if (bytes === null) return null;
+    if (bytes instanceof Uint8Array) return bytes;
+    if (typeof (bytes as { then?: unknown }).then === 'function') {
+      throw new ArtemisHostError(
+        `artemis ${what} resolver answered ${request.method} ${request.url} with a Promise, but this ` +
+          'row is synchronous: the guest cannot be suspended, so a resolver must return the bytes ' +
+          'themselves (warm a cache first) or null. Returning a Promise here hands the guest a ' +
+          'successful download of zero bytes, which reads to it exactly like an empty file.',
+      );
+    }
+    throw new ArtemisHostError(
+      `artemis ${what} resolver answered ${request.method} ${request.url} with ${typeof bytes} ` +
+        `(expected Uint8Array or null)`,
+    );
   };
 
   /** `Browser.getNextWgetRequestHandle` — the glue's monotonic request-handle counter. */

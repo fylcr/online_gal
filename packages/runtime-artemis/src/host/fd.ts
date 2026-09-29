@@ -1,5 +1,5 @@
 import { ARTEMIS_ERRNO, ArtemisErrnoError, ArtemisExit, ArtemisHostError } from './errno.js';
-import { DIRENT64_NAME_MAX, DIRENT64_STRIDE, doPreadv, doPwritev, writeStat64 } from './layout.js';
+import { DIRENT64_NAME_MAX, DIRENT64_STRIDE, doReadv, doWritev, writeStat64 } from './layout.js';
 import { ArtemisMemory } from './memory.js';
 import { ArtemisFs, type DirentRecord, DT_DIR } from './tree.js';
 import { clockGettime, gmtimeR, localtimeR, mktime, strftime, TimeZoneNames } from './timefmt.js';
@@ -308,14 +308,19 @@ export function createArtemisFdImports(host: ArtemisFdHost): ArtemisFdImports {
       return written;
     });
 
-  /** `doReadv`/`doWritev` behind `_fd_read`/`_fd_write`, which report through `pnum`. */
+  /**
+   * `doReadv`/`doWritev` behind `_fd_read`/`_fd_write`, which report through `pnum`.
+   *
+   * These are the **advancing** readv/writev, not `preadv`/`pwritev`. Emscripten's `FS.read`
+   * takes the position from the stream when the caller passes none, and the glue's
+   * `SYSCALLS.doReadv(stream, iov, iovcnt)` passes none — the `_fd_read` row has no offset
+   * parameter at all. The engine relies on this: it opens `/root.pfs` and reads the container
+   * with no intervening `lseek`. See the {@link doReadv} note in `layout.ts` for the measured
+   * failure that a non-advancing implementation produces.
+   */
   const scatterGather = (name: 'Ea' | 'Ub', fd: number, iov: number, iovcnt: number, pnum: number): number =>
     boundary(name, () => {
-      const position = fs.requireStream(fd).position;
-      const total =
-        name === 'Ea'
-          ? doPwritev(memory, fs, fd, iov, iovcnt, position)
-          : doPreadv(memory, fs, fd, iov, iovcnt, position);
+      const total = name === 'Ea' ? doWritev(memory, fs, fd, iov, iovcnt) : doReadv(memory, fs, fd, iov, iovcnt);
       memory.i32[(pnum | 0) >>> 2] = total;
       return 0;
     });

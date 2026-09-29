@@ -10,6 +10,7 @@ import {
   type ArtemisForwardedFn,
 } from './async.js';
 import { createArtemisAsyncifyImports, type ArtemisAsyncifyHost } from './asyncify.js';
+import { createArtemisGlImports, type ArtemisGlHost } from './gl.js';
 import { ARTEMIS_ERRNO } from './errno.js';
 import type { ArtemisMemory } from './memory.js';
 import type { ArtemisFs } from './tree.js';
@@ -21,8 +22,8 @@ import { initArtemisStandardStreams, type ArtemisStandardStreams } from './bridg
  *
  * This module exists because of one fact about wasm: **an import is not optional.** The bridge
  * declares 207 functions under the module name `a`, and the engine refuses to instantiate until
- * all 207 are supplied with something callable. A host that implements 98 of them and hands the
- * engine nothing for the other 100 does not boot — it fails to link, with a message that names the
+ * all 207 are supplied with something callable. A host that implements 197 of them and hands the
+ * engine nothing for the other 1 does not boot — it fails to link, with a message that names the
  * first missing field and says nothing about which bucket it belonged to.
  *
  * So the remaining rows are supplied, but as something that cannot be mistaken for an
@@ -116,6 +117,17 @@ export interface ArtemisBootSetup {
   /** Caps heap growth below the module's own 65536-page maximum. */
   readonly maxHeapBytes?: number;
   /**
+   * The `gl` bucket's browser half, handed over as one object so a headless session is a single
+   * absent field rather than a table built with a dozen holes.
+   *
+   * Everything here is optional on purpose. `_glfwInit` and `_glfwCreateWindow` without a canvas
+   * answer 0 where the official glue answers a live handle, and the guest stops at its own display
+   * check — which is the honest outcome, and is recorded as a block instead of being papered over
+   * with a context that draws nothing. `dynCallV` is filled in by {@link ArtemisBootTable.attachExports}
+   * rather than here, because it is an export of the bridge and the instance does not exist yet.
+   */
+  readonly gl?: Omit<ArtemisGlHost, 'memory' | 'onBlocked'>;
+  /**
    * Runs after `__ATINIT__` and before `_main`, standing in for the glue's `preMain` line
    * `FS.ignorePermissions = false` and for `__ATMAIN__`.
    *
@@ -172,13 +184,27 @@ export interface ArtemisBootResult {
 }
 
 /**
- * Builds the complete 207-name import table: 98 names implemented, 100 counted stubs.
+ * Builds the complete 207-name import table: 197 names implemented, 1 counted stub.
  *
- * The implemented set is the union of the five buckets this package has — `fd` (41), `runtime` (8),
- * `eh` (15), `asyncify` (4) and `async` (30) — which is 98 distinct short names covering 107 of the
- * 207 rows, the difference being the duplicated names that serve two rows each. What is left is the
- * `gl` bucket (99 rows, 91 distinct names) plus `todo` (1), measured rather than counted by hand by
- * `.test/team-artemis/count-coverage.mjs`.
+ * The implemented set is the union of the six buckets this package has — `fd` (41), `runtime` (8),
+ * `eh` (15), `asyncify` (4), `async` (30) and `gl` (99) — which is 197 distinct short names covering
+ * 206 of the 207 rows, the difference being the duplicated names that serve two rows each. All that
+ * is left is `todo` (1), which is `_system`: a deliberate refusal that answers ENOSYS.
+ *
+ * The `gl` bucket is different from the others in kind, not just in size. Its 99 rows do not answer
+ * questions about a filesystem — they answer questions about a rendering context that only exists in a
+ * browser, so the bucket takes a canvas from the session and returns a **handle** where the others
+ * return a byte count. Within it, 79 rows are real — the GLFW boot path, the whole `_gl*` draw path,
+ * the main loop and the 11 `__emscripten_set_*_callback_on_thread` event registrations — and 20 are
+ * documented per-call refusals: the 19 `_al*`/`_alc*` audio rows plus
+ * `_emscripten_enter_soft_fullscreen`, which returns `-4` for an absent target and refuses otherwise.
+ * The event rows are implemented, but with no document to register against (a Node run has none) they
+ * answer `EMSCRIPTEN_RESULT_INVALID_TARGET`; that is a per-call answer, not a refusal. The 20 refusals
+ * are supplied rather than left as the family-wide zero that made a stalled engine indistinguishable
+ * from a working one, and each one reports through `onBlocked` the first time it is asked to do
+ * something it will not do.
+ * `.test/team-artemis/count-coverage.mjs` measures all of that from the compiled tables rather than
+ * counting by hand.
  *
  * Everything else comes straight from the committed table, so adding a bucket is a matter of
  * implementing it and letting the spec's classification decide what falls back to a stub. There is
@@ -265,6 +291,22 @@ export function createArtemisBootTable(setup: ArtemisBootSetup): ArtemisBootTabl
    * *export* of the bridge, and the import table has to exist before the instance does.
    */
   const asyncHost: ArtemisAsyncHost = { onBlocked: report };
+  /**
+   * Also held by reference, and for a second reason on top of `ehHost`'s: the canvas, the WebGL
+   * context and the frame source do not exist until a session has a DOM to take them from. A table
+   * built at construction time could only ever see `undefined`, so `gl` gets its host object first and
+   * its fields later. `dynCallV` is the guest's `rd`, attached alongside `ehHost`'s `$c`/`ad`.
+   */
+  const glHost: ArtemisGlHost = {
+    ...setup.gl,
+    memory,
+    // The five event blocks are guest heap, and `malloc` is the guest's allocator. Falling back to
+    // the session's keeps one allocator in play: a block handed to a callback has to be the same
+    // heap the rest of the guest owns. Without it the eleven event rows answer their neutral value
+    // and report, which is honest but is not the same as registering.
+    malloc: setup.gl?.malloc ?? setup.malloc,
+    onBlocked: report,
+  };
 
   const implemented: ArtemisImportTable = {
     ...(createArtemisFdImports(fdHost) as ArtemisImportTable),
@@ -272,6 +314,7 @@ export function createArtemisBootTable(setup: ArtemisBootSetup): ArtemisBootTabl
     ...(createArtemisEhImports(ehHost) as ArtemisImportTable),
     ...(createArtemisAsyncifyImports(asyncifyHost) as ArtemisImportTable),
     ...(createArtemisAsyncImports(asyncHost) as ArtemisImportTable),
+    ...(createArtemisGlImports(glHost) as ArtemisImportTable),
   };
 
   const imports: ArtemisImportTable = {};
@@ -344,6 +387,11 @@ export function createArtemisBootTable(setup: ArtemisBootSetup): ArtemisBootTabl
    * short names the glue's forwarders name. The dynCalls are the *whole* mechanism: the guest's own
    * export does the table lookup, the argument marshalling and the `__THREW__` bookkeeping, so a
    * missing one is reported by name rather than answered with a guess.
+   *
+   * The `gl` bucket needs one of them: `rd`, the `v` dynCall, because `_emscripten_set_main_loop`
+   * stores a *function-table index* and the glue reaches it through `getDynCaller("v", func)`. With
+   * no `rd`, that row cannot run a frame, so it refuses and still throws `unwind` — the guest parks
+   * where the official one parks instead of quietly never being called.
    */
   const attachExports = (instance: WebAssembly.Instance): void => {
     const exports = instance.exports as Record<string, unknown>;
@@ -412,6 +460,44 @@ export function createArtemisBootTable(setup: ArtemisBootSetup): ArtemisBootTabl
       dynCall[exportName] = call as ArtemisForwardedFn;
     }
     asyncHost.dynCall = dynCall;
+
+    /**
+     * `gl` gets its dynCall outside {@link bindExport}, because that helper reports every miss as
+     * `async` — right for the 30 rows above, wrong for a row that belongs to `gl`. A mislabelled
+     * block sends the next reader to the wrong bucket, and this whole module exists to stop a silent
+     * zero from hiding where an engine stopped.
+     */
+    const dynCallV = exports['rd'];
+    if (typeof dynCallV !== 'function') {
+      report('gl', 'the bridge does not export rd, so _emscripten_set_main_loop cannot reach its frame function');
+    } else {
+      glHost.dynCallV = (tableIndex: number): void => {
+        (dynCallV as (index: number) => void)(tableIndex | 0);
+      };
+    }
+
+    /**
+     * The event rows' own calling convention, `getDynCaller("iiii", callbackfunc)`.
+     *
+     * The guest passes its event callbacks as real table indexes (measured: 3706…3725), not as host
+     * pointers, so a listener can only fire if the host can call INTO the guest's function table with
+     * four i32s. Without this the eleven rows would register listeners that are never called — the
+     * "registered a success and never called it" shape this bucket exists to reject — so an absent
+     * `gd` is reported rather than left silent. It is the same forwarder `asyncHost.callback` uses,
+     * which is why the session supplies it once, at `setup.callback`.
+     */
+    const dynCallIiii = exports['gd'];
+    if (typeof dynCallIiii !== 'function') {
+      report('gl', 'the bridge does not export gd, so a registered event callback could never be called back');
+    } else {
+      glHost.dynCallIiii = (entry: number, a: number, b: number, c: number): number =>
+        (dynCallIiii as (index: number, a: number, b: number, c: number) => number)(
+          entry | 0,
+          a | 0,
+          b | 0,
+          c | 0,
+        );
+    }
   };
 
   /**

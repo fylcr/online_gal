@@ -17,10 +17,14 @@ authoritative classification of those 207 is
 its official `artemis.js` counterpart, and the bucket that decides who
 implements it. Buckets land here in the order the port claims them: **`fd`
 (48 rows / 41 short names)** on top of `@online-gal/vfs`, then **`runtime` (8),
-`eh` (17 / 15), `asyncify` (4) and `async` (30)**, then `boot.ts`, which
-assembles all of them with a counted stub for every row that is still somebody
-else's work. That is **98 distinct short names covering 107 of the 207 rows**,
-leaving the `gl` bucket (99 rows) and `todo` (1) — 100 counted stubs. The host
+`eh` (17 / 15), `asyncify` (4) and `async` (30)**, then **`gl` (99)**, then
+`boot.ts`, which assembles all of them with a counted stub for every row that
+is still somebody else's work. That is **197 distinct short names covering
+206 of the 207 rows**; the only row left is `todo` (1) — `_system`. Of the 99
+`gl` rows, 79 are real (the WebGL2 context, `glfw`, and the 11 event
+registrations) and 20 are deliberate, documented refusals that still answer
+their own per-call value: 19 audio rows and
+`_emscripten_enter_soft_fullscreen`. The host
 does not allocate the wasm memory, does not dlopen anything, and never executes
 the minified glue.
 
@@ -32,7 +36,7 @@ the minified glue.
 | `host/memory.ts` | `ArtemisMemory` — typed views re-derived after every `grow`, `assertRange`, UTF-8 helpers. |
 | `host/fs.ts` | `SyncByteSource`, `FsNode`, `ARTEMIS_O`, `MutableByteSource`, `mountTree`. |
 | `host/tree.ts` | `ArtemisFs` — the mount table, open/read/write/seek/close, dup2/dup3, chdir, rename, readdir, stat. |
-| `host/layout.ts` | `writeStat64` (96 B, i64 as lo/hi words), `writeDirent64` (stride 280), `doPreadv` / `doPwritev`. |
+| `host/layout.ts` | `writeStat64` (96 B, i64 as lo/hi words), `writeDirent64` (stride 280), `doReadv` / `doWritev` (advancing, as the glue is). |
 | `host/timefmt.ts` | `struct tm` (44 B), `localtime_r` / `gmtime_r` / `mktime`, `strftime`, `clock_gettime`, `TimeZoneNames`. |
 | `host/fd.ts` | `createArtemisFdImports(host)` — the 41-key import table. |
 | `host/bridge.ts` | `createArtemisFdTable`, `createBridgeMemory`, `mountArtemisTree`, `entriesFromPfs`, `initArtemisStandardStreams`, `ARTEMIS_FD_IMPORTS`. |
@@ -153,7 +157,11 @@ produces the same 16 calls and the same `-1` — the exits are the guest's own
 real package adds is everything between: 1,175 dispatched `async` re-entries
 instead of 16, and a `system.ini` read out of a real archive.
 
-So the wall is `gl`, and it is one bucket: 99 rows, 91 distinct names. Four of
+What is left is the audio seam, and it is honest about it: 19 of the 99 `gl`
+rows are `_al*`/`_alc*` calls with no `AudioContext` in this host, and each one
+answers OpenAL's own "no device, no context" value rather than a blanket 0
+(`_alGetError` returns `AL_INVALID_OPERATION`, 40964, because that is what
+OpenAL reports with no current context). Four of
 the guest's own 14 `__syscall_<name>` gaps are worth naming here as well — the
 guest prints `warning: unsupported syscall: __syscall_<name>` and **continues**,
 so these are the concrete syscalls this port has no route for: `mprotect`,

@@ -125,7 +125,8 @@ export function writeDirent64(
 }
 
 /**
- * `preadv(2)` / `pwritev(2)`: scatter one read or write across an iovec array.
+ * `readv(2)` / `writev(2)`: scatter one read or write across an iovec array, **advancing the
+ * stream position**.
  *
  * The iovec is `{ base: i32, len: i32 }` pairs, 8 bytes each, so element `i` lives at `iov + i*8`.
  * The glue's `doReadv` stops at the first short read and returns the total; `doWritev` does not,
@@ -133,17 +134,34 @@ export function writeDirent64(
  * asymmetry is reproduced here deliberately — a host that "helpfully" breaks out of the write
  * loop would drop data on a large save.
  *
+ * ## Why this advances, and why that is not a detail
+ *
+ * Emscripten's `FS.read` is `var seeking = typeof position !== "undefined"; if (!seeking)
+ * { position = stream.position } … if (!seeking) { stream.position += bytesRead }`, and the glue
+ * calls `SYSCALLS.doReadv(stream, iov, iovcnt)` with **no** fourth argument — so `seeking` is
+ * `false` and every byte read moves the position. `_fd_read` is the plain advancing readv, not
+ * `preadv`: the four-argument `(fd, iov, iovcnt, pnum)` row has no offset parameter to pass on.
+ *
+ * Implementing it as `preadv` instead is silent and fatal. The Artemis engine opens `/root.pfs`
+ * and reads the container **without ever seeking** — 1,026 bytes, then the rest of the index —
+ * relying on the second read continuing where the first stopped. A non-advancing host serves the
+ * same region twice, the record-table parser walks misaligned bytes, and the engine dies in
+ * boost's `unordered_map` with `Assertion failed: mlf_ >= minimum_max_load_factor`, thousands of
+ * frames deep in a library that never saw a bad byte from us. Measured on the real 2.69 GB
+ * `root.pfs`: the trace shows `[0, 1026)` followed by `[0, 1185779)` with no `lseek` in between,
+ * and the index is exactly 1,185,775 bytes starting at offset 7.
+ *
  * Returns the total bytes transferred, or throws the errno the kernel would.
  */
-export function doPreadv(
+export function doReadv(
   memory: ArtemisMemory,
   fs: ArtemisFs,
   fd: number,
   iov: number,
   iovcnt: number,
-  position: number,
 ): number {
   const stream = fs.requireStream(fd);
+  const position = stream.position;
   let total = 0;
   for (let i = 0; i < iovcnt; i += 1) {
     const entry = (iov >>> 0) + i * 8;
@@ -161,19 +179,20 @@ export function doPreadv(
       break;
     }
   }
-  void stream;
+  stream.position = position + total;
   return total;
 }
 
-/** `pwritev(2)`. Same as `doPreadv` but without the short-read break. */
-export function doPwritev(
+/** `writev(2)`. Same as {@link doReadv} but without the short-read break. */
+export function doWritev(
   memory: ArtemisMemory,
   fs: ArtemisFs,
   fd: number,
   iov: number,
   iovcnt: number,
-  position: number,
 ): number {
+  const stream = fs.requireStream(fd);
+  const position = stream.position;
   let total = 0;
   for (let i = 0; i < iovcnt; i += 1) {
     const entry = (iov >>> 0) + i * 8;
@@ -189,6 +208,7 @@ export function doPwritev(
     const view = new Uint8Array(memory.u8.subarray(base, base + len));
     total += fs.write(fd, view, position + total);
   }
+  stream.position = position + total;
   return total;
 }
 
