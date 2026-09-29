@@ -383,7 +383,10 @@ as the LF one, with 109 files normalized on the way in. That measurement is on 0
 it was taken; 0.1.4 and 0.1.5 are different archives (the artemis host changed in each), so neither
 inherits the number — what it inherits is the rule that produced it. `tsconfig.tsbuildinfo` appears **0** times in
 all four archives. The artemis row is a local build: that engine is deliberately not published, so it
-has no release to measure and the number is here only to show what a fourth row would look like.
+has no release to measure, and the number is here only to show what a fourth row would look like. The
+workflow does pack it, though, and the `wasm-artemis-bridge-package` artifact of `00ccc32` unpacks to
+a tarball byte-identical to the local one — 440,396 B and the same sha256 — so the row is
+cross-checked against CI even without a release to download it from.
 
 Against the pre-cache published tarballs the only change is the removed cache: `runtime-ons`
 211 → 207 files and `runtime-kag` 240 → 236, with **0 files differing in content**. Every tarball
