@@ -279,17 +279,20 @@ worktree now reproduces both numbers exactly.
 
 The aggregate makes the same claim, and it is the one that was actually proved: `build-packages.yml`
 packs `@online-gal/engines` from CI's LF checkout, and the released
-`online-gal-engines-0.1.4.tgz` is **2,578,765 B**, sha256
-`492cd9603c32c363d727df5c6256376e6535b4444afffdf943f02849b13fa92d`, uncompressed tar stream
-**8,263,680 B**, sha256 `bb49f5778e8b511ac1d3fd722a7b3f9e7a365f6039ef18a625f8682fa54bd06e`. A pack
-of the same commit in a *fresh Windows worktree* — CRLF engine assets, Node 26, a full `pnpm install`
-and a full `build:packages` — reproduces all four numbers, `.tgz` sha256 included: the two archives
-`cmp` byte-identical, and the extracted trees `diff -rq` clean. Two checkouts, two operating systems,
+`online-gal-engines-0.1.5.tgz` is **2,656,546 B**, sha256
+`1d84317b253908657c5872acb6d50b23380f0a261a0f6a1239f662fc700bf0b7`, uncompressed tar stream
+**8,570,880 B**, sha256 `039746ccc10a82067463f647c0cf4affdcb8e42f39619379f25101e774dbf4a9`. A pack of
+the same commit locally reproduces both digests, and GitHub's own `sha256:` on the asset is that
+same string — read back over the API, not downloaded. The release before it went a step further:
+0.1.4's pack of the same commit in a *fresh Windows worktree* — CRLF engine assets, Node 26, a full `pnpm install`
+and a full `build:packages` - reproduced all four of *its* numbers, `.tgz` sha256 included: the two
+archives `cmp` byte-identical, and the extracted trees `diff -rq` clean. Two checkouts, two operating systems,
 one byte.
 
 0.1.4 rather than 0.1.3 only because the artemis host's own bytes changed in `f5938bb` (the async
-bucket), and a vendored runtime's bytes are part of the aggregate's contract; the claim above is
-about the checkout, not the version.
+bucket), and 0.1.5 rather than 0.1.4 for the same reason in `00ccc32` (the fd readv fix and the `gl`
+bucket); a vendored runtime's bytes are part of the aggregate's contract, so any change to them
+moves the aggregate. The claim above is about the checkout, not the version.
 
 ### Three things are checked, not pinned
 
@@ -359,15 +362,15 @@ and `dist/**` together rebuild in seconds, whereas a stale cache inside an archi
 This also retires the caveat on the numbers above. **Every tarball published before the cache was
 excluded contains the `tsconfig.tsbuildinfo` files counted here**, so the sizes and digests quoted
 earlier in that paragraph describe archives that still carry the cache, and the published set is a
-version higher in every case — and the aggregate has since moved once more, to 0.1.4, when the
-artemis host's bytes changed. The published archives, measured rather than remembered:
+version higher in every case — and the aggregate has since moved twice more — to 0.1.4 when the
+artemis host's bytes changed in `f5938bb`, then to 0.1.5 when they changed again in `00ccc32`. The published archives, measured rather than remembered:
 
 | package | release | `.tgz` bytes | `.tgz` sha256 | tar stream bytes | tar sha256 | files |
 | --- | --- | --- | --- | --- | --- | --- |
-| `@online-gal/engines` 0.1.4 | `engine-packages-0.1.4` | 2,578,765 | `492cd9603c32c363…` | 8,263,680 | `bb49f5778e8b511a…` | 431 |
+| `@online-gal/engines` 0.1.5 | `engine-packages-0.1.5` | 2,656,546 | `1d84317b25390865…` | 8,570,880 | `039746ccc10a8206…` | 436 |
 | `@online-gal/runtime-ons` 0.1.3 | `engine-ons-0.7.7beta` | 2,136,169 | `df2d59c9453ee02d…` | 6,318,080 | `00f4255d9050a4cc…` | 207 |
 | `@online-gal/runtime-kag` 0.1.1 | `engine-krkr-20260920` | 367,243 | `ac3ffb26f1bc1cfab…` | 1,720,320 | `7f77eb8b3ee03b58…` | 236 |
-| `@online-gal/runtime-artemis` 0.1.3 | *not published* | 363,638 | `ecdce36b7d421df4…` | 1,546,240 | `b7d5bc160bef2f28…` | 197 |
+| `@online-gal/runtime-artemis` 0.1.4 | *not published* | 440,396 | `c13ff1d7bd807914…` | 1,853,440 | `f15521fdd6bcc993…` | 202 |
 
 The first three rows were each re-measured from the released asset and reproduced byte-for-byte by a
 local pack of the same commit — `.tgz` sha256 included — which is the cross-checkout claim this
@@ -377,8 +380,8 @@ carries a committed engine, so it is the one that can be rebuilt against a *diff
 checkout without changing the engine bytes: a worktree of `8482272` converted wholesale to CRLF,
 installed and rebuilt, packed to the same `2,553,631` B and the same tar sha256 `434c98ff3ef1517b…`
 as the LF one, with 109 files normalized on the way in. That measurement is on 0.1.3 and is left as
-it was taken; 0.1.4 is a different archive (the artemis host changed), so it does not inherit the
-number — what it inherits is the rule that produced it. `tsconfig.tsbuildinfo` appears **0** times in
+it was taken; 0.1.4 and 0.1.5 are different archives (the artemis host changed in each), so neither
+inherits the number — what it inherits is the rule that produced it. `tsconfig.tsbuildinfo` appears **0** times in
 all four archives. The artemis row is a local build: that engine is deliberately not published, so it
 has no release to measure and the number is here only to show what a fourth row would look like.
 
