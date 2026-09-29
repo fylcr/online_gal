@@ -772,8 +772,17 @@ rangeHits 123   packBytes 24,968,301 B   bytesSent 26,197,202 B (含 1.2 MB 宿�
 **24,968,301 / 6,046,143,449 = 0.41%** —— 从冷启动到片头只读了包链的 **0.41%**，
 而整链 6.05 GB 无法整体载入。
 
-启动期日志里 63 个 `root.pfs.0NN -> 404` **不是缺陷**：`PackManager::OpenChain` 按设计探测
-`<base>.000` … `<base>.063` 共 64 个补丁位，只有 `.000` 存在。
+启动期日志里 63 个 `root.pfs.0NN -> 404` **不是缺陷**：**compat** 引擎的 `PackManager::OpenChain`
+按设计在 `<base>.000` … `<base>.063` 里探测 64 个补丁位（`for (idx < 64)`，
+`.ref/artemis-compat/src/pack/pack_manager.cpp:31`），只有 `.000` 存在。
+
+> **同类的数字要连着「哪台程序」一起记。** 上面这个 64 是对 **compat** 引擎测的；而**官方** guest
+> （wasm2c 转译的那一份）在 2026-09-29 的探针里是**连续探 1,000 个槽位**
+> （`/root.pfs.000` … `/root.pfs.999`，全部 `-44`，即 Emscripten `FS.genericErrors` 里的 `ENOENT`
+> ——注意它**不是** POSIX 的 errno 编号，POSIX 的 `ENOENT` 是 2）。五份独立 trace
+> （`.test/team-artemis/g1-{trap,find,ub2,ub3,ub4}.txt`）里 distinct 槽位计数都是 1,000。
+> 两个数字各自对自己的程序成立：compat 不是官方引擎的源码，拿它去判官方「不合源码」是错的。
+
 
 ### 9.19 运行中崩溃的根因：`-fno-exceptions` 把 `stof` 的抛出直接变成 `abort()`
 
@@ -2044,3 +2053,34 @@ node ports/artemis/tools/real-game-test.mjs --game <松散树> --engine <candida
 **部署与验收**这一层——它让「跑起来了」这句话有一个可重跑、可对照、退出码有定义的证据。
 而 §10 剩下的两项（音频、读缓存）恰好正是本节这套证据**测不出来**的那类工作：
 它们不改变导入导出面，也不改变稳定帧，所以四道闸全绿也照样是缺的。
+
+### 18.6 桥模块在本机与 runner 上差 124 字节（根因未定；验收一律用 runner 产物）
+
+§18.4 证明的是**打包产物**在两种 checkout 上逐字节相同。artemis 的**桥模块**（`bridge.wasm`）
+到 2026-09-29 为止**不是**这个待遇：同一条路线脚本、同一份输入，本机与 runner 的产物差 **124 B**。
+
+| 阶段（route 脚本逐步产出） | runner（`2b30f5c5…`，41,757,498 B） | 本机 | 差 |
+| --- | --- | --- | --- |
+| `bridge.raw.wasm`（em++ 链接输出） | 41,757,769 | 41,757,645 | **+124** |
+| `bridge.mem.wasm` | 41,757,521 | 41,757,397 | +124 |
+| `bridge.aliased.wasm` | 41,757,520 | 41,757,396 | +124 |
+| `bridge.wasm`（表导出改名之后） | 41,757,498 | 41,757,374 | +124 |
+
+⭐ 差**在第一步就出现**（`raw` 就是 em++ 的输出），后面三步原样带着它 ⇒ 不是后处理造成的。
+已排除的输入（各自逐字符核过）：转译产物 `.ref/artemis-official/wasm/asyncify/artemis.wasm2c.{c,h}`
+的 md5 与 `MANIFEST.txt:23-24`（= `gen-wasm2c.sh` 的参考常量）完全相同；`ports/artemis/reverse/build/`
+里暂存的 `wasm-rt-impl.c` / `wasm-rt-mem-impl.c` 与 `.ref/wabt/wasm2c/` 的原件相同；本机 `emcc`
+同样是 `6.0.9`。差集本身：section 10(code) −76 B、section 11(data) −48 B，section 0–9 大小相同，
+globals 里一个 4 字节可重定位值偏 `+0x2C50`（data 段同一位置亦然）。
+
+**行为上两者一致**，这一条比字节差更重要：同一份宿主、同一 fixture 下，runner 工件与本机构建
+都是 `String: unwind`、1,182 次 import、1,003 次包链探测；用
+`ports/artemis/harness/glue/verify-imports-map.mjs` 拿本机那份 wasm 去校验提交的地图，
+**16 项里 15 项 PASS**，唯一 FAIL 是模块身份那一项（`table=2b30f5c54072 given=bf24ace8160f`）
+⇒ **导入面完全一致，差的全在模块体内**。
+
+**由此的规矩（本节的用处）**：artemis 的**验收与诊断一律用 `build-wasm-artemis-bridge.yml` 的工件**
+（它的 `bridge.wasm` 身份同时被 CI gate 与 `ports/artemis/harness/glue/imports-map.md` 记录）；
+本机构建只是**诊断件**，不是被测对象——它「行为一致」是量出来的，不是假设的。根因未定，位置已收敛到
+「em++ 链接那一步的某个环境输入」。
+
