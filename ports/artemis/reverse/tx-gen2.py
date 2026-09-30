@@ -471,6 +471,12 @@ PROD.update({
  'f4553': ('ResetSharedPtr10', 'void', ['ctx', 'p0', 'p1']),
  'f4569': ('ResetSharedPtr11', 'void', ['ctx', 'p0', 'p1']),
  'f1593': ('ResetSharedArray', 'void', ['ctx', 'p0', 'p1']),
+ # ---- batch-16: the f3633 door, take one -- the libc and STL leaves f3633 calls ----
+ 'f240': ('MemChr', 'uint32_t', ['ctx', 'area', 'byte', 'count']),
+ 'f420': ('FillWords', 'uint32_t', ['ctx', 'dst', 'value', 'count']),
+ 'f857': ('MersenneTwisterTwist', 'void', ['ctx', 'state']),
+ 'f3308': ('ReverseBits32', 'uint32_t', ['ctx', 'value']),
+ 'f1466': ('InitCrc32Table', 'void', ['ctx']),
  # These six are forwarder-only rows: the generated body keeps the definition,
  # the name is what the products call.  Evidence for each name is in
  # rewrite-names.tsv (no data-segment constants exist in any of these six, so the
@@ -1377,6 +1383,22 @@ METAS = {
   'f1593': dict(ret='void', params=['a', 'b'], file='util/reset_shared_array.cpp',
     purpose="ResetSharedArray -- one instantiation of boost::shared_array<T>::reset: the data segment carries the shared_array.hpp assert trio (__FILE__, 'p == 0 || p != px', __func__ 'reset') and the body clears the owned array through Oc_0; f199 Panic is the second callee.",
     loc={}, frame=24),
+  # ---- batch-16 ----
+  'f240': dict(ret='uint32_t', params=['a', 'b', 'c'], file='util/mem_chr.cpp',
+    purpose="MemChr -- the libc memchr: a byte scan up to the alignment boundary, then the word-at-a-time haszero probe, and the address of the first matching byte, or zero when the range runs out.",
+    loc={}, frame=0),
+  'f420': dict(ret='uint32_t', params=['a', 'b', 'c'], file='util/fill_words.cpp',
+    purpose="FillWords -- the word-granular fill: one value is written across the requested number of words and the destination is answered; a zero count writes nothing.",
+    loc={}, frame=0),
+  'f857': dict(ret='void', params=['a'], file='util/mersenne_twister_twist.cpp',
+    purpose="MersenneTwisterTwist -- std::mt19937's state twist: the 624-word array is regenerated in place with the 0x9908B0DF matrix constant, the wrapped middle words are patched, and the index goes back to zero.",
+    loc={}, frame=0),
+  'f3308': dict(ret='uint32_t', params=['a'], file='util/reverse_bits32.cpp',
+    purpose="ReverseBits32 -- the 32-bit reversal behind the CRC table: each output bit takes the input bit mirrored across the word.",
+    loc={}, frame=0),
+  'f1466': dict(ret='void', params=[], file='util/init_crc32_table.cpp',
+    purpose="InitCrc32Table -- the lazy CRC-32 table builder: every one of the 256 entries reflects its own index byte, runs eight rounds of the 0x04C11DB7 polynomial and stores the reversed word, once, behind the initialised flag.",
+    loc={}, frame=0),
 }
 
 def die(msg):
@@ -1778,6 +1800,8 @@ ORDER = ['f265','f5721','f910','f708','f364','f645','f223','f476','f4579','f399'
           'f1072', 'f294', 'f366',
           'f3631',
           'f1081', 'f1406', 'f1465', 'f2936', 'f3387', 'f3395', 'f3558', 'f3626', 'f4204', 'f4553', 'f4569', 'f1593',
+         # ---- batch-16: the f3633 door, take one ----
+         'f240', 'f420', 'f857', 'f3308', 'f1466',
          'f605','f646','f909','f911','f912','f913','f1117','f1132','f1718','f1719','f1720','f1746','f5678','f5679',
          'f262','f298','f304','f309','f377','f783','f1486','f1487','f3516','f3804','f5509','f5536','f5628','f5629','f5630','f5716',
          'f255','f382','f442','f450','f451','f453','f521','f548','f781','f784','f885','f897','f1112','f1128','f1212','f1715','f1739','f2207','f1701','f899',

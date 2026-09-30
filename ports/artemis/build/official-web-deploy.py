@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 Deploy the real game to the *official* Artemis WebAssembly build, in asyncify mode.
 
 ## Why this exists
@@ -86,7 +86,7 @@ def default_sdk():
 
 
 def write_pf8(path, files, version="6"):
-    """
+    r"""
     Write a `pf8`-family package, byte-compatible with the SDK's own packer.
 
     Layout, matching what `packages/runtime-artemis/src/pfs.ts` parses:
