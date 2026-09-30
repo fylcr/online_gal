@@ -430,7 +430,7 @@ node --test .test/team-artemis/fd-host.test.ts     # 14 tests, 0 failures
 node .test/team-artemis/reconcile-t17-imports.mjs  # ALL 51 CHECKS PASS
 node --test .test/team-artemis/t17-host.test.ts     # 46 tests, 0 failures
 node .test/team-artemis/boot-bridge.mjs            # the per-bucket table
-node .test/team-artemis/count-coverage.mjs          # 98 names / 107 rows / 100 stubs
+node .test/team-artemis/count-coverage.mjs          # 197 names / 206 of 207 rows / 1 stub
 bash .test/team-artemis/gate-step.sh                # GATE EXIT 0
 ```
 
@@ -499,5 +499,8 @@ verification, not shipped tests.
 `src/index.ts` still re-exports only `./sha1.js ./pfs.js ./probe.js
 ./runtime.js`. `host/` is **not** re-exported. That is deliberate and settled:
 the public surface is added only once the host can do one complete thing, and
-the boot table still counts **100 of the 207 imports** as stubs. Import from
-`./host/bridge.js` or `./host/boot.js` until that changes.
+the one remaining row is `todo` (`_system`). Of the 99 `gl` rows, 79 are real
+implementations and 20 are documented refusals (19 audio rows plus
+`_emscripten_enter_soft_fullscreen`); the 11 event rows count as real, because
+answering `EMSCRIPTEN_RESULT_INVALID_TARGET` with no document *is* an answer.
+Import from `./host/bridge.js` or `./host/boot.js` until that changes.

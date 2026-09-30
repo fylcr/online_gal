@@ -290,8 +290,21 @@ export interface ArtemisGlHost {
    * and `getDynCaller("iiii", callbackfunc)` is the glue's own way of reaching that. Without it the
    * eleven `__emscripten_set_*_callback_on_thread` rows could only ever register listeners they can
    * never fire — the exact "registered a success and never called it" shape this bucket rejects.
+   *
+   * The implementation is the official glue's own lookup order, not a guess: `getDynCaller(sig, index)`
+   * takes the *table entry* first and only falls back to the exported `dynCall_<sig>`. Which of the two
+   * actually served the last call is answered by {@link ArtemisGlHost.dynCallIiiiRoute}, because "the
+   * table entry" and "the forwarder" fail differently and a report that cannot tell them apart cannot
+   * tell a wrong index from a wrong arity.
    */
   dynCallIiii?: (entry: number, a: number, b: number, c: number) => number;
+  /**
+   * How the last {@link ArtemisGlHost.dynCallIiii} call was routed — `table`, `forwarder`, both, or
+   * `none`. A getter rather than a string so a caller reads the value at the moment it reports it, and
+   * so the `gl` bucket can say which of the official glue's two paths answered a given callback without
+   * `boot.ts` having to push a value back in.
+   */
+  dynCallIiiiRoute?: () => string;
   /**
    * The guest's `malloc`, for the five event blocks the glue allocates on first use.
    *
@@ -889,8 +902,7 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
           `frame ${mainLoop.currentFrameNumber} trapped with ${describeFault(error)}; the loop is ` +
             'stopped because a trapped frame leaves the GL state and the guest heap meaningless',
         );
-        return;
-      }
+        return;      }
     }
     scheduleFrame();
   };
@@ -910,11 +922,26 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
     return name === 'RuntimeError';
   };
 
-  /** A fault in one line, with the wasm function index, which is more than a bare message offers. */
+  /**
+   * A fault in one line, with the wasm function index when the engine gave one, plus the VERBATIM
+   * stack when there is one.
+   *
+   * The stack is not decoration. A real `unreachable` in Chrome carries `wasm-function[NNNN]` frames,
+   * and NNNN is the only handle that maps a fault back to a function. Truncating to 200 characters
+   * throws that away, and `String(error)` alone is the message with no frames at all — so a fault
+   * with no index is reported as having no stack, rather than as having been truncated into one.
+   */
   const describeFault = (error: unknown): string => {
     const text = String(error);
     const fn = /wasm-function\[(\d+)\]/.exec(text);
-    return fn ? `${text.replace(/:\s+wasm.*/s, '')} (wasm function ${fn[1]})` : text.slice(0, 200);
+    const stack = (error as { stack?: unknown } | null)?.stack;
+    const verbatim = typeof stack === 'string' && stack.length > 0 ? stack : '';
+    const frames = /wasm-function\[(\d+)\]/.exec(verbatim);
+    if (fn || frames) {
+      return `${text.replace(/:\s+wasm.*/s, '')} (wasm function ${(fn ?? frames)![1]})` +
+        (verbatim ? ` :: ${verbatim.slice(0, 1200)}` : ' :: no stack on this error');
+    }
+    return (text.slice(0, 200) || '(no message)') + (verbatim ? ` :: ${verbatim.slice(0, 1200)}` : '');
   };
 
   const scheduleFrame = (): void => {
@@ -1898,6 +1925,24 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
       refuse('event', 'has no dynCall_iiii, so an event handler could be registered but never entered');
       return;
     }
+    /**
+     * Recorded BEFORE the call, and that order is the point.
+     *
+     * A fault thrown out of the guest callback is the one thing this row most needs to explain, and
+     * Chrome's stack for it only names frames. Recording after the call meant the one run that actually
+     * trapped never wrote a reading: the guest's index, its event-type id, the block we handed it and
+     * the `userData` it gave us are the four numbers that separate "the guest registered a bad table
+     * slot" from "we called a good slot with the wrong argument list", and a fault is exactly when
+     * they are wanted.
+     *
+     * The value is the table index the guest handed us, not an address: the guest passes its event
+     * callbacks as real entries of its own function table (the shipped bridge exports that table as
+     * `Lc`, 3,613 slots, and Chrome's own trap names `fidx 507` reading a table entry whose real type
+     * is not the one its `call_indirect` declared). A host that echoed the four values back could
+     * answer "wrong slot" from the numbers alone, with no need to guess which half of the contract
+     * broke.
+     */
+    report('event', `dynCall_iiii(${callbackfunc | 0}, ${eventTypeId}, ${block}, ${userData | 0}) via ${host.dynCallIiiiRoute?.() ?? 'unknown'}`);
     if (dynCallIiii(callbackfunc | 0, eventTypeId, block, userData | 0)) {
       event.preventDefault?.();
     }

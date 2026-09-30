@@ -477,27 +477,71 @@ export function createArtemisBootTable(setup: ArtemisBootSetup): ArtemisBootTabl
     }
 
     /**
-     * The event rows' own calling convention, `getDynCaller("iiii", callbackfunc)`.
+     * The event rows' own calling convention, and the official glue's own lookup order.
      *
-     * The guest passes its event callbacks as real table indexes (measured: 3706…3725), not as host
-     * pointers, so a listener can only fire if the host can call INTO the guest's function table with
-     * four i32s. Without this the eleven rows would register listeners that are never called — the
-     * "registered a success and never called it" shape this bucket exists to reject — so an absent
-     * `gd` is reported rather than left silent. It is the same forwarder `asyncHost.callback` uses,
-     * which is why the session supplies it once, at `setup.callback`.
+     * `artemis.js` has five event sites — keydown, mouse, touch, visibility, wheel — and all five
+     * are one shape:
+     *
+     * ```js
+     * if (getDynCaller("iiii", callbackfunc)(eventTypeId, eventDataBlock, userData)) e.preventDefault();
+     * ```
+     *
+     * Four actual arguments, an i32 result used as a boolean, and `getDynCaller` resolving the *table
+     * entry* first. The exported `dynCall_iiii` is only the fallback for a slot the table cannot give.
+     * Both halves of that are read out of the shipped glue rather than reasoned about: `dynCall_viiii`
+     * appears nowhere in the file except inside the `invoke_viiii` asyncify wrapper, so the 5-param
+     * shape was never this contract, and the four-argument shape is what the vendored events use.
+     *
+     * The table is exported as `Lc`. Measured on the shipped bridge by instantiating it: `Lc` is a
+     * `WebAssembly.Table` of 3,613 slots and slot 0 is the only null one; the official module has the
+     * same shape at 4,278 slots, so the alias is the official scheme and not ours. A 207-function
+     * import surface is why `Module.exports()` tallies 1,163 (1,126 functions + 36 globals + this
+     * table) — the two numbers were different kinds, never a disagreement about the table.
+     *
+     * The fallback is `ed`, not `ld`. The shipped glue says so on the page it builds:
+     * `var dynCall_iiii=Module["asm"]["ed"]` and `var dynCall_viii=Module["asm"]["ld"]` — and both
+     * exports measure 4 parameters on both guests, so the parameter count could never have told them
+     * apart. Only the glue's own binding can, which is exactly why the earlier `ld` binding was a
+     * false trail: it reached `dynCall_viii` while the rows meant `dynCall_iiii`.
+     *
+     * Routing therefore mirrors the glue: `Lc.get(index)` when the slot holds a function, the exported
+     * forwarder when the table cannot answer. **A table entry takes only the three real arguments** —
+     * the slot is already resolved by the lookup — while the forwarder takes the index plus those
+     * three. Which one answered, with what index and what entry arity, is readable afterwards through
+     * {@link ArtemisGlHost.dynCallIiiiRoute}: a wrong table slot and a wrong arity fail identically
+     * from the outside, and the next reader has to be able to tell them apart.
      */
-    const dynCallIiii = exports['gd'];
-    if (typeof dynCallIiii !== 'function') {
-      report('gl', 'the bridge does not export gd, so a registered event callback could never be called back');
-    } else {
-      glHost.dynCallIiii = (entry: number, a: number, b: number, c: number): number =>
-        (dynCallIiii as (index: number, a: number, b: number, c: number) => number)(
-          entry | 0,
-          a | 0,
-          b | 0,
-          c | 0,
-        );
+    const table = exports['Lc'];
+    const dynCallIiii = exports['ed'];
+    const hasTable = typeof table === 'object' || typeof table === 'function';
+    if (!hasTable) {
+      report('gl', 'the bridge does not export Lc (its function table), so an event callback can only be reached through the ed (dynCall_iiii) fallback');
     }
+    if (typeof dynCallIiii !== 'function') {
+      report('gl', 'the bridge does not export ed (dynCall_iiii), and without Lc a registered event callback could never be called back');
+    }
+    let route = 'none';
+    glHost.dynCallIiii = (entry: number, a: number, b: number, c: number): number => {
+      const slot = entry | 0;
+      if (hasTable) {
+        let fn: unknown = null;
+        try {
+          fn = (table as WebAssembly.Table).get(slot);
+        } catch {
+          fn = null;      // an index past the table end throws; the forwarder answers the same call
+        }
+        if (typeof fn === 'function') {
+          route = `table slot ${slot} arity ${fn.length}`;
+          return (fn as (x: number, y: number, z: number) => number)(a | 0, b | 0, c | 0) | 0;
+        }
+        route = `table slot ${slot} holds no function`;
+      }
+      route = typeof dynCallIiii === 'function' ? `forwarder ed, index ${slot}` : 'no route';
+      return typeof dynCallIiii === 'function'
+        ? (dynCallIiii as (index: number, x: number, y: number, z: number) => number)(slot, a | 0, b | 0, c | 0) | 0
+        : 0;
+    };
+    glHost.dynCallIiiiRoute = (): string => route;
   };
 
   /**
