@@ -45,8 +45,11 @@
 #     the table, so an edit to the glue, to the rewrite, or to the route would leave a committed
 #     table that still describes a different file -- and it would still be byte-identical, because
 #     the table records the offsets it was built with, not the ones that are true. The gate
-#     regenerates from this build's module and the tracked glue and compares byte for byte, so a
-#     stale table is a failed run rather than a comment nobody re-reads. It lives in the reusable
+#     regenerates from this build's module and the tracked glue and compares every ABI line byte for
+#     byte, masking the two module-provenance rows: a module embeds its own build directory, so its
+#     hash can only match on the machine that produced the committed table, while the import surface
+#     and the offsets are the same everywhere. A stale table is a failed run rather than a comment
+#     nobody re-reads. It lives in the reusable
 #     workflow's `build` job (behind the `glue-import-map` input), because a `uses:` job has no
 #     steps of its own; `ports/artemis/harness/glue/**` is therefore in `paths:` below, or the gate
 #     would never run on the very edits it exists to catch.

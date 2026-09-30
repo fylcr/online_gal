@@ -388,9 +388,13 @@ The first difference is at **byte 4495** — an embedded `adPackage` table reads
 by a uniform **+2 bytes**. So a table generated from the vendor glue places every
 `impl` offset after byte 4495 two bytes early against the deploy build, and a
 2×2 cross check (vendor↔vendor, deploy↔deploy, and both cross pairs) fails both
-cross pairs on exactly that. The table now records `totals.moduleSha256` and
-`totals.glueSha256`, and `verify-imports-map.mjs` refuses any table whose
-provenance does not match the inputs it was handed.
+cross pairs on exactly that. The table records `totals.moduleSha256` and
+`totals.glueSha256`; the checker **refuses** a table whose glue is not the one it was
+made from, and only **reports** the module hash — a module embeds its own build
+directory (41,321,914 B with `D:/online_gal/...` from a Windows checkout against
+41,322,022 B with `/home/runner/work/...` from the runner), so its hash can only match
+on the machine that built it. The ABI rows are what is judged, and the CI step masks
+those two provenance lines before comparing.
 
 Two consequences for the work in this package:
 

@@ -111,7 +111,8 @@ node ports/artemis/harness/glue/verify-imports-map.mjs \
   --md   ports/artemis/harness/glue/imports-map.md
 ```
 
-26 checks; all must pass. The checker is committed beside the table it checks, and it reads
+25 checks are judged and all must pass, plus one line that reports the module's provenance
+without judging it (the module hash is machine-dependent — see below). The checker is committed beside the table it checks, and it reads
 the wasm and the glue itself rather than trusting anything the generator wrote.
 
 ### The glue is an input, not a constant
@@ -131,9 +132,18 @@ table and deploy glue against the deploy-generated table both pass every check; 
 cross pairs each fail exactly the two offset checks, and nothing else.
 
 The generated table therefore records the sha256 of both the module and the glue it was
-made from (`totals.moduleSha256`, `totals.glueSha256`), and the checker refuses up front
-when handed a different pair — one line naming both files, instead of 405 "bad offset" lines
-that read like a corrupt table.
+made from (`totals.moduleSha256`, `totals.glueSha256`). Of the two, only the **glue** is judged:
+a different glue is a refusal up front, one line naming both files instead of 405 "bad offset"
+lines that read like a corrupt table.
+
+The module hash is reported and not judged, and that is a measurement rather than a concession:
+a module carries its own build directory inside the runtime's assert strings, so the same tree
+gives **41,321,914 B** with `D:/online_gal/...` in it from a Windows checkout and **41,322,022 B**
+with `/home/runner/work/...` from the runner. A byte comparison that included the module's own
+hash could therefore only ever be satisfied by the machine that produced the committed table.
+What the table claims — the import surface and every `impl` offset — is a function of the import
+section and the tracked glue, both identical on every machine, and the CI step compares exactly
+that, masking the two provenance lines (`moduleBytes`, `moduleSha256`) before it `diff`s.
 
 So a failed identity check is not a defect in the table. Regenerate it for the inputs you
 actually have:

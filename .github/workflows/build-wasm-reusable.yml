@@ -400,25 +400,45 @@ jobs:
             --aliases "$ALIASES" \
             --out-dir "$OUT"
 
-          # `cmp` rather than a hash comparison, and the diff is printed only on failure: a
+          # The comparison masks exactly one thing: the two provenance lines naming the module the
+          # table was made from (`moduleBytes` / `moduleSha256` in the json, and their two rows in
+          # the markdown). The module embeds its own build directory in the runtime's assert
+          # strings -- measured, the same tree gives 41,321,914 B with `D:/online_gal/...` from a
+          # Windows checkout and 41,322,022 B with `/home/runner/work/...` from this runner -- so a
+          # comparison that included those lines would be a criterion no second machine could meet,
+          # and the committed pair could only ever be satisfied by the machine that wrote it. That
+          # is not a gate, it is a coincidence with a comment.
+          #
+          # What the table actually claims is the ABI: the import surface and every glue offset.
+          # Both are functions of the module's import section and the tracked glue -- neither of
+          # them can move because a build happened elsewhere -- and both are still compared byte for
+          # byte below. The provenance is printed, not judged, and the glue's own sha256 is still
+          # an identity the checker refuses on.
+          #
+          # `diff` rather than a hash comparison, and the diff is printed only on failure: a
           # regenerated 800-line table that differs in one bucket total is a 40-line diff, and a
           # failed step that dumps 800 lines is the reason nobody reads a failed step.
+          mask_provenance() {
+            grep -vE '"(moduleBytes|moduleSha256)":|\| module (bytes|sha256) \|' "$1"
+          }
+          echo "## gate: table was made from module $(grep -oE '"moduleSha256": *"[0-9a-f]{8}' "$MAP_JSON" | head -1 | grep -oE '[0-9a-f]{8}$')"
+          echo "## gate: this run built module       $(digest "$WASM" | cut -c1-8)"
           mismatch=0
           for name in imports-map.json imports-map.md; do
             case "$name" in
               *.json) committed="$MAP_JSON" ;;
               *)      committed="$MAP_MD" ;;
             esac
-            if cmp -s "$OUT/$name" "$committed"; then
-              echo "## gate: $name byte-identical to the committed file"
+            if diff -q <(mask_provenance "$committed") <(mask_provenance "$OUT/$name") >/dev/null; then
+              echo "## gate: $name matches the committed file (ABI; module provenance masked)"
               continue
             fi
             mismatch=1
-            echo "::error::$name no longer matches what this build produces:"
-            diff -u "$committed" "$OUT/$name" | head -40 || true
+            echo "::error::$name no longer matches what this build produces (module provenance masked):"
+            diff -u <(mask_provenance "$committed") <(mask_provenance "$OUT/$name") | head -40 || true
           done
           if [ "$mismatch" -ne 0 ]; then
-            echo "::error::the committed table in $MAP_JSON / $MAP_MD is not what $GLUE ($(sha256sum "$GLUE" | cut -d' ' -f1)) and $WASM ($(sha256sum "$WASM" | cut -d' ' -f1)) produce. Regenerate it for these inputs (ports/artemis/harness/glue/README.md) and commit both files."
+            echo "::error::the committed table in $MAP_JSON / $MAP_MD no longer describes what $GLUE ($(sha256sum "$GLUE" | cut -d' ' -f1)) and $WASM ($(sha256sum "$WASM" | cut -d' ' -f1)) produce (the module lines are masked, so this is the ABI that moved). Regenerate it for these inputs (ports/artemis/harness/glue/README.md) and commit both files."
             exit 1
           fi
           echo "## gate: the committed table is byte-identical to a regeneration from this build"

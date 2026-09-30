@@ -34,6 +34,20 @@ const ok = (label, pass, detail = '') => {
   if (!pass) failures++;
 };
 
+// Reported, never judged. Exactly one thing belongs here: the module the table was made from.
+// A module carries its own build directory inside the runtime's assert strings, so the same tree
+// produces two byte-different modules on two machines -- measured, 41,321,914 B with
+// `D:/online_gal/...` inside it from a Windows checkout against 41,322,022 B with
+// `/home/runner/work/...` from the runner. Judging the recorded hash would make the committed
+// table satisfiable only by the machine that wrote it. What the table claims -- the import
+// surface and every glue offset, all functions of the import section and the tracked glue -- is
+// judged below, and so is the glue's identity, because the glue IS the same file everywhere.
+let notes = 0;
+const note = (label, detail = '') => {
+  notes++;
+  process.stdout.write(`NOTE  ${label}${detail ? `  — ${detail}` : ''}\n`);
+};
+
 // ---------------------------------------------------------------------------
 // 1. Our own decode of the import section, written separately from the generator's.
 // ---------------------------------------------------------------------------
@@ -140,9 +154,13 @@ const glueSha256 = createHash('sha256').update(glue).digest('hex');
   const wantGlue = table.totals?.glueSha256 ?? null;
   const wantWasm = table.totals?.moduleSha256 ?? null;
   const gotWasm = createHash('sha256').update(bytes).digest('hex');
-  ok('the table was generated from this module', wantWasm === null || wantWasm === gotWasm,
-    wantWasm === null ? 'table records no module sha256 (pre-hash table; offsets not identity-checked)'
-      : wantWasm === gotWasm ? '' : `table=${wantWasm.slice(0, 12)} given=${gotWasm.slice(0, 12)} — regenerate the table for this module`);
+  // Reported, never judged.  A module embeds the directory it was built in, so its own hash can
+  // only ever match on the machine that produced the committed table -- the same tree is
+  // 41,321,914 B from a Windows checkout and 41,322,022 B from the CI runner.  What the table does
+  // claim is the import surface and the offsets below, and those are machine-independent.
+  note('table module provenance', wantWasm === null
+    ? 'the table records no module sha256'
+    : `table=${wantWasm.slice(0, 12)} this module=${gotWasm.slice(0, 12)}${wantWasm === gotWasm ? ' (built from this module)' : ' (a different build of the same tree)'}`);
   if (wantGlue === null) {
     ok('the glue is the one the table was generated from', true, 'table records no glue sha256 (pre-hash table; offsets not identity-checked)');
   } else {
@@ -204,5 +222,5 @@ ok('every row in the markdown carries a bucket', mdRows.every((l) => /\| `(gl|fd
   ok('the per-bucket counts match the rows', same, JSON.stringify(table.buckets));
 }
 
-process.stdout.write(`\n${failures === 0 ? 'ALL CHECKS PASS' : `${failures} CHECK(S) FAILED`}\n`);
+process.stdout.write(`\n${failures === 0 ? 'ALL CHECKS PASS' : `${failures} CHECK(S) FAILED`}${notes === 0 ? '' : ` (${notes} reported line${notes === 1 ? '' : 's'})`}\n`);
 process.exit(failures === 0 ? 0 : 1);

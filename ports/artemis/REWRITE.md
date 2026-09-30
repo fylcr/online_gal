@@ -48,6 +48,10 @@
 | `i32_load_default32 / i32_store8…` | 真实访问器（memory_base 上的具名 load/store helper） |
 | 裸池址 `718223u / 852316u` | 命名常量 + 真实字面量（`"print"` / `kPendingThrowAddr`） |
 | 中文行内注释 | 英文设计注释（§2.2 口吻） |
+| 文件头横幅（`// x.cpp -- …` + `// Name -- …` + 「The step is …」段） | 直接以 `#include` 开头 |
+| `// src: artemis.wasm2c.c … (fNNN); R1 transcribe-keep.` + 「Written against artemis-compat…」段 | 全删（出处只记在 rewrite-names.tsv 与本文档） |
+| `kF<nnnn>Msg…` / `kF<nnnn>SaveFrameBytes` 之类机械常量名 | 语义 `kName`，内容写一行注释 |
+| `block_0 / loop_1 / func_exit` 标签 | 结构化控制流，或按作用命名的标签 |
 
 ## 4. 词汇映射
 
@@ -68,6 +72,8 @@
 - **R1 纯搬运风格化**：R0 + 类型/签名/文件落位 + 英文设计注释。**判定顺序一字不动**——
   这正是 artemis-compat AGENT.md 的「纯搬运」纪律，两头同源。
 - **R2 结构化改写**：R1 + goto 汤→控制流、asyncify→事件返回帧/ResumeState、提取函数与类。热核与分发器用。
+
+- **R1 的注释纪律（2026-09-30 先生定调）**：只写「这段代码干什么」，每函数 1–3 行；不写怎么来的、不写 wasm2c/fNNN/批次/出处；删光文件头横幅。见 §9。
 
 单函数子代理流程：读四源（wasm2c / wasm-decompile / artemis-compat 对应模块 / tag 文档+strings.tsv）
 → 对齐 rewrite-names.tsv 定名 → 按档产出 → 自检（style-gate + code-check + α 或行为差分）→ 父代理合入验收。
@@ -290,7 +296,7 @@ instrument-profile.py 计数锚 = 产品体 `  EnterFrame();`（索引取自 rw-
 - **asyncify 状态机是唯一禁区**：g3/g4、852316 挂起槽、挂起/恢复语义 R1 只许注释不许动；R2 动它必须双锚（帧哈希+剖析计数）全绿。
 - f3219 式 5 行错译教训：α 闸是 R0/R1 的防线；R2 靠双锚。
 - 池位数坑：6 位 u 是常态（7 位是我此前口误）；strings.tsv 未收的直接解析 data 段镜像核字节。
-- 生成器产物不许手改（改生成器重跑）；委托 ≤8 并发、单函数任务、2 次不成即自做。
+- ~~生成器产物不许手改（改生成器重跑）~~ **2026-09-30 先生改口：停用 tx-gen2 自动生成，改为逐文件手改净化**（见 §9）。`tx-gen2.py` 与 `--check` 降级为历史参照：净化后 `identical` 会逐批下降，属预期，不再作为漂移证据。委托 ≤8 并发、单文件任务、2 次不成即自做。
 - **同类静默缺陷**：类型截断（`uint32_t` 收 `f32`/`f64`/`u64`）能过全部四闸、四闸只验 66 个导出
   的一致性、**不验函数内部语义**。任何数值改写（掩码、位宽、符号扩展、饱和）都要单独开审计轴。
 - **`--only=` 会静默跳过没登记全的产品（2026-10-01 批 8A 实测）**：一个产品要落盘必须**同时**登记
@@ -338,3 +344,33 @@ instrument-profile.py 计数锚 = 产品体 `  EnterFrame();`（索引取自 rw-
   f672=`FormatUnsignedDecimal`（fmt_u，259113）· f1343=`PopVarArg`（pop_arg 的十路类型分派，551300）·
   f411=`WritePadding`（pad 的 256 字节块刷，178729）；父函数 f1014 = printf_core、f344 = 对外入口。
   教训：**先认 errno / locale / 数字表这三个数据段地址，再决定整族的命名。**
+
+## 9. 手改净化（2026-09-30 先生定调：停自动生成，逐文件改到像 artemis-compat）
+
+**目标**：`ports/artemis/src/**` 的每个文件读起来像 `.ref/artemis-compat/src/**`——人一眼看懂它在干什么。
+样板对（改造前 `git show HEAD:…` / 改造后工作树）：`util/format_unsigned_octal.cpp`·`util/format_unsigned_hex.cpp`·`util/parse_decimal_number.cpp`·`text/wide_char_to_multibyte_stateless.cpp`（59→20 / 63→31 / 69→22 / 46→22 行）。
+
+**行为绝对不变（红线）**
+- `namespace artc`、文件路径、函数名/签名/参数次序；
+- 每函数体一个 `EnterFrame()`、每个 return 前一个 `LeaveFrame()`；
+- 每次 `Load*/Store*`/宿主调用的 **宽度、有效地址、次序** 原样；不新增边界检查、不“顺手修”算式；
+- 所有整型宽度与截断点（`uint32_t`/`uint64_t`/`int32_t`、每个 cast、`& 0xFF`、移位方向）逐字保留；
+- **文件作用域的名字全树唯一**：所有产品拼成**单个 TU**，`namespace artc` 里的、以及每个文件匿名 namespace 里的 `constexpr`/`static`/`enum`/`struct`/助手函数名都共享一个作用域，重名即 `error: redefinition`（批 17 实测）。新取的文件级名字先在全树 grep；不唯一就带函数名（`kFormatUnsignedHexDigitTable`）。局部变量名不受此限。
+
+**删**
+- 文件头横幅全部（`// x.cpp -- …`、`// Name -- …`、「The step is …」段、`// src: artemis.wasm2c.c … (fNNN); R1 transcribe-keep.`、「Written against artemis-compat … call for call」段）；文件从 `#include` 开始；
+- 空的 `namespace { }` 及其留下的空行；
+- 任何残留出处：`wasm2c` / `fNNNN` / `transcribe` / `batch-N` / `R1` / `R2` / `asyncify` / `official` / `rename` / `judgment order`。
+
+**改**
+- 寄存器名 → 语义名（`value length cursor byte dst src count result slot offset index chunk`），按该函数里的实际用途取；
+- 一行一赋值的链 → 正常表达式；`i0 = !(x); if (i0)` → `if (x == 0)`；双取反 → 直判（符号性照旧）；
+- 可证等价的 `goto` 汤 → `while`/`for`/早返回；真不可约的保留标签但按作用改名，`block_0/loop_1/func_exit` 不许留。
+
+**注释（本次重点）**
+- 每个函数上方 1–3 行，讲“它干什么、返回什么”；
+- 真正微妙处一行（掩码、倒着写、特殊夹逼），每文件至多几处；
+- 不解释来历、不复述代码英文。
+
+**分层与验收**：批次清单在 `.test/clean-batches/band-*.txt`（每行 `行数<TAB>路径`，共 327 件 / 359,661 行；a=42 小件·b=74·c=126·d=59·e=26 巨件）。每波收尾跑四门：`build-bridge-route.sh asyncify`（必须 `327 product(s) spliced` + rc=0）·`wasm-replace-test.mjs` 4/4·`wasm-diff.mjs` 66/66·`npm test` 439/85/434/0/5，再跑真游戏帧锚（官方与候选帧像素级一致），然后 commit+push。
+任务分发：主代理写规格与样板、审核交付、拥有构建与入口序列；子代理只改自己批次内的 `ports/artemis/src/**`，不跑构建、不动 git、不碰 `reverse/**`。
