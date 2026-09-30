@@ -449,6 +449,11 @@ PROD.update({
  'f363': ('EnsureTableArrayRoom', 'void', ['ctx', 'p0']),
  'f288': ('MakeStringFromBytes', 'void', ['ctx', 'p0', 'p1', 'p2']),
  'f772': ('GetRegistryTableField', 'uint32_t', ['ctx', 'p0', 'p1']),
+ # ---- batch-12: the four rows batch-11 unlocked ----
+ 'f3085': ('PackManager::FileDispatchA', 'void', ['ctx', 'p0', 'p1', 'p2']),
+ 'f3086': ('PackManager::FileDispatchB', 'void', ['ctx', 'p0', 'p1']),
+ 'f3087': ('PackManager::FileDispatchC', 'void', ['ctx', 'p0', 'p1']),
+ 'f3088': ('Compositor::LyPropDispatch', 'void', ['ctx', 'p0', 'p1']),
  # These six are forwarder-only rows: the generated body keeps the definition,
  # the name is what the products call.  Evidence for each name is in
  # rewrite-names.tsv (no data-segment constants exist in any of these six, so the
@@ -1291,6 +1296,19 @@ METAS = {
  'f772': dict(ret='uint32_t', params=['a', 'b'], file='script/get_registry_table_field.cpp',
    purpose="GetRegistryTableField -- reads one field by key out of the Lua registry pseudo-table into two cleared value slots.",
    loc={}, frame=24),
+ # ---- batch-12 ----
+ 'f3085': dict(ret='void', params=['a', 'b', 'c'], file='pack/pack_manager_a.cpp',
+   purpose="PackManager::FileDispatchA -- the file and index tag dispatcher: it resolves the pseudo-object fields, builds the getScriptBlock result through the table helpers and reports the two Japanese getScriptBlock argument errors.",
+   loc={}, frame=48),
+ 'f3086': dict(ret='void', params=['a', 'b'], file='pack/pack_manager_b.cpp',
+   purpose="PackManager::FileDispatchB -- the second file and index tag body: it drives setScriptStack through the registry table helper and reports its Japanese argument error.",
+   loc={}, frame=28),
+ 'f3087': dict(ret='void', params=['a', 'b'], file='pack/pack_manager_c.cpp',
+   purpose="PackManager::FileDispatchC -- the third file and index tag body: the reservedCommands side of the file API.",
+   loc={}, frame=48),
+ 'f3088': dict(ret='void', params=['a', 'b'], file='render/compositor_props.cpp',
+   purpose="Compositor::LyPropDispatch -- the lyprop layer-property dispatcher: it matches the property tag against time, textTween, textClearTween, video and sound and applies the matching layer property write.",
+   loc={}, frame=28),
 }
 
 def die(msg):
@@ -1687,6 +1705,8 @@ ORDER = ['f265','f5721','f910','f708','f364','f645','f223','f476','f4579','f399'
          'f3551', 'f3698', 'f533',
          # ---- batch-11 ----
          'f290', 'f363', 'f288', 'f772',
+         # ---- batch-12 ----
+         'f3085', 'f3086', 'f3087', 'f3088',
          'f605','f646','f909','f911','f912','f913','f1117','f1132','f1718','f1719','f1720','f1746','f5678','f5679',
          'f262','f298','f304','f309','f377','f783','f1486','f1487','f3516','f3804','f5509','f5536','f5628','f5629','f5630','f5716',
          'f255','f382','f442','f450','f451','f453','f521','f548','f781','f784','f885','f897','f1112','f1128','f1212','f1715','f1739','f2207','f1701','f899',

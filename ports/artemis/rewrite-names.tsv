@@ -82,10 +82,10 @@ fn	f1465	art_reset3	artc::SceneReset::Reset03	script/scene_reset_03.cpp	R0	reset
 fn	f1593	art_shared_array_reset	artc::SceneReset::ResetSharedArray	script/scene_reset_shared.cpp	R0	shared array reset
 fn	f2936	art_reset4	artc::SceneReset::Reset04	script/scene_reset_04.cpp	R0	reset clone family
 fn	f2945	art_effect_dispatch	artc::Compositor::EffectDispatch	render/compositor_effect.cpp	R1	trans/effect surface (provisional)
-fn	f3085	art_file_dispatch1	artc::PackManager::FileDispatchA	pack/pack_manager_a.cpp	R1	file tag trio; disambiguate at R1
-fn	f3086	art_file_dispatch2	artc::PackManager::FileDispatchB	pack/pack_manager_b.cpp	R1	file tag trio
-fn	f3087	art_file_dispatch3	artc::PackManager::FileDispatchC	pack/pack_manager_c.cpp	R1	file tag trio
-fn	f3088	art_layer_prop_dispatch	artc::Compositor::LyPropDispatch	render/compositor_props.cpp	R1	lyprop layer property tag
+fn	f3085	art_file_dispatch1	artc::PackManager::FileDispatchA	pack/pack_manager_a.cpp	R1	file/index tag dispatch: constants `file` `index` getScriptBlockの引数が不正です / getScriptBlockの引数が不正です。指定されたブロックは見つかりません; callees f200 f203 f206 f209 f210 f211 f288 f290; frame 48
+fn	f3086	art_file_dispatch2	artc::PackManager::FileDispatchB	pack/pack_manager_b.cpp	R1	file/index tag dispatch: constants `file` `index` setScriptStackの引数が不正です; callees f203 f206 f209 f210 f211 f288 f772; frame 28
+fn	f3087	art_file_dispatch3	artc::PackManager::FileDispatchC	pack/pack_manager_c.cpp	R1	file/index tag dispatch: constants `file` `index` reservedCommands; callees f203 f209 f290; frame 48
+fn	f3088	art_layer_prop_dispatch	artc::Compositor::LyPropDispatch	render/compositor_props.cpp	R1	lyprop layer property dispatch: constants `time` `textTween` `textClearTween` `video` `sound`; callees f203 f209 f290; frame 28
 fn	f3112	art_var_dispatch	artc::LuaEngine::VarDispatch	script/lua_tags_var.cpp	R1	CLua object wrap/reflect init
 fn	f3196	art_text_fx_dispatch	artc::MessageLayer::TextFxDispatch	script/text_fx_dispatch.cpp	R1	text fx dispatch (provisional)
 fn	f3207	art_font_dispatch	artc::GlyphAtlas::FontDispatch	render/glyph_atlas.cpp	R1	font tag family
