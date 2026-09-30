@@ -1,274 +1,177 @@
-// convert_value_to_integer.cpp -- narrows a TValue to its integer payload, raising when the tag has no integer form..
-//
-// ConvertValueToInteger -- narrows a TValue to its integer payload, raising when the tag has no integer form.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 190700-190700 (f453); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Materializes a value that is not yet a number, answering the record it stands
+// for afterwards.
 uint32_t MaterializeNumberValue(EngineContext* ctx, uint32_t state, uint32_t slot);
 
 namespace {
 
-constexpr uint32_t kF453Const27118 = 0x27118u;  // 
-constexpr uint32_t kF453Const2B328 = 0x2B328u;  // 
-constexpr uint32_t kF453Const80000000 = 0x80000000u;  // 
-constexpr uint32_t kF453ConstFFFFD8EE = 0xFFFFD8EEu;  // 
-constexpr uint32_t kF453ConstFFFFD8F1 = 0xFFFFD8F1u;  // 
-constexpr uint32_t kF453SaveFrameBytes = 8u;
-constexpr uint32_t kF453ResumeWordBytes = 4u;
+// The kind word a value record carries when it holds a number already, and the
+// kind a record is given while it is being built.
+constexpr uint32_t kConvertValueToIntegerNumberKind = 3u;
+constexpr uint32_t kConvertValueToIntegerPendingKind = 5u;
+
+// The two slots below zero that stand for shared records this step hands back
+// whole; the three of them sit inside the state at these offsets.
+constexpr uint32_t kConvertValueToIntegerSpecialSlot = 0xFFFFD8EEu;
+constexpr uint32_t kConvertValueToIntegerSpecialSlotBias = 10002u;
+constexpr uint32_t kConvertValueToIntegerConstantArea = 72u;
+constexpr uint32_t kConvertValueToIntegerPendingArea = 88u;
+constexpr uint32_t kConvertValueToIntegerBuiltArea = 96u;
+
+// The first slot that stands for a constant, and the base the slots below it are
+// counted down from.
+constexpr uint32_t kConvertValueToIntegerConstantSlotBase = 0xFFFFD8F1u;
+constexpr uint32_t kConvertValueToIntegerNegativeBase = 0x27118u;
+
+// The record's own byte that has to be small enough for the slot to be a
+// constant.
+constexpr uint32_t kConvertValueToIntegerSizeByteOffset = 7u;
+
+// Two to the thirty-first: a value at or past it cannot be narrowed, so the
+// answer saturates to the smallest integer.
+constexpr double kConvertValueToIntegerIntegerLimit = 2147483648.0;
+constexpr uint32_t kConvertValueToIntegerSaturated = 0x80000000u;
+
+// The suspend frame: the words this body saves, and the resume word pushed with
+// them, whose number names the call that was in flight.
+constexpr uint32_t kConvertValueToIntegerSaveFrameBytes = 8u;
+constexpr uint32_t kConvertValueToIntegerResumeWordBytes = 4u;
+constexpr uint32_t kConvertValueToIntegerMaterializeCall = 0u;
 
 }  // namespace
 
+// Narrows one value to its integer payload. A value that does not hold a number
+// yet is materialized first, and a number whose magnitude is two to the
+// thirty-first or more saturates to the smallest integer.
 uint32_t ConvertValueToInteger(EngineContext* ctx, uint32_t state, uint32_t slot) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; double l4 = 0;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u; uint32_t i6 = 0u;
-  double d0 = 0; double d1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF453SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    slot = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l2 = i0;
+  // The suspend frame base: a rewind pops it and the suspend path writes its two
+  // words into it.
+  uint32_t frame = 0u;
+  // The sixteen bytes of scratch the materialized value is built in.
+  uint32_t scratch = 0u;
+  // Whether the value already holds a number, so nothing has to be built.
+  uint32_t is_number = 0u;
+  // The call a rewinding pass re-issues, and the number a spilling pass saves.
+  uint32_t resume_point = 0u;
+  uint32_t resume_code = 0u;
+
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 8-byte frame and read its words back in the saved
+    // order.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kConvertValueToIntegerSaveFrameBytes);
+    frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    slot = LoadU32(ctx, frame);
+    scratch = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF453ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word pushed with that frame. It names the call
+    // that was in flight, so only that call is issued again.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kConvertValueToIntegerResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  i1 = 0u;
-  i2 = ResumePhase(ctx);
-  if (i2) {
-    i2 = state;
-  } else {
-    i2 = GuestStackSp(ctx);
-    i3 = 16u;
-    i2 -= i3;
-    l2 = i2;
-    GuestStackSp(ctx) = i2;
-    i2 = slot;
-    i3 = 1u;
-    i2 = (uint32_t)((int32_t)i2 >= (int32_t)i3);
-    if (i2) {
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 12u);
-      i3 = slot;
-      i4 = 4u;
-      i3 <<= (i4 & 31);
-      i2 += i3;
-      i3 = 16u;
-      i2 -= i3;
-      slot = i2;
-      i3 = kF453Const2B328;
-      i4 = slot;
-      i5 = state;
-      i5 = LoadU32(ctx, i5 + 8u);
-      i4 = i4 < i5;
-      i2 = i4 ? i2 : i3;
-      goto block_6;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The scratch the value is built in lives on the guest stack, so it lasts
+    // exactly as long as the call does.
+    GuestStackSp(ctx) -= 16u;
+    scratch = GuestStackSp(ctx);
+    // A positive slot names its own record inside the table; the slots below it
+    // name a constant, one of the three shared records, or nothing at all.
+    if (static_cast<int32_t>(slot) >= 1) {
+      uint32_t const record = LoadU32(ctx, state + 12u) + (slot << 4u) - 16u;
+      slot = record < LoadU32(ctx, state + 8u) ? record : kNilValueAddr;
+    } else if (static_cast<int32_t>(slot) >= static_cast<int32_t>(kConvertValueToIntegerConstantSlotBase)) {
+      slot = LoadU32(ctx, state + 8u) + (slot << 4u);
+    } else {
+      switch (slot + kConvertValueToIntegerSpecialSlotBias) {
+        case 0:
+          slot = state + kConvertValueToIntegerConstantArea;
+          break;
+        case 1: {
+          uint32_t const value = LoadU32(ctx, LoadU32(ctx, LoadU32(ctx, state + 20u) + 4u));
+          slot = LoadU32(ctx, value + 12u);
+          StoreU32(ctx, state + kConvertValueToIntegerBuiltArea, kConvertValueToIntegerPendingKind);
+          StoreU32(ctx, state + kConvertValueToIntegerPendingArea, slot);
+          slot = state + kConvertValueToIntegerPendingArea;
+          break;
+        }
+        case 2:
+          slot = LoadU32(ctx, state + 16u) + kConvertValueToIntegerBuiltArea;
+          break;
+        default: {
+          // A slot below the shared records names a constant of the record the
+          // state points at, as long as that record is large enough to hold it.
+          uint32_t const value = LoadU32(ctx, LoadU32(ctx, LoadU32(ctx, state + 20u) + 4u));
+          uint32_t const constant = value + ((0u - slot) << 4u) - kConvertValueToIntegerNegativeBase;
+          uint32_t const room = kConvertValueToIntegerSpecialSlot - slot;
+          slot = static_cast<int32_t>(LoadU8(ctx, value + kConvertValueToIntegerSizeByteOffset)) <
+                         static_cast<int32_t>(room)
+                     ? kNilValueAddr
+                     : constant;
+          break;
+        }
+      }
     }
-    i2 = slot;
-    i3 = kF453ConstFFFFD8F1;
-    i2 = (uint32_t)((int32_t)i2 >= (int32_t)i3);
-    if (i2) {
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 8u);
-      i3 = slot;
-      i4 = 4u;
-      i3 <<= (i4 & 31);
-      i2 += i3;
-      goto block_6;
+    is_number = static_cast<uint32_t>(LoadU32(ctx, slot + 8u) == kConvertValueToIntegerNumberKind);
+  }
+  if (is_number) {
+    goto number_ready;
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == kConvertValueToIntegerMaterializeCall) {
+    uint32_t const answer = MaterializeNumberValue(ctx, slot, scratch);
+    resume_code = kConvertValueToIntegerMaterializeCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
     }
-    i2 = slot;
-    i3 = 10002u;
-    i2 += i3;
-    switch (i2) {
-      case 0: goto block_10;
-      case 1: goto block_11;
-      case 2: goto block_12;
-      default: goto block_9;
+    slot = answer;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (slot != 0u) {
+      // The value is a number now, so its double can be read below.
+      goto number_ready;
     }
-    block_12:;
-    i2 = state;
-    i2 = LoadU32(ctx, i2 + 16u);
-    i3 = 96u;
-    i2 += i3;
-    goto block_6;
-    block_11:;
-    i2 = state;
-    i2 = LoadU32(ctx, i2 + 20u);
-    i2 = LoadU32(ctx, i2 + 4u);
-    i2 = LoadU32(ctx, i2);
-    i2 = LoadU32(ctx, i2 + 12u);
-    slot = i2;
-    i2 = state;
-    i3 = 5u;
-    StoreU32(ctx, i2 + 96u, i3);
-    i2 = state;
-    i3 = slot;
-    StoreU32(ctx, i2 + 88u, i3);
-    i2 = state;
-    i3 = 88u;
-    i2 += i3;
-    goto block_6;
-    block_10:;
-    i2 = state;
-    i3 = 72u;
-    i2 += i3;
-    goto block_6;
-    block_9:;
-    i2 = kF453Const2B328;
-    i3 = state;
-    i3 = LoadU32(ctx, i3 + 20u);
-    i3 = LoadU32(ctx, i3 + 4u);
-    i3 = LoadU32(ctx, i3);
-    state = i3;
-    i4 = 0u;
-    i5 = slot;
-    i4 -= i5;
-    i5 = 4u;
-    i4 <<= (i5 & 31);
-    i3 += i4;
-    i4 = kF453Const27118;
-    i3 -= i4;
-    i4 = state;
-    i4 = LoadU8(ctx, i4 + 7u);
-    i5 = kF453ConstFFFFD8EE;
-    i6 = slot;
-    i5 -= i6;
-    i4 = (uint32_t)((int32_t)i4 < (int32_t)i5);
-    i2 = i4 ? i2 : i3;
-    block_6:;
-    slot = i2;
-    i2 = LoadU32(ctx, i2 + 8u);
-    i3 = 3u;
-    i2 = i2 == i3;
+    // There is no value at all, so the answer is no integer either.
+    slot = 0u;
+    goto answer_ready;
   }
-  i0 = i2 ? i0 : i1;
-  if (i0) {goto running_exit;}
-  i0 = l3;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = slot;
-    i1 = l2;
-    i0 = MaterializeNumberValue(ctx, i0, i1);
-    state = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = state;
-    slot = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = slot;
-    if (i0) {goto running_exit;}
-    i0 = 0u;
-    goto block_3;
-  }
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  if (i0) {
-    i0 = slot;
-  } else {
-    i0 = slot;
-    d0 = LoadF64(ctx, i0);
-    l4 = d0;
-    d0 = wasm_fabs(d0);
-    d1 = 2147483648.0;
-    i0 = d0 < d1;
-    if (i0) {
-      d0 = l4;
-      i0 = I32_TRUNC_S_F64(d0);
-      goto block_3;
+number_ready:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The number's own double is narrowed, and one at or past the limit
+    // saturates to the smallest integer.
+    double const number = LoadF64(ctx, slot);
+    if (wasm_fabs(number) < kConvertValueToIntegerIntegerLimit) {
+      slot = I32_TRUNC_S_F64(number);
+    } else {
+      slot = kConvertValueToIntegerSaturated;
     }
-    i0 = kF453Const80000000;
   }
-  block_3:;
-  slot = i0;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l2;
-    i1 = 16u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    i0 = slot;
-    goto func_exit;
+answer_ready:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The scratch reserved on the guest stack goes back, and the answer is the
+    // integer the value holds.
+    GuestStackSp(ctx) = scratch + 16u;
+    LeaveFrame();
+    return slot;
   }
   TrapUnreachable();
-  spill_frame:;
-  state = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF453ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  state = i0;
-  i1 = slot;
-  StoreU32(ctx, i0, i1);
-  i0 = state;
-  i1 = l2;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 8u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+suspend_point:;
+  // Push the resume word naming the call that was in flight, then the frame the
+  // rewind pops; the words are saved in the order that pop reads them.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kConvertValueToIntegerResumeWordBytes);
+  frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, frame, slot);
+  StoreU32(ctx, frame + 4u, scratch);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kConvertValueToIntegerSaveFrameBytes);
   LeaveFrame();
-  return i0;
+  return 0u;
 }
-}
+
+}  // namespace artc
