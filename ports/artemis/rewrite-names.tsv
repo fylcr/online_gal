@@ -276,7 +276,7 @@ fn	f479	w2c_artemis_f479	artc::EncodeSignedOrderAsDouble	script/encode_signed_or
 fn	f490	w2c_artemis_f490	artc::ResetEventFilterState	script/reset_event_filter_state.cpp	R1	重置 f392 EventFilter 条目状态（调 f392 / f582）
 fn	f491	w2c_artemis_f491	artc::ReleaseShallowNodePair	util/release_shallow_node_pair.cpp	R1	递归析构 745280；tag@59/@35 两段
 fn	f532	w2c_artemis_f532	artc::ClearLinkedNodeFields	util/clear_linked_node_fields.cpp	R1	同址去重后把 +8/+12/+16 写 0
-fn	f533	w2c_artemis_f533	artc::PersistSessionState	—	—	存档/输入状态机（onSave / autosave.dat / input / video）
+fn	f533	w2c_artemis_f533	artc::PersistSessionState	core/persist_session_state.cpp	R1	存档/输入状态机（onSave / autosave.dat / input / video）
 fn	f534	w2c_artemis_f534	artc::ReleaseTaggedNodeTriple	util/release_tagged_node_triple.cpp	R1	递归析构 748244；tag@47→+36、@27→+16
 fn	f550	w2c_artemis_f550	artc::CompileNumericPower	script/compile_numeric_power.cpp	R1	幂运算编译（f364 / f435 / f340）
 fn	f582	w2c_artemis_f582	artc::InitNodeStorage	render/init_node_storage.cpp	R1	节点存储构造；与 f437 析构配对

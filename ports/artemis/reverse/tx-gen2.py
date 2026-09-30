@@ -440,6 +440,10 @@ PROD.update({
  'f1456': ('EmplaceHashedEntry', 'void', ['ctx', 'p0', 'p1', 'p2', 'p3']),
  'f753': ('CopyTaggedTreeKeyToText', 'void', ['ctx', 'p0', 'p1', 'p2', 'p3', 'p4', 'p5']),
  'f579': ('ApplyEventRecordTable', 'void', ['ctx', 'p0']),
+ # ---- batch-10: the giants batch-9 unlocked (they already had tsv rows) ----
+ 'f3551': ('AutoReadTimer::Dispatch', 'void', ['ctx', 'p0', 'p1']),
+ 'f3698': ('VideoPlayer::Dispatch', 'void', ['ctx', 'p0', 'p1', 'p2']),
+ 'f533': ('PersistSessionState', 'void', ['ctx', 'p0', 'p1']),
  # These six are forwarder-only rows: the generated body keeps the definition,
  # the name is what the products call.  Evidence for each name is in
  # rewrite-names.tsv (no data-segment constants exist in any of these six, so the
@@ -1259,6 +1263,16 @@ METAS = {
  'f579': dict(ret='void', params=['a'], file='util/apply_event_record_table.cpp',
    purpose="ApplyEventRecordTable -- walks the queued twenty byte event records of the engine object, resolves each one through the tagged tree and applies it, releasing the replaced node subtrees.",
    loc={}, frame=32),
+ # ---- batch-10 ----
+ 'f3551': dict(ret='void', params=['a', 'b'], file='input/auto_read.cpp',
+   purpose="AutoReadTimer::Dispatch -- the per-frame auto-read tick: it runs the onEnterFrame pass, applies the auto-mode wait, click-skip and avoid-status rules and refreshes the wasm sync progress fields.",
+   loc={}, frame=140),
+ 'f3698': dict(ret='void', params=['a', 'b', 'c'], file='render/video_player.cpp',
+   purpose="VideoPlayer::Dispatch -- the video element tag dispatch: it drives playback through the input and video handles and folds the player state back into the session.",
+   loc={}, frame=44),
+ 'f533': dict(ret='void', params=['a', 'b'], file='core/persist_session_state.cpp',
+   purpose="PersistSessionState -- saves the session: it sequences the autosave.dat write and drives the onClickWaitIn and onClickWaitOut Lua callbacks.",
+   loc={}, frame=24),
 }
 
 def die(msg):
@@ -1651,6 +1665,8 @@ ORDER = ['f265','f5721','f910','f708','f364','f645','f223','f476','f4579','f399'
          # ---- batch-4B: the 50 named items, then the 26 external callees ----
          # ---- batch-9 ----
          'f850', 'f1456', 'f753', 'f579',
+         # ---- batch-10 ----
+         'f3551', 'f3698', 'f533',
          'f605','f646','f909','f911','f912','f913','f1117','f1132','f1718','f1719','f1720','f1746','f5678','f5679',
          'f262','f298','f304','f309','f377','f783','f1486','f1487','f3516','f3804','f5509','f5536','f5628','f5629','f5630','f5716',
          'f255','f382','f442','f450','f451','f453','f521','f548','f781','f784','f885','f897','f1112','f1128','f1212','f1715','f1739','f2207','f1701','f899',

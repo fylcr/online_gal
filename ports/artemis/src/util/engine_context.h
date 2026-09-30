@@ -161,7 +161,6 @@ inline void StoreGlobalEntry(EngineContext* ctx, uint32_t globals, uint32_t inde
   inline uint32_t ReadPackedI64Value(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { return w2c_artemis_f376(ctx, p0, p1, p2); }
   inline uint32_t FormatLuaEventFilterLine(EngineContext* ctx, uint32_t p0, uint32_t p1) { return w2c_artemis_f392(ctx, p0, p1); }
   inline void ReleaseNodeListTail(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f438(ctx, p0, p1); }
-  inline void PersistSessionState(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f533(ctx, p0, p1); }
   inline uint32_t MeasureFormattedNumber(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { return w2c_artemis_f671(ctx, p0, p1, p2); }
   inline void ReleaseSubtreeTaggedNodes(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f679(ctx, p0, p1); }
   inline void FormatLuaTagFilterLine(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) { w2c_artemis_f681(ctx, p0, p1, p2, p3); }
@@ -189,12 +188,6 @@ inline void StoreGlobalEntry(EngineContext* ctx, uint32_t globals, uint32_t inde
   inline void FindTaggedTreeEntry(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5) { w2c_artemis_f336(ctx, p0, p1, p2, p3, p4, p5); }
   inline void ClearObjectDeque(EngineContext* ctx, uint32_t p0) { w2c_artemis_f580(ctx, p0); }
   inline uint32_t PushObjectDequeElement(EngineContext* ctx, uint32_t p0, uint32_t p1) { return w2c_artemis_f1409(ctx, p0, p1); }
-// PROVISIONAL nested-namespace forwarders (their dispatch products land later).
-namespace AutoReadTimer {
-inline void Dispatch(EngineContext* ctx, uint32_t p0, uint32_t p1) {
-  w2c_artemis_f3551(ctx, p0, p1);
-}
-}  // namespace AutoReadTimer
 // PROVISIONAL host-ABI wraps the batch-1 products drive (real names land with
 // host/host_api). The ret0 pair halves an i64 return; the rest are the
 // os-service and assert slots. Table wraps name their slot: the macro's own
