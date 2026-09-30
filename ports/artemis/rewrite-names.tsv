@@ -99,7 +99,7 @@ fn	f3548	art_rp_dispatch	artc::MessageLayer::RpDispatch	script/message_rp_dispat
 fn	f3551	art_alreadyread_dispatch	artc::AutoReadTimer::Dispatch	input/auto_read.cpp	R1	auto-read; AutoReadTimer exists in its tree
 fn	f3558	art_reset7	artc::SceneReset::Reset07	script/scene_reset_07.cpp	R0	reset clone family
 fn	f3626	art_reset8	artc::SceneReset::Reset08	script/scene_reset_08.cpp	R0	reset clone family
-fn	f3631	art_command_dispatch	artc::FetchManager::CommandDispatch	host/fetch_manager_command.cpp	R1	6 commands incl clear_cache/baseurl + JP file diagnostics
+fn	f3631	art_command_dispatch	artc::FetchManager::CommandDispatch	host/fetch_manager_command.cpp	R1	FetchManager command dispatcher: constants baseurl clear_cache command copy delete dst src target url wasm_sync wasm_sync_add_persistent wasm_sync_delete_persistent plus s.wasm_sync_current/status/total. Callees f200 f201 f202 f207 f330 f360 f366 f1072 f294 f199; frame 40.
 fn	f3633	art_builtin_dispatch	artc::LuaEngine::BuiltinDispatch	script/lua_tags_builtin.cpp	R2	8 parts, 33 var-class tags
 fn	f3650	art_delon_dispatch	artc::LuaEngine::TagGenericDelOn	script/lua_tag_generic_del.cpp	R1	AGENT.md seton*/delon* prefix registry pattern
 fn	f3651	art_seton_dispatch	artc::LuaEngine::TagGenericSetOn	script/lua_tag_generic_set.cpp	R1	AGENT.md seton*/delon* prefix registry pattern

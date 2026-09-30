@@ -458,6 +458,7 @@ PROD.update({
  'f1072': ('ClearUnorderedBuckets', 'void', ['ctx', 'p0']),
  'f294': ('RethrowPendingException', 'void', ['ctx', 'p0']),
  'f366': ('Fread', 'uint32_t', ['ctx', 'p0', 'p1', 'p2', 'p3']),
+ 'f3631': ('FetchManager::CommandDispatch', 'void', ['ctx', 'p0', 'p1', 'p2']),
  # These six are forwarder-only rows: the generated body keeps the definition,
  # the name is what the products call.  Evidence for each name is in
  # rewrite-names.tsv (no data-segment constants exist in any of these six, so the
@@ -1323,6 +1324,10 @@ METAS = {
   'f366': dict(ret='uint32_t', params=['a', 'b', 'c', 'd'], file='util/fread.cpp',
     purpose="Fread -- the libc fread: size times count bytes are read into the buffer through ReadInputLine and the count of complete records is answered.",
     loc={}, frame=24),
+  # ---- batch-14 ----
+  'f3631': dict(ret='void', params=['a', 'b', 'c'], file='host/fetch_manager_command.cpp',
+    purpose="FetchManager::CommandDispatch -- the async fetch command dispatcher: it matches the command word and serves clear_cache, baseurl and the wasm_sync add/delete_persistent commands, pulling through url / dst / src / target.",
+    loc={}, frame=40),
 }
 
 def die(msg):
@@ -1722,6 +1727,7 @@ ORDER = ['f265','f5721','f910','f708','f364','f645','f223','f476','f4579','f399'
          # ---- batch-12 ----
          'f3085', 'f3086', 'f3087', 'f3088',
           'f1072', 'f294', 'f366',
+          'f3631',
          'f605','f646','f909','f911','f912','f913','f1117','f1132','f1718','f1719','f1720','f1746','f5678','f5679',
          'f262','f298','f304','f309','f377','f783','f1486','f1487','f3516','f3804','f5509','f5536','f5628','f5629','f5630','f5716',
          'f255','f382','f442','f450','f451','f453','f521','f548','f781','f784','f885','f897','f1112','f1128','f1212','f1715','f1739','f2207','f1701','f899',
