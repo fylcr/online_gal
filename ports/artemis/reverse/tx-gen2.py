@@ -444,6 +444,11 @@ PROD.update({
  'f3551': ('AutoReadTimer::Dispatch', 'void', ['ctx', 'p0', 'p1']),
  'f3698': ('VideoPlayer::Dispatch', 'void', ['ctx', 'p0', 'p1', 'p2']),
  'f533': ('PersistSessionState', 'void', ['ctx', 'p0', 'p1']),
+ # ---- batch-11 ----
+ 'f290': ('AppendTableSlot', 'void', ['ctx', 'p0', 'p1', 'p2']),
+ 'f363': ('EnsureTableArrayRoom', 'void', ['ctx', 'p0']),
+ 'f288': ('MakeStringFromBytes', 'void', ['ctx', 'p0', 'p1', 'p2']),
+ 'f772': ('GetRegistryTableField', 'uint32_t', ['ctx', 'p0', 'p1']),
  # These six are forwarder-only rows: the generated body keeps the definition,
  # the name is what the products call.  Evidence for each name is in
  # rewrite-names.tsv (no data-segment constants exist in any of these six, so the
@@ -1273,6 +1278,19 @@ METAS = {
  'f533': dict(ret='void', params=['a', 'b'], file='core/persist_session_state.cpp',
    purpose="PersistSessionState -- saves the session: it sequences the autosave.dat write and drives the onClickWaitIn and onClickWaitOut Lua callbacks.",
    loc={}, frame=24),
+ # ---- batch-11 ----
+ 'f290': dict(ret='void', params=['a', 'b', 'c'], file='util/append_table_slot.cpp',
+   purpose="AppendTableSlot -- appends one 16-byte tagged table slot to the array part and grows the array first when it is full.",
+   loc={}, frame=16),
+ 'f363': dict(ret='void', params=['a'], file='util/ensure_table_array_room.cpp',
+   purpose="EnsureTableArrayRoom -- decides the next capacity of a table array part (1024-element steps plus a spent-credit percent fallback).",
+   loc={}, frame=20),
+ 'f288': dict(ret='void', params=['a', 'b', 'c'], file='util/make_string_from_bytes.cpp',
+   purpose="MakeStringFromBytes -- builds a std::string from a raw (ptr,len) pair, raises on an impossible length and notifies the two table-slot callbacks.",
+   loc={}, frame=32),
+ 'f772': dict(ret='uint32_t', params=['a', 'b'], file='script/get_registry_table_field.cpp',
+   purpose="GetRegistryTableField -- reads one field by key out of the Lua registry pseudo-table into two cleared value slots.",
+   loc={}, frame=24),
 }
 
 def die(msg):
@@ -1667,6 +1685,8 @@ ORDER = ['f265','f5721','f910','f708','f364','f645','f223','f476','f4579','f399'
          'f850', 'f1456', 'f753', 'f579',
          # ---- batch-10 ----
          'f3551', 'f3698', 'f533',
+         # ---- batch-11 ----
+         'f290', 'f363', 'f288', 'f772',
          'f605','f646','f909','f911','f912','f913','f1117','f1132','f1718','f1719','f1720','f1746','f5678','f5679',
          'f262','f298','f304','f309','f377','f783','f1486','f1487','f3516','f3804','f5509','f5536','f5628','f5629','f5630','f5716',
          'f255','f382','f442','f450','f451','f453','f521','f548','f781','f784','f885','f897','f1112','f1128','f1212','f1715','f1739','f2207','f1701','f899',
