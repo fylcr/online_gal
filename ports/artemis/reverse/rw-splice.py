@@ -106,11 +106,25 @@ def main():
     if set(sig_of) != set(products):
         sys.exit('rw-splice: no generated def for f%s'
                  % ', f'.join(str(f) for f in sorted(set(products) - set(sig_of))))
+    # A nested target (`artc::LuaEngine::Call`) has to be declared inside its own
+    # namespace: the thunk below calls it by its full name and every product that
+    # spells the callee the way the generator's NESTED table does (`LuaEngine::Call`)
+    # needs the namespace open, not a bare `Call` in artc.
+    groups = {}
+    for fnid in sorted(products):
+        parts = products[fnid][0].split('::')
+        groups.setdefault(tuple(parts[1:-1]), []).append((fnid, parts[-1]))
     proto = ['// ---- rewrite prototypes: cross-product calls resolve here ----\n',
              'namespace artc {\n']
-    for fnid in sorted(products):
-        ret_type, types = sig_of[fnid]
-        proto.append('  %s %s(%s);\n' % (ret_type, products[fnid][0].split('::')[-1], ', '.join(types)))
+    for qual in sorted(groups):
+        for depth, name in enumerate(qual):
+            proto.append('%snamespace %s {\n' % ('  ' * (depth + 1), name))
+        for fnid, short in groups[qual]:
+            ret_type, types = sig_of[fnid]
+            proto.append('%s%s %s(%s);\n'
+                         % ('  ' * (len(qual) + 1), ret_type, short, ', '.join(types)))
+        for depth in reversed(range(len(qual))):
+            proto.append('%s}  // namespace %s\n' % ('  ' * (depth + 1), qual[depth]))
     proto.append('}\n')
     proto = ''.join(proto)
 

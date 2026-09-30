@@ -102,7 +102,12 @@ tsv rt 行目标拼写已对齐 `ResumePhase()` / `ReturnFrameSp()`。
 **未重写 callee 的调用跳板（2026-09-25 起）**：前向声明只过语法闸、链接必挂——产品调用
 尚未重写的函数一律经 util/engine_context.h 的 thin call-through（词汇边界内拼
 w2c_artemis_fNNN，产品照常只写 artc 名 + 同型前向声明）；tsv 记 `fn fNNN — artc::Name — —`
-行标 PROVISIONAL，对应产品落地时删跳板并集中对名。在册：f603 RawValueEqual（2×u32）/
+行标 PROVISIONAL，对应产品落地时删跳板并集中对名。另有一段 PROVISIONAL **嵌套命名空间**跳板
+（engine_context.h `// PROVISIONAL nested-namespace forwarders`，2026-10-01 记录）：f1042
+`BacklogView::DispatchAux` 与 f904 `LuaEngine::Call` 已随批 5 落地删除，现只剩 f3551
+`AutoReadTimer::Dispatch`；**哪个产品的定义进了树，就必须同步删掉它在这一段的 inline 跳板**，
+否则 em++ 直接 `error: redefinition`（跳板与产品同名同签名，且产品落地后 `w2c_artemis_fNNN` 已被
+rw-splice 改名，跳板也再无被调用的可能）。在册：f603 RawValueEqual（2×u32）/
 f643 FinishTableIndex（3×u32）/ f805 GrowStringAndReplace（void, 8×u32）/ f1727
 RefillRecordState（2×u32）/ f313 RaiseScriptError（void, 3×u32；勿与 f199 artc::Panic
 混淆）。f898 定名 GetTableFieldByNumber（与 GetTableFieldByString 成对；f326 曾以
