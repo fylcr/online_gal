@@ -338,3 +338,12 @@ fn	f747	—	artc::ReleaseHashedNodeTable	util/release_hashed_node_table.cpp	R1	b
 fn	f3403	—	artc::UnorderedGetBucket	util/unordered_get_bucket.cpp	R1	boost::unordered::detail::table::get_bucket：断言串 buckets_/get_bucket 为证；越界兜底 f199 Panic；frame 8
 fn	f861	—	artc::ReleaseNestedNodeChain	util/release_nested_node_chain.cpp	R1	两子链递归 + 尾链经 f1029 释放；与 f747 同为 f3744/f1034 的局部容器析构；frame 12
 fn	f1029	—	artc::ResumeExceptionCleanup	core/exception_cleanup.cpp	R1	catch/resume 落点：a_d=HostReleaseSlotPair、a_g=FindMatchingCatch、a_b=HostTempRet0，兜底 f199 Panic + UNREACHABLE；frame 12
+# ---- batch-8A: f859 LuaEngine::Dispatch / f3196 TextFxDispatch / f3548 RpDispatch 三个封口产品的横向前置 callee ----
+# 只登记名字（file 列 `—`）+ engine_context.h 前向声明，实体仍是生成层；六个函数都没有数据段常量，
+# 名字全部来自结构（计数/虚调用/容器形状）与 caller 集合，不进 tsv 的 product 面。
+fn	f295	—	artc::ReleaseSharedRef	—	—	shared_ptr 释放路径：counted-base 计数 @+4/@+8 递减、dispose 走虚槽 8/12、下溢落 f199 Panic；37 个 caller（f1358 ×15）；frame 8
+fn	f4704	—	artc::ReleaseSharedRefChain	—	—	单链走 @+4(next)/@+12(member)，逐节点释放 shared_ptr；唯一 caller f883；frame 20
+fn	f883	—	artc::DestroyDispatchObject	—	—	析构形：入口把 vtable 568644u 写回 @+0，释放 @+20 的 shared_ptr，再经 f4704 清成员链；caller f859 ×2 / f4703；frame 28
+fn	f336	—	artc::FindTaggedTreeEntry	—	—	tag@27 + 子节点 @0/@4 的标记树查找，比较器 f200 CompareBytes、路径串 f201/f215；caller f3673 ×15 / f3548 ×9；frame 32
+fn	f580	—	artc::ClearObjectDeque	—	—	deque 析构：元素 168 字节、每块 24 个（4032=168×24），元素析构走 vtable 槽 0，收尾释放块指针表；8 个 caller；frame 28
+fn	f1409	—	artc::PushObjectDequeElement	—	—	同型 deque 入队：拼迭代器对（24/168）写 32 字节状态，断言 a.e(3235,…)，异常路径经 f580 清队；caller f3196；frame 12

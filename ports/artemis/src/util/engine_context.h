@@ -178,6 +178,17 @@ inline void StoreGlobalEntry(EngineContext* ctx, uint32_t globals, uint32_t inde
   inline void PauseFullscreenVideo(EngineContext* ctx, uint32_t p0) { w2c_artemis_f3872(ctx, p0); }
   inline void RebuildUnorderedIndexTable(EngineContext* ctx, uint32_t p0) { w2c_artemis_f3933(ctx, p0); }
   inline void PrepareParameterFrame(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f5538(ctx, p0, p1); }
+// Batch-8A closure forwarders: the three dispatch products landing in this batch
+  // (f859 LuaEngine::Dispatch, f3196 TextFxDispatch, f3548 RpDispatch) all call
+  // these horizontally shared helpers, so they get names now and keep their
+  // generated bodies until their own batch lands them.  Evidence per name is in
+  // rewrite-names.tsv; none of the six has a data-segment constant.
+  inline void ReleaseSharedRef(EngineContext* ctx, uint32_t p0) { w2c_artemis_f295(ctx, p0); }
+  inline void ReleaseSharedRefChain(EngineContext* ctx, uint32_t p0) { w2c_artemis_f4704(ctx, p0); }
+  inline uint32_t DestroyDispatchObject(EngineContext* ctx, uint32_t p0) { return w2c_artemis_f883(ctx, p0); }
+  inline void FindTaggedTreeEntry(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5) { w2c_artemis_f336(ctx, p0, p1, p2, p3, p4, p5); }
+  inline void ClearObjectDeque(EngineContext* ctx, uint32_t p0) { w2c_artemis_f580(ctx, p0); }
+  inline uint32_t PushObjectDequeElement(EngineContext* ctx, uint32_t p0, uint32_t p1) { return w2c_artemis_f1409(ctx, p0, p1); }
 // PROVISIONAL nested-namespace forwarders (their dispatch products land later).
 namespace AutoReadTimer {
 inline void Dispatch(EngineContext* ctx, uint32_t p0, uint32_t p1) {

@@ -293,3 +293,13 @@ instrument-profile.py 计数锚 = 产品体 `  EnterFrame();`（索引取自 rw-
 - 生成器产物不许手改（改生成器重跑）；委托 ≤8 并发、单函数任务、2 次不成即自做。
 - **同类静默缺陷**：类型截断（`uint32_t` 收 `f32`/`f64`/`u64`）能过全部四闸、四闸只验 66 个导出
   的一致性、**不验函数内部语义**。任何数值改写（掩码、位宽、符号扩展、饱和）都要单独开审计轴。
+- **`--only=` 会静默跳过没登记全的产品（2026-10-01 批 8A 实测）**：一个产品要落盘必须**同时**登记
+  三处——`tx-gen2.py` 的 `PROD`（元组形 `'fNNN': ('Qual::Name', 'ret', ['ctx','p0', …])`）、
+  `METAS`（`dict(ret=…, params=['a', …], file=…, purpose="Name -- 一句话.", loc={}, frame=N)`）、
+  `ORDER` 列表；**只有 tsv 行不够**（`rewrite-names.tsv` 是命名表，不是落盘清单）。缺任一处，
+  `python tx-gen2.py --only=fNNN` 会 rc=0、**一行 `EMIT` 都不打、文件也不发**，日志里只剩别的
+  函数的 `PROBLEM … leftovers: ['UNREACHABLE']` 噪声，极易误判成「函数太大发不出来」。发完必须用
+  `--check` 核对 `identical N / differing 0 / absent 0`。frame 从伪 C 的 `mem[g4] - N` 取。
+- **横向前置 callee 的登记形**：多个产品共用的 callee 先只登记名字（tsv 的 `file` 列写 `—`、
+  `PROD` 元组、`engine_context.h` 一行 `inline` 转发），实体留在生成层等它自己的批次。这类行会
+  出现在 `tx-plan --ready` 输出里，但永远不会被 splice（`rw-splice.py` 只筛真实存在的 `src/<file>`）。

@@ -425,6 +425,22 @@ PROD.update({
  'f490': ('ResetEventFilterState', 'void', ['ctx', 'p0']),
  'f776': ('ReallocateFormatBuffer', 'uint32_t', ['ctx', 'p0', 'p1', 'p2']),
  'f582': ('InitNodeStorage', 'void', ['ctx', 'p0']),
+ # ---- batch-8A: the three dispatch products that only needed a naming closure
+ # (f859 LuaEngine::Dispatch, f3196 MessageLayer::TextFxDispatch, f3548
+ # MessageLayer::RpDispatch) followed by the cross-cutting callees they share.
+ 'f859': ('LuaEngine::Dispatch', 'uint32_t', ['ctx', 'p0', 'p1']),
+ 'f3196': ('MessageLayer::TextFxDispatch', 'void', ['ctx', 'p0', 'p1', 'p2', 'p3', 'p4']),
+ 'f3548': ('MessageLayer::RpDispatch', 'void', ['ctx', 'p0']),
+ # These six are forwarder-only rows: the generated body keeps the definition,
+ # the name is what the products call.  Evidence for each name is in
+ # rewrite-names.tsv (no data-segment constants exist in any of these six, so the
+ # names come from structure and call sites).
+ 'f295': ('ReleaseSharedRef', 'void', ['ctx', 'p0']),
+ 'f4704': ('ReleaseSharedRefChain', 'void', ['ctx', 'p0']),
+ 'f883': ('DestroyDispatchObject', 'uint32_t', ['ctx', 'p0']),
+ 'f336': ('FindTaggedTreeEntry', 'void', ['ctx', 'p0', 'p1', 'p2', 'p3', 'p4', 'p5']),
+ 'f580': ('ClearObjectDeque', 'void', ['ctx', 'p0']),
+ 'f1409': ('PushObjectDequeElement', 'uint32_t', ['ctx', 'p0', 'p1']),
 })
 NESTED = {'f3551': 'namespace AutoReadTimer {', 'f1042': 'namespace BacklogView {',
           'f904': 'namespace LuaEngine {'}
@@ -1130,6 +1146,16 @@ METAS = {
  'f582': dict(ret='void', params=['a'], file='render/init_node_storage.cpp',
    purpose="InitNodeStorage -- initialises the node storage: the node slots are zeroed and the storage chain is primed.",
    loc={}, frame=28),
+ # ---- batch-8A: the three dispatch products that needed only a naming closure ----
+ 'f859': dict(ret='uint32_t', params=['a', 'b'], file='script/lua_engine_dispatch.cpp',
+   purpose="LuaEngine::Dispatch -- the Lua engine dispatch entry: one suspendable step drains the queued tag dispatch work and returns the resume status.",
+   loc={}, frame=60),
+ 'f3196': dict(ret='void', params=['a', 'b', 'c', 'd', 'e'], file='script/text_fx_dispatch.cpp',
+   purpose="MessageLayer::TextFxDispatch -- the text effect dispatch step: the pending text-effect slots are advanced one message layer step.",
+   loc={}, frame=128),
+ 'f3548': dict(ret='void', params=['a'], file='script/message_rp_dispatch.cpp',
+   purpose="MessageLayer::RpDispatch -- the page turn dispatch step: the queued page turn request is applied one message layer step.",
+   loc={}, frame=44),
 }
 
 def die(msg):
@@ -1539,6 +1565,8 @@ ORDER = ['f265','f5721','f910','f708','f364','f645','f223','f476','f4579','f399'
          'f5733', 'f704', 'f289', 'f325', 'f263', 'f1742', 'f1734', 'f782', 'f1708', 'f1723', 'f1713', 'f1714',
          'f1118', 'f1721', 'f1114', 'f1325', 'f334', 'f1731', 'f1732', 'f5624', 'f763', 'f761', 'f1210', 'f490',
          'f776', 'f582',
+         # ---- batch-8A: the three dispatch products with a naming closure ----
+         'f859', 'f3196', 'f3548',
          ]
 _TODO = [f for f in ORDER if not ONLY or f in ONLY]
 for fnid in _TODO:
