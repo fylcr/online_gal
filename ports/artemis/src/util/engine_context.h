@@ -334,21 +334,11 @@ inline void StoreGlobalEntry(EngineContext* ctx, uint32_t globals, uint32_t inde
   inline void CompileKeywordCondition(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f5676(ctx, p0, p1); }
   inline void FormatTracebackSlotEntry(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { w2c_artemis_f5733(ctx, p0, p1, p2); }
 // PROVISIONAL nested-namespace forwarders (their dispatch products land later).
-namespace BacklogView {
-inline void DispatchAux(EngineContext* ctx, uint32_t p0, uint32_t p1) {
-  w2c_artemis_f1042(ctx, p0, p1);
-}
-}  // namespace BacklogView
 namespace AutoReadTimer {
 inline void Dispatch(EngineContext* ctx, uint32_t p0, uint32_t p1) {
   w2c_artemis_f3551(ctx, p0, p1);
 }
 }  // namespace AutoReadTimer
-namespace LuaEngine {
-inline uint32_t Call(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) {
-  return w2c_artemis_f904(ctx, p0, p1, p2);
-}
-}  // namespace LuaEngine
 // PROVISIONAL host-ABI wraps the batch-1 products drive (real names land with
 // host/host_api). The ret0 pair halves an i64 return; the rest are the
 // os-service and assert slots. Table wraps name their slot: the macro's own
@@ -398,6 +388,35 @@ inline void HostReleaseSlotPair(EngineContext* ctx, uint32_t slot, uint32_t coun
 }
 inline void HostSyncSlot(EngineContext* ctx, uint32_t slot, uint32_t a, uint32_t b, uint32_t c) {
   w2c_a_f(ctx->w2c_a_instance, slot, a, b, c);
+}
+// The remaining table trampolines the giant dispatchers reach: the signature is
+// the import's own, with the table slot in front. No call site has been read for
+// a role yet, so the arity is the honest part of these names -- rename them the
+// way A_d became HostReleaseSlotPair and A_f became HostSyncSlot once one is.
+inline void HostInvokeViiiiii(EngineContext* ctx, uint32_t slot, uint32_t a, uint32_t b,
+                              uint32_t c, uint32_t d, uint32_t e, uint32_t f) {
+  w2c_a_l(ctx->w2c_a_instance, slot, a, b, c, d, e, f);
+}
+inline uint32_t HostInvokeIiiiii(EngineContext* ctx, uint32_t slot, uint32_t a, uint32_t b,
+                                 uint32_t c, uint32_t d, uint32_t e) {
+  return w2c_a_n(ctx->w2c_a_instance, slot, a, b, c, d, e);
+}
+inline uint32_t HostInvokeIiiii(EngineContext* ctx, uint32_t slot, uint32_t a, uint32_t b,
+                                uint32_t c, uint32_t d) {
+  return w2c_a_o(ctx->w2c_a_instance, slot, a, b, c, d);
+}
+inline float HostInvokeFi(EngineContext* ctx, uint32_t slot, uint32_t a) {
+  return w2c_a_t(ctx->w2c_a_instance, slot, a);
+}
+inline void HostInvokeVif(EngineContext* ctx, uint32_t slot, uint32_t a, float f) {
+  w2c_a_v(ctx->w2c_a_instance, slot, a, f);
+}
+inline uint32_t HostInvokeI(EngineContext* ctx, uint32_t slot) {
+  return w2c_a_x(ctx->w2c_a_instance, slot);
+}
+inline void HostInvokeViiiiiii(EngineContext* ctx, uint32_t slot, uint32_t a, uint32_t b,
+                               uint32_t c, uint32_t d, uint32_t e, uint32_t f, uint32_t g) {
+  w2c_a_y(ctx->w2c_a_instance, slot, a, b, c, d, e, f, g);
 }
 // A_h is handed a struct offset and a field count and returns a value --
 // the fold that turns a field group into one address. The counts it gets
