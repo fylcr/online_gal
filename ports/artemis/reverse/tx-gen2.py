@@ -431,6 +431,10 @@ PROD.update({
  'f859': ('LuaEngine::Dispatch', 'uint32_t', ['ctx', 'p0', 'p1']),
  'f3196': ('MessageLayer::TextFxDispatch', 'void', ['ctx', 'p0', 'p1', 'p2', 'p3', 'p4']),
  'f3548': ('MessageLayer::RpDispatch', 'void', ['ctx', 'p0']),
+ # ---- batch-8C: the three giants unlocked by the batch-8B naming closure ----
+ 'f3651': ('LuaEngine::TagGenericSetOn', 'void', ['ctx', 'p0', 'p1', 'p2']),
+ 'f3293': ('FetchManager::HttpDispatch', 'void', ['ctx', 'p0', 'p1']),
+ 'f3650': ('LuaEngine::TagGenericDelOn', 'void', ['ctx', 'p0', 'p1', 'p2']),
  # These six are forwarder-only rows: the generated body keeps the definition,
  # the name is what the products call.  Evidence for each name is in
  # rewrite-names.tsv (no data-segment constants exist in any of these six, so the
@@ -1227,6 +1231,16 @@ METAS = {
  'f722': dict(ret='uint32_t', params=['a', 'b'], file='util/find_last_char_in_string.cpp',
    purpose='FindLastCharInString -- string wrapper over the backwards byte scan: reads the base pointer and the short-string length out of the member string.',
    loc={}, frame=0),
+ # ---- batch-8C: the three giants unlocked by the batch-8B naming closure ----
+ 'f3651': dict(ret='void', params=['a', 'b', 'c'], file='script/lua_tag_generic_set.cpp',
+   purpose="TagGenericSetOn -- the seton* tag registry: matches the tag name against the setonautomodein .. setonwindowbutton handler table, deep-copies the script block and assigns it into the tagged tree.",
+   loc={}, frame=52),
+ 'f3293': dict(ret='void', params=['a', 'b'], file='host/fetch_manager_http.cpp',
+   purpose="HttpDispatch -- the httpget/httppost tag surface: validates the url, key, value and header parameters, builds the multipart or urlencoded body and drives the fetch step.",
+   loc={}, frame=64),
+ 'f3650': dict(ret='void', params=['a', 'b', 'c'], file='script/lua_tag_generic_del.cpp',
+   purpose="TagGenericDelOn -- the delon* tag registry: matches the tag name against the delonautomodein .. delonwindowbutton handler table, erases the stored script block and releases the sound object slot it owned.",
+   loc={}, frame=40),
 }
 
 def die(msg):
@@ -1628,6 +1642,8 @@ ORDER = ['f265','f5721','f910','f708','f364','f645','f223','f476','f4579','f399'
          'f746','f747','f3403','f861','f1029',
          'f3744',
          # ---- batch 7: the plan rows that were already satisfiable ----
+         # ---- batch-8C ----
+         'f3651', 'f3293', 'f3650',
          'f1033', 'f1032', 'f390', 'f1459', 'f1457', 'f413', 'f1471', 'f272', 'f1520', 'f678', 'f680', 'f682',
          'f391', 'f422', 'f491', 'f534', 'f583', 'f1531', 'f2305', 'f532', 'f437', 'f242', 'f471', 'f268',
          'f860', 'f1408', 'f281', 'f2892', 'f839', 'f243', 'f313', 'f907', 'f248', 'f250', 'f293', 'f560',
