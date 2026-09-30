@@ -2194,14 +2194,10 @@ apparent size 2.69/3.36 GB 也走到 `complete!`）；`ASYNCIFY_URL` 对 sync �
 `共通-01が見つかりませんでした`（找不到剧本）。
 
 根因：`write_pf8` / `repack-parts.py` 原先用 **CP932** 写索引名字，而官方 `root.pfs` 的
-**非 ASCII 名字是 UTF-8**（21,587 条里 525 条非 ASCII，全部按 UTF-8 解得出：
-
-```
-pc\ja\blog\name\あすみ.png   hex 70635c6a615c626c6f675c6e616d655c e38182e38199e381bf 2e706e67
-image\line\title01\天梨.png  ← 同样是 UTF-8 三字节序列
-```
-
-）。编码写错时 ASCII 名字照常命中（所以标题画面看着一切正常），**非 ASCII 名字全部落空** ⇒ 剧本、
-CG、立绘按名字查的一律找不到。结论：**名字用部署 `CHARSET` 对应的编码写**（本部署是
+**非 ASCII 名字是 UTF-8**（21,587 条里 525 条非 ASCII，全部按 UTF-8 解得出；例如
+`pc\ja\blog\name\あすみ.png` 的字节是 `70635c6a615c626c6f675c6e616d655c` +
+`e38182e38199e381bf` + `.png`，其中 `e38182` 正是「あ」；`image\line\title01\天梨.png`
+同理）。编码写错时 ASCII 名字照常命中（所以标题画面看着一切正常），**非 ASCII 名字全部落空** ⇒
+剧本、CG、立绘按名字查的一律找不到。结论：**名字用部署 `CHARSET` 对应的编码写**（本部署是
 `CHARSET=UTF-8` ⇒ UTF-8），SDK 自家 packer 那套 CP932 只在它自己的 charset 下 byte-identical。
 
