@@ -2084,3 +2084,77 @@ globals 里一个 4 字节可重定位值偏 `+0x2C50`（data 段同一位置亦
 本机构建只是**诊断件**，不是被测对象——它「行为一致」是量出来的，不是假设的。根因未定，位置已收敛到
 「em++ 链接那一步的某个环境输入」。
 
+---
+
+## 十九、官方 sync 口味跑真游戏：真凶是 **pack 索引顺序**，多段重打包把「整包入内存」换成按需读
+
+起因：asyncify 口味早就在真游戏上跑通（§18，官方模块 86.8% lit），但 **sync/plain 口味**一直只
+在 SDK Sample（15.8 MB）上跑过——它的设计是「整棵游戏树打进一个 `artemis.data`，由
+`FS_createDataFile` 建成内存 FS」，而真游戏是 `root.pfs` 2.69 GB + `root.pfs.000` 3.36 GB，
+浏览器装不下。于是把 pack 自己挂成 lazy（`FS_createLazyFile`）成了唯一出路，而它撞上的第一堵墙
+不是尺寸，是**索引顺序**。
+
+### 19.1 真凶：索引必须是 packer 自己的顺序
+
+引擎读完索引就**静默停住**——没有异常、没有 abort、没有一行打印，canvas 停在 1×1 或黑屏。用
+`FS_createLazyFile` 返回的 node 包一层 `stream_ops.read` 把每一次读打出来，看到的是：
+
+```
+system.ini 3,577 B · root.pfs 2 B@0 · 1,024 B@2 · 24,302 B@1,026（= 整个索引）· 1,024 B@25,328
+然后停 —— 一次文件都没打开
+```
+
+拿官方 `root.pfs` 的 21,587 条记录逐条反推比较器（`.test/ab/cmp-check.mjs` 实测）：
+
+| 比较器 | 与官方顺序逐条一致？ |
+| --- | --- |
+| 分隔符当最低字节（`/`、`\` → `0x01`） | **是** |
+| 只比 components | 是（与本行等价） |
+| 原始字节序 | 否，首个偏差 idx 6 |
+| UTF-16 码元序 | 否 |
+
+偏差那一条最能说明问题：官方第 6 条是 `pc\ja\blog\name\.png`，排在 `pc\ja\blog\name.png`
+**前面** ⇒ 分隔符（`0x5C`）比 `'.'`（`0x2E`）小。`write_pf8` 原先写的
+`encoded.sort(key=lambda item: item[0])` 是**原始字节序**，对含分隔符的路径不是官方顺序 ⇒
+引擎的查找落空，读完整张表就走人。
+
+改法（已入库）：`official-web-deploy.py` 的 `write_pf8` 用 path-aware 比较器排序，并把名字归一成
+反斜杠（官方 packer 的存储形式）。实测引擎对两种分隔符**都不敏感**（只有分隔符不同、顺序相同的
+两份包都能启动，都是 87.3%），依赖的是**顺序**而不是符号。
+
+### 19.2 多段重打包：`ports/artemis/build/repack-parts.py`
+
+新工具把散树打成多段 `pf6`（unkeyed），每段**自己的** offset 空间（`root.pfs`、`root.pfs.000`、
+`root.pfs.001`…，与发行版的链约定一致），单段默认上限 1.6 GB（< 2^31）。索引常驻内存
+（29k 条 ≈ 2 MB），payload 流式写出，所以 6 GB 的树不吃内存。
+
+真游戏散树 29,224 文件 / 6,044,567,460 B payload ⇒ 四段：
+
+| 段 | 字节 | entries | 索引 |
+| --- | --- | --- | --- |
+| `root.pfs` | 1,598,177,393 | 780 | 43,258 |
+| `root.pfs.000` | 1,591,553,429 | 6,748 | 341,656 |
+| `root.pfs.001` | 1,599,982,026 | 11,382 | 620,739 |
+| `root.pfs.002` | 1,256,428,593 | 10,314 | 568,300 |
+
+### 19.3 真游戏实测（官方 sync wasm 2,682,787 + 官方 sync 胶水）
+
+场景 = 官方 sync 模块 + 官方 sync 胶水（去掉 `createLazyFile` 里的主线程 guard）+ 主线程同步
+XHR shim（`x-user-defined` 文本还原字节）+ 四段 `FS_createLazyFile`；`artemis.data` 只放
+`system.ini`，而**散装 ini 一个都不挂**（让引擎从 pack 里读 `system.ini`）：
+
+```
+Creating mount point ... /artemis_e1ca47e694   Mounting Indexed DB
+Loading file system ...  ->  Loading file system complete!  ->  Saving file system complete!
+max 255 / lit 87.3% / 756×488 / err null
+请求 43 次（4 HEAD + 38 Range 206 + 1 async）· 读到 39,031,857 B = 6,046,141,441 B 的 0.65%
+唯一 error：libpng warning: iCCP: known incorrect sRGB profile
+```
+
+⚠ 途中排除掉的假说（都量过）：`>2^31` 的尺寸/偏移**不是**原因（用真 pack 的 header+索引造稀疏文件，
+apparent size 2.69/3.36 GB 也走到 `complete!`）；`ASYNCIFY_URL` 对 sync 模块**完全无效**（加了它
+请求模式一字不变，散装 HTTP 取文件是 asyncify 构建独有的）。
+
+由此，sync/plain 从「只能跑 SDK Sample」变成**真游戏也能按需加载**（0.65% 流量），出货多了一条
+不依赖 asyncify 的路——代价是游戏必须先重打成多段 unencrypted `pf6`。
+

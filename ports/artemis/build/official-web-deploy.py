@@ -135,9 +135,15 @@ def write_pf8(path, files, version="6"):
     `root.pfs` happens to hold only ASCII names, so this only matters once a pack
     contains non-ASCII paths. Matching the reference keeps our output byte-identical.
 
-    Entries are sorted by their encoded name bytes, ascending. The SDK packer sorts
-    and a reader that does a binary search over the table would depend on it, so the
-    order is part of the format even though `pfs.ts` tolerates any order.
+    Entries are sorted by the *path-aware* form of their encoded name: a path
+    separator compares below every other byte. Reading the real `root.pfs` back
+    (21,587 entries) showed exactly that order and nothing else -- its entry 6 is
+    `pc\ja\blog\name\.png` ahead of `pc\ja\blog\name.png`, so `\` (0x5C) sorts below
+    `'.'` (0x2E), while raw byte order and UTF-16 order both disagree there. The
+    engine's lookup depends on it: a pack whose index is in raw byte order makes the
+    engine read the index and then stop -- no error, no message, just a blank frame --
+    which is how a rebuilt pack silently failed to boot the real game. Names are
+    normalised to backslashes below, because that is what the official packer stores.
 
     ## Known difference for packs with more than one entry
 
@@ -151,8 +157,12 @@ def write_pf8(path, files, version="6"):
     here rather than chased. It would only matter if something downstream hashed the
     whole file.
     """
-    encoded = [(name.encode("cp932"), payload) for name, payload in files]
-    encoded.sort(key=lambda item: item[0])
+    # See "Name encoding and order" above: separators sort below every other byte, and the stored
+    # name uses `\`, not `/`.
+    encoded = [
+        (name.replace("/", "\\").encode("cp932"), payload) for name, payload in files
+    ]
+    encoded.sort(key=lambda item: bytes(1 if b in (0x2F, 0x5C) else b for b in item[0]))
     files = [(raw, payload) for raw, payload in encoded]
 
     # Two passes: payload offsets are absolute, so the index (and therefore the
