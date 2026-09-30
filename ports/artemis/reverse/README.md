@@ -240,6 +240,11 @@ different function in each. asyncify's products are tracked source inside this p
 sync's stay in a local, untracked `.ref/artemis-official/rewrite-sync/src`, so sync is not
 buildable from a clone. `ARTEMIS_REWRITE` overrides the tree for either flavour.
 
+Note (2026-09-30): the plain/sync **deployment** flavour was dropped from the roadmap
+(docs/artemis-web-port.md §19.4), so **asyncify is the only shipping flavour**. The `sync`
+build route is kept as evidence that the rebuild satisfies the contract on *that* module
+too -- it is not a target.
+
 Both flavours pass all four gates:
 
 | | asyncify | plain |

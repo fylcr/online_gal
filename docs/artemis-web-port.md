@@ -23,6 +23,11 @@
 > 「官方模块 + 官方胶水」——它是**判据**（尺子），用来衡量我们的重写，不是一条我们自己的
 > 发布通道。
 >
+> **口味只有一个**：asyncify。官方 SDK 的 **plain/sync** 口味（`WebAssembly/` 那套）已按决定
+> **从路线图移除**——它要么整包进内存、要么必须先重打成多段 pf6，实测首帧还比 asyncify 慢
+> 0.6–0.7 s、多取约 6 MB（§19.4），且包内名字编码跟部署 `CHARSET` 绑定（§19.5）。§19 保留为
+> 那段评估的完整记录，**不是**在推进的路线。
+>
 > 仍在推进的是**宿主的头一刀**（由另一条工作线负责），那之后本节要重写。
 
 基座是 [Weiss-UltimateSavior/artemis-compat](https://github.com/Weiss-UltimateSavior/artemis-compat)
@@ -2155,6 +2160,48 @@ max 255 / lit 87.3% / 756×488 / err null
 apparent size 2.69/3.36 GB 也走到 `complete!`）；`ASYNCIFY_URL` 对 sync 模块**完全无效**（加了它
 请求模式一字不变，散装 HTTP 取文件是 asyncify 构建独有的）。
 
-由此，sync/plain 从「只能跑 SDK Sample」变成**真游戏也能按需加载**（0.65% 流量），出货多了一条
-不依赖 asyncify 的路——代价是游戏必须先重打成多段 unencrypted `pf6`。
+由此 sync/plain 技术上从「只能跑 SDK Sample」变成**真游戏也能按需加载**（0.65% 流量）——但下面这条
+把它挡在了出货路线之外。
+
+### 19.4 结论（2026-09-30）：sync/plain 口味**从路线图移除**
+
+用户决定：「我觉得sync确实不适合做我们的需求，那么sync版本就不要尝试了，从我们的路线图里踢出去」。
+支撑这个判断的实测（同一台机器、无缓存、各 3 次、导航起算；详见 `.test/ab/ff-sync*.json` /
+`ff-async*.json`）：
+
+| | asyncify（官方模块 + 胶水 + 散树） | sync（官方模块 + 四段 pf6 懒加载） |
+| --- | --- | --- |
+| 首帧 | **9.78 / 9.86 / 9.95 s** | 10.42 / 10.47 / 10.56 s（慢 0.6–0.7 s，3/3 复现） |
+| 首帧前游戏文件 | 85 / 87 / 87 个（16.94–17.06 MB） | 89 / 89 / 91 个（映射回文件 17.83–17.96 MB） |
+| 首帧前 HTTP | 25.0 MB / 91–93 请求 | 31.1 MB / 40–41 请求（**多约 6 MB**） |
+| 引擎资源 | 8.00 MB（wasm 6.00 + hashlist 2.10） | 2.83 MB（wasm 2.68） |
+| 首帧前文件读次数 | 逐文件异步取，几乎零浪费 | 242 / 242 / 280 次（含 1.50 MB 包索引） |
+
+两侧**首帧前加载的文件集几乎同一套**：`font\sourcehansans-medium.otf` 一个 16.5 MB 就占约 97% 字节，
+其后是 `system\table\list_windows_ja.tbl` 252 KB、`pc\ja\mw\tablet.png` 115 KB、`mw.png` 86 KB，
+再往后是 `system\*.lua`。两侧 firstDraw 都落在 7.1–7.9 s ⇒ **差距全在取数据段**，原因是 sync 懒加载
+按 1 MB 分块（28–29 MB 才凑出 19.4 MB 有用内容，asyncify 是整文件异步取），而且分块走的是
+**主线程同步 XHR**（29 次，期间 rAF 停摆）。
+
+结构性代价还有两条：每个游戏都得先重打成多段 pf6（这里派生 6.04 GB）；包内名字编码跟部署 `CHARSET`
+绑定（§19.5）。所以 **asyncify 是唯一出货口味**，`repack-parts.py` 保留但**不在任何出货路线上**
+（它现在是多段 pack 写入器 + 格式知识的可执行文档）。想再快只能走另一条：boot 前用异步 fetch 预热
+前 ~20 MB 分块进 HTTP 缓存，或把引擎搬进 Worker + OffscreenCanvas —— 对 asyncify 同样适用。
+
+### 19.5 包内名字的编码跟着 `CHARSET` 走（踩过）
+
+现象：我们自己重打的包启动正常、标题画面 87.3%，一进剧本就报
+`共通-01が見つかりませんでした`（找不到剧本）。
+
+根因：`write_pf8` / `repack-parts.py` 原先用 **CP932** 写索引名字，而官方 `root.pfs` 的
+**非 ASCII 名字是 UTF-8**（21,587 条里 525 条非 ASCII，全部按 UTF-8 解得出：
+
+```
+pc\ja\blog\name\あすみ.png   hex 70635c6a615c626c6f675c6e616d655c e38182e38199e381bf 2e706e67
+image\line\title01\天梨.png  ← 同样是 UTF-8 三字节序列
+```
+
+）。编码写错时 ASCII 名字照常命中（所以标题画面看着一切正常），**非 ASCII 名字全部落空** ⇒ 剧本、
+CG、立绘按名字查的一律找不到。结论：**名字用部署 `CHARSET` 对应的编码写**（本部署是
+`CHARSET=UTF-8` ⇒ UTF-8），SDK 自家 packer 那套 CP932 只在它自己的 charset 下 byte-identical。
 

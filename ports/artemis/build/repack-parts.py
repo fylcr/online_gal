@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Repack an extracted Artemis game tree into multi-part `pf6` packages.
 
+Status (2026-09-30)
+-------------------
+The plain/sync engine flavour was **dropped from the roadmap** (docs/artemis-web-port.md
+§19.4), so this tool is **not on any shipping route**. It stays because it is the only
+writer for multi-part packs of a real title, and because the two format facts below are
+load-bearing for `write_pf8` as well.
+
 Why this exists
 ---------------
 The plain/sync engine reads a game through an in-memory file system: the deployed
@@ -18,6 +25,10 @@ Two details are not optional -- see `write_pf8`'s "Name encoding and order" in
 
 * the index must be in the packer's own order (path separator below every other byte), or
   the engine reads the index and stops without a message;
+* names are stored in the deployment's charset -- for a `CHARSET=UTF-8` deployment that is
+  **UTF-8**, which is what the real `root.pfs` holds (all 525 of its non-ASCII names decode
+  as UTF-8); a CP932 index makes every non-ASCII lookup miss, which is what the game shows
+  as `共通-01が見つかりませんでした` while ASCII files still load;
 * each part gets its **own** offset space starting at zero (`root.pfs`, `root.pfs.000`,
   `root.pfs.001`, ...), exactly like the parts the publisher ships.
 
@@ -76,7 +87,7 @@ def collect(game: str) -> list[tuple[bytes, str, int]]:
         for name in files:
             path = os.path.join(root, name)
             rel = os.path.relpath(path, game).replace(os.sep, "\\")
-            entries.append((rel.encode("cp932"), path, os.path.getsize(path)))
+            entries.append((rel.encode("utf-8"), path, os.path.getsize(path)))
     entries.sort(key=lambda item: official_key(item[0]))
     return entries
 
@@ -161,7 +172,7 @@ def main(argv: list[str]) -> int:
         )
     print(
         f"parts={len(parts)} total={written:,} B first_entry="
-        f"{parts[0][0][0].decode('cp932')!r}",
+        f"{parts[0][0][0].decode('utf-8')!r}",
         flush=True,
     )
     return 0

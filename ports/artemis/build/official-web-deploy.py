@@ -129,11 +129,17 @@ def write_pf8(path, files, version="6"):
 
     ## Name encoding and order
 
-    Names are stored as **CP932 (Shift_JIS)**, not UTF-8 -- verified by packing a
-    file with a Japanese name and reading the bytes back. `pfs.ts` copes with both
-    (it tries UTF-8 first and falls back to `shift_jis`), and the real game's
-    `root.pfs` happens to hold only ASCII names, so this only matters once a pack
-    contains non-ASCII paths. Matching the reference keeps our output byte-identical.
+    Names are stored in the **deployment's charset**, and the real game proves it is not
+    always CP932: 525 of `root.pfs`'s 21,587 names are non-ASCII and every one decodes as
+    UTF-8 (`pc\ja\blog\name\あすみ.png`, `image\line\title01\天梨.png`), while the same bytes
+    as CP932 are mojibake. That deployment boots with `CHARSET=UTF-8` in `system.ini`, and
+    the engine converts the script's Shift-JIS names into that charset before opening a
+    file, so a pack for it must hold UTF-8 names: with a CP932 index every non-ASCII lookup
+    misses -- the game shows `共通-01が見つかりませんでした` and stops -- while ASCII files keep
+    loading, which is exactly the failure the earlier CP932 writer produced. The SDK packer
+    defaults to CP932 for Shift-JIS titles (that is what the byte-comparison below pinned),
+    so match whichever charset the target deployment declares. `pfs.ts` copes with both (it
+    tries UTF-8 first and falls back to `shift_jis`).
 
     Entries are sorted by the *path-aware* form of their encoded name: a path
     separator compares below every other byte. Reading the real `root.pfs` back
@@ -148,8 +154,9 @@ def write_pf8(path, files, version="6"):
     ## Known difference for packs with more than one entry
 
     With a single entry -- the only case this script needs -- the output is
-    byte-identical to the SDK packer's, verified across ASCII, CP932, nested, empty
-    and 4 KB payloads. With several entries the *index* still matches byte for byte,
+    byte-identical to the SDK packer's for the SDK packer's own charset (CP932),
+    verified across ASCII, CP932, nested, empty and 4 KB payloads. With several entries the
+    *index* still matches byte for byte,
     but the SDK packer lays the payloads out in a different physical order (roughly
     case-insensitive alphabetical, so `aaa, MMM, zzz, _under` where the index sorts
     `MMM, _under, aaa, zzz`). That is invisible to any reader, because payload
@@ -157,10 +164,10 @@ def write_pf8(path, files, version="6"):
     here rather than chased. It would only matter if something downstream hashed the
     whole file.
     """
-    # See "Name encoding and order" above: separators sort below every other byte, and the stored
-    # name uses `\`, not `/`.
+    # See "Name encoding and order" above: separators sort below every other byte, the stored name
+    # uses `\`, and the charset follows the deployment (`CHARSET=UTF-8` -> UTF-8 names).
     encoded = [
-        (name.replace("/", "\\").encode("cp932"), payload) for name, payload in files
+        (name.replace("/", "\\").encode("utf-8"), payload) for name, payload in files
     ]
     encoded.sort(key=lambda item: bytes(1 if b in (0x2F, 0x5C) else b for b in item[0]))
     files = [(raw, payload) for raw, payload in encoded]
