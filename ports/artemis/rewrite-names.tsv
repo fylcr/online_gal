@@ -368,3 +368,12 @@ fn	f585	—	artc::ReleaseNodeSubtreeB	util/release_node_subtree_b.cpp	R1	f510 �
 fn	f1527	—	artc::ReleaseMapFieldSubtree	util/release_map_field_subtree.cpp	R1	15 行：func585(p0, mem[p0+4]) ⇒ 释放对象 +4 处的树；caller f584/f867；frame 0
 fn	f2269	—	artc::FindLastByte	util/find_last_byte.cpp	R1	20 行：if (!p1) return -1; 从 p0+p1 向后逐字节找 p2，返回下标或 -1（memrchr）；frame 0
 fn	f722	—	artc::FindLastCharInString	util/find_last_char_in_string.cpp	R1	19 行：f2269 的 string 包装（基址 mem[p0+4]、长度 mem8_u[p0+11]＝libc++ SSO 的 __size_ 字节）；frame 0
+
+# ---- batch-9: the closure that unlocks AutoReadTimer::Dispatch(f3551) / VideoPlayer::Dispatch(f3698) / PersistSessionState(f533) ----
+fn	f850	—	artc::FindUnorderedValueSlot	util/find_unordered_value_slot.cpp	R1	boost unordered 查表：hash % 桶数(@+24)、桶表(@+40)、链上比对 hash(@+8) 并跳过掩码位为 1 的节点，命中后取 @+20 的值槽；未命中经 a.e(857, 745009 px!=0, 745017 shared_ptr.hpp, 734, 745073 operator->) 落 f199 Panic；无数据段常量，表布局与 f1469 同形；caller AdvanceGainStatStage(f1463)；frame 12
+
+fn	f1456	—	artc::EmplaceHashedEntry	util/emplace_hashed_entry.cpp	R1	boost unordered 插入：hash % 桶数(@+4)、桶表(@+8)、链上比对 hash(@+8)，命中就把节点写进出参 mem[p0] 并置 mem8[p0+4]=0 后返回（迭代器出参）；未命中经 f201 分配新节点后挂链；数据段常量只有 implementation.hpp / buckets_ / get_bucket；callers AutoReadTimer::Dispatch(f3551) / AutoReadTimer 家族；frame 24
+
+fn	f753	—	artc::CopyTaggedTreeKeyToText	util/copy_tagged_tree_key_to_text.cpp	R1	tag 树查找 + 文本落位：tag 字节(@27)经 f200 CompareBytes 下钻、短串长度取 mem8_u[key+11]、命中后把 key 文本经宿主虚槽 1276(a.y) 写入目标 std::string（含 SSO/堆两态）；callee Oc_0 f200 f201 f215；callers AutoReadTimer::Dispatch(f3551) / VideoPlayer::Dispatch(f3698)；frame 32
+
+fn	f579	—	artc::ApplyEventRecordTable	util/apply_event_record_table.cpp	R1	机制：遍历对象内 20 字节事件记录表（计数 mem16[p0+344]、表 mem[p0+360]，记录字段 u16 @0 类型/ @2 标志/ @6==6 过滤/ @8 参数），命中的记录经 f336 FindTaggedTreeEntry 解析并 call_indirect 应用，替换时释放旧子树（f585/f583/f218）；全程 180 处 mem[852316] 异常落点；p0 是含大量内联 std::string（@13308/@13688，SSO 标志 @13699）的大对象；无数据段常量 ⇒ 名字由结构定；callers AutoReadTimer::Dispatch(f3551) / PersistSessionState(f533)；frame 32

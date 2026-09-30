@@ -435,6 +435,11 @@ PROD.update({
  'f3651': ('LuaEngine::TagGenericSetOn', 'void', ['ctx', 'p0', 'p1', 'p2']),
  'f3293': ('FetchManager::HttpDispatch', 'void', ['ctx', 'p0', 'p1']),
  'f3650': ('LuaEngine::TagGenericDelOn', 'void', ['ctx', 'p0', 'p1', 'p2']),
+ # ---- batch-9 ----
+ 'f850': ('FindUnorderedValueSlot', 'uint32_t', ['ctx', 'p0', 'p1']),
+ 'f1456': ('EmplaceHashedEntry', 'void', ['ctx', 'p0', 'p1', 'p2', 'p3']),
+ 'f753': ('CopyTaggedTreeKeyToText', 'void', ['ctx', 'p0', 'p1', 'p2', 'p3', 'p4', 'p5']),
+ 'f579': ('ApplyEventRecordTable', 'void', ['ctx', 'p0']),
  # These six are forwarder-only rows: the generated body keeps the definition,
  # the name is what the products call.  Evidence for each name is in
  # rewrite-names.tsv (no data-segment constants exist in any of these six, so the
@@ -1241,6 +1246,19 @@ METAS = {
  'f3650': dict(ret='void', params=['a', 'b', 'c'], file='script/lua_tag_generic_del.cpp',
    purpose="TagGenericDelOn -- the delon* tag registry: matches the tag name against the delonautomodein .. delonwindowbutton handler table, erases the stored script block and releases the sound object slot it owned.",
    loc={}, frame=40),
+ # ---- batch-9 ----
+ 'f850': dict(ret='uint32_t', params=['a', 'b'], file='util/find_unordered_value_slot.cpp',
+   purpose="FindUnorderedValueSlot -- hash table read: buckets the given hash, walks the bucket chain past the marked nodes and returns the stored value slot.",
+   loc={}, frame=12),
+ 'f1456': dict(ret='void', params=['a', 'b', 'c', 'd'], file='util/emplace_hashed_entry.cpp',
+   purpose="EmplaceHashedEntry -- hash table emplace: looks the hash up in the bucket chain and either reports the existing node through the out parameter or links a freshly allocated one.",
+   loc={}, frame=24),
+ 'f753': dict(ret='void', params=['a', 'b', 'c', 'd', 'e', 'f'], file='util/copy_tagged_tree_key_to_text.cpp',
+   purpose="CopyTaggedTreeKeyToText -- tagged tree lookup that assigns the matched entry key into the destination string, honouring the short string form.",
+   loc={}, frame=32),
+ 'f579': dict(ret='void', params=['a'], file='util/apply_event_record_table.cpp',
+   purpose="ApplyEventRecordTable -- walks the queued twenty byte event records of the engine object, resolves each one through the tagged tree and applies it, releasing the replaced node subtrees.",
+   loc={}, frame=32),
 }
 
 def die(msg):
@@ -1631,6 +1649,8 @@ ORDER = ['f265','f5721','f910','f708','f364','f645','f223','f476','f4579','f399'
          'f205','f215','f264','f341','f401','f493','f603','f604','f611','f1120','f1493',
          'f1702','f1709','f3514','f4230','f4240','f4715','f4881','f4882','f5511','f5726','f5749',
          # ---- batch-4B: the 50 named items, then the 26 external callees ----
+         # ---- batch-9 ----
+         'f850', 'f1456', 'f753', 'f579',
          'f605','f646','f909','f911','f912','f913','f1117','f1132','f1718','f1719','f1720','f1746','f5678','f5679',
          'f262','f298','f304','f309','f377','f783','f1486','f1487','f3516','f3804','f5509','f5536','f5628','f5629','f5630','f5716',
          'f255','f382','f442','f450','f451','f453','f521','f548','f781','f784','f885','f897','f1112','f1128','f1212','f1715','f1739','f2207','f1701','f899',
