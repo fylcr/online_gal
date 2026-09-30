@@ -76,55 +76,17 @@ inline uint32_t FinishTableIndex(EngineContext* ctx, uint32_t a, uint32_t b, uin
 inline void GrowStringAndReplace(EngineContext* ctx, uint32_t arg0, uint32_t arg1, uint32_t arg2,
                                  uint32_t arg3, uint32_t arg4, uint32_t arg5, uint32_t arg6,
                                  uint32_t arg7);
-inline void RaiseScriptError(EngineContext* ctx, uint32_t state, uint32_t message, uint32_t argument) {
-  w2c_artemis_f313(ctx, state, message, argument);
-}
-inline uint32_t FetchMetamethod(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
-  return w2c_artemis_f517(ctx, a, b, c);
-}
-inline uint32_t FetchObjectMetamethod(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
-  return w2c_artemis_f333(ctx, a, b, c);
-}
-inline void GrowValueStack(EngineContext* ctx, uint32_t a, uint32_t b) {
-  w2c_artemis_f289(ctx, a, b);
-}
-inline void CallValue(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
-  w2c_artemis_f372(ctx, a, b, c);
-}
-inline void RaiseTypeError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
-  w2c_artemis_f907(ctx, a, b, c);
-}
-inline uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t state) {
-  return w2c_artemis_f250(ctx, state);
-}
 // Batch-2 table-array resize (f1114). Declared before the legacy
-// ResizeStringTable alias below so that alias can forward to it.
-inline void ResizeTableArray(EngineContext* ctx, uint32_t state, uint32_t capacity) {
-  w2c_artemis_f1114(ctx, state, capacity);
-}
 // The string-table spelling the intern path already calls: same generated
 // callee, product-facing name ResizeTableArray (batch 2). Delete this alias
 // when script/intern_string.cpp takes the new name.
 inline void ResizeStringTable(EngineContext* ctx, uint32_t state, uint32_t capacity) {
   ResizeTableArray(ctx, state, capacity);
 }
-inline void RaiseSyntaxError(EngineContext* ctx, uint32_t lex_state, uint32_t message) {
-  w2c_artemis_f243(ctx, lex_state, message);
-}
-inline uint32_t GrowArray(EngineContext* ctx, uint32_t state, uint32_t data, uint32_t capacity_addr,
-                          uint32_t element_size, uint32_t limit, uint32_t message) {
-  return w2c_artemis_f704(ctx, state, data, capacity_addr, element_size, limit, message);
-}
 // The raw guest-heap core underneath the allocator product: one block per
 // request, zero on refusal. It stays generated code, so it keeps a forwarder.
 inline uint32_t AllocateRawBlock(EngineContext* ctx, uint32_t bytes) {
   return w2c_artemis_Nc_0(ctx, bytes);
-}
-inline void DeallocateStringBuffer(EngineContext* ctx, uint32_t text, uint32_t old_data, uint32_t old_cap) {
-  w2c_artemis_f560(ctx, text, old_data, old_cap);
-}
-inline void RaiseStringLengthError(EngineContext* ctx, uint32_t text) {
-  w2c_artemis_f248(ctx, text);
 }
 // f1727 lexer step's callees: the character/separator readers, the long
 // string and numeral readers, the source-id formatter, the keyword-table
@@ -186,153 +148,36 @@ inline void RunEventStep(EngineContext* ctx, uint32_t state) {
   w2c_artemis_f3544(ctx, state);
 }
 // Batch-2 parser/compiler/lod callees (R0 backlog): they stay generated code
-// and keep call-throughs until their own rewrites land. The names come from the
-// pool text the callee raises and from the single callee each one drives.
-inline void ExpectToken(EngineContext* ctx, uint32_t lex_state, uint32_t message) {
-  w2c_artemis_f1115(ctx, lex_state, message);
-}
-inline void MatchKeyword(EngineContext* ctx, uint32_t lex_state, uint32_t keyword) {
-  w2c_artemis_f1713(ctx, lex_state, keyword);
-}
-inline void ParseArguments(EngineContext* ctx, uint32_t func_state, uint32_t expr) {
-  w2c_artemis_f1714(ctx, func_state, expr);
-}
-inline void EmitMoveSlot(EngineContext* ctx, uint32_t func_state, uint32_t dest,
-                         uint32_t source) {
-  w2c_artemis_f1745(ctx, func_state, dest, source);
-}
-inline uint32_t FormatCharValue(EngineContext* ctx, uint32_t state, uint32_t value) {
-  return w2c_artemis_f347(ctx, state, value);
-}
-inline void CheckExprComplexity(EngineContext* ctx, uint32_t func_state, uint32_t message) {
-  w2c_artemis_f427(ctx, func_state, message);
-}
-inline void CheckClosingMatch(EngineContext* ctx, uint32_t lex_state, uint32_t message,
-                              uint32_t opening, uint32_t line) {
-  w2c_artemis_f547(ctx, lex_state, message, opening, line);
-}
-inline void EmitJumpIf(EngineContext* ctx, uint32_t func_state, uint32_t condition,
-                       uint32_t message) {
-  w2c_artemis_f5675(ctx, func_state, condition, message);
-}
-inline void ParseParamList(EngineContext* ctx, uint32_t func_state, uint32_t lex_state,
-                           uint32_t message, uint32_t what) {
-  w2c_artemis_f1118(ctx, func_state, lex_state, message, what);
-}
 inline void CompileMainBody(EngineContext* ctx, uint32_t func_state, uint32_t message) {
   w2c_artemis_f1717(ctx, func_state, message);
-}
-inline void EmitExpression(EngineContext* ctx, uint32_t func_state, uint32_t expr,
-                           uint32_t opcode, uint32_t message) {
-  w2c_artemis_f5671(ctx, func_state, expr, opcode, message);
-}
-inline void EmitCondition(EngineContext* ctx, uint32_t func_state, uint32_t condition,
-                          uint32_t message) {
-  w2c_artemis_f5672(ctx, func_state, condition, message);
-}
-inline void EmitStatement(EngineContext* ctx, uint32_t func_state, uint32_t statement,
-                          uint32_t message) {
-  w2c_artemis_f5673(ctx, func_state, statement, message);
-}
-inline void ClearLocalFlags(EngineContext* ctx, uint32_t state) {
-  w2c_artemis_f1731(ctx, state);
-}
-inline void ClearUpvalueFlags(EngineContext* ctx, uint32_t state) {
-  w2c_artemis_f1732(ctx, state);
-}
-inline void InvokeMetaField(EngineContext* ctx, uint32_t call) {
-  w2c_artemis_f1734(ctx, call);
-}
-inline uint32_t LoadProtoSlot(EngineContext* ctx, uint32_t slot) {
-  return w2c_artemis_f782(ctx, slot);
 }
 inline void StoreGlobalEntry(EngineContext* ctx, uint32_t globals, uint32_t index,
                              uint32_t value) {
   w2c_artemis_f310(ctx, globals, index, value);
 }
 // Batch-4B closure forwarders: the 50 products still in the backlog call
-// these, and every generated callee two hops out has no product yet. Same
-// rule as above -- a thin call-through, deleted when its product lands.
-  inline uint32_t FindOrderedChainEntry(EngineContext* ctx, uint32_t p0, uint32_t p1) { return w2c_artemis_f242(ctx, p0, p1); }
-  inline void InternKeyIntoTableSlot(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { w2c_artemis_f263(ctx, p0, p1, p2); }
-  inline uint32_t MoveMemoryRange(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { return w2c_artemis_f268(ctx, p0, p1, p2); }
-  inline void UnorderedLinkBucketNode(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5) { w2c_artemis_f272(ctx, p0, p1, p2, p3, p4, p5); }
-  inline void ReleaseLayerNodeTree(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f281(ctx, p0, p1); }
   inline uint32_t InitTaggedNodeDescriptor(EngineContext* ctx, uint32_t p0) { return w2c_artemis_f283(ctx, p0); }
-  inline uint32_t RaiseNodeInitError(EngineContext* ctx, uint32_t p0, uint32_t p1) { return w2c_artemis_f293(ctx, p0, p1); }
   inline void StoreSuspendableEntry(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { w2c_artemis_f302(ctx, p0, p1, p2); }
-  inline void InsertFormattedKeyEntry(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f325(ctx, p0, p1); }
-  inline uint32_t StepCallValueFrame(EngineContext* ctx, uint32_t p0) { return w2c_artemis_f334(ctx, p0); }
-  inline uint32_t MatchCStringPrefix(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { return w2c_artemis_f351(ctx, p0, p1, p2); }
   inline uint32_t ReadPackedI64Value(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { return w2c_artemis_f376(ctx, p0, p1, p2); }
-  inline uint32_t RebuildUnorderedBucketArray(EngineContext* ctx, uint32_t p0, uint32_t p1) { return w2c_artemis_f390(ctx, p0, p1); }
-  inline void ReleaseNoSaveNodeTree(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f391(ctx, p0, p1); }
   inline uint32_t FormatLuaEventFilterLine(EngineContext* ctx, uint32_t p0, uint32_t p1) { return w2c_artemis_f392(ctx, p0, p1); }
-  inline void UnorderedInsertBucketNode(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5) { w2c_artemis_f413(ctx, p0, p1, p2, p3, p4, p5); }
-  inline void ReleaseNestedNodePair(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f422(ctx, p0, p1); }
-  inline uint32_t DestroyNodeObject(EngineContext* ctx, uint32_t p0) { return w2c_artemis_f437(ctx, p0); }
   inline void ReleaseNodeListTail(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f438(ctx, p0, p1); }
-  inline void UnlinkOrderedChainNode(EngineContext* ctx, uint32_t p0) { w2c_artemis_f471(ctx, p0); }
-  inline double EncodeSignedOrderAsDouble(EngineContext* ctx, double p0, uint32_t p1) { return w2c_artemis_f479(ctx, p0, p1); }
-  inline void ResetEventFilterState(EngineContext* ctx, uint32_t p0) { w2c_artemis_f490(ctx, p0); }
-  inline void ReleaseShallowNodePair(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f491(ctx, p0, p1); }
-  inline void ClearLinkedNodeFields(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f532(ctx, p0, p1); }
   inline void PersistSessionState(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f533(ctx, p0, p1); }
-  inline void ReleaseTaggedNodeTriple(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f534(ctx, p0, p1); }
-  inline void CompileNumericPower(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) { w2c_artemis_f550(ctx, p0, p1, p2, p3); }
-  inline void InitNodeStorage(EngineContext* ctx, uint32_t p0) { w2c_artemis_f582(ctx, p0); }
-  inline void ReleaseTaggedChildNodes(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f583(ctx, p0, p1); }
   inline uint32_t MeasureFormattedNumber(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { return w2c_artemis_f671(ctx, p0, p1, p2); }
-  inline void ReleaseAssertedNodeTree(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f678(ctx, p0, p1); }
   inline void ReleaseSubtreeTaggedNodes(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f679(ctx, p0, p1); }
-  inline void ReleasePlainNodeTree(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f680(ctx, p0, p1); }
   inline void FormatLuaTagFilterLine(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) { w2c_artemis_f681(ctx, p0, p1, p2, p3); }
-  inline void ReleaseNestedTaggedNodes(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f682(ctx, p0, p1); }
-  inline void ApplyCommandSkipStatus(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { w2c_artemis_f742(ctx, p0, p1, p2); }
-  inline void ApplyAutoModeStatus(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { w2c_artemis_f744(ctx, p0, p1, p2); }
-  inline void ResetGlobalSlotTable(EngineContext* ctx, uint32_t p0) { w2c_artemis_f761(ctx, p0); }
-  inline uint32_t ClearStructFields(EngineContext* ctx, uint32_t p0) { return w2c_artemis_f763(ctx, p0); }
-  inline uint32_t ReallocateFormatBuffer(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { return w2c_artemis_f776(ctx, p0, p1, p2); }
   inline uint32_t TerminateStringAt(EngineContext* ctx, uint32_t p0, uint32_t p1) { return w2c_artemis_f829(ctx, p0, p1); }
-  inline void ReleaseSharedObjectHolder(EngineContext* ctx, uint32_t p0) { w2c_artemis_f839(ctx, p0); }
-  inline void InitLayerStorage(EngineContext* ctx, uint32_t p0) { w2c_artemis_f860(ctx, p0); }
   inline uint32_t ResolveVariableKind(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) { return w2c_artemis_f908(ctx, p0, p1, p2, p3); }
   inline uint32_t PadStringBuffer(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { return w2c_artemis_f1004(ctx, p0, p1, p2); }
   inline double ReadNumericFieldAsDouble(EngineContext* ctx, uint32_t p0, uint32_t p1) { return w2c_artemis_f1006(ctx, p0, p1); }
-  inline void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f1032(ctx, p0, p1); }
-  inline void ReleaseChainedNodeBranches(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f1033(ctx, p0, p1); }
-  inline void ApplyControlSkipStatus(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { w2c_artemis_f1038(ctx, p0, p1, p2); }
   inline uint32_t InvokeVirtualSlot(EngineContext* ctx, uint32_t p0) { return w2c_artemis_f1043(ctx, p0); }
-  inline void RelocateUpvalueCells(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { w2c_artemis_f1129(ctx, p0, p1, p2); }
-  inline void EmitPrototypePrologue(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) { w2c_artemis_f1131(ctx, p0, p1, p2, p3); }
-  inline uint32_t ResetInputLineState(EngineContext* ctx, uint32_t p0) { return w2c_artemis_f1210(ctx, p0); }
   inline void ResetSuspendableFrame(EngineContext* ctx) { w2c_artemis_f1218(ctx); }
-  inline uint32_t ScanBitMaskWord(EngineContext* ctx, uint32_t p0, uint32_t p1) { return w2c_artemis_f1325(ctx, p0, p1); }
-  inline void ReleaseLayerRenderData(EngineContext* ctx, uint32_t p0) { w2c_artemis_f1408(ctx, p0); }
-  inline void UnorderedRebuildBucketChain(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3) { w2c_artemis_f1457(ctx, p0, p1, p2, p3); }
   inline void ApplyAvoidStatus(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f1458(ctx, p0, p1); }
-  inline uint32_t RebucketUnorderedNodeArray(EngineContext* ctx, uint32_t p0) { return w2c_artemis_f1459(ctx, p0); }
   inline void AdvanceGainStatStage(EngineContext* ctx, uint32_t p0) { w2c_artemis_f1463(ctx, p0); }
-  inline void UnorderedInsertCheckedBucketNode(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5) { w2c_artemis_f1471(ctx, p0, p1, p2, p3, p4, p5); }
-  inline void UnorderedReleaseBucketTable(EngineContext* ctx, uint32_t p0) { w2c_artemis_f1520(ctx, p0); }
-  inline void ReleaseNodeSlotArray(EngineContext* ctx, uint32_t p0) { w2c_artemis_f1531(ctx, p0); }
-  inline uint32_t LookupMaskedMetamethodSlot(EngineContext* ctx, uint32_t p0, uint32_t p1) { return w2c_artemis_f1708(ctx, p0, p1); }
-  inline void PatchUpvalueJumpTarget(EngineContext* ctx, uint32_t p0) { w2c_artemis_f1721(ctx, p0); }
-  inline uint32_t MaskToBitWidth(EngineContext* ctx, uint32_t p0) { return w2c_artemis_f1723(ctx, p0); }
-  inline void InvokeCallValueWithStack(EngineContext* ctx, uint32_t p0) { w2c_artemis_f1742(ctx, p0); }
-  inline void ReleaseStringBufferPending(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f2305(ctx, p0, p1); }
-  inline uint32_t CopyTextBytes(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { return w2c_artemis_f2729(ctx, p0, p1, p2); }
   inline void AdvanceEngineFrameTasks(EngineContext* ctx, uint32_t p0) { w2c_artemis_f2890(ctx, p0); }
-  inline void ReleaseEngineFrameResources(EngineContext* ctx, uint32_t p0) { w2c_artemis_f2892(ctx, p0); }
-  inline uint32_t AdvanceMessageEffectTimer(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { return w2c_artemis_f3192(ctx, p0, p1, p2); }
   inline uint32_t AdvanceHttpFetchState(EngineContext* ctx, uint32_t p0) { return w2c_artemis_f3294(ctx, p0); }
   inline void PauseFullscreenVideo(EngineContext* ctx, uint32_t p0) { w2c_artemis_f3872(ctx, p0); }
   inline void RebuildUnorderedIndexTable(EngineContext* ctx, uint32_t p0) { w2c_artemis_f3933(ctx, p0); }
   inline void PrepareParameterFrame(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f5538(ctx, p0, p1); }
-  inline void ResetNodeChainFlags(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f5624(ctx, p0, p1); }
-  inline void FormatConcatenationError(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { w2c_artemis_f5645(ctx, p0, p1, p2); }
-  inline void CompileKeywordCondition(EngineContext* ctx, uint32_t p0, uint32_t p1) { w2c_artemis_f5676(ctx, p0, p1); }
-  inline void FormatTracebackSlotEntry(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2) { w2c_artemis_f5733(ctx, p0, p1, p2); }
 // PROVISIONAL nested-namespace forwarders (their dispatch products land later).
 namespace AutoReadTimer {
 inline void Dispatch(EngineContext* ctx, uint32_t p0, uint32_t p1) {

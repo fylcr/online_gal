@@ -124,6 +124,17 @@ resume word 归 0 再查 suspended（var_B1 挂起点压 4B word + 8B 帧，返 
 （running）w2c_a_u 异常对象双 typeinfo 词（798992u/798956u 同偏移覆盖写）→ w2c_a_w 抛
 bad_alloc（799044u/2270u）。早期「asyncify 事件泵」标签系对其恢复序言+GC 回调的误读。g0 访问器统一名 `GuestStackSp`（可挂起体必须保 g0 帧流量
 ——实参块经帧传址且驱动 unwind/rewind；纯叶净零帧方可局部数组替代）。
+
+**删跳板的范围与做法（2026-10-01 批 7 实测）**：engine_context.h 里转发到 `w2c_artemis_fNNN` 的
+inline 跳板共四种形态——入口跳板清单、批 4B 闭包段、PROVISIONAL 嵌套命名空间段、以及缩进两格的
+**单行**跳板清单。产品落地时按 **fnid** 反查、逐块删（不是按名字）：取调用行 → 向上找 `inline `
+签名行（单行形态签名与闭括号同行，要单独判）→ 向下找第一行 `}`；块首再把连续 `//` 注释吸收进来，
+遇段标题（含 forwarders / PROVISIONAL / Batch-）即停。批 7 一次落地 86 个产品 ⇒ 删 86 块 / 155 行。
+两处坑：① 只按名字、或只按「最近一条 inline 行」删，会把段标题连同 `namespace X {` 一起吃掉，留下
+孤儿 `}` 把 `namespace artc` 提前闭合，报的是 `error: unknown type name 'EngineContext'`（真因是
+括号失衡，不是类型没声明）；删完必须核 `{` 与 `}` 计数相等。② `tx-gen2.py` 的 METAS `purpose` 必须
+是 `"<产品名> -- 一句话."` 形态——`emit()` 按 `' -- '` 切给 banner，缺前缀直接
+`IndexError: list index out of range`。
 批 3（p 代）产品侧新增八条：f250 RaiseBlockTooBig（u32, 1×u32）/ f223 ReallocateBlock（u32,
 4×u32，块分配器）/ f1114 ResizeStringTable（void, 2×u32，字符串表 rehash）/ f243
 RaiseSyntaxError（void, 2×u32，解析器报错）/ f704 GrowArray（u32, 6×u32，解析器数组增长器）/
