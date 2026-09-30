@@ -347,3 +347,24 @@ fn	f883	—	artc::DestroyDispatchObject	—	—	析构形：入口把 vtable 568
 fn	f336	—	artc::FindTaggedTreeEntry	—	—	tag@27 + 子节点 @0/@4 的标记树查找，比较器 f200 CompareBytes、路径串 f201/f215；caller f3673 ×15 / f3548 ×9；frame 32
 fn	f580	—	artc::ClearObjectDeque	—	—	deque 析构：元素 168 字节、每块 24 个（4032=168×24），元素析构走 vtable 槽 0，收尾释放块指针表；8 个 caller；frame 28
 fn	f1409	—	artc::PushObjectDequeElement	—	—	同型 deque 入队：拼迭代器对（24/168）写 32 字节状态，断言 a.e(3235,…)，异常路径经 f580 清队；caller f3196；frame 12
+# ---- batch-8B: tag 树 / 缓冲流 / 声音表 三簇闭包（17 个产品，全部原为未计划 callee）----
+# 命名证据：RTTI（.ref/artemis/WebAssembly/asyncify/artemis.wasm data 段的 255 个 N7artemis* 类型名带地址）
+# + 结构（宿主虚槽 a.k(870/873)、tag@27、40 字节节点、侵入链 +52/+56、vtable 常量）+ caller 家族；
+# 这 17 个里只有 f1469/f1058/f673 有数据段常量，其余全靠上述证据。
+fn	f284	—	artc::CopyScriptBlock	util/copy_script_block.cpp	R1	CScriptBlock 拷贝构造：vtable 745280=N7artemis12CScriptBlockE；string@+4 经 f265、+16 红黑树逐节点经宿主槽 2364 复制、+28 经槽 873、+40 整字拷贝；异常路径 f204+Oc+a.i 重抛；36 caller；frame 32
+fn	f353	—	artc::AssignTaggedTreeRange	util/assign_tagged_tree_range.cpp	R1	tag 树范围赋值：清空 p0 的 map（f204）后按 [p1,p2) 用 f3799 插入 40 字节节点，两个装箱成员经宿主槽 870 深拷贝、tag@27 经 f200 CompareBytes 比较、f215 再平衡；13 个 while；caller TagGenericSetOn(f3651)/HttpDispatch(f3293)/DispatchTag(f3695)；frame 36
+fn	f3799	—	artc::InsertTaggedTreeNode	util/insert_tagged_tree_node.cpp	R1	40 字节 tag 树节点插入：func201(40)、a.k(873,…) 构造 @+16/@+28、tag@27 下钻（f200）、f215 再平衡、计数 +1、返回 (p1+4)；与 f336 FindTaggedTreeEntry 同布局；frame 20
+fn	f330	—	artc::DestroyFileObject	util/destroy_file_object.cpp	R1	CFile 析构：装 vtable 713368=N7artemis5CFileE → 释放 +8 子对象（f360）→ +12 堆缓冲按 +23 符号位 Oc；frame 8
+fn	f360	—	artc::ReleaseBufferedChainNode	util/release_buffered_chain_node.cpp	R1	带缓冲链节点释出：从全局侵入链（头 mem[850124]，+52/+56）摘下 → f673 冲洗 → 虚析构钩子 → 释放 +96 → bit0 清零时 Oc(p0)；frame 20
+fn	f673	—	artc::FlushBufferedChain	util/flush_buffered_chain.cpp	R1	冲洗整条缓冲链：按 +76 符号位冲洗自身（f1016），再从 mem[850124] 沿 +56 遍历冲洗 +20>+28 的节点，另有经 mem[821008] 的递归；frame 12
+fn	f1016	—	artc::FlushOutputBuffer	util/flush_output_buffer.cpp	R1	冲洗一个输出缓冲：区间 +4/+8、计数 +16/+20/+28、sink 回调 +40（call_indirect）；有字节就交付并清零计数，空则返回 -1；frame 24
+fn	f1469	—	artc::FindOrInsertSoundObjectSlot	util/find_or_insert_sound_object_slot.cpp	R1	boost unordered 查/插：hash % 桶数(+24)、桶表 +40、链上比对 hash@+8；未命中调 f1058 就地构造；随后经 operator-> 断言 px != 0（字串 745009/745017/745073）走 a.e，异常落 f199 Panic；唯一 caller TagGenericDelOn(f3650)；frame 16
+fn	f1058	—	artc::InsertSoundObjectSlot	util/insert_sound_object_slot.cpp	R1	分配 52 字节 unordered 节点并就地构造值（vtable 593536=CSoundManager::CSoundObject、hash@+8、两个侵入链表头 @+28/@+40），OOM 走 a.j(2141,…)，异常清理由 f584 承担；唯一 caller f1469；frame 28
+fn	f584	—	artc::DestroySoundObject	util/destroy_sound_object.cpp	R1	CSoundObject 析构（vtable 593536）：释放 shared_ptr（f295）+ 两个 map（f1527/f510/f585）；11 caller（f1058/f1423/f3531/f3985/f3990/f3991…）；frame 20
+fn	f852	—	artc::EraseTaggedTreeEntry	util/erase_tagged_tree_entry.cpp	R1	map erase + 值析构：中序后继查找、树计数 -1、f440 再平衡；销毁 @p1+20 的 CScriptBlock（装 vtable 745280、两个 string @+24/@+48、容器 @+36 经 f204）、Oc(p1)，返回后继；caller TagGenericDelOn(f3650)×3；frame 0
+fn	f440	—	artc::EraseTreeRebalance	util/erase_tree_rebalance.cpp	R1	红黑树 erase 再平衡核心：f852/f581/f881/f1463/f1470/f1472/f1479/f3240/f3598 共用；16 caller；frame 0
+fn	f510	—	artc::ReleaseNodeSubtreeA	util/release_node_subtree_a.cpp	R1	与 f585 同源同体（stable abd94e77d4aa）的模板双实例：if (p1) { f(p0,mem[p1]); f(p0,mem[p1+4]); Oc(p1); }；caller 家族 CMultiTouch(f1489/f3826)/TPoint(f3827)/f3989；frame 0
+fn	f585	—	artc::ReleaseNodeSubtreeB	util/release_node_subtree_b.cpp	R1	f510 的另一实例（body 完全相同）：caller 家族 CClientSocket(f867)/f1527/f3988；frame 0
+fn	f1527	—	artc::ReleaseMapFieldSubtree	util/release_map_field_subtree.cpp	R1	15 行：func585(p0, mem[p0+4]) ⇒ 释放对象 +4 处的树；caller f584/f867；frame 0
+fn	f2269	—	artc::FindLastByte	util/find_last_byte.cpp	R1	20 行：if (!p1) return -1; 从 p0+p1 向后逐字节找 p2，返回下标或 -1（memrchr）；frame 0
+fn	f722	—	artc::FindLastCharInString	util/find_last_char_in_string.cpp	R1	19 行：f2269 的 string 包装（基址 mem[p0+4]、长度 mem8_u[p0+11]＝libc++ SSO 的 __size_ 字节）；frame 0
