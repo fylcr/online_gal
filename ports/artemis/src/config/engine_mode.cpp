@@ -22,8 +22,8 @@ void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 uint32_t CompareBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t PollEventKind(EngineContext* ctx);
-void ApplyCommandSkipStatus(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void ApplyAutoModeStatus(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+void ApplyCommandSkipStatus(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+void ApplyAutoModeStatus(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
 namespace {
 

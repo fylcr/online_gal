@@ -18,7 +18,7 @@
 namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
-void RaiseSyntaxError(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 void DischargeExpression(EngineContext* ctx, uint32_t a0, uint32_t a1);
 uint32_t ResolveBranchOffset(EngineContext* ctx, uint32_t state, uint32_t opcode, uint32_t operands, uint32_t extra, uint32_t target);
 void ExpressionToOperand(EngineContext* ctx, uint32_t func_state, uint32_t expr, uint32_t operand);

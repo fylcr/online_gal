@@ -22,13 +22,13 @@ void ReleaseExpressionSlots(EngineContext* ctx, uint32_t state, uint32_t instruc
 void CheckMatch(EngineContext* ctx, uint32_t lex_state, uint32_t expected);
 void EmitVariableLoad(EngineContext* ctx, uint32_t state, uint32_t variable, uint32_t register_hint);
 uint32_t FormatPushString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void RaiseSyntaxError(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 void StepRecordResume(EngineContext* ctx, uint32_t a0);
 uint32_t CheckStatementLimits(EngineContext* ctx, uint32_t state, uint32_t func_state, uint32_t message);
-uint32_t FormatCharValue(EngineContext* ctx, uint32_t a0, uint32_t a1);
+uint32_t FormatCharValue(EngineContext* ctx, uint32_t a, uint32_t b);
 void LexError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t EmitOpInstruction(EngineContext* ctx, uint32_t func_state, uint32_t op, uint32_t arg_a, uint32_t arg_b, uint32_t line);
-void CheckExprComplexity(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void CheckExprComplexity(EngineContext* ctx, uint32_t a, uint32_t b);
 void PatchInstructionTarget(EngineContext* ctx, uint32_t state, uint32_t pending);
 void ReserveRegisters(EngineContext* ctx, uint32_t state, uint32_t count);
 

@@ -20,7 +20,7 @@ namespace artc {
 // Forward declarations -- batch-mates and registered callees.
 uint32_t ResolveTableField(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 void StoreListEntry(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-uint32_t GrowArray(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5);
+uint32_t GrowArray(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f);
 
 namespace {
 

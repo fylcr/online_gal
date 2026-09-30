@@ -1,6 +1,6 @@
-// read_input_line.cpp -- reads one line from the input stream, growing the buffer as it goes..
+// fwrite_buffered.cpp -- the buffered write core: count bytes are copied from src into the stream buffer at +20, first opening or growing that buffer through PrepareStreamWrite when it is unset, and the write cursor is advanced..
 //
-// ReadInputLine -- reads one line from the input stream, growing the buffer as it goes.
+// FwriteBuffered -- the buffered write core: count bytes are copied from src into the stream buffer at +20, first opening or growing that buffer through PrepareStreamWrite when it is unset, and the write cursor is advanced.
 //
 // The step is suspendable: every gate below replays the call its resume
 // code names. Judgment order is untouched -- the goto graph is the
@@ -18,7 +18,7 @@
 namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
-uint32_t ResetInputLineState(EngineContext* ctx, uint32_t a0);
+uint32_t PrepareStreamWrite(EngineContext* ctx, uint32_t stream);
 uint32_t CopyBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 
 namespace {
@@ -28,7 +28,7 @@ constexpr uint32_t kF962ResumeWordBytes = 4u;
 
 }  // namespace
 
-uint32_t ReadInputLine(EngineContext* ctx, uint32_t state, uint32_t stream, uint32_t line) {
+uint32_t FwriteBuffered(EngineContext* ctx, uint32_t src, uint32_t count, uint32_t stream) {
   EnterFrame();
   uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
@@ -46,13 +46,13 @@ uint32_t ReadInputLine(EngineContext* ctx, uint32_t state, uint32_t stream, uint
     i0 = LoadU32(ctx, i0);
     l6 = i0;
     i0 = LoadU32(ctx, i0);
-    state = i0;
+    src = i0;
     i0 = l6;
     i0 = LoadU32(ctx, i0 + 4u);
-    stream = i0;
+    count = i0;
     i0 = l6;
     i0 = LoadU32(ctx, i0 + 8u);
-    line = i0;
+    stream = i0;
     i0 = l6;
     i0 = LoadU32(ctx, i0 + 12u);
     l3 = i0;
@@ -81,10 +81,10 @@ uint32_t ReadInputLine(EngineContext* ctx, uint32_t state, uint32_t stream, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = line;
+    i0 = stream;
     i0 = LoadU32(ctx, i0 + 16u);
     l4 = i0;
-    i0 = stream;
+    i0 = count;
     l5 = i0;
   }
   i0 = ResumePhase(ctx);
@@ -93,16 +93,16 @@ uint32_t ReadInputLine(EngineContext* ctx, uint32_t state, uint32_t stream, uint
     i0 = l4;
     i0 = !(i0);
     if (i0) {
-      i0 = line;
-      i0 = ResetInputLineState(ctx, i0);
+      i0 = stream;
+      i0 = PrepareStreamWrite(ctx, i0);
       if (i0) {goto running_exit;}
-      i0 = line;
+      i0 = stream;
       i0 = LoadU32(ctx, i0 + 16u);
       l4 = i0;
     }
     i0 = l5;
     i1 = l4;
-    i2 = line;
+    i2 = stream;
     i2 = LoadU32(ctx, i2 + 20u);
     l6 = i2;
     i1 -= i2;
@@ -118,7 +118,7 @@ uint32_t ReadInputLine(EngineContext* ctx, uint32_t state, uint32_t stream, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = line;
+      i0 = stream;
       i0 = LoadU32(ctx, i0 + 36u);
       l3 = i0;
     }
@@ -128,9 +128,9 @@ uint32_t ReadInputLine(EngineContext* ctx, uint32_t state, uint32_t stream, uint
     i2 = ResumePhase(ctx);
     i0 = i2 ? i0 : i1;
     if (i0) {
-      i0 = line;
-      i1 = state;
-      i2 = stream;
+      i0 = stream;
+      i1 = src;
+      i2 = count;
       i3 = l3;
       i0 = CallTableT4(ctx, i3, i0, i1, i2);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -143,19 +143,19 @@ uint32_t ReadInputLine(EngineContext* ctx, uint32_t state, uint32_t stream, uint
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
       i0 = l5;
-      state = i0;
+      src = i0;
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = state;
+      i0 = src;
       goto func_exit;
     }
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = line;
+    i0 = stream;
     i0 = LoadS8(ctx, i0 + 75u);
     i1 = 0u;
     i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
@@ -170,7 +170,7 @@ uint32_t ReadInputLine(EngineContext* ctx, uint32_t state, uint32_t stream, uint
       l4 = i0;
       goto block_12;
     }
-    i0 = stream;
+    i0 = count;
     l3 = i0;
     loop_15: 
       i0 = l3;
@@ -186,13 +186,13 @@ uint32_t ReadInputLine(EngineContext* ctx, uint32_t state, uint32_t stream, uint
       i1 = 1u;
       i0 -= i1;
       l3 = i0;
-      i1 = state;
+      i1 = src;
       i0 += i1;
       i0 = LoadU8(ctx, i0);
       i1 = 10u;
       i0 = i0 != i1;
       if (i0) {goto loop_15;}
-    i0 = line;
+    i0 = stream;
     i0 = LoadU32(ctx, i0 + 36u);
     l3 = i0;
   }
@@ -203,8 +203,8 @@ uint32_t ReadInputLine(EngineContext* ctx, uint32_t state, uint32_t stream, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = line;
-    i1 = state;
+    i0 = stream;
+    i1 = src;
     i2 = l4;
     i3 = l3;
     i0 = CallTableT4(ctx, i3, i0, i1, i2);
@@ -227,33 +227,33 @@ uint32_t ReadInputLine(EngineContext* ctx, uint32_t state, uint32_t stream, uint
     i1 = l4;
     i0 = i0 < i1;
     if (i0) {goto running_exit;}
-    i0 = stream;
+    i0 = count;
     i1 = l4;
     i0 -= i1;
-    stream = i0;
-    i0 = line;
+    count = i0;
+    i0 = stream;
     i0 = LoadU32(ctx, i0 + 20u);
     l6 = i0;
-    i0 = state;
+    i0 = src;
     i1 = l4;
     i0 += i1;
-    state = i0;
+    src = i0;
   }
   block_12:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
     i0 = l6;
-    i1 = state;
-    i2 = stream;
+    i1 = src;
+    i2 = count;
     i0 = CopyBytes(ctx, i0, i1, i2);
-    i0 = line;
-    i1 = stream;
-    i2 = line;
+    i0 = stream;
+    i1 = count;
+    i2 = stream;
     i2 = LoadU32(ctx, i2 + 20u);
     i1 += i2;
     StoreU32(ctx, i0 + 20u, i1);
-    i0 = stream;
+    i0 = count;
     i1 = l4;
     i0 += i1;
     l3 = i0;
@@ -281,13 +281,13 @@ uint32_t ReadInputLine(EngineContext* ctx, uint32_t state, uint32_t stream, uint
   i0 = ReturnFrameSp(ctx);
   i0 = LoadU32(ctx, i0);
   l5 = i0;
-  i1 = state;
+  i1 = src;
   StoreU32(ctx, i0, i1);
   i0 = l5;
-  i1 = stream;
+  i1 = count;
   StoreU32(ctx, i0 + 4u, i1);
   i0 = l5;
-  i1 = line;
+  i1 = stream;
   StoreU32(ctx, i0 + 8u, i1);
   i0 = l5;
   i1 = l3;

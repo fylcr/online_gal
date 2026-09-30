@@ -22,15 +22,15 @@ uint32_t CompactEntryQueue(EngineContext* ctx, uint32_t state, uint32_t queue);
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
 void ThrowScriptError(EngineContext* ctx, uint32_t a0, uint32_t a1);
 uint32_t InternString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t a0);
-void RaiseScriptError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-uint32_t FetchObjectMetamethod(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void GrowTableSlot(EngineContext* ctx, uint32_t a0);
+uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t a);
+void RaiseScriptError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+uint32_t FetchObjectMetamethod(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+void EnsureTableArrayRoom(EngineContext* ctx, uint32_t a);
 void RelocateElementArray(EngineContext* ctx, uint32_t state, uint32_t table);
 uint32_t AllocateTable(EngineContext* ctx, uint32_t state, uint32_t entries, uint32_t array);
 uint32_t GetTableFieldByString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t GetTableFieldByNumber(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void RaiseTypeError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+void RaiseTypeError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
 namespace {
 
@@ -499,7 +499,7 @@ uint32_t Call(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = a;
-        GrowTableSlot(ctx, i0);
+        EnsureTableArrayRoom(ctx, i0);
         i0 = 3u;
         i1 = ResumePhase(ctx);
         i2 = 1u;

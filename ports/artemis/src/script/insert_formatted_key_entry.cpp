@@ -20,7 +20,7 @@ namespace artc {
 // Forward declarations -- batch-mates and registered callees.
 void FormatNumberValue(EngineContext* ctx, uint32_t state, uint32_t value, uint32_t options);
 uint32_t InternString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void GrowTableSlot(EngineContext* ctx, uint32_t a0);
+void EnsureTableArrayRoom(EngineContext* ctx, uint32_t a);
 
 namespace {
 
@@ -110,7 +110,7 @@ void InsertFormattedKeyEntry(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = a;
-        GrowTableSlot(ctx, i0);
+        EnsureTableArrayRoom(ctx, i0);
         i0 = 0u;
         i1 = ResumePhase(ctx);
         i2 = 1u;

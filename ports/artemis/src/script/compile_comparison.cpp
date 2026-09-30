@@ -18,9 +18,9 @@
 namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
-void GrowValueStack(EngineContext* ctx, uint32_t a0, uint32_t a1);
-void CallValue(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-uint32_t FetchMetamethod(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+void GrowValueStack(EngineContext* ctx, uint32_t a, uint32_t b);
+void CallValue(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+uint32_t FetchMetamethod(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 uint32_t RawValueEqual(EngineContext* ctx, uint32_t a, uint32_t b);
 
 namespace {

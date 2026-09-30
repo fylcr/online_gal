@@ -20,7 +20,7 @@ namespace artc {
 // Forward declarations -- batch-mates and registered callees.
 void InitializeTableArray(EngineContext* ctx, uint32_t func_state, uint32_t table, uint32_t size);
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
-uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t a0);
+uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t a);
 void RelocateObjectHeader(EngineContext* ctx, uint32_t state, uint32_t source, uint32_t tag);
 
 namespace {

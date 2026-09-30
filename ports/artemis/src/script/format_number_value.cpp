@@ -21,13 +21,13 @@ namespace artc {
 uint32_t CopyBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t StringLength(EngineContext* ctx, uint32_t text);
 uint32_t InternString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void GrowValueStack(EngineContext* ctx, uint32_t a0, uint32_t a1);
-void RaiseScriptError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-uint32_t FetchObjectMetamethod(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void CallValue(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void FormatConcatenationError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+void GrowValueStack(EngineContext* ctx, uint32_t a, uint32_t b);
+void RaiseScriptError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+uint32_t FetchObjectMetamethod(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+void CallValue(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+void FormatConcatenationError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 uint32_t MeasureFormattedNumber(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-uint32_t ReallocateFormatBuffer(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+uint32_t ReallocateFormatBuffer(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
 namespace {
 

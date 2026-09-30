@@ -18,14 +18,14 @@
 namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
-void ResizeTableArray(EngineContext* ctx, uint32_t a0, uint32_t a1);
-void ClearLocalFlags(EngineContext* ctx, uint32_t a0);
-void ClearUpvalueFlags(EngineContext* ctx, uint32_t a0);
-void InvokeMetaField(EngineContext* ctx, uint32_t a0);
+void ResizeTableArray(EngineContext* ctx, uint32_t a, uint32_t b);
+void ClearLocalFlags(EngineContext* ctx, uint32_t a);
+void ClearUpvalueFlags(EngineContext* ctx, uint32_t a);
+void InvokeMetaField(EngineContext* ctx, uint32_t a);
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
 void ClearFlagsRecursive(EngineContext* ctx, uint32_t state, uint32_t node);
-uint32_t FetchMetamethod(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-uint32_t LoadProtoSlot(EngineContext* ctx, uint32_t a0);
+uint32_t FetchMetamethod(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+uint32_t LoadProtoSlot(EngineContext* ctx, uint32_t a);
 uint32_t ReshapeTaggedNodeChain(EngineContext* ctx, uint32_t state, uint32_t node, uint32_t tag);
 
 namespace {

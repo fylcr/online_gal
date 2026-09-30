@@ -19,9 +19,9 @@ namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
 uint32_t FormatPushString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void RaiseSyntaxError(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 void StepRecordResume(EngineContext* ctx, uint32_t a0);
-uint32_t FormatCharValue(EngineContext* ctx, uint32_t a0, uint32_t a1);
+uint32_t FormatCharValue(EngineContext* ctx, uint32_t a, uint32_t b);
 uint32_t EmitOpInstruction(EngineContext* ctx, uint32_t func_state, uint32_t op, uint32_t arg_a, uint32_t arg_b, uint32_t line);
 void PatchJumpChain(EngineContext* ctx, uint32_t state, uint32_t instruction);
 uint32_t ConcatJumpLists(EngineContext* ctx, uint32_t state);
@@ -37,8 +37,8 @@ constexpr uint32_t kF1718MsgSExpected = 0x2B625u;  // '%s' expected
 constexpr uint32_t kF1718ConstFFFFFFFF = 0xFFFFFFFFu;  // 
 constexpr uint32_t kF1718SaveFrameBytes = 44u;
 constexpr uint32_t kF1718ResumeWordBytes = 4u;
-constexpr uint32_t kResumeCloseBlockScope06 = 6u;
-constexpr uint32_t kResumePatchJumpChain09 = 9u;
+constexpr uint32_t kF1718ResumeCloseBlockScope06 = 6u;
+constexpr uint32_t kF1718ResumePatchJumpChain09 = 9u;
 
 }  // namespace
 
@@ -392,7 +392,7 @@ void ParseExpression(EngineContext* ctx, uint32_t state, uint32_t token, uint32_
     i0 = l6;
     i1 = depth;
     ReserveRegisters(ctx, i0, i1);
-    i0 = kResumeCloseBlockScope06;
+    i0 = kF1718ResumeCloseBlockScope06;
     i1 = ResumePhase(ctx);
     i2 = 1u;
     i1 = i1 == i2;
@@ -521,7 +521,7 @@ void ParseExpression(EngineContext* ctx, uint32_t state, uint32_t token, uint32_
     i0 = l6;
     i1 = state;
     PatchJumpChain(ctx, i0, i1);
-    i0 = kResumePatchJumpChain09;
+    i0 = kF1718ResumePatchJumpChain09;
     i1 = ResumePhase(ctx);
     i2 = 1u;
     i1 = i1 == i2;

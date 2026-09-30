@@ -18,12 +18,12 @@
 namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
-void MatchKeyword(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void MatchKeyword(EngineContext* ctx, uint32_t a, uint32_t b);
 uint32_t FormatPushString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void RaiseSyntaxError(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 void StepRecordResume(EngineContext* ctx, uint32_t a0);
 uint32_t CheckStatementLimits(EngineContext* ctx, uint32_t state, uint32_t func_state, uint32_t message);
-uint32_t FormatCharValue(EngineContext* ctx, uint32_t a0, uint32_t a1);
+uint32_t FormatCharValue(EngineContext* ctx, uint32_t a, uint32_t b);
 uint32_t ExpressionToRegister(EngineContext* ctx, uint32_t func_state, uint32_t expr);
 void LexError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t EmitOpInstruction(EngineContext* ctx, uint32_t func_state, uint32_t op, uint32_t arg_a, uint32_t arg_b, uint32_t line);

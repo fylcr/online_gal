@@ -28,7 +28,7 @@ uint32_t StringLength(EngineContext* ctx, uint32_t text);
 void RethrowPendingException(EngineContext* ctx, uint32_t a);
 uint32_t DestroyFileObject(EngineContext* ctx, uint32_t a);
 uint32_t ReleaseBufferedChainNode(EngineContext* ctx, uint32_t a);
-uint32_t Fread(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d);
+uint32_t Fwrite(EngineContext* ctx, uint32_t ptr, uint32_t size, uint32_t count, uint32_t stream);
 
 namespace {
 
@@ -1311,7 +1311,7 @@ void CommandDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = 1u;
           i2 = c;
           i3 = l4;
-          i0 = Fread(ctx, i0, i1, i2, i3);
+          i0 = Fwrite(ctx, i0, i1, i2, i3);
           l6 = i0;
           i0 = 15u;
           i1 = ResumePhase(ctx);
@@ -1389,7 +1389,7 @@ void CommandDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 1u;
       i2 = kF3631Const100000;
       i3 = l4;
-      i0 = Fread(ctx, i0, i1, i2, i3);
+      i0 = Fwrite(ctx, i0, i1, i2, i3);
       l6 = i0;
       i0 = 17u;
       i1 = ResumePhase(ctx);

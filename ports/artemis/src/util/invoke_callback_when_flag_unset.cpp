@@ -18,7 +18,7 @@
 namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
-uint32_t ReadInputLine(EngineContext* ctx, uint32_t state, uint32_t stream, uint32_t line);
+uint32_t FwriteBuffered(EngineContext* ctx, uint32_t src, uint32_t count, uint32_t stream);
 
 namespace {
 
@@ -92,7 +92,7 @@ void InvokeCallbackWhenFlagUnset(EngineContext* ctx, uint32_t state, uint32_t sl
       i0 = slot;
       i1 = callback;
       i2 = state;
-      i0 = ReadInputLine(ctx, i0, i1, i2);
+      i0 = FwriteBuffered(ctx, i0, i1, i2);
       i0 = 0u;
       i1 = ResumePhase(ctx);
       i2 = 1u;

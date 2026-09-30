@@ -18,7 +18,7 @@
 namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
-void RelocateUpvalueCells(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+void RelocateUpvalueCells(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
 namespace {
 

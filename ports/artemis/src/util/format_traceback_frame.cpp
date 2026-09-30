@@ -18,7 +18,7 @@
 namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
-void GrowValueStack(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void GrowValueStack(EngineContext* ctx, uint32_t a, uint32_t b);
 uint32_t FindPoolEntryByTagByte(EngineContext* ctx, uint32_t pool, uint32_t key);
 void FormatSourceId(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t AllocateTable(EngineContext* ctx, uint32_t state, uint32_t entries, uint32_t array);

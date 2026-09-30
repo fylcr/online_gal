@@ -21,7 +21,7 @@ namespace artc {
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 void ReleaseNodeTree(EngineContext* ctx, uint32_t state, uint32_t node);
-uint32_t FindOrderedChainEntry(EngineContext* ctx, uint32_t a0, uint32_t a1);
+uint32_t FindOrderedChainEntry(EngineContext* ctx, uint32_t a, uint32_t b);
 uint32_t CombineComparisonResults(EngineContext* ctx, uint32_t left, uint32_t right, uint32_t result, uint32_t box);
 
 namespace {

@@ -20,9 +20,9 @@ namespace artc {
 // Forward declarations -- batch-mates and registered callees.
 uint32_t CheckComparableTypes(EngineContext* ctx, uint32_t state, uint32_t left, uint32_t right);
 uint32_t StringLength(EngineContext* ctx, uint32_t text);
-void GrowValueStack(EngineContext* ctx, uint32_t a0, uint32_t a1);
-uint32_t FetchObjectMetamethod(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void CallValue(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+void GrowValueStack(EngineContext* ctx, uint32_t a, uint32_t b);
+uint32_t FetchObjectMetamethod(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+void CallValue(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 uint32_t RawValueEqual(EngineContext* ctx, uint32_t a, uint32_t b);
 uint32_t CompareScriptStrings(EngineContext* ctx, uint32_t left, uint32_t right);
 

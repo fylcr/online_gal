@@ -303,3 +303,24 @@ instrument-profile.py 计数锚 = 产品体 `  EnterFrame();`（索引取自 rw-
 - **横向前置 callee 的登记形**：多个产品共用的 callee 先只登记名字（tsv 的 `file` 列写 `—`、
   `PROD` 元组、`engine_context.h` 一行 `inline` 转发），实体留在生成层等它自己的批次。这类行会
   出现在 `tx-plan --ready` 输出里，但永远不会被 splice（`rw-splice.py` 只筛真实存在的 `src/<file>`）。
+- **单 TU 内的常量重名是硬错（批 17 实测）**：resume 码常量原按 `kResume<Callee><NN>` 命名（不带 fnid），
+  `render/layer_events.cpp`（f3661）与 `text/babel_encode_scorer.cpp`（f1674）都经 `Oc_0`（DeallocateRawBlock）
+  以码 1 重入 ⇒ 两文件各印一份 `constexpr uint32_t kResumeDeallocateRawBlock01 = 1u;`，而单 TU 拼装所有产品 ⇒
+  `error: redefinition of 'kResumeDeallocateRawBlock01'`（码 01 是唯一撞名；layer_events 另有 41/51/54/118、
+  babel 另有 00，当时不撞）。已修：`tx-gen2.py` 的 resume 常量名带 fnid（`kF<nnnn>Resume<Callee><NN>`，
+  与既有的 `kF<nnnn>ResumeWordBytes`/`kF<nnnn>SaveFrameBytes` 同形）。**规矩：凡印进产品文件作用域的常量、
+  枚举或类型名都必须带 fnid**；动了这类命名要跑一次全量构建，不能只看本批产品。
+- **改名不追溯，全量 `--check` 是唯一的漂移探针（批 17 实测）**：`--only=` 只核对本批产品；callee 改名
+  （`GrowTableSlot`→`EnsureTableArrayRoom`）与占位参数改名（`a0..a5`→`a..f`）不会回头改已落产品的原型行与呼叫点。
+  批 17 首次全量 `python tx-gen2.py --check` 报 `identical 235 / differing 58 / absent 0`，逐件 diff 证实 58 件
+  全是陈旧名字（无一行逻辑差异），全量重发后 `identical 293 / differing 0 / absent 0`。
+  **规矩：改 `PROD`/`METAS` 里任何名字后，跑全量 `--check`，把 DIFF 行全量重发**（`differing` 必须是 0 才算收工）。
+- **fread 家族曾整族反向命名（批 13–16 遗留，批 17 依证据改正）**：`util/copy_bytes.cpp` 的
+  `CopyBytes(ctx, dst, src, n)` **首参是 dst 且返回 dst**（官方 C `.ref/artemis-official/wasm/asyncify/artemis.wasm2c.c:112723-112983`
+  尾部 `var_i0 = var_p0; … return var_i0;`）；f962 第 226 行是 `CopyBytes(..., mem[流对象+20], p0, p1)`，数据**写进**流对象，
+  且与 musl FILE 布局吻合（wend@16 / wpos@20，容量检查 `mem[p2+16] - mem[p2+20]`，写满先走 `__towrite` 式分支）
+  ⇒ f962 = `FwriteBuffered`（≈`__fwritex`）、f1210 = `PrepareStreamWrite`（≈`__towrite`）、f366 = `Fwrite`（≈`fwrite`，
+  `l = size*nmemb` / 返回 `k==l ? nmemb : k/size`）。旧名 `ReadInputLine` / `ResetInputLineState` / `Fread` 已 `git mv`
+  改正为 `util/{fwrite_buffered,prepare_stream_write,fwrite}.cpp`。教训：**方向性命名要拿 CopyBytes 的首参（dst）
+  或 memcpy 的 dst 语义钉死**，别按“看起来像读”猜；调用侧（`host/fetch_manager_command.cpp` 里 `Fwrite(ctx, b, 1u, c, l4)`
+  把下载数据写文件）是第二道佐证。

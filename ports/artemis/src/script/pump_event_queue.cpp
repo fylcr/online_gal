@@ -23,10 +23,10 @@ uint32_t PollEventKind(EngineContext* ctx);
 void RunEventStep(EngineContext* ctx, uint32_t a0);
 // PROVISIONAL nested-namespace forwarders (the dispatch products land later).
 namespace AutoReadTimer {
-  void Dispatch(EngineContext* ctx, uint32_t a0, uint32_t a1);
+  void Dispatch(EngineContext* ctx, uint32_t a, uint32_t b);
 }
 namespace BacklogView {
-  void DispatchAux(EngineContext* ctx, uint32_t a0, uint32_t a1);
+  void DispatchAux(EngineContext* ctx, uint32_t a, uint32_t b);
 }
 
 namespace {

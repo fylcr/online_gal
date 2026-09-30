@@ -19,7 +19,7 @@ namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
 uint32_t FillBytes(EngineContext* ctx, uint32_t dst, uint32_t value, uint32_t length);
-uint32_t MatchCStringPrefix(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+uint32_t MatchCStringPrefix(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
 namespace {
 

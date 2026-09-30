@@ -230,7 +230,7 @@ PROD.update({
   'f644': ('RaiseArithmeticError', 'void', ['ctx', 'state', 'value', 'meta']),
   'f837': ('CompareScriptStrings', 'uint32_t', ['ctx', 'left', 'right']),
   'f900': ('FormatNumber', 'uint32_t', ['ctx', 'state', 'value', 'options']),
-  'f962': ('ReadInputLine', 'uint32_t', ['ctx', 'state', 'stream', 'line']),
+  'f962': ('FwriteBuffered', 'uint32_t', ['ctx', 'src', 'count', 'stream']),
   'f1005': ('FindStringLength', 'uint32_t', ['ctx', 'value', 'literal']),
   'f1110': ('FormatNumberValue', 'void', ['ctx', 'state', 'value', 'options']),
   'f1700': ('DeclareUpvalue', 'void', ['ctx', 'state', 'local']),
@@ -295,7 +295,7 @@ PROD.update({
   'f1043': ('InvokeVirtualSlot', 'uint32_t', ['ctx', 'var_p0']),
   'f1129': ('RelocateUpvalueCells', 'void', ['ctx', 'var_p0', 'var_p1', 'var_p2']),
   'f1131': ('EmitPrototypePrologue', 'void', ['ctx', 'var_p0', 'var_p1', 'var_p2', 'var_p3']),
-  'f1210': ('ResetInputLineState', 'uint32_t', ['ctx', 'var_p0']),
+  'f1210': ('PrepareStreamWrite', 'uint32_t', ['ctx', 'stream']),
   'f1218': ('ResetSuspendableFrame', 'void', ['ctx']),
   'f1325': ('ScanBitMaskWord', 'uint32_t', ['ctx', 'var_p0', 'var_p1']),
   'f1408': ('ReleaseLayerRenderData', 'void', ['ctx', 'var_p0']),
@@ -421,7 +421,7 @@ PROD.update({
  'f5624': ('ResetNodeChainFlags', 'void', ['ctx', 'p0', 'p1']),
  'f763': ('ClearStructFields', 'uint32_t', ['ctx', 'p0']),
  'f761': ('ResetGlobalSlotTable', 'void', ['ctx', 'p0']),
- 'f1210': ('ResetInputLineState', 'uint32_t', ['ctx', 'p0']),
+ 'f1210': ('PrepareStreamWrite', 'uint32_t', ['ctx', 'stream']),
  'f490': ('ResetEventFilterState', 'void', ['ctx', 'p0']),
  'f776': ('ReallocateFormatBuffer', 'uint32_t', ['ctx', 'p0', 'p1', 'p2']),
  'f582': ('InitNodeStorage', 'void', ['ctx', 'p0']),
@@ -457,7 +457,7 @@ PROD.update({
  # ---- batch-13 ----
  'f1072': ('ClearUnorderedBuckets', 'void', ['ctx', 'p0']),
  'f294': ('RethrowPendingException', 'void', ['ctx', 'p0']),
- 'f366': ('Fread', 'uint32_t', ['ctx', 'p0', 'p1', 'p2', 'p3']),
+ 'f366': ('Fwrite', 'uint32_t', ['ctx', 'ptr', 'size', 'count', 'stream']),
  'f3631': ('FetchManager::CommandDispatch', 'void', ['ctx', 'p0', 'p1', 'p2']),
  'f1081': ('ResetSharedPtr01', 'void', ['ctx', 'p0', 'p1']),
  'f1406': ('ResetSharedPtr02', 'void', ['ctx', 'p0', 'p1']),
@@ -487,6 +487,10 @@ PROD.update({
  'f336': ('FindTaggedTreeEntry', 'void', ['ctx', 'p0', 'p1', 'p2', 'p3', 'p4', 'p5']),
  'f580': ('ClearObjectDeque', 'void', ['ctx', 'p0']),
  'f1409': ('PushObjectDequeElement', 'uint32_t', ['ctx', 'p0', 'p1']),
+ # ---- batch-17: the f3633 door, take two -- the babel scorer, the int formatter and the log stream writer ----
+ 'f1674': ('Babel::ScoreEncoding', 'void', ['ctx', 'data', 'length', 'out']),
+ 'f755': ('IntegerToString', 'void', ['ctx', 'dest', 'value']),
+ 'f720': ('WriteStreamString', 'void', ['ctx', 'str', 'stream']),
  # ---- batch-8B: the tagged-tree / buffered-stream / sound-table closure (2026-10-02) ----
  'f284': ('CopyScriptBlock', 'uint32_t', ['ctx', 'p0', 'p1']),
  'f353': ('AssignTaggedTreeRange', 'void', ['ctx', 'p0', 'p1', 'p2']),
@@ -869,8 +873,8 @@ METAS = {
  'f900': dict(ret='uint32_t', params=['state', 'value', 'options'], file='script/format_number.cpp',
    purpose='FormatNumber -- the number-to-string conversion, including the 14 significant digit default and the null fallback.',
    loc={}, frame=72),
- 'f962': dict(ret='uint32_t', params=['state', 'stream', 'line'], file='util/read_input_line.cpp',
-   purpose='ReadInputLine -- reads one line from the input stream, growing the buffer as it goes.',
+ 'f962': dict(ret='uint32_t', params=['src', 'count', 'stream'], file='util/fwrite_buffered.cpp',
+   purpose="FwriteBuffered -- the buffered write core: count bytes are copied from src into the stream buffer at +20, first opening or growing that buffer through PrepareStreamWrite when it is unset, and the write cursor is advanced.",
    loc={}, frame=24),
  'f1005': dict(ret='uint32_t', params=['value', 'literal'], file='script/find_string_length.cpp',
    purpose='FindStringLength -- walks a NUL-terminated literal to find its length.',
@@ -1198,8 +1202,8 @@ METAS = {
  'f761': dict(ret='void', params=['a'], file='script/reset_global_slot_table.cpp',
    purpose="ResetGlobalSlotTable -- resets the global slot table: the table is rebuilt empty and its slot count is reset.",
    loc={}, frame=12),
- 'f1210': dict(ret='uint32_t', params=['a'], file='script/reset_input_line_state.cpp',
-   purpose="ResetInputLineState -- resets the input line state: the pending input line and its cursor are cleared.",
+ 'f1210': dict(ret='uint32_t', params=['stream'], file='util/prepare_stream_write.cpp',
+   purpose="PrepareStreamWrite -- makes the stream writable: the pending read state is cleared, the write cursor is pointed at the buffer and a non-zero answer reports that the stream cannot be written.",
    loc={}, frame=0),
  'f490': dict(ret='void', params=['a'], file='script/reset_event_filter_state.cpp',
    purpose="ResetEventFilterState -- resets the event filter state: the latched event filters are cleared.",
@@ -1339,8 +1343,8 @@ METAS = {
   'f294': dict(ret='void', params=['a'], file='core/rethrow_pending_exception.cpp',
     purpose="RethrowPendingException -- the rethrow landing pad: it reads the throw latch and returns unless it holds 1, and otherwise asks the host for the matching catch and panics with the recovered value.",
     loc={}, frame=0),
-  'f366': dict(ret='uint32_t', params=['a', 'b', 'c', 'd'], file='util/fread.cpp',
-    purpose="Fread -- the libc fread: size times count bytes are read into the buffer through ReadInputLine and the count of complete records is answered.",
+  'f366': dict(ret='uint32_t', params=['ptr', 'size', 'count', 'stream'], file='util/fwrite.cpp',
+    purpose="Fwrite -- the fwrite shape: size times count bytes are handed to FwriteBuffered and the count of complete size-byte records is answered; the stream state word at +76 is consulted first.",
     loc={}, frame=24),
   # ---- batch-14 ----
   'f3631': dict(ret='void', params=['a', 'b', 'c'], file='host/fetch_manager_command.cpp',
@@ -1398,6 +1402,16 @@ METAS = {
     loc={}, frame=0),
   'f1466': dict(ret='void', params=[], file='util/init_crc32_table.cpp',
     purpose="InitCrc32Table -- the lazy CRC-32 table builder: every one of the 256 entries reflects its own index byte, runs eight rounds of the 0x04C11DB7 polynomial and stores the reversed word, once, behind the initialised flag.",
+    loc={}, frame=0),
+  # ---- batch-17 ----
+  'f1674': dict(ret='void', params=['data', 'length', 'out'], file='text/babel_encode_scorer.cpp',
+    purpose="Babel::ScoreEncoding -- babel.cpp's encode_scorer: the byte buffer is walked against every known encoding mode (EUC / Shift-JIS / Shift_JIS / UTF-8), the first byte is scored against the mode and the answer is written through the result record, with the compiled-in babel.cpp asserts.",
+    loc={}, frame=0),
+  'f755': dict(ret='void', params=['dest', 'value'], file='util/integer_to_string.cpp',
+    purpose="IntegerToString -- the signed 32-bit decimal formatter: the sign is split off, a minus is written for negatives and the destination string is filled with the digits of the absolute value.",
+    loc={}, frame=0),
+  'f720': dict(ret='void', params=['str', 'stream'], file='util/write_stream_string.cpp',
+    purpose="WriteStreamString -- a NUL-terminated string is written to an output stream: the string is measured with StringLength and the bytes are forwarded to Fwrite as size 1.",
     loc={}, frame=0),
 }
 
@@ -1531,7 +1545,10 @@ def transform(fnid, src_start):
                 mm = call_re.search(lines[k])
                 if mm: callee = mm.group(1); break
             if callee:
-                codename.setdefault(code, 'kResume%s%02d' % (PROD[callee][0].replace('::','').replace('_',''), code))
+                # the owning fnid is part of the name: two products resuming through
+                # the same callee with the same code would otherwise both define
+                # kResumeDeallocateRawBlock01, and every product lands in one TU.
+                codename.setdefault(code, 'kF%sResume%s%02d' % (fnid[1:], PROD[callee][0].replace('::','').replace('_',''), code))
     for j in range(src_start+1, body_end):
         ln = lines[j]
         # local decl lines: skip; re-emit ourselves
@@ -1802,6 +1819,8 @@ ORDER = ['f265','f5721','f910','f708','f364','f645','f223','f476','f4579','f399'
           'f1081', 'f1406', 'f1465', 'f2936', 'f3387', 'f3395', 'f3558', 'f3626', 'f4204', 'f4553', 'f4569', 'f1593',
          # ---- batch-16: the f3633 door, take one ----
          'f240', 'f420', 'f857', 'f3308', 'f1466',
+         # ---- batch-17: the f3633 door, take two ----
+         'f1674', 'f755', 'f720',
          'f605','f646','f909','f911','f912','f913','f1117','f1132','f1718','f1719','f1720','f1746','f5678','f5679',
          'f262','f298','f304','f309','f377','f783','f1486','f1487','f3516','f3804','f5509','f5536','f5628','f5629','f5630','f5716',
          'f255','f382','f442','f450','f451','f453','f521','f548','f781','f784','f885','f897','f1112','f1128','f1212','f1715','f1739','f2207','f1701','f899',

@@ -22,7 +22,7 @@ void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);
 uint32_t CopyBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t StringLength(EngineContext* ctx, uint32_t text);
-void RaiseStringLengthError(EngineContext* ctx, uint32_t a0);
+void RaiseStringLengthError(EngineContext* ctx, uint32_t a);
 
 namespace {
 

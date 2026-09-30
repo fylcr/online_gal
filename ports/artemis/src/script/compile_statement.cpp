@@ -18,10 +18,10 @@
 namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
-void ExpectToken(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void ExpectToken(EngineContext* ctx, uint32_t a, uint32_t b);
 uint32_t AppendWithLimit(EngineContext* ctx, uint32_t list, uint32_t entry, uint32_t limit, uint32_t what);
 void ReleaseExpressionSlots(EngineContext* ctx, uint32_t state, uint32_t instruction, uint32_t count, uint32_t unused);
-void ParseParamList(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3);
+void ParseParamList(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d);
 void CheckMatch(EngineContext* ctx, uint32_t lex_state, uint32_t expected);
 void EmitVariableLoad(EngineContext* ctx, uint32_t state, uint32_t variable, uint32_t register_hint);
 void ParseExpression(EngineContext* ctx, uint32_t state, uint32_t token, uint32_t slot, uint32_t depth, uint32_t flag);
@@ -29,17 +29,17 @@ void ParseAssignment(EngineContext* ctx, uint32_t state, uint32_t target_slot, u
 uint32_t ParseSimpleAssignment(EngineContext* ctx, uint32_t state);
 void EmitJumpInstruction(EngineContext* ctx, uint32_t state, uint32_t register_hint, uint32_t target);
 uint32_t FormatPushString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void RaiseSyntaxError(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 void StepRecordResume(EngineContext* ctx, uint32_t a0);
 uint32_t CheckStatementLimits(EngineContext* ctx, uint32_t state, uint32_t func_state, uint32_t message);
-uint32_t FormatCharValue(EngineContext* ctx, uint32_t a0, uint32_t a1);
+uint32_t FormatCharValue(EngineContext* ctx, uint32_t a, uint32_t b);
 void LexError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t EmitOpInstruction(EngineContext* ctx, uint32_t func_state, uint32_t op, uint32_t arg_a, uint32_t arg_b, uint32_t line);
-void CheckExprComplexity(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void CheckExprComplexity(EngineContext* ctx, uint32_t a, uint32_t b);
 void DeclareLocalVariable(EngineContext* ctx, uint32_t state, uint32_t name, uint32_t slot);
 void PatchJumpChain(EngineContext* ctx, uint32_t state, uint32_t instruction);
 uint32_t EmitConditionJump(EngineContext* ctx, uint32_t func_state, uint32_t condition);
-void CheckClosingMatch(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3);
+void CheckClosingMatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d);
 uint32_t BindUpvalueCell(EngineContext* ctx, uint32_t state, uint32_t local, uint32_t upvalue);
 uint32_t AddOneConstant(EngineContext* ctx, uint32_t state);
 void ReserveThreeRegisters(EngineContext* ctx, uint32_t state);

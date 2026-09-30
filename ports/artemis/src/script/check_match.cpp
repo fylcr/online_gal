@@ -18,21 +18,21 @@
 namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
-void ExpectToken(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void ExpectToken(EngineContext* ctx, uint32_t a, uint32_t b);
 uint32_t AppendWithLimit(EngineContext* ctx, uint32_t list, uint32_t entry, uint32_t limit, uint32_t what);
-void MatchKeyword(EngineContext* ctx, uint32_t a0, uint32_t a1);
-void ParseArguments(EngineContext* ctx, uint32_t a0, uint32_t a1);
-void EmitMoveSlot(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+void MatchKeyword(EngineContext* ctx, uint32_t a, uint32_t b);
+void ParseArguments(EngineContext* ctx, uint32_t a, uint32_t b);
+void EmitMoveSlot(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 uint32_t FormatPushString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void RaiseSyntaxError(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 void StepRecordResume(EngineContext* ctx, uint32_t a0);
 uint32_t CheckStatementLimits(EngineContext* ctx, uint32_t state, uint32_t func_state, uint32_t message);
-uint32_t FormatCharValue(EngineContext* ctx, uint32_t a0, uint32_t a1);
-void CheckExprComplexity(EngineContext* ctx, uint32_t a0, uint32_t a1);
+uint32_t FormatCharValue(EngineContext* ctx, uint32_t a, uint32_t b);
+void CheckExprComplexity(EngineContext* ctx, uint32_t a, uint32_t b);
 void DischargeExpression(EngineContext* ctx, uint32_t a0, uint32_t a1);
 uint32_t EmitConditionJump(EngineContext* ctx, uint32_t func_state, uint32_t condition);
-void CheckClosingMatch(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3);
-void EmitJumpIf(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+void CheckClosingMatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d);
+void EmitJumpIf(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 uint32_t EncodeConstant(EngineContext* ctx, uint32_t func_state, uint32_t value);
 
 namespace {

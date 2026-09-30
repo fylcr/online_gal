@@ -21,7 +21,7 @@ namespace artc {
 void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression);
 void ThrowScriptError(EngineContext* ctx, uint32_t a0, uint32_t a1);
 void RaiseScriptError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
-void GrowTableSlot(EngineContext* ctx, uint32_t a0);
+void EnsureTableArrayRoom(EngineContext* ctx, uint32_t a);
 uint32_t Call(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
 namespace {
@@ -221,7 +221,7 @@ void CallValue(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = a;
-      GrowTableSlot(ctx, i0);
+      EnsureTableArrayRoom(ctx, i0);
       i0 = 3u;
       i1 = ResumePhase(ctx);
       i2 = 1u;

@@ -18,7 +18,7 @@
 namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
-void CheckExprComplexity(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void CheckExprComplexity(EngineContext* ctx, uint32_t a, uint32_t b);
 void EmitBranchWord(EngineContext* ctx, uint32_t state, uint32_t opcode, uint32_t operands);
 void ReserveRegisters(EngineContext* ctx, uint32_t state, uint32_t count);
 void AllocateExpressionRegister(EngineContext* ctx, uint32_t state, uint32_t instruction, uint32_t expression);

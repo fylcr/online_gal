@@ -18,7 +18,7 @@
 namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
-void GrowTableSlot(EngineContext* ctx, uint32_t a0);
+void EnsureTableArrayRoom(EngineContext* ctx, uint32_t a);
 uint32_t FormatNumber(EngineContext* ctx, uint32_t state, uint32_t value, uint32_t options);
 
 namespace {
@@ -103,7 +103,7 @@ uint32_t FlushOutputRoomIfFull(EngineContext* ctx, uint32_t state, uint32_t limi
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = state;
-      GrowTableSlot(ctx, i0);
+      EnsureTableArrayRoom(ctx, i0);
       i0 = 0u;
       i1 = ResumePhase(ctx);
       i2 = 1u;

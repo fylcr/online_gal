@@ -19,7 +19,7 @@
 namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
-double EncodeSignedOrderAsDouble(EngineContext* ctx, double a0, uint32_t a1);
+double EncodeSignedOrderAsDouble(EngineContext* ctx, double a, uint32_t b);
 
 namespace {
 

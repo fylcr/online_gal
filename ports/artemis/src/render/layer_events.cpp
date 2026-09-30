@@ -24,7 +24,7 @@ uint32_t CompareBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2)
 uint32_t CopyBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 void ReleaseNodeTree(EngineContext* ctx, uint32_t state, uint32_t node);
 uint32_t CombineComparisonResults(EngineContext* ctx, uint32_t left, uint32_t right, uint32_t result, uint32_t box);
-void ReleaseLayerNodeTree(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void ReleaseLayerNodeTree(EngineContext* ctx, uint32_t a, uint32_t b);
 
 namespace {
 
@@ -67,11 +67,11 @@ constexpr uint32_t kF3661ConstFFFFFFFE = 0xFFFFFFFEu;  //
 constexpr uint32_t kF3661ConstFFFFFFFF = 0xFFFFFFFFu;  // 
 constexpr uint32_t kF3661SaveFrameBytes = 56u;
 constexpr uint32_t kF3661ResumeWordBytes = 4u;
-constexpr uint32_t kResumeDeallocateRawBlock01 = 1u;
-constexpr uint32_t kResumeDeallocateRawBlock41 = 41u;
-constexpr uint32_t kResumeDeallocateRawBlock51 = 51u;
-constexpr uint32_t kResumeDeallocateRawBlock54 = 54u;
-constexpr uint32_t kResumeDeallocateRawBlock118 = 118u;
+constexpr uint32_t kF3661ResumeDeallocateRawBlock01 = 1u;
+constexpr uint32_t kF3661ResumeDeallocateRawBlock41 = 41u;
+constexpr uint32_t kF3661ResumeDeallocateRawBlock51 = 51u;
+constexpr uint32_t kF3661ResumeDeallocateRawBlock54 = 54u;
+constexpr uint32_t kF3661ResumeDeallocateRawBlock118 = 118u;
 
 }  // namespace
 
@@ -580,7 +580,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 5u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -751,7 +751,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 7u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -981,7 +981,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 9u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -1189,7 +1189,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 11u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -1397,7 +1397,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 13u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -1605,7 +1605,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 15u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -1809,7 +1809,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       l9 = i0;
       i0 = 17u;
       i1 = ResumePhase(ctx);
-      i2 = kResumeDeallocateRawBlock01;
+      i2 = kF3661ResumeDeallocateRawBlock01;
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
       i0 = l9;
@@ -1943,7 +1943,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       l9 = i0;
       i0 = 19u;
       i1 = ResumePhase(ctx);
-      i2 = kResumeDeallocateRawBlock01;
+      i2 = kF3661ResumeDeallocateRawBlock01;
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
       i0 = l9;
@@ -2100,7 +2100,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           l9 = i0;
           i0 = 20u;
           i1 = ResumePhase(ctx);
-          i2 = kResumeDeallocateRawBlock01;
+          i2 = kF3661ResumeDeallocateRawBlock01;
           i1 = i1 == i2;
           if (i1) {goto spill_frame;}
           i0 = l9;
@@ -2283,7 +2283,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 22u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -2334,7 +2334,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 23u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -2434,7 +2434,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 25u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -3033,7 +3033,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 30u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -3345,7 +3345,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       l9 = i0;
       i0 = 35u;
       i1 = ResumePhase(ctx);
-      i2 = kResumeDeallocateRawBlock01;
+      i2 = kF3661ResumeDeallocateRawBlock01;
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
       i0 = l9;
@@ -3774,9 +3774,9 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i2 = c;
       i0 = HostOsQuery(ctx, i0, i1, i2);
       l9 = i0;
-      i0 = kResumeDeallocateRawBlock41;
+      i0 = kF3661ResumeDeallocateRawBlock41;
       i1 = ResumePhase(ctx);
-      i2 = kResumeDeallocateRawBlock01;
+      i2 = kF3661ResumeDeallocateRawBlock01;
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
       i0 = l9;
@@ -4017,7 +4017,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           l9 = i0;
           i0 = 44u;
           i1 = ResumePhase(ctx);
-          i2 = kResumeDeallocateRawBlock01;
+          i2 = kF3661ResumeDeallocateRawBlock01;
           i1 = i1 == i2;
           if (i1) {goto spill_frame;}
           i0 = l9;
@@ -4372,7 +4372,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 47u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -4626,9 +4626,9 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i2 = kF3661MsgDisable;
         i0 = HostOsQuery(ctx, i0, i1, i2);
         l9 = i0;
-        i0 = kResumeDeallocateRawBlock51;
+        i0 = kF3661ResumeDeallocateRawBlock51;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -4827,9 +4827,9 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i2 = b;
         i0 = HostOsQuery(ctx, i0, i1, i2);
         l9 = i0;
-        i0 = kResumeDeallocateRawBlock54;
+        i0 = kF3661ResumeDeallocateRawBlock54;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -5069,7 +5069,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             l9 = i0;
             i0 = 57u;
             i1 = ResumePhase(ctx);
-            i2 = kResumeDeallocateRawBlock01;
+            i2 = kF3661ResumeDeallocateRawBlock01;
             i1 = i1 == i2;
             if (i1) {goto spill_frame;}
             i0 = l9;
@@ -5297,7 +5297,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 59u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -5880,7 +5880,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               l9 = i0;
               i0 = 68u;
               i1 = ResumePhase(ctx);
-              i2 = kResumeDeallocateRawBlock01;
+              i2 = kF3661ResumeDeallocateRawBlock01;
               i1 = i1 == i2;
               if (i1) {goto spill_frame;}
               i0 = l9;
@@ -5972,7 +5972,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             l9 = i0;
             i0 = 69u;
             i1 = ResumePhase(ctx);
-            i2 = kResumeDeallocateRawBlock01;
+            i2 = kF3661ResumeDeallocateRawBlock01;
             i1 = i1 == i2;
             if (i1) {goto spill_frame;}
             i0 = l9;
@@ -6068,7 +6068,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             l9 = i0;
             i0 = 70u;
             i1 = ResumePhase(ctx);
-            i2 = kResumeDeallocateRawBlock01;
+            i2 = kF3661ResumeDeallocateRawBlock01;
             i1 = i1 == i2;
             if (i1) {goto spill_frame;}
             i0 = l9;
@@ -6169,7 +6169,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
                 l9 = i0;
                 i0 = 71u;
                 i1 = ResumePhase(ctx);
-                i2 = kResumeDeallocateRawBlock01;
+                i2 = kF3661ResumeDeallocateRawBlock01;
                 i1 = i1 == i2;
                 if (i1) {goto spill_frame;}
                 i0 = l9;
@@ -6507,7 +6507,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           l9 = i0;
           i0 = 74u;
           i1 = ResumePhase(ctx);
-          i2 = kResumeDeallocateRawBlock01;
+          i2 = kF3661ResumeDeallocateRawBlock01;
           i1 = i1 == i2;
           if (i1) {goto spill_frame;}
           i0 = l9;
@@ -6933,7 +6933,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
                 l9 = i0;
                 i0 = 80u;
                 i1 = ResumePhase(ctx);
-                i2 = kResumeDeallocateRawBlock01;
+                i2 = kF3661ResumeDeallocateRawBlock01;
                 i1 = i1 == i2;
                 if (i1) {goto spill_frame;}
                 i0 = l9;
@@ -7134,7 +7134,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             l9 = i0;
             i0 = 82u;
             i1 = ResumePhase(ctx);
-            i2 = kResumeDeallocateRawBlock01;
+            i2 = kF3661ResumeDeallocateRawBlock01;
             i1 = i1 == i2;
             if (i1) {goto spill_frame;}
             i0 = l9;
@@ -7585,7 +7585,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               l9 = i0;
               i0 = 89u;
               i1 = ResumePhase(ctx);
-              i2 = kResumeDeallocateRawBlock01;
+              i2 = kF3661ResumeDeallocateRawBlock01;
               i1 = i1 == i2;
               if (i1) {goto spill_frame;}
               i0 = l9;
@@ -7677,7 +7677,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             l9 = i0;
             i0 = 90u;
             i1 = ResumePhase(ctx);
-            i2 = kResumeDeallocateRawBlock01;
+            i2 = kF3661ResumeDeallocateRawBlock01;
             i1 = i1 == i2;
             if (i1) {goto spill_frame;}
             i0 = l9;
@@ -8090,7 +8090,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
                   l9 = i0;
                   i0 = 95u;
                   i1 = ResumePhase(ctx);
-                  i2 = kResumeDeallocateRawBlock01;
+                  i2 = kF3661ResumeDeallocateRawBlock01;
                   i1 = i1 == i2;
                   if (i1) {goto spill_frame;}
                   i0 = l9;
@@ -9254,7 +9254,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     l9 = i0;
     i0 = 106u;
     i1 = ResumePhase(ctx);
-    i2 = kResumeDeallocateRawBlock01;
+    i2 = kF3661ResumeDeallocateRawBlock01;
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l9;
@@ -9357,7 +9357,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     l9 = i0;
     i0 = 108u;
     i1 = ResumePhase(ctx);
-    i2 = kResumeDeallocateRawBlock01;
+    i2 = kF3661ResumeDeallocateRawBlock01;
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l9;
@@ -9806,7 +9806,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     l9 = i0;
     i0 = 113u;
     i1 = ResumePhase(ctx);
-    i2 = kResumeDeallocateRawBlock01;
+    i2 = kF3661ResumeDeallocateRawBlock01;
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l9;
@@ -10134,9 +10134,9 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i2 = c;
       i0 = HostOsQuery(ctx, i0, i1, i2);
       l9 = i0;
-      i0 = kResumeDeallocateRawBlock118;
+      i0 = kF3661ResumeDeallocateRawBlock118;
       i1 = ResumePhase(ctx);
-      i2 = kResumeDeallocateRawBlock01;
+      i2 = kF3661ResumeDeallocateRawBlock01;
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
       i0 = l9;
@@ -10376,7 +10376,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           l9 = i0;
           i0 = 121u;
           i1 = ResumePhase(ctx);
-          i2 = kResumeDeallocateRawBlock01;
+          i2 = kF3661ResumeDeallocateRawBlock01;
           i1 = i1 == i2;
           if (i1) {goto spill_frame;}
           i0 = l9;
@@ -10748,7 +10748,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 126u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeDeallocateRawBlock01;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;

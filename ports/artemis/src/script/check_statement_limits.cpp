@@ -18,16 +18,16 @@
 namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
-void ParseParamList(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3);
+void ParseParamList(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d);
 void CheckMatch(EngineContext* ctx, uint32_t lex_state, uint32_t expected);
 void CompileMainBody(EngineContext* ctx, uint32_t a0, uint32_t a1);
-void RaiseSyntaxError(EngineContext* ctx, uint32_t a0, uint32_t a1);
+void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 void StepRecordResume(EngineContext* ctx, uint32_t a0);
 void LexError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t EmitOpInstruction(EngineContext* ctx, uint32_t func_state, uint32_t op, uint32_t arg_a, uint32_t arg_b, uint32_t line);
-void EmitExpression(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3);
-void EmitCondition(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void EmitStatement(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d);
+void EmitCondition(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+void EmitStatement(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 uint32_t EncodeConstant(EngineContext* ctx, uint32_t func_state, uint32_t value);
 
 namespace {

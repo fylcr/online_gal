@@ -27,12 +27,12 @@ uint32_t FindNumericKeySlot(EngineContext* ctx, uint32_t state);
 uint32_t ReserveIntVector(EngineContext* ctx, uint32_t state, uint32_t vector, uint32_t size);
 uint32_t CheckComparableTypes(EngineContext* ctx, uint32_t state, uint32_t left, uint32_t right);
 uint32_t StringLength(EngineContext* ctx, uint32_t text);
-void GrowValueStack(EngineContext* ctx, uint32_t a0, uint32_t a1);
-void RaiseScriptError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-uint32_t FetchObjectMetamethod(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void GrowTableSlot(EngineContext* ctx, uint32_t a0);
+void GrowValueStack(EngineContext* ctx, uint32_t a, uint32_t b);
+void RaiseScriptError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+uint32_t FetchObjectMetamethod(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+void EnsureTableArrayRoom(EngineContext* ctx, uint32_t a);
 uint32_t CoerceToNumber(EngineContext* ctx, uint32_t state, uint32_t value);
-void CallValue(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+void CallValue(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 double ComputeNumericPower(EngineContext* ctx, double base, double exponent);
 void StoreListEntry(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 void ReleaseNodeChain(EngineContext* ctx, uint32_t state, uint32_t chain);
@@ -45,8 +45,8 @@ void GetIndexedValue(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2, 
 uint32_t CompareScriptStrings(EngineContext* ctx, uint32_t left, uint32_t right);
 void IndexTableValue(EngineContext* ctx, uint32_t state, uint32_t table, uint32_t key, uint32_t result);
 uint32_t GetTableFieldByNumber(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-uint32_t Call(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void RaiseTypeError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+uint32_t Call(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+void RaiseTypeError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
 namespace {
 
@@ -917,7 +917,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i0 = i2 ? i0 : i1;
             if (i0) {
               i0 = state;
-              GrowTableSlot(ctx, i0);
+              EnsureTableArrayRoom(ctx, i0);
               i0 = 6u;
               i1 = ResumePhase(ctx);
               i2 = 1u;
@@ -4195,7 +4195,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i0 = i2 ? i0 : i1;
             if (i0) {
               i0 = state;
-              GrowTableSlot(ctx, i0);
+              EnsureTableArrayRoom(ctx, i0);
               i0 = 47u;
               i1 = ResumePhase(ctx);
               i2 = 1u;
@@ -6474,7 +6474,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i0 = i2 ? i0 : i1;
             if (i0) {
               i0 = state;
-              GrowTableSlot(ctx, i0);
+              EnsureTableArrayRoom(ctx, i0);
               i0 = 71u;
               i1 = ResumePhase(ctx);
               i2 = 1u;

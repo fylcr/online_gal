@@ -20,8 +20,8 @@ namespace artc {
 // Forward declarations -- batch-mates and registered callees.
 void InitializeTableArray(EngineContext* ctx, uint32_t func_state, uint32_t table, uint32_t size);
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
-uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t a0);
-void RaiseScriptError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t a);
+void RaiseScriptError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 uint32_t FinishTableIndex(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t LookupTableField(EngineContext* ctx, uint32_t a0, uint32_t a1);
 

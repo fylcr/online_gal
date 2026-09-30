@@ -19,12 +19,12 @@ namespace artc {
 
 // Forward declarations -- batch-mates and registered callees.
 uint32_t FlushOutputRoomIfFull(EngineContext* ctx, uint32_t state, uint32_t limit, uint32_t chunk);
-void InternKeyIntoTableSlot(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void InsertFormattedKeyEntry(EngineContext* ctx, uint32_t a0, uint32_t a1);
-uint32_t StepCallValueFrame(EngineContext* ctx, uint32_t a0);
+void InternKeyIntoTableSlot(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+void InsertFormattedKeyEntry(EngineContext* ctx, uint32_t a, uint32_t b);
+uint32_t StepCallValueFrame(EngineContext* ctx, uint32_t a);
 uint32_t TrimLocalSlotsAboveLevel(EngineContext* ctx, uint32_t proto, uint32_t level, uint32_t result);
 uint32_t FormatTracebackFrame(EngineContext* ctx, uint32_t state, uint32_t name, uint32_t out);
-void FormatTracebackSlotEntry(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+void FormatTracebackSlotEntry(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
 namespace {
 
