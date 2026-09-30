@@ -491,6 +491,15 @@ PROD.update({
  'f1674': ('Babel::ScoreEncoding', 'void', ['ctx', 'data', 'length', 'out']),
  'f755': ('IntegerToString', 'void', ['ctx', 'dest', 'value']),
  'f720': ('WriteStreamString', 'void', ['ctx', 'str', 'stream']),
+ # ---- batch-18: the f344 door -- musl printf internals (2026-10-03) ----
+ 'f572': ('WideCharToMultibyte', 'uint32_t', ['ctx', 'dest', 'wide', 'state']),
+ 'f1322': ('WideCharToMultibyteStateless', 'uint32_t', ['ctx', 'dest', 'wide']),
+ 'f1344': ('ParseDecimalNumber', 'uint32_t', ['ctx', 'cursor']),
+ 'f2752': ('FormatUnsignedOctal', 'uint32_t', ['ctx', 'value', 'dest']),
+ 'f2753': ('FormatUnsignedHex', 'uint32_t', ['ctx', 'value', 'dest', 'or_mask']),
+ 'f672': ('FormatUnsignedDecimal', 'uint32_t', ['ctx', 'value', 'dest']),
+ 'f1343': ('PopVarArg', 'void', ['ctx', 'out', 'type_code', 'ap', 'scratch']),
+ 'f411': ('WritePadding', 'void', ['ctx', 'stream', 'ch', 'width', 'length', 'flags']),
  # ---- batch-8B: the tagged-tree / buffered-stream / sound-table closure (2026-10-02) ----
  'f284': ('CopyScriptBlock', 'uint32_t', ['ctx', 'p0', 'p1']),
  'f353': ('AssignTaggedTreeRange', 'void', ['ctx', 'p0', 'p1', 'p2']),
@@ -1413,6 +1422,32 @@ METAS = {
   'f720': dict(ret='void', params=['str', 'stream'], file='util/write_stream_string.cpp',
     purpose="WriteStreamString -- a NUL-terminated string is written to an output stream: the string is measured with StringLength and the bytes are forwarded to Fwrite as size 1.",
     loc={}, frame=0),
+  # ---- batch-18: the f344 door -- musl printf internals (2026-10-03) ----
+  'f572': dict(ret='uint32_t', params=['dest', 'wide', 'state'], file='text/wide_char_to_multibyte.cpp',
+    purpose="WideCharToMultibyte -- musl wcrtomb: the wide character is encoded into at most four UTF-8 bytes (ASCII, two byte, three byte with the surrogate range refused, four byte up to 0x10FFFF), a null destination only asks for the byte count, and an unencodable character sets errno to EILSEQ and answers (uint32_t)-1.",
+    loc={}, frame=0),
+  'f1322': dict(ret='uint32_t', params=['dest', 'wide'], file='text/wide_char_to_multibyte_stateless.cpp',
+    purpose="WideCharToMultibyteStateless -- the stateless face of the conversion: a null destination answers zero, otherwise the stateful encoder is called with a null state argument.",
+    loc={}, frame=0),
+  'f1344': dict(ret='uint32_t', params=['cursor'], file='util/parse_decimal_number.cpp',
+    purpose="ParseDecimalNumber -- the positional-argument reader of the formatter: the digit run behind the character cursor is accumulated in base ten and the cursor is advanced past it, answering the parsed number.",
+    loc={}, frame=68),
+  'f2752': dict(ret='uint32_t', params=['value', 'dest'], file='util/format_unsigned_octal.cpp',
+    purpose="FormatUnsignedOctal -- the octal digit writer: digits are written backwards from the end of the buffer, three bits at a time, and the new start of the digit run is answered.",
+    loc={}, frame=0),
+  'f2753': dict(ret='uint32_t', params=['value', 'dest', 'or_mask'], file='util/format_unsigned_hex.cpp',
+    purpose="FormatUnsignedHex -- the hexadecimal digit writer: digits are indexed out of the uppercase table and written backwards from the end of the buffer, four bits at a time, with the caller's case and prefix mask or-ed into every byte.",
+    loc={}, frame=0),
+  'f672': dict(ret='uint32_t', params=['value', 'dest'], file='util/format_unsigned_decimal.cpp',
+    purpose="FormatUnsignedDecimal -- the decimal digit writer: the high digits are peeled off while the value does not fit in thirty-two bits and the remaining digits are written backwards from the end of the buffer, answering the start of the digit run.",
+    loc={}, frame=0),
+  'f1343': dict(ret='void', params=['out', 'type_code', 'ap', 'scratch'], file='util/pop_format_arg.cpp',
+    purpose="PopVarArg -- the argument-slot reader of the formatter (musl pop_arg): the type code selects one of ten widths (the 32, 16 and 8 bit signed and unsigned values widened into the 64 bit slot, plus the aligned 64 bit and floating cases) whose value is read out of the argument cursor and stored into the result slot.",
+    loc={}, frame=12),
+  'f411': dict(ret='void', params=['stream', 'ch', 'width', 'length', 'flags'], file='util/write_padding.cpp',
+    purpose="WritePadding -- the field padding of the formatter: the padding character is repeated into a 256 byte stack buffer and flushed in whole blocks until the requested width is reached, and nothing is written when the width already fits or the left-adjust and zero-pad flags are set.",
+    loc={}, frame=12),
+
 }
 
 def die(msg):
@@ -1479,6 +1514,16 @@ LOADS = [('i32_load_default32','LoadU32'), ('i32_load8_u_default32','LoadU8'),
          ('f32_load_default32','LoadF32'), ('f64_load_default32','LoadF64'),
          ('i32_load8_s_default32','LoadS8'),
           ('i32_load16_s_default32','LoadS16')]
+# the 64-bit widening loads format their arguments through the 8/16/32-bit helpers
+# (musl's argument reader is the only user so far); the expression is a cast, not a call
+WIDEN_LOADS = [('i64_load32_s_default32','(uint64_t)(int64_t)(int32_t)LoadU32'),
+               ('i64_load32_u_default32','(uint64_t)LoadU32'),
+               ('i64_load16_s_default32','(uint64_t)(int64_t)LoadS16'),
+               ('i64_load16_u_default32','(uint64_t)LoadU16'),
+               ('i64_load8_s_default32','(uint64_t)(int64_t)LoadS8'),
+               ('i64_load8_u_default32','(uint64_t)LoadU8')]
+WIDEN = dict(WIDEN_LOADS)
+widen_re = {g: re.compile(re.escape(g) + r'\(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_a_a, \(u64\)\(([^)]+)\)(?: \+ (\d+u))?\)') for g, _ in WIDEN_LOADS}
 STORES = [('i32_store_default32','StoreU32'), ('i32_store8_default32','StoreU8'),
           ('i32_store16_default32','StoreU16'), ('i64_store_default32','StoreU64'),
           ('f32_store_default32','StoreF32'), ('f64_store_default32','StoreF64')]
@@ -1585,6 +1630,11 @@ def transform(fnid, src_start):
         ln = re.sub(r'// 分支块边界 (var_[BL]\w*)（.*）', r'// merge point \1 (wasm2c flattening boundary)', ln)
         ln = re.sub(r'// 字符串池 (\d+)u：(.*)', r'// pool text \1: \2', ln)
         # memory ops
+        for g, rx in widen_re.items():
+            def wrep(mo, t=WIDEN[g]):
+                stats['mem'] += 1
+                return '%s(ctx, %s%s)' % (t, mo.group(1), ' + ' + mo.group(2) if mo.group(2) else '')
+            ln = rx.sub(wrep, ln)
         for g, rx in load_re.items():
             def lrep(mo, t=LOADNAME[g]):
                 stats['mem'] += 1
@@ -1821,6 +1871,9 @@ ORDER = ['f265','f5721','f910','f708','f364','f645','f223','f476','f4579','f399'
          'f240', 'f420', 'f857', 'f3308', 'f1466',
          # ---- batch-17: the f3633 door, take two ----
          'f1674', 'f755', 'f720',
+         'f1674', 'f755', 'f720',
+         # ---- batch-18: the f344 door -- musl printf internals (2026-10-03) ----
+         'f572', 'f1322', 'f1344', 'f2752', 'f2753', 'f672', 'f1343', 'f411',
          'f605','f646','f909','f911','f912','f913','f1117','f1132','f1718','f1719','f1720','f1746','f5678','f5679',
          'f262','f298','f304','f309','f377','f783','f1486','f1487','f3516','f3804','f5509','f5536','f5628','f5629','f5630','f5716',
          'f255','f382','f442','f450','f451','f453','f521','f548','f781','f784','f885','f897','f1112','f1128','f1212','f1715','f1739','f2207','f1701','f899',

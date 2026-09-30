@@ -324,3 +324,17 @@ instrument-profile.py 计数锚 = 产品体 `  EnterFrame();`（索引取自 rw-
   改正为 `util/{fwrite_buffered,prepare_stream_write,fwrite}.cpp`。教训：**方向性命名要拿 CopyBytes 的首参（dst）
   或 memcpy 的 dst 语义钉死**，别按“看起来像读”猜；调用侧（`host/fetch_manager_command.cpp` 里 `Fwrite(ctx, b, 1u, c, l4)`
   把下载数据写文件）是第二道佐证。
+- **64 位加宽加载要经过 8/16/32 位助手（批 18 实测）**：wasm2c 的 `i64_load32_s_default32` / `i64_load16_u_default32` /
+  `i64_load8_s_default32` 之类在 `tx-gen2.py` 的 `LOADS` 表里**原本没有条目**，会原样漏进产品（f1343 首次 emit 就报了
+  `LEFTOVER:var_,w2c_,_default32,wasm_rt_,instance`）。已新增 `WIDEN_LOADS`：它们替换成**表达式**而不是助手名
+  （`(uint64_t)(int64_t)(int32_t)LoadU32(ctx, addr)`、`(uint64_t)LoadU16(ctx, addr)` …），并且必须在通用加载替换**之前**跑。
+  另注：泄漏扫描是**裸子串**匹配，文件名或 purpose 里出现 `var_`（`pop_var_arg.cpp`、英文 "variadic"）会误报 ⇒
+  产品文件名与 purpose 里别写 `var_`（f1343 已改名 `util/pop_format_arg.cpp`，名字仍是 `artc::PopVarArg`）。
+- **f344 / f1014 链是 musl 的 printf 内核（批 18 实测，定名指纹）**：`mem[849888]` 是 errno（EILSEQ=25）、`mem[820516]` 是
+  locale 标志、`786016` 起是 `0123456789ABCDEF-0X+0X 0X-0x+0x 0x` 十六进制表、`73728`（0x12000）是 LEFT_ADJ|ZERO_PAD 旗帜位。
+  据此定名（行号属于 `.ref/artemis-official/wasm/asyncify/artemis.wasm2c.c`）：f572=`WideCharToMultibyte`（wcrtomb，224788）·
+  f1322=`WideCharToMultibyteStateless`（wctomb，543280）· f1344=`ParseDecimalNumber`（getint，551552）·
+  f2752=`FormatUnsignedOctal`（fmt_o 反向写，1173990）· f2753=`FormatUnsignedHex`（fmt_x，1174027）·
+  f672=`FormatUnsignedDecimal`（fmt_u，259113）· f1343=`PopVarArg`（pop_arg 的十路类型分派，551300）·
+  f411=`WritePadding`（pad 的 256 字节块刷，178729）；父函数 f1014 = printf_core、f344 = 对外入口。
+  教训：**先认 errno / locale / 数字表这三个数据段地址，再决定整族的命名。**
