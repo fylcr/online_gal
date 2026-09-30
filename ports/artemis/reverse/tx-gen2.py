@@ -454,6 +454,10 @@ PROD.update({
  'f3086': ('PackManager::FileDispatchB', 'void', ['ctx', 'p0', 'p1']),
  'f3087': ('PackManager::FileDispatchC', 'void', ['ctx', 'p0', 'p1']),
  'f3088': ('Compositor::LyPropDispatch', 'void', ['ctx', 'p0', 'p1']),
+ # ---- batch-13 ----
+ 'f1072': ('ClearUnorderedBuckets', 'void', ['ctx', 'p0']),
+ 'f294': ('RethrowPendingException', 'void', ['ctx', 'p0']),
+ 'f366': ('Fread', 'uint32_t', ['ctx', 'p0', 'p1', 'p2', 'p3']),
  # These six are forwarder-only rows: the generated body keeps the definition,
  # the name is what the products call.  Evidence for each name is in
  # rewrite-names.tsv (no data-segment constants exist in any of these six, so the
@@ -1309,6 +1313,16 @@ METAS = {
  'f3088': dict(ret='void', params=['a', 'b'], file='render/compositor_props.cpp',
    purpose="Compositor::LyPropDispatch -- the lyprop layer-property dispatcher: it matches the property tag against time, textTween, textClearTween, video and sound and applies the matching layer property write.",
    loc={}, frame=28),
+  # ---- batch-13 ----
+  'f1072': dict(ret='void', params=['a'], file='util/clear_unordered_buckets.cpp',
+    purpose="ClearUnorderedBuckets -- clears a boost unordered bucket array: the bucket range is set back to the empty bucket through FillBytes and the old storage goes back to the pool.",
+    loc={}, frame=8),
+  'f294': dict(ret='void', params=['a'], file='core/rethrow_pending_exception.cpp',
+    purpose="RethrowPendingException -- the rethrow landing pad: it reads the throw latch and returns unless it holds 1, and otherwise asks the host for the matching catch and panics with the recovered value.",
+    loc={}, frame=0),
+  'f366': dict(ret='uint32_t', params=['a', 'b', 'c', 'd'], file='util/fread.cpp',
+    purpose="Fread -- the libc fread: size times count bytes are read into the buffer through ReadInputLine and the count of complete records is answered.",
+    loc={}, frame=24),
 }
 
 def die(msg):
@@ -1707,6 +1721,7 @@ ORDER = ['f265','f5721','f910','f708','f364','f645','f223','f476','f4579','f399'
          'f290', 'f363', 'f288', 'f772',
          # ---- batch-12 ----
          'f3085', 'f3086', 'f3087', 'f3088',
+          'f1072', 'f294', 'f366',
          'f605','f646','f909','f911','f912','f913','f1117','f1132','f1718','f1719','f1720','f1746','f5678','f5679',
          'f262','f298','f304','f309','f377','f783','f1486','f1487','f3516','f3804','f5509','f5536','f5628','f5629','f5630','f5716',
          'f255','f382','f442','f450','f451','f453','f521','f548','f781','f784','f885','f897','f1112','f1128','f1212','f1715','f1739','f2207','f1701','f899',
