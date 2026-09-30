@@ -331,6 +331,13 @@ PROD.update({
  'f3655': ('Compositor::TweenDispatch', 'void', ['ctx', 'p0', 'p1', 'p2']),
  'f3219': ('MessageLayer::QueuePrintText', 'void', ['ctx', 'p0', 'p1']),
  'f5596': ('LuaKeywords::Init', 'void', ['ctx', 'p0']),
+ # ---- batch 6: the container-release closure of LuaEngine::TagDispatch (f3744) ----
+ 'f746': ('ReleaseLinkedNodeTree', 'void', ['ctx', 'p0', 'p1']),
+ 'f747': ('ReleaseHashedNodeTable', 'void', ['ctx', 'p0', 'p1']),
+ 'f3403': ('UnorderedGetBucket', 'void', ['ctx', 'p0']),
+ 'f861': ('ReleaseNestedNodeChain', 'void', ['ctx', 'p0', 'p1']),
+ 'f1029': ('ResumeExceptionCleanup', 'void', ['ctx', 'p0', 'p1']),
+ 'f3744': ('LuaEngine::TagDispatch', 'uint32_t', ['ctx', 'p0', 'p1']),
 })
 NESTED = {'f3551': 'namespace AutoReadTimer {', 'f1042': 'namespace BacklogView {',
           'f904': 'namespace LuaEngine {'}
@@ -759,6 +766,25 @@ METAS = {
  'f5596': dict(ret='void', params=['a'], file='script/lua_keywords.cpp',
    purpose='LuaKeywords::Init -- the keyword table initialiser: one suspendable step that builds the table the lexer matches keywords against.',
    loc={}, frame=8),
+ # ---- batch 6: the container-release closure of LuaEngine::TagDispatch (f3744) ----
+ 'f746': dict(ret='void', params=['a', 'b'], file='util/release_linked_node_tree.cpp',
+   purpose='ReleaseLinkedNodeTree -- frees a linked node tree: it recurses into both children, hands the tail link to the next slot before releasing it, drops the inline payload when the size byte has the high bit set, and returns the node to the pool.',
+   loc={}, frame=0),
+ 'f747': dict(ret='void', params=['a', 'b'], file='util/release_hashed_node_table.cpp',
+   purpose='ReleaseHashedNodeTable -- tears down a hashed node table: every bucket is resolved through UnorderedGetBucket, each node chain on it is released, and the bucket storage goes back to the pool last.',
+   loc={}, frame=12),
+ 'f3403': dict(ret='void', params=['a'], file='util/unordered_get_bucket.cpp',
+   purpose='UnorderedGetBucket -- answers the bucket that owns a hash: the index is recomputed from the table bucket count and the low-order mask, and the table not being queryable panics through ReleaseNodeTree\'s assertion route.',
+   loc={}, frame=8),
+ 'f861': dict(ret='void', params=['a', 'b'], file='util/release_nested_node_chain.cpp',
+   purpose='ReleaseNestedNodeChain -- frees a nested node chain: both children are released recursively and the tail chain is unwound through the exception cleanup path before the node itself is freed.',
+   loc={}, frame=12),
+ 'f1029': dict(ret='void', params=['a', 'b'], file='core/exception_cleanup.cpp',
+   purpose='ResumeExceptionCleanup -- the cleanup landing pad of a resumed unwind: it releases the slot pair, finds the catch frame that matches the throw, and answers the throw marker; with no matching frame it panics and traps.',
+   loc={}, frame=12),
+ 'f3744': dict(ret='uint32_t', params=['a', 'b'], file='script/lua_tag_dispatch.cpp',
+   purpose='LuaEngine::TagDispatch -- the tag dispatch entry: one suspendable step that reads the tag name and its attributes, walks the tag table, and answers how many values the handler left on the stack.',
+   loc={}, frame=184),
 }
 
 def die(msg):
@@ -862,7 +888,9 @@ def transform(fnid, src_start):
     i = src_start + 1
     body_end = src_start
     # find end: first line that is exactly '}'
-    for j in range(src_start, min(src_start + 12000, N)):
+    # the window has to clear the largest product: f3744 is 99,251 generated lines,
+    # so the old 12,000-line cap made it die with 'no closing brace'.
+    for j in range(src_start, min(src_start + 400000, N)):
         if lines[j] == '}':
             body_end = j
             break
@@ -1153,7 +1181,10 @@ ORDER = ['f265','f5721','f910','f708','f364','f645','f223','f476','f4579','f399'
          'f211','f238','f246','f371','f373','f435','f519','f520','f549','f601','f644','f837','f900','f962','f1005','f1110','f1700',
          'f1703','f1704','f1707','f1735','f1741','f5510','f5631','f5677','f5680',
          # ---- batch 5: the dispatch units (2026-10-01) ----
-         'f1042','f3661','f3112','f3666','f3655','f904','f3219','f5596']
+         'f1042','f3661','f3112','f3666','f3655','f904','f3219','f5596',
+         # ---- batch 6: the container-release closure, then TagDispatch itself ----
+         'f746','f747','f3403','f861','f1029',
+         'f3744']
 _TODO = [f for f in ORDER if not ONLY or f in ONLY]
 for fnid in _TODO:
     try:

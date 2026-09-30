@@ -73,52 +73,52 @@ fn	f5508	—	artc::LookupValue	script/lookup_value.cpp	R2	luaH_getnum 形键查�
 fn	f210	—	artc::QueryValueType	script/query_value_type.cpp	R2	lua_type 形类型签查询（伪索引解析共用 script/value_slot.h）(101.9K calls/轮); P1 热核
 fn	f4832	—	artc::ClearLatchedFlags	util/clear_latched_flags.cpp	R2	latch 掩码消费（+52 读清、+40 位清除、-148 描述符重定位）(116.6K calls/轮); P1 热核
 fn	f4551	—	artc::ReleaseContainerElements	script/release_container_elements.cpp	R2	容器析构元素释放：四类存储（+16 桶头/+64 与 +68 的 12 字节步长数组/+72 与 +80 链表）逐元素经「自身首字→描述符 -152 增量→属主 vtable +140 槽」定位 disposer 并间接调用；逢空头走 5 参 boost 断言桥（px != 0 / shared_ptr.hpp:734 / operator->）后读 852316 排空槽，未抛则 TrapUnreachable、已抛则转 catch 路径交 Panic (109.0K calls/轮)；调 Panic(f199)/HostFailAssertion(w2c_a_e)/FindMatchingCatch(w2c_a_g)/HostTempRet0(w2c_a_b)/CallTableFunction(Lc t1)；11 挂起点；产品内 kPendingThrowAddr 等 6 常量为私有副本
-fn	f859	art_lua_dispatch	LuaEngine::Dispatch	script/lua_engine_dispatch.cpp	R1	lua engine entry
+fn	f859	art_lua_dispatch	artc::LuaEngine::Dispatch	script/lua_engine_dispatch.cpp	R1	lua engine entry
 fn	f904	art_lua_call	artc::LuaEngine::Call	script/lua_engine.cpp	R1	lua call bridge
 fn	f1042	art_backlog_dispatch2	artc::BacklogView::DispatchAux	script/backlog_view.cpp	R1	backlog tag family, 2nd unit (provisional split)
-fn	f1081	art_reset1	SceneReset::Reset01	script/scene_reset_01.cpp	R0	reset clone family; subsystem TBD at R1
-fn	f1406	art_reset2	SceneReset::Reset02	script/scene_reset_02.cpp	R0	reset clone family
-fn	f1465	art_reset3	SceneReset::Reset03	script/scene_reset_03.cpp	R0	reset clone family
-fn	f1593	art_shared_array_reset	SceneReset::ResetSharedArray	script/scene_reset_shared.cpp	R0	shared array reset
-fn	f2936	art_reset4	SceneReset::Reset04	script/scene_reset_04.cpp	R0	reset clone family
-fn	f2945	art_effect_dispatch	Compositor::EffectDispatch	render/compositor_effect.cpp	R1	trans/effect surface (provisional)
-fn	f3085	art_file_dispatch1	PackManager::FileDispatchA	pack/pack_manager_a.cpp	R1	file tag trio; disambiguate at R1
-fn	f3086	art_file_dispatch2	PackManager::FileDispatchB	pack/pack_manager_b.cpp	R1	file tag trio
-fn	f3087	art_file_dispatch3	PackManager::FileDispatchC	pack/pack_manager_c.cpp	R1	file tag trio
-fn	f3088	art_layer_prop_dispatch	Compositor::LyPropDispatch	render/compositor_props.cpp	R1	lyprop layer property tag
+fn	f1081	art_reset1	artc::SceneReset::Reset01	script/scene_reset_01.cpp	R0	reset clone family; subsystem TBD at R1
+fn	f1406	art_reset2	artc::SceneReset::Reset02	script/scene_reset_02.cpp	R0	reset clone family
+fn	f1465	art_reset3	artc::SceneReset::Reset03	script/scene_reset_03.cpp	R0	reset clone family
+fn	f1593	art_shared_array_reset	artc::SceneReset::ResetSharedArray	script/scene_reset_shared.cpp	R0	shared array reset
+fn	f2936	art_reset4	artc::SceneReset::Reset04	script/scene_reset_04.cpp	R0	reset clone family
+fn	f2945	art_effect_dispatch	artc::Compositor::EffectDispatch	render/compositor_effect.cpp	R1	trans/effect surface (provisional)
+fn	f3085	art_file_dispatch1	artc::PackManager::FileDispatchA	pack/pack_manager_a.cpp	R1	file tag trio; disambiguate at R1
+fn	f3086	art_file_dispatch2	artc::PackManager::FileDispatchB	pack/pack_manager_b.cpp	R1	file tag trio
+fn	f3087	art_file_dispatch3	artc::PackManager::FileDispatchC	pack/pack_manager_c.cpp	R1	file tag trio
+fn	f3088	art_layer_prop_dispatch	artc::Compositor::LyPropDispatch	render/compositor_props.cpp	R1	lyprop layer property tag
 fn	f3112	art_var_dispatch	artc::LuaEngine::VarDispatch	script/lua_tags_var.cpp	R1	CLua object wrap/reflect init
-fn	f3196	art_text_fx_dispatch	MessageLayer::TextFxDispatch	script/text_fx_dispatch.cpp	R1	text fx dispatch (provisional)
-fn	f3207	art_font_dispatch	GlyphAtlas::FontDispatch	render/glyph_atlas.cpp	R1	font tag family
+fn	f3196	art_text_fx_dispatch	artc::MessageLayer::TextFxDispatch	script/text_fx_dispatch.cpp	R1	text fx dispatch (provisional)
+fn	f3207	art_font_dispatch	artc::GlyphAtlas::FontDispatch	render/glyph_atlas.cpp	R1	font tag family
 fn	f3219	art_print_text	artc::MessageLayer::QueuePrintText	script/lua_tags_text.cpp	R1	print list push (AGENT.md gated tag print)
-fn	f3222	art_flow_dispatch	IetRunner::FlowDispatch	script/iet_flow.cpp	R1	if/elseif/else/loop pairing validator + JP diagnostics
-fn	f3293	art_http_dispatch	FetchManager::HttpDispatch	host/fetch_manager_http.cpp	R1	http tag surface (provisional)
-fn	f3387	art_reset5	SceneReset::Reset05	script/scene_reset_05.cpp	R0	reset clone family
-fn	f3395	art_reset6	SceneReset::Reset06	script/scene_reset_06.cpp	R0	reset clone family
-fn	f3460	art_print	LuaEngine::TagPrint	script/lua_tags_print.cpp	R1	AGENT.md gated tag; f3219 is its push
-fn	f3548	art_rp_dispatch	MessageLayer::RpDispatch	script/message_rp_dispatch.cpp	R1	rp=page turn (AGENT.md named)
-fn	f3551	art_alreadyread_dispatch	AutoReadTimer::Dispatch	input/auto_read.cpp	R1	auto-read; AutoReadTimer exists in its tree
-fn	f3558	art_reset7	SceneReset::Reset07	script/scene_reset_07.cpp	R0	reset clone family
-fn	f3626	art_reset8	SceneReset::Reset08	script/scene_reset_08.cpp	R0	reset clone family
-fn	f3631	art_command_dispatch	FetchManager::CommandDispatch	host/fetch_manager_command.cpp	R1	6 commands incl clear_cache/baseurl + JP file diagnostics
-fn	f3633	art_builtin_dispatch	LuaEngine::BuiltinDispatch	script/lua_tags_builtin.cpp	R2	8 parts, 33 var-class tags
-fn	f3650	art_delon_dispatch	LuaEngine::TagGenericDelOn	script/lua_tag_generic_del.cpp	R1	AGENT.md seton*/delon* prefix registry pattern
-fn	f3651	art_seton_dispatch	LuaEngine::TagGenericSetOn	script/lua_tag_generic_set.cpp	R1	AGENT.md seton*/delon* prefix registry pattern
+fn	f3222	art_flow_dispatch	artc::IetRunner::FlowDispatch	script/iet_flow.cpp	R1	if/elseif/else/loop pairing validator + JP diagnostics
+fn	f3293	art_http_dispatch	artc::FetchManager::HttpDispatch	host/fetch_manager_http.cpp	R1	http tag surface (provisional)
+fn	f3387	art_reset5	artc::SceneReset::Reset05	script/scene_reset_05.cpp	R0	reset clone family
+fn	f3395	art_reset6	artc::SceneReset::Reset06	script/scene_reset_06.cpp	R0	reset clone family
+fn	f3460	art_print	artc::LuaEngine::TagPrint	script/lua_tags_print.cpp	R1	AGENT.md gated tag; f3219 is its push
+fn	f3548	art_rp_dispatch	artc::MessageLayer::RpDispatch	script/message_rp_dispatch.cpp	R1	rp=page turn (AGENT.md named)
+fn	f3551	art_alreadyread_dispatch	artc::AutoReadTimer::Dispatch	input/auto_read.cpp	R1	auto-read; AutoReadTimer exists in its tree
+fn	f3558	art_reset7	artc::SceneReset::Reset07	script/scene_reset_07.cpp	R0	reset clone family
+fn	f3626	art_reset8	artc::SceneReset::Reset08	script/scene_reset_08.cpp	R0	reset clone family
+fn	f3631	art_command_dispatch	artc::FetchManager::CommandDispatch	host/fetch_manager_command.cpp	R1	6 commands incl clear_cache/baseurl + JP file diagnostics
+fn	f3633	art_builtin_dispatch	artc::LuaEngine::BuiltinDispatch	script/lua_tags_builtin.cpp	R2	8 parts, 33 var-class tags
+fn	f3650	art_delon_dispatch	artc::LuaEngine::TagGenericDelOn	script/lua_tag_generic_del.cpp	R1	AGENT.md seton*/delon* prefix registry pattern
+fn	f3651	art_seton_dispatch	artc::LuaEngine::TagGenericSetOn	script/lua_tag_generic_set.cpp	R1	AGENT.md seton*/delon* prefix registry pattern
 fn	f3655	art_lytween_dispatch	artc::Compositor::TweenDispatch	render/compositor_tween.cpp	R1	lytween補間 (provisional)
-fn	f3656	art_delete_dispatch	Compositor::LydelDispatch	render/compositor_lydel.cpp	R1	delete family; lydel vs file-delete TBD at R1
+fn	f3656	art_delete_dispatch	artc::Compositor::LydelDispatch	render/compositor_lydel.cpp	R1	delete family; lydel vs file-delete TBD at R1
 fn	f3661	art_lyevent_dispatch	artc::Compositor::LyEventDispatch	render/layer_events.cpp	R1	layer event reg; runtime_state.h [B] bucket names it
 fn	f3666	art_mode_dispatch	artc::EngineMode::Dispatch	config/engine_mode.cpp	R1	mode semantics TBD at R1 (provisional)
-fn	f3688	art_hide_dispatch	Compositor::HideDispatch	render/compositor_hide.cpp	R1	true identity=scetween; collision case 1/8; verify at R1
-fn	f3695	art_backlog_dispatch	BacklogView::DispatchTag	script/backlog_view_dispatch.cpp	R1	backlog tag family (provisional)
-fn	f3698	art_video_dispatch	VideoPlayer::Dispatch	render/video_player.cpp	R1	video tag; video_player.cpp exists in its tree
-fn	f3744	art_tag_dispatch	LuaEngine::TagDispatch	script/lua_tag_dispatch.cpp	R2	10 parts, 103 tags; model on l_tag two-stage (RawTagTable+TagTable)
-fn	f4204	art_reset11	SceneReset::Reset11	script/scene_reset_11.cpp	R0	reset clone family (renamed from Reset6, collision fix)
-fn	f4553	art_reset9	SceneReset::Reset09	script/scene_reset_09.cpp	R0	reset clone family
-fn	f4569	art_reset10	SceneReset::Reset10	script/scene_reset_10.cpp	R0	reset clone family
-fn	f5551	art_os	HostApi::Os	host/host_api.cpp	R0	os service shim (provisional)
+fn	f3688	art_hide_dispatch	artc::Compositor::HideDispatch	render/compositor_hide.cpp	R1	true identity=scetween; collision case 1/8; verify at R1
+fn	f3695	art_backlog_dispatch	artc::BacklogView::DispatchTag	script/backlog_view_dispatch.cpp	R1	backlog tag family (provisional)
+fn	f3698	art_video_dispatch	artc::VideoPlayer::Dispatch	render/video_player.cpp	R1	video tag; video_player.cpp exists in its tree
+fn	f3744	art_tag_dispatch	artc::LuaEngine::TagDispatch	script/lua_tag_dispatch.cpp	R2	10 parts, 103 tags; model on l_tag two-stage (RawTagTable+TagTable)
+fn	f4204	art_reset11	artc::SceneReset::Reset11	script/scene_reset_11.cpp	R0	reset clone family (renamed from Reset6, collision fix)
+fn	f4553	art_reset9	artc::SceneReset::Reset09	script/scene_reset_09.cpp	R0	reset clone family
+fn	f4569	art_reset10	artc::SceneReset::Reset10	script/scene_reset_10.cpp	R0	reset clone family
+fn	f5551	art_os	artc::HostApi::Os	host/host_api.cpp	R0	os service shim (provisional)
 fn	f5596	art_reserve_keywords	artc::LuaKeywords::Init	script/lua_keywords.cpp	R1	luaX_init class; 21 keywords intern+number
-fn	f5598	art_io_type	LuaStdlib::InitIoType	script/lua_stdlib.cpp	R0	io type init (provisional)
-fn	f5623	art_lua_openlibs	LuaEngine::OpenLibs	script/lua_engine_libs.cpp	R1	stdlib open (luaL_openlibs analogue)
-fn	f5670	art_debug	LuaDebug::Init	script/lua_debug.cpp	R0	debug facility init (provisional)
+fn	f5598	art_io_type	artc::LuaStdlib::InitIoType	script/lua_stdlib.cpp	R0	io type init (provisional)
+fn	f5623	art_lua_openlibs	artc::LuaEngine::OpenLibs	script/lua_engine_libs.cpp	R1	stdlib open (luaL_openlibs analogue)
+fn	f5670	art_debug	artc::LuaDebug::Init	script/lua_debug.cpp	R0	debug facility init (provisional)
 rt	w2c_artemis (instance struct)	artc::EngineContext	util/engine_context.h	唯一装配点; README/AGENT.md core 词汇
 rt	instance->w2c_g3	ResumePhase()	util/engine_context.h	0 running / 1 suspended / 2 rewinding; R2 提 enum class ResumeState
 rt	instance->w2c_g4	ReturnFrameSp()	util/engine_context.h	event return-frame stack pointer (它 README 原生叙事)
@@ -332,3 +332,9 @@ fn	f5624	w2c_artemis_f5624	artc::ResetNodeChainFlags	—	—	调 f303 ClearFlags
 fn	f5645	w2c_artemis_f5645	artc::FormatConcatenationError	—	—	`concatenate` + `attempt to %s %s '%s' (a %s value)`
 fn	f5676	w2c_artemis_f5676	artc::CompileKeywordCondition	—	—	f476 EmitConditionJump + f428 DischargeExpression
 fn	f5733	w2c_artemis_f5733	artc::FormatTracebackSlotEntry	—	—	f363 GrowTableSlot + f900 FormatNumber；caller f238 RaiseTraceback
+# ---- batch-6: LuaEngine::TagDispatch (f3744) 的容器释放闭包（f746/f747/f3403/f861/f1029）----
+fn	f746	—	artc::ReleaseLinkedNodeTree	util/release_linked_node_tree.cpp	R1	f204 同族：两子节点递归释放，尾链无条件释放且先把归属槽指过去；无 asyncify 帧（frame 0）；f3744/f1034/f3714 调用
+fn	f747	—	artc::ReleaseHashedNodeTable	util/release_hashed_node_table.cpp	R1	boost::unordered 容器析构：调用 f3403(get_bucket)；断言路径含 boost/unordered/detail/implementation.hpp；frame 12
+fn	f3403	—	artc::UnorderedGetBucket	util/unordered_get_bucket.cpp	R1	boost::unordered::detail::table::get_bucket：断言串 buckets_/get_bucket 为证；越界兜底 f199 Panic；frame 8
+fn	f861	—	artc::ReleaseNestedNodeChain	util/release_nested_node_chain.cpp	R1	两子链递归 + 尾链经 f1029 释放；与 f747 同为 f3744/f1034 的局部容器析构；frame 12
+fn	f1029	—	artc::ResumeExceptionCleanup	core/exception_cleanup.cpp	R1	catch/resume 落点：a_d=HostReleaseSlotPair、a_g=FindMatchingCatch、a_b=HostTempRet0，兜底 f199 Panic + UNREACHABLE；frame 12
