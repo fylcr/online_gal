@@ -33,7 +33,7 @@ uint32_t FindOrderedChainEntry(EngineContext* ctx, uint32_t a, uint32_t b) {
     const uint32_t header_length = LoadU32(ctx, cursor + 20u);
     const uint32_t block_length = indirect ? header_length : tag;
     const bool longer = block_length > search_length;
-    const uint32_t compare_length = longer ? block_length : search_length;
+    const uint32_t compare_length = longer ? search_length : block_length;
 
     // A nonzero compare answers the ordering outright; otherwise the lengths
     // settle it, with the block that cannot hold the request sorting low.

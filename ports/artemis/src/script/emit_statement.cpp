@@ -2,7 +2,7 @@
 
 namespace artc {
 
-// Forward declarations -- registered callees.
+// Forward declarations of the callees below.
 void RaiseSyntaxError(EngineContext* ctx, uint32_t state, uint32_t message);
 uint32_t EmitInstruction(EngineContext* ctx, uint32_t func_state, uint32_t instruction,
                          uint32_t line);

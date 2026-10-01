@@ -221,26 +221,20 @@ if [ "$ACTUAL_H_MD5" != "$EXPECTED_H_MD5" ]; then
   exit 1
 fi
 
-# --- the two gitignored inputs `build-bridge-route.sh` insists on ------------
+# --- the gitignored input `build-bridge-route.sh` insists on -----------------
 #
-# It reads its runtime translation units from `ports/artemis/reverse/build/` (its `RT_BUILD`), which
-# is gitignored and empty on a clean clone, and its export shims from
-# `ports/artemis/reverse/out/<flavour>/artemis-export-shims.c`, likewise gitignored. Both are
-# products of the dev-machine walkthrough, not of anything in the repository, so they are made here.
+# It reads its runtime translation units from the reference tree in the repository
+# (`.ref/artemis-official/wasm/runtime/`), so a clean clone builds the module without a staging
+# directory, and its export shims from
+# `ports/artemis/reverse/out/<flavour>/artemis-export-shims.c`, which is gitignored and is therefore
+# made here.
 #
-# The runtime files must be wabt's originals: `build-bridge-route.sh` compiles them with `-x c`, and
-# that is load-bearing -- em++ as C++ rejects four pointer casts in `wasm-rt-impl-tableops.inc`
-# (`table->data = calloc(...)` and `= new_data`), which is exactly why the runtime is kept C rather
-# than being folded into the C++ build.
-echo
-echo "== staging the wasm-rt runtime sources where build-bridge-route.sh looks =="
-RT_BUILD="$REPO_ROOT/ports/artemis/reverse/build"
-mkdir -p "$RT_BUILD"
-for f in wasm-rt-impl.c wasm-rt-mem-impl.c; do
-  cp "$WABT_SRC/wasm2c/$f" "$RT_BUILD/$f"
-  echo "   $RT_BUILD/$f"
-done
-
+# The runtime files are wabt's originals with one edit: the route stages them and drops the funcref
+# table guard the engine cannot satisfy (see `patch-runtime-alloc.py`). They are still compiled with
+# `-x c`, and that is load-bearing -- em++ as C++ rejects four pointer casts in
+# `wasm-rt-impl-tableops.inc` (`table->data = calloc(...)` and `= new_data`), which is exactly why
+# the runtime is kept C rather than being folded into the C++ build.
+#
 # The export shims re-expose the wasm2c exports under the original module's names, so the rebuilt
 # module's export surface reads like the official one instead of like `w2c_artemis_*`.
 #

@@ -1,9 +1,8 @@
 // engine_context.h — guest engine state, frame discipline and memory accessors.
 //
-// Written against artemis-compat, with the official WebAssembly decompile as
-// the reference.  Everything below the vocabulary boundary is transcribed from
-// the asyncify module's generated C; this file is the one translation unit
-// allowed to spell that generated code's names.
+// This header is the vocabulary boundary: it gives the guest state, the frame
+// discipline and the memory accessors real names, and it is the one translation
+// unit allowed to spell the generated module's own symbols.
 //
 // This header is that boundary: the context struct, its memory slot, the raw
 // load/store helpers and the frame macros live here. Everything else in src/
@@ -188,10 +187,6 @@ inline void StoreGlobalEntry(EngineContext* ctx, uint32_t globals, uint32_t inde
   inline void FindTaggedTreeEntry(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5) { w2c_artemis_f336(ctx, p0, p1, p2, p3, p4, p5); }
   inline void ClearObjectDeque(EngineContext* ctx, uint32_t p0) { w2c_artemis_f580(ctx, p0); }
   inline uint32_t PushObjectDequeElement(EngineContext* ctx, uint32_t p0, uint32_t p1) { return w2c_artemis_f1409(ctx, p0, p1); }
-// PROVISIONAL host-ABI wraps the batch-1 products drive (real names land with
-// host/host_api). The ret0 pair halves an i64 return; the rest are the
-// os-service and assert slots. Table wraps name their slot: the macro's own
-// type check keeps the native trap texts intact per slot.
 inline uint32_t HostRet0(EngineContext* ctx) {
   return w2c_a_c(ctx->w2c_a_instance);
 }
@@ -344,11 +339,11 @@ inline void CallTableT13(EngineContext* ctx, uint32_t index, uint32_t a, uint32_
   CALL_INDIRECT(ctx->w2c_Lc, void (*)(void*, uint32_t, uint32_t, float), w2c_artemis_t13,
                 index, ctx->w2c_Lc.data[index].module_instance, a, b, scale);
 }
-// Batch-4B: the table slots the backlog products dispatch through. Same
+// The table slots the backlog products dispatch through. Same
 // thin-call-through rule as the forwarders above -- the C++ name is the
 // slot, the types are the slot's own function-pointer type, and the
-// argument order is the one wasm2c spells at the call site.
-// slot t0: void (*)(void*, u32, u32), 882 call sites in the rewritten spans
+// argument order follows the callee's own signature.
+// slot t0: void (*)(void*, u32, u32)
 inline void CallTableT0(EngineContext* ctx, uint32_t index, uint32_t a0, uint32_t a1) {
   CALL_INDIRECT(ctx->w2c_Lc, void (*)(void*, u32, u32),
     w2c_artemis_t0, index, ctx->w2c_Lc.data[index].module_instance,
@@ -585,11 +580,10 @@ inline float LoadF32(EngineContext* ctx, uint64_t addr) {
 inline void StoreF32(EngineContext* ctx, uint64_t addr, float val) {
   f32_store_default32(ctx->w2c_a_a->data, ctx->w2c_a_a->size, ctx->w2c_a_a, addr, val);
 }
-// The generated symbol is a file-scope `static inline` in artemis.wasm2c.c, so
-// no declaration of it can link from a product. The body is reproduced here
-// instead: with the segue feature off（the default for this build）it is the
-// no-op the generated code compiles to, and callers guard the call with the
-// same macro, so the guarded call never reaches a missing symbol.
+// The real symbol is a file-scope `static inline`, so no declaration of it can
+// link from another translation unit. The body lives here instead: it is the
+// no-op the guarded call compiles to, and callers guard it with the same macro,
+// so the guarded call never reaches a missing symbol.
 inline void SyncMemoryBase(EngineContext* ctx) {
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
   wasm_rt_segue_write_base((*ctx->w2c_a_a).data);
@@ -641,5 +635,12 @@ inline void HostThrowException(EngineContext* ctx, uint32_t record, uint32_t typ
 }
 // Guest scratch word that the dispatchers share; kept here so the name is defined once.
 constexpr uint32_t kDataD015C = 0xD015Cu;
+// Operand words and the size message the expression compilers share; kept here
+// so both of them name one definition.
+constexpr uint32_t kData1FFFF = 0x1FFFFu;
+constexpr uint32_t kData20000 = 0x20000u;
+constexpr uint32_t kData7FFFC000 = 0x7FFFC000u;
+constexpr uint32_t kDataFFFFFFFF = 0xFFFFFFFFu;
+constexpr uint32_t kControlStructureTooLongMessage = 0x2A394u;  // control structure too long
 
 }  // namespace artc

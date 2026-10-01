@@ -1,18 +1,3 @@
-// compile_expression.cpp -- the code generator's expression-compilation entry: reads the expression opcode and every shape it recognises discharges into the register and operand emitters it drives.
-//
-// CompileExpression -- the code generator's expression-compilation entry: reads the expression opcode and every shape it recognises discharges into the register and operand emitters it drives. Self-recursive on nested expressions.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 270114-271841 (f707); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
@@ -24,21 +9,19 @@ void ExpressionToOperand(EngineContext* ctx, uint32_t func_state, uint32_t expr,
 
 namespace {
 
-constexpr uint32_t kF707Const1FFFF = 0x1FFFFu;  // 
-constexpr uint32_t kF707Const20000 = 0x20000u;  // 
-constexpr uint32_t kF707MsgControlStructureTooLong = 0x2A394u;  // control structure too long
-constexpr uint32_t kF707Const2B460 = 0x2B460u;  // 
-constexpr uint32_t kF707Const7FC000 = 0x7FC000u;  // 
-constexpr uint32_t kF707Const800002 = 0x800002u;  // 
-constexpr uint32_t kF707Const7FFF8016 = 0x7FFF8016u;  // 
-constexpr uint32_t kF707Const7FFFC000 = 0x7FFFC000u;  // 
-constexpr uint32_t kF707ConstFFFFC03F = 0xFFFFC03Fu;  // 
-constexpr uint32_t kF707ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF707SaveFrameBytes = 68u;
-constexpr uint32_t kF707ResumeWordBytes = 4u;
+constexpr uint32_t kData2B460 = 0x2B460u;
+constexpr uint32_t kData7FC000 = 0x7FC000u;
+constexpr uint32_t kData800002 = 0x800002u;
+constexpr uint32_t kData7FFF8016 = 0x7FFF8016u;
+constexpr uint32_t kDataFFFFC03F = 0xFFFFC03Fu;
+constexpr uint32_t kCompileExpressionSaveFrameBytes = 68u;
+constexpr uint32_t kCompileExpressionResumeWordBytes = 4u;
 
 }  // namespace
 
+// Compiles one expression node: it reads the node's opcode, folds the shapes
+// it recognises and emits the operand or the branch pair they compile to.
+// The step is suspendable, and it recurses into subexpressions.
 void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, uint32_t line) {
   EnterFrame();
   uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l14 = 0u; uint32_t l15 = 0u; uint32_t l16 = 0u; uint32_t l17 = 0u; uint32_t l18 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
@@ -52,7 +35,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kF707SaveFrameBytes;
+    i2 = kCompileExpressionSaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -116,7 +99,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kF707ResumeWordBytes;
+    i2 = kCompileExpressionResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -157,14 +140,14 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     i0 = code;
     i0 = LoadU32(ctx, i0 + 8u);
     l4 = i0;
-    i1 = kF707ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = i0 == i1;
     l3 = i0;
     if (i0) {goto block_6;}
     i0 = code;
     i0 = LoadU32(ctx, i0 + 16u);
     l3 = i0;
-    i1 = kF707ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = i0 != i1;
     l5 = i0;
   }
@@ -184,7 +167,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       loop_11: 
         i0 = l3;
         l5 = i0;
-        i0 = kF707ConstFFFFFFFF;
+        i0 = kDataFFFFFFFF;
         i1 = l5;
         i2 = l9;
         i3 = l3;
@@ -196,24 +179,24 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         l6 = i2;
         i3 = 14u;
         i2 >>= (i3 & 31);
-        i3 = kF707Const1FFFF;
+        i3 = kData1FFFF;
         i2 -= i3;
         l3 = i2;
         i1 += i2;
         i2 = 1u;
         i1 += i2;
         i2 = l3;
-        i3 = kF707ConstFFFFFFFF;
+        i3 = kDataFFFFFFFF;
         i2 = i2 == i3;
         i0 = i2 ? i0 : i1;
         l3 = i0;
-        i1 = kF707ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = i0 != i1;
         l10 = i0;
         if (i0) {goto loop_11;}
       i0 = l4;
       i1 = l5;
-      i2 = kF707ConstFFFFFFFF;
+      i2 = kDataFFFFFFFF;
       i1 ^= i2;
       i0 += i1;
       l3 = i0;
@@ -225,7 +208,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i2 = l5;
       i1 += i2;
       i0 ^= i1;
-      i1 = kF707Const20000;
+      i1 = kData20000;
       i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
       l4 = i0;
       i0 = l8;
@@ -256,7 +239,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = l4;
-        i1 = kF707MsgControlStructureTooLong;
+        i1 = kControlStructureTooLongMessage;
         RaiseSyntaxError(ctx, i0, i1);
         i0 = 1u;
         i1 = ResumePhase(ctx);
@@ -285,7 +268,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i3 = 14u;
       i2 <<= (i3 & 31);
       i1 |= i2;
-      i2 = kF707Const7FFFC000;
+      i2 = kData7FFFC000;
       i1 += i2;
       l3 = i1;
       StoreU32(ctx, i0, i1);
@@ -317,10 +300,10 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
   if (i0) {
     i0 = l4;
     if (i0) {goto block_19;}
-    i0 = kF707ConstFFFFFFFF;
+    i0 = kDataFFFFFFFF;
     l13 = i0;
     i0 = l3;
-    i1 = kF707ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = i0 != i1;
     l4 = i0;
   }
@@ -351,7 +334,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
           l6 = i0;
           i1 = 63u;
           i0 &= i1;
-          i1 = kF707Const2B460;
+          i1 = kData2B460;
           i0 += i1;
           i0 = LoadS8(ctx, i0);
           i1 = 0u;
@@ -370,12 +353,12 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         i0 = i0 != i1;
         l6 = i0;
         if (i0) {goto block_23;}
-        i0 = kF707ConstFFFFFFFF;
+        i0 = kDataFFFFFFFF;
         i1 = l4;
         i1 = LoadU32(ctx, i1);
         i2 = 14u;
         i1 >>= (i2 & 31);
-        i2 = kF707Const1FFFF;
+        i2 = kData1FFFF;
         i1 -= i2;
         l6 = i1;
         i2 = l3;
@@ -383,19 +366,19 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         i2 = 1u;
         i1 += i2;
         i2 = l6;
-        i3 = kF707ConstFFFFFFFF;
+        i3 = kDataFFFFFFFF;
         i2 = i2 == i3;
         i0 = i2 ? i0 : i1;
         l3 = i0;
-        i1 = kF707ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = i0 != i1;
         l4 = i0;
         if (i0) {goto loop_25;}
     }
-    i0 = kF707ConstFFFFFFFF;
+    i0 = kDataFFFFFFFF;
     l10 = i0;
     i0 = l5;
-    i1 = kF707ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = i0 == i1;
     l3 = i0;
     if (i0) {goto block_21;}
@@ -421,7 +404,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         l6 = i0;
         i1 = 63u;
         i0 &= i1;
-        i1 = kF707Const2B460;
+        i1 = kData2B460;
         i0 += i1;
         i0 = LoadS8(ctx, i0);
         i1 = 0u;
@@ -440,24 +423,24 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i0 = i0 != i1;
       l6 = i0;
       if (i0) {goto block_23;}
-      i0 = kF707ConstFFFFFFFF;
+      i0 = kDataFFFFFFFF;
       i1 = l5;
       i2 = l3;
       i2 = LoadU32(ctx, i2);
       i3 = 14u;
       i2 >>= (i3 & 31);
-      i3 = kF707Const1FFFF;
+      i3 = kData1FFFF;
       i2 -= i3;
       l3 = i2;
       i1 += i2;
       i2 = 1u;
       i1 += i2;
       i2 = l3;
-      i3 = kF707ConstFFFFFFFF;
+      i3 = kDataFFFFFFFF;
       i2 = i2 == i3;
       i0 = i2 ? i0 : i1;
       l5 = i0;
-      i1 = kF707ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = i0 != i1;
       l3 = i0;
       if (i0) {goto loop_28;}
@@ -468,7 +451,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     i1 = 10u;
     i0 = i0 == i1;
     l3 = i0;
-    i0 = kF707ConstFFFFFFFF;
+    i0 = kDataFFFFFFFF;
     l5 = i0;
   }
   i0 = ResumePhase(ctx);
@@ -480,7 +463,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     i0 = LoadU32(ctx, i0 + 32u);
     l4 = i0;
     i0 = func_state;
-    i1 = kF707ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     StoreU32(ctx, i0 + 32u, i1);
     i0 = func_state;
     i0 = LoadU32(ctx, i0 + 12u);
@@ -495,7 +478,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = func_state;
-    i1 = kF707Const7FFF8016;
+    i1 = kData7FFF8016;
     i2 = l3;
     i0 = EmitInstruction(ctx, i0, i1, i2);
     l7 = i0;
@@ -512,12 +495,12 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
   i1 = !(i1);
   if (i1) {
     i1 = l4;
-    i2 = kF707ConstFFFFFFFF;
+    i2 = kDataFFFFFFFF;
     i1 = i1 == i2;
     l3 = i1;
     if (i1) {goto block_31;}
     i1 = l5;
-    i2 = kF707ConstFFFFFFFF;
+    i2 = kDataFFFFFFFF;
     i1 = i1 == i2;
     l3 = i1;
     if (i1) {
@@ -534,7 +517,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     loop_37: 
       i1 = l3;
       l8 = i1;
-      i1 = kF707ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i2 = l8;
       i3 = l13;
       i4 = l3;
@@ -546,25 +529,25 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       l6 = i3;
       i4 = 14u;
       i3 >>= (i4 & 31);
-      i4 = kF707Const1FFFF;
+      i4 = kData1FFFF;
       i3 -= i4;
       l3 = i3;
       i2 += i3;
       i3 = 1u;
       i2 += i3;
       i3 = l3;
-      i4 = kF707ConstFFFFFFFF;
+      i4 = kDataFFFFFFFF;
       i3 = i3 == i4;
       i1 = i3 ? i1 : i2;
       l3 = i1;
-      i2 = kF707ConstFFFFFFFF;
+      i2 = kDataFFFFFFFF;
       i1 = i1 != i2;
       if (i1) {goto loop_37;}
     i1 = l9;
     l10 = i1;
     i1 = l4;
     i2 = l8;
-    i3 = kF707ConstFFFFFFFF;
+    i3 = kDataFFFFFFFF;
     i2 ^= i3;
     i1 += i2;
     l3 = i1;
@@ -576,7 +559,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     i2 += i3;
     l8 = i2;
     i1 ^= i2;
-    i2 = kF707Const20000;
+    i2 = kData20000;
     i1 = (uint32_t)((int32_t)i1 >= (int32_t)i2);
     l4 = i1;
   }
@@ -604,7 +587,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = l4;
-      i1 = kF707MsgControlStructureTooLong;
+      i1 = kControlStructureTooLongMessage;
       RaiseSyntaxError(ctx, i0, i1);
       i0 = 3u;
       i1 = ResumePhase(ctx);
@@ -633,7 +616,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     i3 = 14u;
     i2 <<= (i3 & 31);
     i1 |= i2;
-    i2 = kF707Const7FFFC000;
+    i2 = kData7FFFC000;
     i1 += i2;
     l3 = i1;
     StoreU32(ctx, i0, i1);
@@ -690,7 +673,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     i0 = LoadU32(ctx, i0 + 8u);
     l4 = i0;
     i0 = l3;
-    i1 = kF707Const800002;
+    i1 = kData800002;
     i0 |= i1;
     l3 = i0;
   }
@@ -722,14 +705,14 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     i1 = LoadU32(ctx, i1 + 24u);
     StoreU32(ctx, i0 + 28u, i1);
     i0 = l5;
-    i1 = kF707ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = i0 == i1;
     l3 = i0;
     if (i0) {goto block_21;}
     i0 = func_state;
     i0 = LoadU32(ctx, i0 + 32u);
     l3 = i0;
-    i1 = kF707ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = i0 != i1;
     l4 = i0;
   }
@@ -749,7 +732,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       loop_51: 
         i0 = l3;
         l4 = i0;
-        i0 = kF707ConstFFFFFFFF;
+        i0 = kDataFFFFFFFF;
         i1 = l4;
         i2 = l9;
         i3 = l3;
@@ -761,24 +744,24 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         l6 = i2;
         i3 = 14u;
         i2 >>= (i3 & 31);
-        i3 = kF707Const1FFFF;
+        i3 = kData1FFFF;
         i2 -= i3;
         l3 = i2;
         i1 += i2;
         i2 = 1u;
         i1 += i2;
         i2 = l3;
-        i3 = kF707ConstFFFFFFFF;
+        i3 = kDataFFFFFFFF;
         i2 = i2 == i3;
         i0 = i2 ? i0 : i1;
         l3 = i0;
-        i1 = kF707ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = i0 != i1;
         l14 = i0;
         if (i0) {goto loop_51;}
       i0 = l5;
       i1 = l4;
-      i2 = kF707ConstFFFFFFFF;
+      i2 = kDataFFFFFFFF;
       i1 ^= i2;
       i0 += i1;
       l3 = i0;
@@ -790,7 +773,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i2 = l5;
       i1 += i2;
       i0 ^= i1;
-      i1 = kF707Const20000;
+      i1 = kData20000;
       i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
       l4 = i0;
       i0 = l8;
@@ -821,7 +804,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = l4;
-        i1 = kF707MsgControlStructureTooLong;
+        i1 = kControlStructureTooLongMessage;
         RaiseSyntaxError(ctx, i0, i1);
         i0 = 6u;
         i1 = ResumePhase(ctx);
@@ -850,7 +833,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i3 = 14u;
       i2 <<= (i3 & 31);
       i1 |= i2;
-      i2 = kF707Const7FFFC000;
+      i2 = kData7FFFC000;
       i1 += i2;
       l3 = i1;
       StoreU32(ctx, i0, i1);
@@ -876,7 +859,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     i0 = code;
     i0 = LoadU32(ctx, i0 + 20u);
     l3 = i0;
-    i1 = kF707ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = i0 == i1;
     l4 = i0;
   }
@@ -912,10 +895,10 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         l5 = i0;
         i1 = 14u;
         i0 >>= (i1 & 31);
-        i1 = kF707Const1FFFF;
+        i1 = kData1FFFF;
         i0 -= i1;
         l6 = i0;
-        i1 = kF707ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = i0 == i1;
         l9 = i0;
         i0 = l3;
@@ -936,7 +919,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
           l6 = i0;
           i1 = 63u;
           i0 &= i1;
-          i1 = kF707Const2B460;
+          i1 = kData2B460;
           i0 += i1;
           i0 = LoadS8(ctx, i0);
           i1 = 0u;
@@ -949,7 +932,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         i0 = l8;
         l4 = i0;
         block_65:;
-        i0 = kF707ConstFFFFFFFF;
+        i0 = kDataFFFFFFFF;
         i1 = l11;
         i2 = l9;
         i0 = i2 ? i0 : i1;
@@ -968,7 +951,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         if (i0) {
           i0 = l10;
           i1 = l3;
-          i2 = kF707ConstFFFFFFFF;
+          i2 = kDataFFFFFFFF;
           i1 ^= i2;
           i0 += i1;
           l3 = i0;
@@ -980,7 +963,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
           i2 = l6;
           i1 += i2;
           i0 ^= i1;
-          i1 = kF707Const1FFFF;
+          i1 = kData1FFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           l4 = i0;
           if (i0) {goto block_70;}
@@ -988,7 +971,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         }
         i0 = l4;
         i1 = l6;
-        i2 = kF707Const7FC000;
+        i2 = kData7FC000;
         i1 &= i2;
         i2 = l6;
         i3 = 17u;
@@ -1002,7 +985,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         StoreU32(ctx, i0, i1);
         i0 = l14;
         i1 = l3;
-        i2 = kF707ConstFFFFFFFF;
+        i2 = kDataFFFFFFFF;
         i1 ^= i2;
         i0 += i1;
         l3 = i0;
@@ -1014,7 +997,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         i2 = l5;
         i1 += i2;
         i0 ^= i1;
-        i1 = kF707Const20000;
+        i1 = kData20000;
         i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
         l4 = i0;
         if (i0) {goto block_68;}
@@ -1031,7 +1014,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = l4;
-        i1 = kF707MsgControlStructureTooLong;
+        i1 = kControlStructureTooLongMessage;
         RaiseSyntaxError(ctx, i0, i1);
         i0 = 7u;
         i1 = ResumePhase(ctx);
@@ -1059,12 +1042,12 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         i3 = 14u;
         i2 <<= (i3 & 31);
         i1 |= i2;
-        i2 = kF707Const7FFFC000;
+        i2 = kData7FFFC000;
         i1 += i2;
         StoreU32(ctx, i0, i1);
         i0 = l9;
         l3 = i0;
-        i1 = kF707ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = i0 != i1;
         l4 = i0;
         if (i0) {goto loop_63;}
@@ -1100,10 +1083,10 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       l6 = i0;
       i1 = 14u;
       i0 >>= (i1 & 31);
-      i1 = kF707Const1FFFF;
+      i1 = kData1FFFF;
       i0 -= i1;
       l5 = i0;
-      i1 = kF707ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = i0 == i1;
       l9 = i0;
       i0 = l3;
@@ -1124,7 +1107,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         l5 = i0;
         i1 = 63u;
         i0 &= i1;
-        i1 = kF707Const2B460;
+        i1 = kData2B460;
         i0 += i1;
         i0 = LoadS8(ctx, i0);
         i1 = 0u;
@@ -1136,7 +1119,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i0 = l8;
       l4 = i0;
       block_78:;
-      i0 = kF707ConstFFFFFFFF;
+      i0 = kDataFFFFFFFF;
       i1 = l15;
       i2 = l9;
       i0 = i2 ? i0 : i1;
@@ -1163,12 +1146,12 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         if (i1) {
           i1 = l11;
           i2 = l5;
-          i3 = kF707ConstFFFFC03F;
+          i3 = kDataFFFFC03F;
           i2 &= i3;
           i1 |= i2;
         } else {
           i1 = l5;
-          i2 = kF707Const7FC000;
+          i2 = kData7FC000;
           i1 &= i2;
           l6 = i1;
           i2 = l5;
@@ -1183,7 +1166,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         StoreU32(ctx, i0, i1);
         i0 = l14;
         i1 = l3;
-        i2 = kF707ConstFFFFFFFF;
+        i2 = kDataFFFFFFFF;
         i1 ^= i2;
         i0 += i1;
         l3 = i0;
@@ -1195,7 +1178,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         i2 = l5;
         i1 += i2;
         i0 ^= i1;
-        i1 = kF707Const1FFFF;
+        i1 = kData1FFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         l4 = i0;
         if (i0) {goto block_83;}
@@ -1203,7 +1186,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       }
       i0 = l10;
       i1 = l3;
-      i2 = kF707ConstFFFFFFFF;
+      i2 = kDataFFFFFFFF;
       i1 ^= i2;
       i0 += i1;
       l3 = i0;
@@ -1215,7 +1198,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i2 = l5;
       i1 += i2;
       i0 ^= i1;
-      i1 = kF707Const20000;
+      i1 = kData20000;
       i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
       l4 = i0;
       if (i0) {goto block_80;}
@@ -1232,7 +1215,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = l4;
-      i1 = kF707MsgControlStructureTooLong;
+      i1 = kControlStructureTooLongMessage;
       RaiseSyntaxError(ctx, i0, i1);
       i0 = 8u;
       i1 = ResumePhase(ctx);
@@ -1260,12 +1243,12 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i3 = 14u;
       i2 <<= (i3 & 31);
       i1 |= i2;
-      i2 = kF707Const7FFFC000;
+      i2 = kData7FFFC000;
       i1 += i2;
       StoreU32(ctx, i0, i1);
       i0 = l9;
       l3 = i0;
-      i1 = kF707ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = i0 != i1;
       l4 = i0;
       if (i0) {goto loop_76;}
@@ -1277,7 +1260,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     i0 = code;
     i0 = LoadU32(ctx, i0 + 16u);
     l3 = i0;
-    i1 = kF707ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_19;}
     i0 = line;
@@ -1307,10 +1290,10 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         l5 = i0;
         i1 = 14u;
         i0 >>= (i1 & 31);
-        i1 = kF707Const1FFFF;
+        i1 = kData1FFFF;
         i0 -= i1;
         l6 = i0;
-        i1 = kF707ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = i0 == i1;
         l9 = i0;
         i0 = l3;
@@ -1331,7 +1314,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
           l6 = i0;
           i1 = 63u;
           i0 &= i1;
-          i1 = kF707Const2B460;
+          i1 = kData2B460;
           i0 += i1;
           i0 = LoadS8(ctx, i0);
           i1 = 0u;
@@ -1344,7 +1327,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         i0 = l8;
         l4 = i0;
         block_94:;
-        i0 = kF707ConstFFFFFFFF;
+        i0 = kDataFFFFFFFF;
         i1 = l10;
         i2 = l9;
         i0 = i2 ? i0 : i1;
@@ -1363,7 +1346,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         if (i0) {
           i0 = l13;
           i1 = l3;
-          i2 = kF707ConstFFFFFFFF;
+          i2 = kDataFFFFFFFF;
           i1 ^= i2;
           i0 += i1;
           l3 = i0;
@@ -1375,7 +1358,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
           i2 = l6;
           i1 += i2;
           i0 ^= i1;
-          i1 = kF707Const1FFFF;
+          i1 = kData1FFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           l4 = i0;
           if (i0) {goto block_99;}
@@ -1383,7 +1366,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         }
         i0 = l4;
         i1 = l6;
-        i2 = kF707Const7FC000;
+        i2 = kData7FC000;
         i1 &= i2;
         i2 = l6;
         i3 = 17u;
@@ -1397,7 +1380,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         StoreU32(ctx, i0, i1);
         i0 = l14;
         i1 = l3;
-        i2 = kF707ConstFFFFFFFF;
+        i2 = kDataFFFFFFFF;
         i1 ^= i2;
         i0 += i1;
         l3 = i0;
@@ -1409,7 +1392,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         i2 = l5;
         i1 += i2;
         i0 ^= i1;
-        i1 = kF707Const20000;
+        i1 = kData20000;
         i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
         l4 = i0;
         if (i0) {goto block_97;}
@@ -1426,7 +1409,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = l4;
-        i1 = kF707MsgControlStructureTooLong;
+        i1 = kControlStructureTooLongMessage;
         RaiseSyntaxError(ctx, i0, i1);
         i0 = 9u;
         i1 = ResumePhase(ctx);
@@ -1454,12 +1437,12 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         i3 = 14u;
         i2 <<= (i3 & 31);
         i1 |= i2;
-        i2 = kF707Const7FFFC000;
+        i2 = kData7FFFC000;
         i1 += i2;
         StoreU32(ctx, i0, i1);
         i0 = l9;
         l3 = i0;
-        i1 = kF707ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = i0 != i1;
         l4 = i0;
         if (i0) {goto loop_92;}
@@ -1495,10 +1478,10 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       l6 = i0;
       i1 = 14u;
       i0 >>= (i1 & 31);
-      i1 = kF707Const1FFFF;
+      i1 = kData1FFFF;
       i0 -= i1;
       l5 = i0;
-      i1 = kF707ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = i0 == i1;
       l9 = i0;
       i0 = l3;
@@ -1519,7 +1502,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         l5 = i0;
         i1 = 63u;
         i0 &= i1;
-        i1 = kF707Const2B460;
+        i1 = kData2B460;
         i0 += i1;
         i0 = LoadS8(ctx, i0);
         i1 = 0u;
@@ -1531,7 +1514,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i0 = l8;
       l4 = i0;
       block_107:;
-      i0 = kF707ConstFFFFFFFF;
+      i0 = kDataFFFFFFFF;
       i1 = l11;
       i2 = l9;
       i0 = i2 ? i0 : i1;
@@ -1558,12 +1541,12 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         if (i1) {
           i1 = l10;
           i2 = l5;
-          i3 = kF707ConstFFFFC03F;
+          i3 = kDataFFFFC03F;
           i2 &= i3;
           i1 |= i2;
         } else {
           i1 = l5;
-          i2 = kF707Const7FC000;
+          i2 = kData7FC000;
           i1 &= i2;
           l6 = i1;
           i2 = l5;
@@ -1578,7 +1561,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         StoreU32(ctx, i0, i1);
         i0 = l14;
         i1 = l3;
-        i2 = kF707ConstFFFFFFFF;
+        i2 = kDataFFFFFFFF;
         i1 ^= i2;
         i0 += i1;
         l3 = i0;
@@ -1590,14 +1573,14 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
         i2 = l5;
         i1 += i2;
         i0 ^= i1;
-        i1 = kF707Const1FFFF;
+        i1 = kData1FFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         if (i0) {goto block_112;}
         goto block_110;
       }
       i0 = l13;
       i1 = l3;
-      i2 = kF707ConstFFFFFFFF;
+      i2 = kDataFFFFFFFF;
       i1 ^= i2;
       i0 += i1;
       l3 = i0;
@@ -1609,7 +1592,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i2 = l5;
       i1 += i2;
       i0 ^= i1;
-      i1 = kF707Const20000;
+      i1 = kData20000;
       i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
       if (i0) {goto block_109;}
       block_112:;
@@ -1625,7 +1608,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = l4;
-      i1 = kF707MsgControlStructureTooLong;
+      i1 = kControlStructureTooLongMessage;
       RaiseSyntaxError(ctx, i0, i1);
       i0 = 10u;
       i1 = ResumePhase(ctx);
@@ -1653,12 +1636,12 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
       i3 = 14u;
       i2 <<= (i3 & 31);
       i1 |= i2;
-      i2 = kF707Const7FFFC000;
+      i2 = kData7FFFC000;
       i1 += i2;
       StoreU32(ctx, i0, i1);
       i0 = l9;
       l3 = i0;
-      i1 = kF707ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = i0 != i1;
       l4 = i0;
       if (i0) {goto loop_105;}
@@ -1687,7 +1670,7 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kF707ResumeWordBytes;
+  i2 = kCompileExpressionResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);

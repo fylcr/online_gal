@@ -95,7 +95,7 @@ SHIMS="$HERE/out/$RDIR/artemis-export-shims.c"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 note() { printf '\n== %s\n' "$*"; }
 
-for f in "$GEN_C" "$GEN_H" "$SHIMS" "$RT_BUILD/wasm-rt-impl.c" "$RT_BUILD/wasm-rt-mem-impl.c"; do
+for f in "$GEN_C" "$GEN_H" "$SHIMS" "$RUNTIME_SRC/wasm-rt-impl.c" "$RUNTIME_SRC/wasm-rt-mem-impl.c"; do
   [ -e "$f" ] || fail "missing input: $f"
 done
 
@@ -352,13 +352,21 @@ fi
 INCDIR="$OUTDIR/inc"
 mkdir -p "$INCDIR"
 printf '#include "artemis.wasm2c.h"\n' > "$INCDIR/artemis.h"
+# The runtime objects are compiled from a copy of the reference runtime that ships with the
+# repo, with one deliberate edit: the engine's own table allocation is allowed to fail.  The
+# copy is made fresh on every build because a hand-edited staging directory once made the
+# module CI builds differ from the module a developer builds, and only CI noticed.
+RUNTIME_STAGE="$OUTDIR/runtime"
+python "$HERE/patch-runtime-alloc.py" "$RUNTIME_SRC" "$RUNTIME_STAGE" \
+  || fail "could not prepare the runtime sources (see patch-runtime-alloc.py)"
 for f in wasm-rt-impl wasm-rt-mem-impl; do
   # -fno-exceptions matters: the runtime is what drags in `_Unwind_RaiseException` and
   # `_emscripten_throw_longjmp`, and the official module imports neither, i.e. it was
   # built with exceptions off.  Compiling the runtime the same way is what makes the
   # rebuilt module's import list match.
-  "$EMCC" -c -O0 -x c -fno-exceptions -sDISABLE_EXCEPTION_CATCHING=1 $TRAP_DEFS -I "$RUNTIME_SRC" \
-    "$RT_BUILD/$f.c" -o "$OUTDIR/$f.o" \
+  "$EMCC" -c -O0 -x c -fno-exceptions -sDISABLE_EXCEPTION_CATCHING=1 $TRAP_DEFS \
+    -I "$RUNTIME_STAGE" -I "$RUNTIME_SRC" \
+    "$RUNTIME_STAGE/$f.c" -o "$OUTDIR/$f.o" \
     2>> "$OUTDIR/runtime.log" || fail "emcc failed on $f.c (see $OUTDIR/runtime.log)"
 done
 echo "     runtime objects built"
@@ -439,8 +447,14 @@ if [ "$STUB_COUNT" -gt 0 ]; then
   sed 's/^/     /' "$OUTDIR/fold.txt"
 fi
 
-BEFORE=$(node -e "const fs=require('fs');WebAssembly.compile(fs.readFileSync('$OUTDIR/bridge.raw.wasm')).then(m=>console.log([...new Set(WebAssembly.Module.imports(m).filter(i=>i.module!=='a').map(i=>i.module+'.'+i.name))].join(' ')))")
-AFTER=$(node -e "const fs=require('fs');WebAssembly.compile(fs.readFileSync('$OUTDIR/bridge.aliased.wasm')).then(m=>console.log([...new Set(WebAssembly.Module.imports(m).filter(i=>i.module!=='a').map(i=>i.module+'.'+i.name))].join(' ')))")
+# The path travels as an argument, not inside the script text: a quoted Windows path is
+# handed to node verbatim, and node then reads it relative to the current drive root
+# (`D:\d\online_gal\...`).  An argument is translated by the shell instead.
+IMPORTS_PROBE="const fs=require('fs');WebAssembly.compile(fs.readFileSync(process.argv[1])).then(m=>console.log([...new Set(WebAssembly.Module.imports(m).filter(i=>i.module!=='a').map(i=>i.module+'.'+i.name))].join(' ')),e=>{console.error('import probe failed: '+e.message);process.exit(1)})"
+BEFORE=$(node -e "$IMPORTS_PROBE" "$OUTDIR/bridge.raw.wasm") \
+  || fail "could not read the imports of $OUTDIR/bridge.raw.wasm"
+AFTER=$(node -e "$IMPORTS_PROBE" "$OUTDIR/bridge.aliased.wasm") \
+  || fail "could not read the imports of $OUTDIR/bridge.aliased.wasm"
 echo "     non-\"a\" imports before: ${BEFORE:-none}"
 echo "     non-\"a\" imports after : ${AFTER:-none}"
 [ -z "$AFTER" ] || fail "imports are still outside module \"a\": $AFTER"

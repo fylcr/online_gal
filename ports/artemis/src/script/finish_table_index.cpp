@@ -19,10 +19,10 @@
 // grows down）and handed back on every running exit; on suspension the nine
 // words that stay live — the state, the table, the key, the free-position
 // cursor, the node, the hash-part base, the new hash size, the new array size
-// and the scratch frame itself — go onto the asyncify stack, preceded by the
+// and the scratch frame itself — go onto the suspend stack, preceded by the
 // resume point naming the call that was in flight. The two rewinding pops stay
 // apart in driver order（frame first, then the resume point — the reverse of
-// the push order, which is the asyncify stack contract）, and a resumed frame
+// the push order, which is the suspend stack contract）, and a resumed frame
 // replays only the call its resume point names. The two failure texts — a nil
 // key and a NaN number key — are raised from the ladder that follows the
 // post-resize lookup, which is why the key's type tag is read twice: once to
@@ -36,11 +36,6 @@
 // even for an empty table. The absent-key value a failed lookup answers with
 // and the dummy node a table with no hash part points at are two separate
 // objects in the guest's data segment, one value record and one node apart.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
 #include "util/engine_context.h"
 #include <cmath>
 
@@ -49,20 +44,12 @@ namespace artc {
 // Forward declaration — defined in script/lookup_table_field.cpp.
 uint32_t LookupTableField(EngineContext* ctx, uint32_t table, uint32_t key);
 // Forward declaration — defined in script/raise_script_error.cpp.
-// PROVISIONAL: the generated f313 body is not registered in rewrite-names.tsv
-// yet, so this callee name and its presumed product file are both provisional.
 void RaiseScriptError(EngineContext* ctx, uint32_t state, uint32_t message, uint32_t argument);
 // Forward declaration — defined in script/resize_table.cpp.
-// PROVISIONAL: the generated f1112 body is not registered in rewrite-names.tsv
-// yet, so this callee name and its presumed product file are both provisional.
 void LookupOrCreateTableField(EngineContext* ctx, uint32_t state, uint32_t table, uint32_t asize, uint32_t nsize);
 // Forward declaration — defined in util/bulk_fill.cpp.
-// PROVISIONAL: the generated f205 body is not registered in rewrite-names.tsv
-// yet, so this callee name and its presumed product file are both provisional.
 uint32_t FillBytes(EngineContext* ctx, uint32_t dst, uint32_t value, uint32_t length);
 // Forward declaration — defined in script/bucket_log2.cpp.
-// PROVISIONAL: the generated f1120 body is not registered in rewrite-names.tsv
-// yet, so this callee name and its presumed product file are both provisional.
 uint32_t BucketLog2(EngineContext* ctx, uint32_t value);
 
 namespace {
@@ -113,7 +100,7 @@ uint32_t FinishTableIndex(EngineContext* ctx, uint32_t state, uint32_t table, ui
   // position of the occupant of a taken bucket — and the short-lived flags the
   // key counts need.
   uint32_t othern = 0u;
-  // The asyncify frame pointer on the two rewinding and spilling blocks; the
+  // The suspend frame pointer on the two rewinding and spilling blocks; the
   // source also reuses this register for the size recount's running counts and
   // for the self-calls' results.
   uint32_t frame = 0u;

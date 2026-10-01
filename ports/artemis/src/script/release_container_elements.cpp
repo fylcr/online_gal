@@ -24,7 +24,7 @@
 // walked. The bridge takes a five-word vector that is fixed for every site in
 // this body, so it is named once and reused at all four of them. Because the
 // bridge and the disposer calls can both run guest code, this is a suspendable
-// body and keeps the asyncify driver's shape: a rewinding pass pops the
+// body and keeps the suspend driver's shape: a rewinding pass pops the
 // 16-byte frame holding the container and the three cursors, then the word
 // naming the call that was in flight, and every site is guarded on the phase
 // so exactly that one call is replayed. The four bridge sites also re-read the
@@ -41,11 +41,6 @@
 // the second head even differs from the first. Merging the two rewinding pops,
 // or folding a bridge site's resume-code select into a short-circuit test,
 // would change that order rather than merely read nicer.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
 #include "util/engine_context.h"
 
 namespace artc {

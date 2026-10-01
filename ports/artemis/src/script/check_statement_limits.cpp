@@ -2,7 +2,7 @@
 
 namespace artc {
 
-// Forward declarations -- registered callees.
+// Forward declarations of the callees below.
 void ParseParamList(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d);
 void CheckMatch(EngineContext* ctx, uint32_t lex_state, uint32_t expected);
 void CompileMainBody(EngineContext* ctx, uint32_t a0, uint32_t a1);

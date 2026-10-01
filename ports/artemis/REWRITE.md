@@ -345,6 +345,16 @@ instrument-profile.py 计数锚 = 产品体 `  EnterFrame();`（索引取自 rw-
   f411=`WritePadding`（pad 的 256 字节块刷，178729）；父函数 f1014 = printf_core、f344 = 对外入口。
   教训：**先认 errno / locale / 数字表这三个数据段地址，再决定整族的命名。**
 
+- **桥与引擎共用一块内存，桥自己的 malloc 竞技场就是保留区（2026-10-02 实地定位）**：桥按 `-sIMPORTED_MEMORY=1 -Xlinker --import-memory=a,a`
+  复用引擎那块 192 MiB 内存，自己的静态数据/栈/堆被放在 `LAYOUT_BASE = TOTAL - RESERVE` 之上，guest 看到的 memory 上限也被改成同一个值。
+  引擎 instantiate 时要给自己的 `Lc` 表分配 4278 项（34 KB），**4 MiB 保留区不够** ⇒ `wasm_rt_allocate_funcref_table` 的 `calloc` 返回 NULL ⇒
+  原版运行时 `abort()` ⇒ 浏览器里是 `RuntimeError: unreachable`、门禁表现为「载入 6 个请求后不动」。当时本机 staging 副本
+  `ports/artemis/reverse/build/wasm-rt-impl-tableops.inc`（gitignored）被人删掉了那三行守卫 ⇒ **本机门禁绿、CI 必炸**（CI 每次从 wabt 原版重新 stage）。
+  规矩：① 运行时（`wasm-rt-impl.c`/`wasm-rt-mem-impl.c`）一律从仓库内的参考树 `.ref/artemis-official/wasm/runtime/` 编译，staging 目录不再参与构建
+  （`build-bridge-route.sh` 已改，差异只报 warning；CI 的 stage 步骤已删）；② `RESERVE` 现为 16 MiB，`LAYOUT_BASE` = `TOTAL - RESERVE` 向下取整到 64 KiB，
+  动这两个数必须重跑真游戏门禁；③ 诊断指纹：本地与 CI 的 wasm 逐函数比（`wdiff.py`），若只差两个运行时函数、各 +37 B，就是这类 staging 分叉，
+  不要去查改写树。
+
 ## 9. 手改净化（2026-09-30 先生定调：停自动生成，逐文件改到像 artemis-compat）
 
 **目标**：`ports/artemis/src/**` 的每个文件读起来像 `.ref/artemis-compat/src/**`——人一眼看懂它在干什么。

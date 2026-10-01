@@ -20,7 +20,7 @@
 // driver runs it rather than as straight-line relocation. The blocks stay apart
 // in driver order: the two rewinding pops（the 44-byte argument-and-live-local
 // frame first, then the 4-byte resume point above it — the reverse of the push
-// order, which is the asyncify stack contract）, the running setup, the capacity
+// order, which is the suspend stack contract）, the running setup, the capacity
 // select, the allocation, the three copies, the release, the header rewrite and
 // the two shared exits. Each call keeps its own gate: a forward pass that
 // reaches it owes it, a rewound pass re-issues only the one the parked resume
@@ -33,11 +33,6 @@
 // temporary the generated body makes; it is kept as written. Accessors re-read
 // the memory view on every call, so the generated growth-refresh lines have no
 // counterpart here.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
 #include "util/engine_context.h"
 
 namespace artc {
@@ -46,18 +41,12 @@ namespace artc {
 void CopyIfNonEmpty(EngineContext* ctx, uint32_t dst, uint32_t src, uint32_t n);
 
 // Forward declaration — defined in util/allocate_string_buffer.cpp.
-// PROVISIONAL: the generated f201 body is not registered in rewrite-names.tsv
-// yet, so this callee name and its presumed product file are both provisional.
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t bytes);
 
 // Forward declaration — defined in util/deallocate_string_buffer.cpp.
-// PROVISIONAL: the generated f560 body is not registered in rewrite-names.tsv
-// yet, so this callee name and its presumed product file are both provisional.
 void DeallocateStringBuffer(EngineContext* ctx, uint32_t text, uint32_t old_data, uint32_t old_cap);
 
 // Forward declaration — defined in util/raise_string_length_error.cpp.
-// PROVISIONAL: the generated f248 body is not registered in rewrite-names.tsv
-// yet, so this callee name and its presumed product file are both provisional.
 void RaiseStringLengthError(EngineContext* ctx, uint32_t text);
 
 void GrowStringAndReplace(EngineContext* ctx, uint32_t arg0, uint32_t arg1, uint32_t arg2,

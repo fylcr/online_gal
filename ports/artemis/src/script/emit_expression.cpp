@@ -1,18 +1,3 @@
-// emit_expression.cpp -- emits an expression: the operand tree is walked and the value lands in a register..
-//
-// EmitExpression -- emits an expression: the operand tree is walked and the value lands in a register.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 2744407-2744407 (f5671); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
@@ -28,19 +13,17 @@ void CompileExpression(EngineContext* ctx, uint32_t func_state, uint32_t code, u
 
 namespace {
 
-constexpr uint32_t kF5671Const1FFFF = 0x1FFFFu;  // 
-constexpr uint32_t kF5671Const20000 = 0x20000u;  // 
-constexpr uint32_t kF5671MsgFunctionOrExpressionToo = 0x2A371u;  // function or expression too complex
-constexpr uint32_t kF5671MsgControlStructureTooLong = 0x2A394u;  // control structure too long
-constexpr uint32_t kF5671Const7FFFFF = 0x7FFFFFu;  // 
-constexpr uint32_t kF5671Const7FFFC000 = 0x7FFFC000u;  // 
-constexpr uint32_t kF5671ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF5671SaveFrameBytes = 44u;
-constexpr uint32_t kF5671ResumeWordBytes = 4u;
+constexpr uint32_t kFunctionOrExpressionTooComplexMessage = 0x2A371u;  // function or expression too complex
+constexpr uint32_t kData7FFFFF = 0x7FFFFFu;
+constexpr uint32_t kEmitExpressionSaveFrameBytes = 44u;
+constexpr uint32_t kEmitExpressionResumeWordBytes = 4u;
 
 }  // namespace
 
-void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
+// Emits one expression: it walks the operand tree, spends the syntax level the
+// statement gave it and leaves the value in a register.  The step is suspendable
+// at every call it makes.
+void EmitExpression(EngineContext* ctx, uint32_t holder, uint32_t level, uint32_t func_state, uint32_t carry) {
   EnterFrame();
   uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
@@ -53,20 +36,20 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kF5671SaveFrameBytes;
+    i2 = kEmitExpressionSaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
     i0 = LoadU32(ctx, i0);
     l4 = i0;
     i0 = LoadU32(ctx, i0);
-    a = i0;
+    holder = i0;
     i0 = l4;
     i0 = LoadU32(ctx, i0 + 8u);
-    c = i0;
+    func_state = i0;
     i0 = l4;
     i0 = LoadU32(ctx, i0 + 12u);
-    d = i0;
+    carry = i0;
     i0 = l4;
     i0 = LoadU32(ctx, i0 + 16u);
     l5 = i0;
@@ -90,7 +73,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     l12 = i0;
     i0 = l4;
     i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
+    level = i0;
   }
   i0 = ResumePhase(ctx);
   i1 = 2u;
@@ -99,7 +82,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kF5671ResumeWordBytes;
+    i2 = kEmitExpressionResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -110,7 +93,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = b;
+    i0 = level;
     switch (i0) {
       case 0: goto block_20;
       case 1: goto block_19;
@@ -137,8 +120,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = d;
+    i0 = holder;
+    i1 = carry;
     DischargeExpression(ctx, i0, i1);
     i0 = 0u;
     i1 = ResumePhase(ctx);
@@ -150,29 +133,29 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i1 = ResumePhase(ctx);
   i1 = !(i1);
   if (i1) {
-    i1 = c;
+    i1 = func_state;
     i1 = LoadU32(ctx, i1 + 20u);
     l8 = i1;
-    i2 = kF5671ConstFFFFFFFF;
+    i2 = kDataFFFFFFFF;
     i1 = i1 == i2;
     if (i1) {goto running_exit;}
-    i1 = d;
+    i1 = carry;
     i1 = LoadU32(ctx, i1 + 20u);
-    b = i1;
-    i2 = kF5671ConstFFFFFFFF;
+    level = i1;
+    i2 = kDataFFFFFFFF;
     i1 = i1 == i2;
     if (i1) {goto block_7;}
-    i1 = a;
+    i1 = holder;
     i1 = LoadU32(ctx, i1);
     i1 = LoadU32(ctx, i1 + 12u);
     l10 = i1;
     loop_28: 
-      i1 = b;
+      i1 = level;
       l5 = i1;
-      i1 = kF5671ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i2 = l5;
       i3 = l10;
-      i4 = b;
+      i4 = level;
       i5 = 2u;
       i4 <<= (i5 & 31);
       i3 += i4;
@@ -181,37 +164,37 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       l7 = i3;
       i4 = 14u;
       i3 >>= (i4 & 31);
-      i4 = kF5671Const1FFFF;
+      i4 = kData1FFFF;
       i3 -= i4;
-      b = i3;
+      level = i3;
       i2 += i3;
       i3 = 1u;
       i2 += i3;
-      i3 = b;
-      i4 = kF5671ConstFFFFFFFF;
+      i3 = level;
+      i4 = kDataFFFFFFFF;
       i3 = i3 == i4;
       i1 = i3 ? i1 : i2;
-      b = i1;
-      i2 = kF5671ConstFFFFFFFF;
+      level = i1;
+      i2 = kDataFFFFFFFF;
       i1 = i1 != i2;
       if (i1) {goto loop_28;}
     i1 = l9;
     l10 = i1;
     i1 = l8;
     i2 = l5;
-    i3 = kF5671ConstFFFFFFFF;
+    i3 = kDataFFFFFFFF;
     i2 ^= i3;
     i1 += i2;
-    b = i1;
+    level = i1;
     i2 = 31u;
     i1 = (uint32_t)((int32_t)i1 >> (i2 & 31));
     l5 = i1;
-    i2 = b;
+    i2 = level;
     i3 = l5;
     i2 += i3;
     l8 = i2;
     i1 ^= i2;
-    i2 = kF5671Const20000;
+    i2 = kData20000;
     i1 = (uint32_t)((int32_t)i1 >= (int32_t)i2);
     l5 = i1;
   }
@@ -227,9 +210,9 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = a;
+      i0 = holder;
       i0 = LoadU32(ctx, i0 + 12u);
-      a = i0;
+      holder = i0;
     }
     i0 = l6;
     i1 = 1u;
@@ -238,8 +221,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i2 = ResumePhase(ctx);
     i0 = i2 ? i0 : i1;
     if (i0) {
-      i0 = a;
-      i1 = kF5671MsgControlStructureTooLong;
+      i0 = holder;
+      i1 = kControlStructureTooLongMessage;
       RaiseSyntaxError(ctx, i0, i1);
       i0 = 1u;
       i1 = ResumePhase(ctx);
@@ -263,13 +246,13 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 = l7;
     i2 = 16383u;
     i1 &= i2;
-    i2 = b;
+    i2 = level;
     i3 = 14u;
     i2 <<= (i3 & 31);
     i1 |= i2;
-    i2 = kF5671Const7FFFC000;
+    i2 = kData7FFFC000;
     i1 += i2;
-    a = i1;
+    holder = i1;
     StoreU32(ctx, i0, i1);
     goto running_exit;
   }
@@ -281,8 +264,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = d;
+    i0 = holder;
+    i1 = carry;
     DischargeExpression(ctx, i0, i1);
     i0 = 2u;
     i1 = ResumePhase(ctx);
@@ -294,29 +277,29 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i1 = ResumePhase(ctx);
   i1 = !(i1);
   if (i1) {
-    i1 = c;
+    i1 = func_state;
     i1 = LoadU32(ctx, i1 + 16u);
     l8 = i1;
-    i2 = kF5671ConstFFFFFFFF;
+    i2 = kDataFFFFFFFF;
     i1 = i1 == i2;
     if (i1) {goto block_5;}
-    i1 = d;
+    i1 = carry;
     i1 = LoadU32(ctx, i1 + 16u);
-    b = i1;
-    i2 = kF5671ConstFFFFFFFF;
+    level = i1;
+    i2 = kDataFFFFFFFF;
     i1 = i1 == i2;
     if (i1) {goto block_6;}
-    i1 = a;
+    i1 = holder;
     i1 = LoadU32(ctx, i1);
     i1 = LoadU32(ctx, i1 + 12u);
     l10 = i1;
     loop_37: 
-      i1 = b;
+      i1 = level;
       l5 = i1;
-      i1 = kF5671ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i2 = l5;
       i3 = l10;
-      i4 = b;
+      i4 = level;
       i5 = 2u;
       i4 <<= (i5 & 31);
       i3 += i4;
@@ -325,37 +308,37 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       l7 = i3;
       i4 = 14u;
       i3 >>= (i4 & 31);
-      i4 = kF5671Const1FFFF;
+      i4 = kData1FFFF;
       i3 -= i4;
-      b = i3;
+      level = i3;
       i2 += i3;
       i3 = 1u;
       i2 += i3;
-      i3 = b;
-      i4 = kF5671ConstFFFFFFFF;
+      i3 = level;
+      i4 = kDataFFFFFFFF;
       i3 = i3 == i4;
       i1 = i3 ? i1 : i2;
-      b = i1;
-      i2 = kF5671ConstFFFFFFFF;
+      level = i1;
+      i2 = kDataFFFFFFFF;
       i1 = i1 != i2;
       if (i1) {goto loop_37;}
     i1 = l9;
     l10 = i1;
     i1 = l8;
     i2 = l5;
-    i3 = kF5671ConstFFFFFFFF;
+    i3 = kDataFFFFFFFF;
     i2 ^= i3;
     i1 += i2;
-    b = i1;
+    level = i1;
     i2 = 31u;
     i1 = (uint32_t)((int32_t)i1 >> (i2 & 31));
     l5 = i1;
-    i2 = b;
+    i2 = level;
     i3 = l5;
     i2 += i3;
     l8 = i2;
     i1 ^= i2;
-    i2 = kF5671Const20000;
+    i2 = kData20000;
     i1 = (uint32_t)((int32_t)i1 >= (int32_t)i2);
     l5 = i1;
   }
@@ -371,9 +354,9 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = a;
+      i0 = holder;
       i0 = LoadU32(ctx, i0 + 12u);
-      a = i0;
+      holder = i0;
     }
     i0 = l6;
     i1 = 3u;
@@ -382,8 +365,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i2 = ResumePhase(ctx);
     i0 = i2 ? i0 : i1;
     if (i0) {
-      i0 = a;
-      i1 = kF5671MsgControlStructureTooLong;
+      i0 = holder;
+      i1 = kControlStructureTooLongMessage;
       RaiseSyntaxError(ctx, i0, i1);
       i0 = 3u;
       i1 = ResumePhase(ctx);
@@ -407,13 +390,13 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 = l7;
     i2 = 16383u;
     i1 &= i2;
-    i2 = b;
+    i2 = level;
     i3 = 14u;
     i2 <<= (i3 & 31);
     i1 |= i2;
-    i2 = kF5671Const7FFFC000;
+    i2 = kData7FFFC000;
     i1 += i2;
-    a = i1;
+    holder = i1;
     StoreU32(ctx, i0, i1);
     goto block_5;
   }
@@ -421,15 +404,15 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0 + 20u);
     l5 = i0;
-    i1 = d;
+    i1 = carry;
     i1 = LoadU32(ctx, i1 + 16u);
     i0 = i0 != i1;
-    b = i0;
+    level = i0;
   }
-  i0 = b;
+  i0 = level;
   i1 = ResumePhase(ctx);
   i2 = 2u;
   i1 = i1 == i2;
@@ -442,8 +425,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i2 = ResumePhase(ctx);
     i0 = i2 ? i0 : i1;
     if (i0) {
-      i0 = a;
-      i1 = d;
+      i0 = holder;
+      i1 = carry;
       i0 = EmitConditionJump(ctx, i0, i1);
       l4 = i0;
       i0 = 4u;
@@ -452,7 +435,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
       i0 = l4;
-      b = i0;
+      level = i0;
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -465,8 +448,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = d;
+    i0 = holder;
+    i1 = carry;
     DischargeExpression(ctx, i0, i1);
     i0 = 5u;
     i1 = ResumePhase(ctx);
@@ -478,17 +461,17 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0);
     i1 = 11u;
     i0 = i0 != i1;
-    b = i0;
+    level = i0;
     if (i0) {goto block_50;}
-    i0 = a;
+    i0 = holder;
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 12u);
-    b = i0;
-    i1 = d;
+    level = i0;
+    i1 = carry;
     i1 = LoadU32(ctx, i1 + 8u);
     l5 = i1;
     i2 = 2u;
@@ -502,30 +485,30 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = i0 != i1;
     l9 = i0;
     if (i0) {goto block_50;}
-    i0 = c;
+    i0 = func_state;
     i0 = LoadU32(ctx, i0);
     i1 = 12u;
     i0 = i0 != i1;
     if (i0) {goto block_51;}
-    i0 = c;
+    i0 = func_state;
     i0 = LoadU32(ctx, i0 + 8u);
     l8 = i0;
     i1 = 256u;
     i0 &= i1;
     if (i0) {goto block_51;}
     i0 = l8;
-    i1 = a;
+    i1 = holder;
     i1 = LoadU8(ctx, i1 + 50u);
     i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
     if (i0) {goto block_51;}
-    i0 = a;
-    i1 = a;
+    i0 = holder;
+    i1 = holder;
     i1 = LoadU32(ctx, i1 + 36u);
     i2 = 1u;
     i1 -= i2;
     StoreU32(ctx, i0 + 36u, i1);
-    i0 = b;
-    i1 = d;
+    i0 = level;
+    i1 = carry;
     i1 = LoadU32(ctx, i1 + 8u);
     l5 = i1;
     i2 = 2u;
@@ -534,25 +517,25 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = LoadU32(ctx, i0);
     l7 = i0;
     block_51:;
-    i0 = b;
+    i0 = level;
     i1 = l5;
     i2 = 2u;
     i1 <<= (i2 & 31);
     i0 += i1;
     i1 = l7;
-    i2 = kF5671Const7FFFFF;
+    i2 = kData7FFFFF;
     i1 &= i2;
-    i2 = c;
+    i2 = func_state;
     i2 = LoadU32(ctx, i2 + 8u);
     i3 = 23u;
     i2 <<= (i3 & 31);
     i1 |= i2;
     StoreU32(ctx, i0, i1);
-    i0 = c;
+    i0 = func_state;
     i1 = 11u;
     StoreU32(ctx, i0, i1);
-    i0 = c;
-    i1 = d;
+    i0 = func_state;
+    i1 = carry;
     i1 = LoadU32(ctx, i1 + 8u);
     StoreU32(ctx, i0 + 8u, i1);
     goto func_exit;
@@ -565,8 +548,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = d;
+    i0 = holder;
+    i1 = carry;
     DischargeExpression(ctx, i0, i1);
     i0 = 6u;
     i1 = ResumePhase(ctx);
@@ -577,50 +560,50 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0);
     i1 = 12u;
     i0 = i0 != i1;
     if (i0) {goto block_54;}
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0 + 8u);
-    b = i0;
+    level = i0;
     i1 = 256u;
     i0 &= i1;
     if (i0) {goto block_54;}
-    i0 = a;
+    i0 = holder;
     i0 = LoadU8(ctx, i0 + 50u);
-    i1 = b;
+    i1 = level;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     if (i0) {goto block_54;}
-    i0 = a;
-    i1 = a;
+    i0 = holder;
+    i1 = holder;
     i1 = LoadU32(ctx, i1 + 36u);
     i2 = 1u;
     i1 -= i2;
     StoreU32(ctx, i0 + 36u, i1);
     block_54:;
-    i0 = a;
+    i0 = holder;
     i0 = LoadU32(ctx, i0 + 36u);
     l8 = i0;
     i1 = 1u;
     i0 += i1;
     l5 = i0;
     i0 = l8;
-    i1 = a;
+    i1 = holder;
     i1 = LoadU32(ctx, i1);
     l7 = i1;
     i1 = LoadU8(ctx, i1 + 75u);
     i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-    b = i0;
+    level = i0;
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = b;
+    i0 = level;
     if (i0) {
       i0 = l5;
-      b = i0;
+      level = i0;
       goto block_55;
     }
     i0 = l8;
@@ -628,7 +611,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
     l9 = i0;
     i0 = l5;
-    b = i0;
+    level = i0;
   }
   i0 = l9;
   i1 = ResumePhase(ctx);
@@ -639,9 +622,9 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = a;
+      i0 = holder;
       i0 = LoadU32(ctx, i0 + 12u);
-      b = i0;
+      level = i0;
     }
     i0 = l6;
     i1 = 7u;
@@ -650,8 +633,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i2 = ResumePhase(ctx);
     i0 = i2 ? i0 : i1;
     if (i0) {
-      i0 = b;
-      i1 = kF5671MsgFunctionOrExpressionToo;
+      i0 = level;
+      i1 = kFunctionOrExpressionTooComplexMessage;
       RaiseSyntaxError(ctx, i0, i1);
       i0 = 7u;
       i1 = ResumePhase(ctx);
@@ -661,17 +644,17 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     }
     i0 = ResumePhase(ctx);
     if (i0) {
-      i0 = b;
+      i0 = level;
     } else {
-      i0 = a;
+      i0 = holder;
       i0 = LoadU32(ctx, i0);
       l7 = i0;
-      i0 = a;
+      i0 = holder;
       i0 = LoadU32(ctx, i0 + 36u);
       i1 = 1u;
       i0 += i1;
     }
-    b = i0;
+    level = i0;
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -684,13 +667,13 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = a;
-    i1 = b;
+    i0 = holder;
+    i1 = level;
     StoreU32(ctx, i0 + 36u, i1);
-    i0 = b;
+    i0 = level;
     i1 = 1u;
     i0 -= i1;
-    b = i0;
+    level = i0;
   }
   i0 = l6;
   i1 = 8u;
@@ -699,9 +682,9 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = d;
-    i2 = b;
+    i0 = holder;
+    i1 = carry;
+    i2 = level;
     CompileExpression(ctx, i0, i1, i2);
     i0 = 8u;
     i1 = ResumePhase(ctx);
@@ -716,10 +699,10 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
+    i0 = holder;
     i1 = 21u;
-    i2 = c;
-    i3 = d;
+    i2 = func_state;
+    i3 = carry;
     CompileNumericPower(ctx, i0, i1, i2, i3);
     i0 = 9u;
     i1 = ResumePhase(ctx);
@@ -740,10 +723,10 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
+    i0 = holder;
     i1 = 12u;
-    i2 = c;
-    i3 = d;
+    i2 = func_state;
+    i3 = carry;
     CompileNumericPower(ctx, i0, i1, i2, i3);
     i0 = 10u;
     i1 = ResumePhase(ctx);
@@ -764,10 +747,10 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
+    i0 = holder;
     i1 = 13u;
-    i2 = c;
-    i3 = d;
+    i2 = func_state;
+    i3 = carry;
     CompileNumericPower(ctx, i0, i1, i2, i3);
     i0 = 11u;
     i1 = ResumePhase(ctx);
@@ -788,10 +771,10 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
+    i0 = holder;
     i1 = 14u;
-    i2 = c;
-    i3 = d;
+    i2 = func_state;
+    i3 = carry;
     CompileNumericPower(ctx, i0, i1, i2, i3);
     i0 = 12u;
     i1 = ResumePhase(ctx);
@@ -812,10 +795,10 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
+    i0 = holder;
     i1 = 15u;
-    i2 = c;
-    i3 = d;
+    i2 = func_state;
+    i3 = carry;
     CompileNumericPower(ctx, i0, i1, i2, i3);
     i0 = 13u;
     i1 = ResumePhase(ctx);
@@ -836,10 +819,10 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
+    i0 = holder;
     i1 = 16u;
-    i2 = c;
-    i3 = d;
+    i2 = func_state;
+    i3 = carry;
     CompileNumericPower(ctx, i0, i1, i2, i3);
     i0 = 14u;
     i1 = ResumePhase(ctx);
@@ -860,10 +843,10 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
+    i0 = holder;
     i1 = 17u;
-    i2 = c;
-    i3 = d;
+    i2 = func_state;
+    i3 = carry;
     CompileNumericPower(ctx, i0, i1, i2, i3);
     i0 = 15u;
     i1 = ResumePhase(ctx);
@@ -884,8 +867,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = c;
+    i0 = holder;
+    i1 = func_state;
     i0 = ExpressionToRegister(ctx, i0, i1);
     l4 = i0;
     i0 = 16u;
@@ -894,7 +877,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l4;
-    b = i0;
+    level = i0;
   }
   i0 = l6;
   i1 = 17u;
@@ -903,8 +886,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = d;
+    i0 = holder;
+    i1 = carry;
     i0 = ExpressionToRegister(ctx, i0, i1);
     l4 = i0;
     i0 = 17u;
@@ -918,53 +901,53 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0);
     i1 = 12u;
     i0 = i0 != i1;
     if (i0) {goto block_82;}
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
+    carry = i0;
     i1 = 256u;
     i0 &= i1;
     if (i0) {goto block_82;}
-    i0 = a;
+    i0 = holder;
     i0 = LoadU8(ctx, i0 + 50u);
-    i1 = d;
+    i1 = carry;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     if (i0) {goto block_82;}
-    i0 = a;
-    i1 = a;
+    i0 = holder;
+    i1 = holder;
     i1 = LoadU32(ctx, i1 + 36u);
     i2 = 1u;
     i1 -= i2;
     StoreU32(ctx, i0 + 36u, i1);
     block_82:;
-    i0 = c;
+    i0 = func_state;
     i0 = LoadU32(ctx, i0);
     i1 = 12u;
     i0 = i0 != i1;
-    d = i0;
+    carry = i0;
     if (i0) {goto block_83;}
-    i0 = c;
+    i0 = func_state;
     i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
+    carry = i0;
     i1 = 256u;
     i0 &= i1;
     if (i0) {goto block_83;}
-    i0 = a;
+    i0 = holder;
     i0 = LoadU8(ctx, i0 + 50u);
-    i1 = d;
+    i1 = carry;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-    d = i0;
+    carry = i0;
     if (i0) {goto block_83;}
-    i0 = a;
-    i1 = a;
+    i0 = holder;
+    i1 = holder;
     i1 = LoadU32(ctx, i1 + 36u);
     i2 = 1u;
     i1 -= i2;
-    d = i1;
+    carry = i1;
     StoreU32(ctx, i0 + 36u, i1);
     block_83:;
   }
@@ -975,10 +958,10 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
+    i0 = holder;
     i1 = 23u;
     i2 = 1u;
-    i3 = b;
+    i3 = level;
     i4 = l5;
     i0 = ResolveBranchOffset(ctx, i0, i1, i2, i3, i4);
     l4 = i0;
@@ -988,7 +971,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l4;
-    a = i0;
+    holder = i0;
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -1001,8 +984,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = c;
+    i0 = holder;
+    i1 = func_state;
     i0 = ExpressionToRegister(ctx, i0, i1);
     l4 = i0;
     i0 = 19u;
@@ -1011,7 +994,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l4;
-    b = i0;
+    level = i0;
   }
   i0 = l6;
   i1 = 20u;
@@ -1020,8 +1003,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = d;
+    i0 = holder;
+    i1 = carry;
     i0 = ExpressionToRegister(ctx, i0, i1);
     l4 = i0;
     i0 = 20u;
@@ -1035,53 +1018,53 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0);
     i1 = 12u;
     i0 = i0 != i1;
     if (i0) {goto block_88;}
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
+    carry = i0;
     i1 = 256u;
     i0 &= i1;
     if (i0) {goto block_88;}
-    i0 = a;
+    i0 = holder;
     i0 = LoadU8(ctx, i0 + 50u);
-    i1 = d;
+    i1 = carry;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     if (i0) {goto block_88;}
-    i0 = a;
-    i1 = a;
+    i0 = holder;
+    i1 = holder;
     i1 = LoadU32(ctx, i1 + 36u);
     i2 = 1u;
     i1 -= i2;
     StoreU32(ctx, i0 + 36u, i1);
     block_88:;
-    i0 = c;
+    i0 = func_state;
     i0 = LoadU32(ctx, i0);
     i1 = 12u;
     i0 = i0 != i1;
-    d = i0;
+    carry = i0;
     if (i0) {goto block_89;}
-    i0 = c;
+    i0 = func_state;
     i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
+    carry = i0;
     i1 = 256u;
     i0 &= i1;
     if (i0) {goto block_89;}
-    i0 = a;
+    i0 = holder;
     i0 = LoadU8(ctx, i0 + 50u);
-    i1 = d;
+    i1 = carry;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-    d = i0;
+    carry = i0;
     if (i0) {goto block_89;}
-    i0 = a;
-    i1 = a;
+    i0 = holder;
+    i1 = holder;
     i1 = LoadU32(ctx, i1 + 36u);
     i2 = 1u;
     i1 -= i2;
-    d = i1;
+    carry = i1;
     StoreU32(ctx, i0 + 36u, i1);
     block_89:;
   }
@@ -1092,10 +1075,10 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
+    i0 = holder;
     i1 = 23u;
     i2 = 0u;
-    i3 = b;
+    i3 = level;
     i4 = l5;
     i0 = ResolveBranchOffset(ctx, i0, i1, i2, i3, i4);
     l4 = i0;
@@ -1105,7 +1088,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l4;
-    a = i0;
+    holder = i0;
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -1118,8 +1101,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = c;
+    i0 = holder;
+    i1 = func_state;
     i0 = ExpressionToRegister(ctx, i0, i1);
     l4 = i0;
     i0 = 22u;
@@ -1128,7 +1111,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l4;
-    b = i0;
+    level = i0;
   }
   i0 = l6;
   i1 = 23u;
@@ -1137,8 +1120,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = d;
+    i0 = holder;
+    i1 = carry;
     i0 = ExpressionToRegister(ctx, i0, i1);
     l4 = i0;
     i0 = 23u;
@@ -1152,53 +1135,53 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0);
     i1 = 12u;
     i0 = i0 != i1;
     if (i0) {goto block_94;}
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
+    carry = i0;
     i1 = 256u;
     i0 &= i1;
     if (i0) {goto block_94;}
-    i0 = a;
+    i0 = holder;
     i0 = LoadU8(ctx, i0 + 50u);
-    i1 = d;
+    i1 = carry;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     if (i0) {goto block_94;}
-    i0 = a;
-    i1 = a;
+    i0 = holder;
+    i1 = holder;
     i1 = LoadU32(ctx, i1 + 36u);
     i2 = 1u;
     i1 -= i2;
     StoreU32(ctx, i0 + 36u, i1);
     block_94:;
-    i0 = c;
+    i0 = func_state;
     i0 = LoadU32(ctx, i0);
     i1 = 12u;
     i0 = i0 != i1;
-    d = i0;
+    carry = i0;
     if (i0) {goto block_95;}
-    i0 = c;
+    i0 = func_state;
     i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
+    carry = i0;
     i1 = 256u;
     i0 &= i1;
     if (i0) {goto block_95;}
-    i0 = a;
+    i0 = holder;
     i0 = LoadU8(ctx, i0 + 50u);
-    i1 = d;
+    i1 = carry;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-    d = i0;
+    carry = i0;
     if (i0) {goto block_95;}
-    i0 = a;
-    i1 = a;
+    i0 = holder;
+    i1 = holder;
     i1 = LoadU32(ctx, i1 + 36u);
     i2 = 1u;
     i1 -= i2;
-    d = i1;
+    carry = i1;
     StoreU32(ctx, i0 + 36u, i1);
     block_95:;
   }
@@ -1209,10 +1192,10 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
+    i0 = holder;
     i1 = 24u;
     i2 = 1u;
-    i3 = b;
+    i3 = level;
     i4 = l5;
     i0 = ResolveBranchOffset(ctx, i0, i1, i2, i3, i4);
     l4 = i0;
@@ -1222,7 +1205,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l4;
-    a = i0;
+    holder = i0;
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -1235,8 +1218,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = c;
+    i0 = holder;
+    i1 = func_state;
     i0 = ExpressionToRegister(ctx, i0, i1);
     l4 = i0;
     i0 = 25u;
@@ -1245,7 +1228,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l4;
-    b = i0;
+    level = i0;
   }
   i0 = l6;
   i1 = 26u;
@@ -1254,8 +1237,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = d;
+    i0 = holder;
+    i1 = carry;
     i0 = ExpressionToRegister(ctx, i0, i1);
     l4 = i0;
     i0 = 26u;
@@ -1269,53 +1252,53 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0);
     i1 = 12u;
     i0 = i0 != i1;
     if (i0) {goto block_100;}
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
+    carry = i0;
     i1 = 256u;
     i0 &= i1;
     if (i0) {goto block_100;}
-    i0 = a;
+    i0 = holder;
     i0 = LoadU8(ctx, i0 + 50u);
-    i1 = d;
+    i1 = carry;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     if (i0) {goto block_100;}
-    i0 = a;
-    i1 = a;
+    i0 = holder;
+    i1 = holder;
     i1 = LoadU32(ctx, i1 + 36u);
     i2 = 1u;
     i1 -= i2;
     StoreU32(ctx, i0 + 36u, i1);
     block_100:;
-    i0 = c;
+    i0 = func_state;
     i0 = LoadU32(ctx, i0);
     i1 = 12u;
     i0 = i0 != i1;
-    d = i0;
+    carry = i0;
     if (i0) {goto block_101;}
-    i0 = c;
+    i0 = func_state;
     i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
+    carry = i0;
     i1 = 256u;
     i0 &= i1;
     if (i0) {goto block_101;}
-    i0 = a;
+    i0 = holder;
     i0 = LoadU8(ctx, i0 + 50u);
-    i1 = d;
+    i1 = carry;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-    d = i0;
+    carry = i0;
     if (i0) {goto block_101;}
-    i0 = a;
-    i1 = a;
+    i0 = holder;
+    i1 = holder;
     i1 = LoadU32(ctx, i1 + 36u);
     i2 = 1u;
     i1 -= i2;
-    d = i1;
+    carry = i1;
     StoreU32(ctx, i0 + 36u, i1);
     block_101:;
   }
@@ -1326,10 +1309,10 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
+    i0 = holder;
     i1 = 25u;
     i2 = 1u;
-    i3 = b;
+    i3 = level;
     i4 = l5;
     i0 = ResolveBranchOffset(ctx, i0, i1, i2, i3, i4);
     l4 = i0;
@@ -1339,7 +1322,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l4;
-    a = i0;
+    holder = i0;
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -1352,8 +1335,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = c;
+    i0 = holder;
+    i1 = func_state;
     i0 = ExpressionToRegister(ctx, i0, i1);
     l4 = i0;
     i0 = 28u;
@@ -1362,7 +1345,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l4;
-    b = i0;
+    level = i0;
   }
   i0 = l6;
   i1 = 29u;
@@ -1371,8 +1354,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = d;
+    i0 = holder;
+    i1 = carry;
     i0 = ExpressionToRegister(ctx, i0, i1);
     l4 = i0;
     i0 = 29u;
@@ -1386,53 +1369,53 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0);
     i1 = 12u;
     i0 = i0 != i1;
     if (i0) {goto block_106;}
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
+    carry = i0;
     i1 = 256u;
     i0 &= i1;
     if (i0) {goto block_106;}
-    i0 = a;
+    i0 = holder;
     i0 = LoadU8(ctx, i0 + 50u);
-    i1 = d;
+    i1 = carry;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     if (i0) {goto block_106;}
-    i0 = a;
-    i1 = a;
+    i0 = holder;
+    i1 = holder;
     i1 = LoadU32(ctx, i1 + 36u);
     i2 = 1u;
     i1 -= i2;
     StoreU32(ctx, i0 + 36u, i1);
     block_106:;
-    i0 = c;
+    i0 = func_state;
     i0 = LoadU32(ctx, i0);
     i1 = 12u;
     i0 = i0 != i1;
-    d = i0;
+    carry = i0;
     if (i0) {goto block_107;}
-    i0 = c;
+    i0 = func_state;
     i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
+    carry = i0;
     i1 = 256u;
     i0 &= i1;
     if (i0) {goto block_107;}
-    i0 = a;
+    i0 = holder;
     i0 = LoadU8(ctx, i0 + 50u);
-    i1 = d;
+    i1 = carry;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-    d = i0;
+    carry = i0;
     if (i0) {goto block_107;}
-    i0 = a;
-    i1 = a;
+    i0 = holder;
+    i1 = holder;
     i1 = LoadU32(ctx, i1 + 36u);
     i2 = 1u;
     i1 -= i2;
-    d = i1;
+    carry = i1;
     StoreU32(ctx, i0 + 36u, i1);
     block_107:;
   }
@@ -1443,11 +1426,11 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
+    i0 = holder;
     i1 = 24u;
     i2 = 1u;
     i3 = l5;
-    i4 = b;
+    i4 = level;
     i0 = ResolveBranchOffset(ctx, i0, i1, i2, i3, i4);
     l4 = i0;
     i0 = 30u;
@@ -1456,7 +1439,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l4;
-    a = i0;
+    holder = i0;
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -1469,8 +1452,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = c;
+    i0 = holder;
+    i1 = func_state;
     i0 = ExpressionToRegister(ctx, i0, i1);
     l4 = i0;
     i0 = 31u;
@@ -1479,7 +1462,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l4;
-    b = i0;
+    level = i0;
   }
   i0 = l6;
   i1 = 32u;
@@ -1488,8 +1471,8 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
-    i1 = d;
+    i0 = holder;
+    i1 = carry;
     i0 = ExpressionToRegister(ctx, i0, i1);
     l4 = i0;
     i0 = 32u;
@@ -1503,53 +1486,53 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0);
     i1 = 12u;
     i0 = i0 != i1;
     if (i0) {goto block_112;}
-    i0 = d;
+    i0 = carry;
     i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
+    carry = i0;
     i1 = 256u;
     i0 &= i1;
     if (i0) {goto block_112;}
-    i0 = a;
+    i0 = holder;
     i0 = LoadU8(ctx, i0 + 50u);
-    i1 = d;
+    i1 = carry;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     if (i0) {goto block_112;}
-    i0 = a;
-    i1 = a;
+    i0 = holder;
+    i1 = holder;
     i1 = LoadU32(ctx, i1 + 36u);
     i2 = 1u;
     i1 -= i2;
     StoreU32(ctx, i0 + 36u, i1);
     block_112:;
-    i0 = c;
+    i0 = func_state;
     i0 = LoadU32(ctx, i0);
     i1 = 12u;
     i0 = i0 != i1;
-    d = i0;
+    carry = i0;
     if (i0) {goto block_113;}
-    i0 = c;
+    i0 = func_state;
     i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
+    carry = i0;
     i1 = 256u;
     i0 &= i1;
     if (i0) {goto block_113;}
-    i0 = a;
+    i0 = holder;
     i0 = LoadU8(ctx, i0 + 50u);
-    i1 = d;
+    i1 = carry;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-    d = i0;
+    carry = i0;
     if (i0) {goto block_113;}
-    i0 = a;
-    i1 = a;
+    i0 = holder;
+    i1 = holder;
     i1 = LoadU32(ctx, i1 + 36u);
     i2 = 1u;
     i1 -= i2;
-    d = i1;
+    carry = i1;
     StoreU32(ctx, i0 + 36u, i1);
     block_113:;
   }
@@ -1560,11 +1543,11 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
   if (i0) {
-    i0 = a;
+    i0 = holder;
     i1 = 25u;
     i2 = 1u;
     i3 = l5;
-    i4 = b;
+    i4 = level;
     i0 = ResolveBranchOffset(ctx, i0, i1, i2, i3, i4);
     l4 = i0;
     i0 = 33u;
@@ -1573,16 +1556,16 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l4;
-    a = i0;
+    holder = i0;
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = c;
+    i0 = func_state;
     i1 = 10u;
     StoreU32(ctx, i0, i1);
-    i0 = c;
-    i1 = a;
+    i0 = func_state;
+    i1 = holder;
     StoreU32(ctx, i0 + 8u, i1);
   }
   block_8:;
@@ -1595,7 +1578,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = d;
+    i0 = carry;
     i1 = l8;
     StoreU32(ctx, i0 + 20u, i1);
     goto running_exit;
@@ -1604,7 +1587,7 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = d;
+    i0 = carry;
     i1 = l8;
     StoreU32(ctx, i0 + 16u, i1);
   }
@@ -1612,16 +1595,16 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = c;
-    i1 = d;
+    i0 = func_state;
+    i1 = carry;
     j1 = LoadU64(ctx, i1);
     StoreU64(ctx, i0, j1);
-    i0 = c;
-    i1 = d;
+    i0 = func_state;
+    i1 = carry;
     j1 = LoadU64(ctx, i1 + 16u);
     StoreU64(ctx, i0 + 16u, j1);
-    i0 = c;
-    i1 = d;
+    i0 = func_state;
+    i1 = carry;
     j1 = LoadU64(ctx, i1 + 8u);
     StoreU64(ctx, i0 + 8u, j1);
     goto func_exit;
@@ -1630,16 +1613,16 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = c;
-    i1 = d;
+    i0 = func_state;
+    i1 = carry;
     j1 = LoadU64(ctx, i1);
     StoreU64(ctx, i0, j1);
-    i0 = c;
-    i1 = d;
+    i0 = func_state;
+    i1 = carry;
     j1 = LoadU64(ctx, i1 + 16u);
     StoreU64(ctx, i0 + 16u, j1);
-    i0 = c;
-    i1 = d;
+    i0 = func_state;
+    i1 = carry;
     j1 = LoadU64(ctx, i1 + 8u);
     StoreU64(ctx, i0 + 8u, j1);
     goto func_exit;
@@ -1648,11 +1631,11 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = c;
+    i0 = func_state;
     i1 = 10u;
     StoreU32(ctx, i0, i1);
-    i0 = c;
-    i1 = a;
+    i0 = func_state;
+    i1 = holder;
     StoreU32(ctx, i0 + 8u, i1);
   }
   goto func_exit;
@@ -1665,22 +1648,22 @@ void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kF5671ResumeWordBytes;
+  i2 = kEmitExpressionResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
   i0 = LoadU32(ctx, i0);
   l4 = i0;
-  i1 = a;
+  i1 = holder;
   StoreU32(ctx, i0, i1);
   i0 = l4;
-  i1 = b;
+  i1 = level;
   StoreU32(ctx, i0 + 4u, i1);
   i0 = l4;
-  i1 = c;
+  i1 = func_state;
   StoreU32(ctx, i0 + 8u, i1);
   i0 = l4;
-  i1 = d;
+  i1 = carry;
   StoreU32(ctx, i0 + 12u, i1);
   i0 = l4;
   i1 = l5;

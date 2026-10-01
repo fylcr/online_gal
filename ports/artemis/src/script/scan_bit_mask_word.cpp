@@ -2,7 +2,7 @@
 
 namespace artc {
 
-// Forward declarations -- registered callees.
+// Forward declarations of the callees below.
 uint32_t FindStringLength(EngineContext* ctx, uint32_t value, uint32_t literal);
 uint32_t FillBytes(EngineContext* ctx, uint32_t dst, uint32_t value, uint32_t length);
 

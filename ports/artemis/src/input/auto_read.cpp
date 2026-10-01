@@ -45,7 +45,6 @@ void CopyTaggedTreeKeyToText(EngineContext* ctx, uint32_t a, uint32_t b, uint32_
 void ResetGlobalSlotTable(EngineContext* ctx, uint32_t a);
 void ReleaseSharedObjectHolder(EngineContext* ctx, uint32_t a);
 uint32_t FindUnorderedValueSlot(EngineContext* ctx, uint32_t a, uint32_t b);
-// PROVISIONAL nested-namespace forwarders (the dispatch products land later).
 namespace MessageLayer {
   void RpDispatch(EngineContext* ctx, uint32_t a);
 }

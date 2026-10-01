@@ -2,7 +2,7 @@
 
 namespace artc {
 
-// Forward declarations -- registered callees.
+// Forward declarations of the callees below.
 void ResizeTableArray(EngineContext* ctx, uint32_t a, uint32_t b);
 void ClearLocalFlags(EngineContext* ctx, uint32_t a);
 void ClearUpvalueFlags(EngineContext* ctx, uint32_t a);

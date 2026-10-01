@@ -2,7 +2,7 @@
 
 namespace artc {
 
-// Forward declarations -- registered callees.
+// Forward declarations of the callees below.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);

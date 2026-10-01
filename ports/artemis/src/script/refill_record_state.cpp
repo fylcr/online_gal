@@ -3,8 +3,6 @@
 namespace artc {
 
 // Forward declarations -- the readers and the error path this step drives.
-// PROVISIONAL until their own rewrites land: the calls run through the
-// engine_context.h call-throughs into the generated bodies.
 uint32_t NextCharSlow(EngineContext* ctx, uint32_t reader);
 uint32_t SkipSep(EngineContext* ctx, uint32_t lex_state);
 void InclineNumber(EngineContext* ctx, uint32_t lex_state);
