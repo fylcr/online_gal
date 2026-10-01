@@ -383,11 +383,18 @@ async function measure(cdpPort, url, waitMs) {
     // Wipe anything a previous run left on this origin before loading. The engine caches every
     // downloaded file in IndexedDB keyed by SAVEPATH, and ports are reused between runs, so a
     // stale cache is read by the next engine to land on the same port.
+    //
+    // The storage types are a CDP enum, not free text: `indexeddb` and `local_storage` are the
+    // names the protocol accepts. A wrong name fails the whole call, and the old `.catch(() => {})`
+    // here turned that failure into a no-op -- the cache was never cleared, and a reused port
+    // went on serving the previous run's files to a different engine.
     const origin = new URL(url).origin;
     await cdp.send('Storage.clearDataForOrigin', {
       origin,
-      storageTypes: 'indexdb,websql,locals_storage,service_workers,cache_storage',
-    }).catch(() => {});
+      storageTypes: 'indexeddb,websql,local_storage,service_workers,cache_storage',
+    }).catch((error) => {
+      console.error(`     warning: could not clear ${origin}: ${error.message}`);
+    });
 
     await cdp.send('Page.navigate', { url });
     await sleep(600);

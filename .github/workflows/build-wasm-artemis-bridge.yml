@@ -269,10 +269,13 @@ jobs:
           echo "## engine: $engine"
           # A cold boot streams ~18 MB through one wasm thread and needs well over 90 s before the
           # first frame: pin the wait so the check cannot mistake loading for a broken module.
+          # The asyncify route also wants the deployer's hash list: without it the module stops
+          # after the first few files and the check reports a module that never reached a frame.
           node ports/artemis/tools/real-game-test.mjs \
             --game "${{ inputs.game_tree }}" \
             --engine "$engine" \
             --flavour "${{ inputs.flavour || 'asyncify' }}" \
+            --hashlist \
             --wait 240000 \
             --json-out real-game-result.json
           cat real-game-result.json

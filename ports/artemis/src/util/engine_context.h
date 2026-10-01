@@ -45,7 +45,7 @@ inline uint32_t const kNilValueAddr = 176936u;
 // top of a product body, LeaveFrame() before every return, exactly once each.
 inline void EnterFrame() { FUNC_PROLOGUE; }
 inline void LeaveFrame() { FUNC_EPILOGUE; }
-// Asyncify driver state: the resume phase（0 running、1 suspended、2 rewinding）
+// Asyncify driver state: the resume phase (0 running, 1 suspended, 2 rewinding)
 // and the event return-frame stack pointer, behind accessors because the
 // generated struct itself is frozen. R2 may lift the phase into an enum class.
 inline uint32_t& ResumePhase(EngineContext* ctx) { return ctx->w2c_g3; }
@@ -593,15 +593,72 @@ inline void SyncMemoryBase(EngineContext* ctx) {
 }
 // f4551 teardown bridges: the shared_ptr precondition assertion, the catch
 // matcher and the temp-return reader are named wraps of host imports, and the
-// table dispatch runs one (i32) -> () entry of the function table（the macro's
-// own type check keeps the native trap texts intact）. The failure handoff goes
-// to f199 until util/panic.cpp lands — delete that forwarder when the product
-// arrives, and move the three host wraps out once host/host_api exists.
+// table dispatch runs one (i32) -> () entry of the function table (the macro's
+// own type check keeps the native trap texts intact). The three host wraps move
+// out once host/host_api exists.
 // The boundary spells the generated name; code-assemble's rename layer injects
 // a route-compat alias to the transcription's symbol, so both build routes see
 // one spelling here.
-inline void Panic(EngineContext* ctx, uint32_t code) {
-  w2c_artemis_f199(ctx, code);
+inline void RegisterTagLibrary(EngineContext* ctx, uint32_t state, uint32_t name,
+                               uint32_t functions) {
+  w2c_artemis_f498(ctx, state, name, functions);
+}
+// Releases the font record a single slot holds: clears the object deque behind
+// it and resets the counters beside it.
+inline void ReleaseFontRecord(EngineContext* ctx, uint32_t record) {
+  w2c_artemis_f3206(ctx, record);
+}
+// Grows the bounds a glyph run covers to include the quad passed in.
+inline void AccumulateGlyphBounds(EngineContext* ctx, uint32_t bounds, uint32_t quad,
+                                  uint32_t run) {
+  w2c_artemis_f1410(ctx, bounds, quad, run);
+}
+// Lua tag helpers that still live in the generated layer: read and fill the
+// element a tag container holds, append text or a value to it, and look a field
+// up on it.
+inline uint32_t LuaTagReadElement(EngineContext* ctx, uint32_t container, uint32_t kind,
+                                 uint32_t index) {
+  return w2c_artemis_f212(ctx, container, kind, index);
+}
+inline void LuaTagAppendBytes(EngineContext* ctx, uint32_t text, uint32_t source,
+                             uint32_t length) {
+  w2c_artemis_f214(ctx, text, source, length);
+}
+inline void LuaTagAppendValue(EngineContext* ctx, uint32_t container, uint32_t value,
+                             uint32_t kind) {
+  w2c_artemis_f355(ctx, container, value, kind);
+}
+inline void LuaTagPushValue(EngineContext* ctx, uint32_t container, uint32_t value) {
+  w2c_artemis_f3459(ctx, container, value);
+}
+inline uint32_t LuaTagLookupField(EngineContext* ctx, uint32_t object, uint32_t name) {
+  return w2c_artemis_f480(ctx, object, name);
+}
+// The three Lua C API entry points the library opener drives.
+inline void LuaPushCFunction(EngineContext* ctx, uint32_t state, uint32_t opener,
+                            uint32_t upvalues) {
+  w2c_artemis_f270(ctx, state, opener, upvalues);
+}
+inline void LuaPushString(EngineContext* ctx, uint32_t state, uint32_t bytes) {
+  w2c_artemis_f217(ctx, state, bytes);
+}
+inline void LuaCall(EngineContext* ctx, uint32_t state, uint32_t args, uint32_t results) {
+  w2c_artemis_f314(ctx, state, args, results);
+}
+// The stack and registry helpers the io library's type check drives: read a value
+// at an index, read a field out of the registry, read the metatable of a value,
+// and compare two values without metamethods.
+inline void LuaCheckAny(EngineContext* ctx, uint32_t state, uint32_t index) {
+  w2c_artemis_f406(ctx, state, index);
+}
+inline void LuaGetField(EngineContext* ctx, uint32_t state, uint32_t index, uint32_t name) {
+  w2c_artemis_f287(ctx, state, index, name);
+}
+inline uint32_t LuaGetMetatable(EngineContext* ctx, uint32_t state, uint32_t index) {
+  return w2c_artemis_f381(ctx, state, index);
+}
+inline uint32_t LuaRawEqual(EngineContext* ctx, uint32_t state, uint32_t index_a, uint32_t index_b) {
+  return w2c_artemis_f1137(ctx, state, index_a, index_b);
 }
 inline void HostFailAssertion(EngineContext* ctx, uint32_t word, uint32_t expression,
                               uint32_t file, uint32_t line, uint32_t function) {
@@ -642,5 +699,27 @@ constexpr uint32_t kData20000 = 0x20000u;
 constexpr uint32_t kData7FFFC000 = 0x7FFFC000u;
 constexpr uint32_t kDataFFFFFFFF = 0xFFFFFFFFu;
 constexpr uint32_t kControlStructureTooLongMessage = 0x2A394u;  // control structure too long
+// Lookup helpers of the backlog view and its tag table; no product file yet.
+inline void LookupTagTableEntryByKey(EngineContext* ctx, uint32_t table, uint32_t key_slot,
+                                     uint32_t tag, uint32_t empty_key, uint32_t key_offset,
+                                     uint32_t result) {
+  w2c_artemis_f743(ctx, table, key_slot, tag, empty_key, key_offset, result);
+}
+inline void LookupTagTableEntry(EngineContext* ctx, uint32_t table, uint32_t key_slot,
+                                uint32_t tag, uint32_t empty_key, uint32_t key_offset,
+                                uint32_t result) {
+  w2c_artemis_f469(ctx, table, key_slot, tag, empty_key, key_offset, result);
+}
+inline void FillTagKeyRange(EngineContext* ctx, uint32_t table, uint32_t key_slot, uint32_t key,
+                            uint32_t value) {
+  w2c_artemis_f1040(ctx, table, key_slot, key, value);
+}
+inline uint32_t UnlinkChainEntry(EngineContext* ctx, uint32_t chain, uint32_t entry) {
+  return w2c_artemis_f581(ctx, chain, entry);
+}
+// One item action of the event flow runner; no product file yet.
+inline void IetItemAction(EngineContext* ctx, uint32_t item, uint32_t command, uint32_t arg) {
+  w2c_artemis_f3221(ctx, item, command, arg);
+}
 
 }  // namespace artc

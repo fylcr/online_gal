@@ -99,6 +99,16 @@ strict 差分对着陈旧产物假绿（实测教训）。style-gate 的裸池�
 （artemis.wasm2c.c:93/:107）——TrapUnreachable 只转写宏本体，trap 文案与生成层逐字同。
 tsv rt 行目标拼写已对齐 `ResumePhase()` / `ReturnFrameSp()`。
 
+**实机闸的环境陷阱（2026-10-02 定位）**：`Storage.clearDataForOrigin` 的 `storageTypes` 是 CDP
+枚举，只认 `indexeddb` / `local_storage`；写成 `indexdb` / `locals_storage` 会让整个调用报错，
+若外面又套 `.catch(() => {})`，缓存就从没清过——端口复用即 origin 复用，历次运行写下的
+IndexedDB 会被下一个落在这个端口上的引擎读到，于是出现「同一二进制、同一命令，昨晚 PASS
+今天 FAIL」，而且把官方引擎当候选也一样失败（换一个没用过的端口就 PASS）。两处 harness
+（`tools/real-game-test.mjs`、`tools/rg2.mjs`）已改为正确枚举并把清除失败打到 stderr。
+判据：失败指纹 `frames 1 lit 0 req 6 fh=7247ae64`（控制台停在 404 `macro.iet` /
+`macro.iet.iet`），健康指纹 `g=87 bytes≈17.8 MB lit≈87.5-97.11 frames=3
+fh=550f7464|6029ab5`。asyncify 路线的实机闸必须带 `--hashlist`。
+
 **跨产品调用与 code-check 单文件模式**：code-check 不注入别家产品原型，跨产品调用假 FAIL
 （实测 push_table_field.cpp→LookupValue、copy_if_nonempty.cpp→CopyBytes，产品本身无错）。
 政策：产品可在 namespace artc 顶部带前向声明——已注册 callee 签名与 tsv 注册目标完全一致，

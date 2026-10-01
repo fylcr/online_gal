@@ -77,6 +77,11 @@ ports/artemis/reverse/build/
 # from the vendored binaries in minutes.
 ports/artemis/reverse/out/
 
+# Scratch space for the hand-rewrite pass: a product is written here, checked
+# against the generated body it replaces, and only then moved into
+# `ports/artemis/src/`, which is where the tracked copy lives.
+ports/artemis/rewrite-staging/
+
 # Python tooling bytecode. The deploy/analysis recipes are tracked; the caches
 # their interpreter drops beside them are not.
 __pycache__/
