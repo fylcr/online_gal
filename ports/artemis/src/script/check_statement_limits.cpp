@@ -1,30 +1,16 @@
-// check_statement_limits.cpp -- the parser semantic and depth check: the syntax-level counter behind the "chunk has too many syntax levels" trap, the vararg guard, and the statement/condition/expression emit gates it drives..
-//
-// CheckStatementLimits -- the parser semantic and depth check: the syntax-level counter behind the "chunk has too many syntax levels" trap, the vararg guard, and the statement/condition/expression emit gates it drives.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 149382-150325 (f346); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations -- registered callees.
 void ParseParamList(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d);
 void CheckMatch(EngineContext* ctx, uint32_t lex_state, uint32_t expected);
 void CompileMainBody(EngineContext* ctx, uint32_t a0, uint32_t a1);
 void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 void StepRecordResume(EngineContext* ctx, uint32_t a0);
 void LexError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-uint32_t EmitOpInstruction(EngineContext* ctx, uint32_t func_state, uint32_t op, uint32_t arg_a, uint32_t arg_b, uint32_t line);
+uint32_t EmitOpInstruction(EngineContext* ctx, uint32_t func_state, uint32_t op,
+                           uint32_t arg_a, uint32_t arg_b, uint32_t line);
 void EmitExpression(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d);
 void EmitCondition(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 void EmitStatement(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
@@ -32,937 +18,424 @@ uint32_t EncodeConstant(EngineContext* ctx, uint32_t func_state, uint32_t value)
 
 namespace {
 
-constexpr uint32_t kF346MsgChunkHasTooMany = 0x2B633u;  // chunk has too many syntax levels
-constexpr uint32_t kF346Const2B660 = 0x2B660u;  // 
-constexpr uint32_t kF346Const2B661 = 0x2B661u;  // 
-constexpr uint32_t kF346MsgCannotUseOutsideA = 0x2B67Eu;  // cannot use '...' outside a vararg function
-constexpr uint32_t kF346SaveFrameBytes = 32u;
-constexpr uint32_t kF346ResumeWordBytes = 4u;
+// The two bytes each syntax level owns: the first says whether the caller's
+// message already reaches the level, the second is the message the level passes
+// on to the expression it emits.
+constexpr uint32_t kCheckStatementLimitsLevelGate = 0x2B660u;
+constexpr uint32_t kCheckStatementLimitsLevelMessage = 0x2B661u;
+// The expression descriptor's "no numeric value" sentinel.
+constexpr uint64_t kCheckStatementLimitsNoNumber = 0xFFFFFFFFFFFFFFFFull;
+// Parser diagnostics this step raises.
+constexpr uint32_t kCheckStatementLimitsMsgTooManyLevels = 0x2B633u;
+constexpr uint32_t kCheckStatementLimitsMsgCannotUseOutside = 0x2B67Eu;
 
 }  // namespace
 
-uint32_t CheckStatementLimits(EngineContext* ctx, uint32_t state, uint32_t func_state, uint32_t message) {
+// Parses one statement of the function being compiled: it spends a syntax level,
+// dispatches on the statement's first token, fills the expression descriptor,
+// then emits the condition and the expression of every level the statement
+// reaches. Returns the level it stopped at. The body is suspendable -- a
+// rewinding pass restores the slots below from the frame it pushed and replays
+// the one call its resume code names.
+uint32_t CheckStatementLimits(EngineContext* ctx, uint32_t state, uint32_t func_state,
+                              uint32_t message) {
   EnterFrame();
-  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
-  uint64_t j1 = 0;
-  double d1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF346SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 8u);
-    message = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l3 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l6 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l8 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l9 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 4u);
-    func_state = i0;
+  uint32_t const kSaveFrameBytes = 32u;
+  uint32_t const kResumeWordBytes = 4u;
+  uint32_t const kLevelLimit = 201u;
+  uint32_t const kLevelCount = 15u;
+  uint32_t const kTooManyLevelsCall = 0u;
+  uint32_t const kStatementStepCall = 1u;
+  uint32_t const kNestedLimitsCall = 2u;
+  uint32_t const kEmitStatementCall = 3u;
+  uint32_t const kEncodeConstantCall = 4u;
+  uint32_t const kVarargErrorCall = 5u;
+  uint32_t const kVarargOpCall = 6u;
+  uint32_t const kParamStepCall = 7u;
+  uint32_t const kParamListCall = 8u;
+  uint32_t const kMatchCall = 9u;
+  uint32_t const kExpressionStepCall = 10u;
+  uint32_t const kMainBodyCall = 11u;
+  uint32_t const kLevelStepCall = 12u;
+  uint32_t const kConditionCall = 13u;
+  uint32_t const kNestedLevelCall = 14u;
+  uint32_t const kExpressionCall = 15u;
+  uint32_t carry = 0u;
+  uint32_t level = 0u;
+  uint32_t record = 0u;
+  uint32_t holder = 0u;
+  uint32_t scratch_base = 0u;
+  uint32_t result = 0u;
+  uint32_t resume_code = 0u;
+  // Rewinding: pop the 32-byte frame the suspend path pushed and rebuild the
+  // eight slots it saved.
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    message = LoadU32(ctx, frame + 8u);
+    carry = LoadU32(ctx, frame + 12u);
+    level = LoadU32(ctx, frame + 16u);
+    record = LoadU32(ctx, frame + 20u);
+    holder = LoadU32(ctx, frame + 24u);
+    scratch_base = LoadU32(ctx, frame + 28u);
+    func_state = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF346ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l7 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // The second pop names the call that was in flight when the frame was pushed.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
+    resume_code = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 32u;
-    i0 -= i1;
-    l9 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 52u);
-    l4 = i0;
-    l6 = i0;
-    i1 = l4;
-    i1 = LoadU16(ctx, i1 + 52u);
-    i2 = 1u;
-    i1 += i2;
-    l4 = i1;
-    StoreU16(ctx, i0 + 52u, i1);
-    i0 = l4;
-    i1 = 65535u;
-    i0 &= i1;
-    i1 = 201u;
-    i0 = i0 >= i1;
-    l4 = i0;
-    i0 = 1u;
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // One syntax level is spent on this statement; the counter lives in the
+    // function record the state points at, and the frame slot below is scratch.
+    scratch_base = GuestStackSp(ctx) - 32u;
+    GuestStackSp(ctx) = scratch_base;
+    record = LoadU32(ctx, state + 52u);
+    carry = LoadU16(ctx, record + 52u) + 1u;
+    StoreU16(ctx, record + 52u, carry);
+    carry = static_cast<uint32_t>((carry & 0xFFFFu) >= kLevelLimit);
+    level = 1u;
   }
-  i0 = l4;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l7;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = kF346MsgChunkHasTooMany;
-      i2 = 0u;
-      LexError(ctx, i0, i1, i2);
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l4 = i0;
-    i1 = 263u;
-    i0 -= i1;
-    l6 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l6;
-    switch (i0) {
-      case 0: goto block_15;
-      case 1: goto block_11;
-      case 2: goto block_13;
-      case 3: goto block_11;
-      case 4: goto block_11;
-      case 5: goto block_11;
-      case 6: goto block_17;
-      case 7: goto block_20;
-      case 8: goto block_11;
-      case 9: goto block_11;
-      case 10: goto block_11;
-      case 11: goto block_11;
-      case 12: goto block_16;
-      case 13: goto block_11;
-      case 14: goto block_11;
-      case 15: goto block_11;
-      case 16: goto block_14;
-      case 17: goto block_11;
-      case 18: goto block_11;
-      case 19: goto block_11;
-      case 20: goto block_11;
-      case 21: goto block_10;
-      case 22: goto block_11;
-      case 23: goto block_18;
-      default: goto block_21;
-    }
-    block_21:;
-    i0 = l4;
-    i1 = 35u;
-    i0 -= i1;
-    l3 = i0;
-    switch (i0) {
-      case 0: goto block_22;
-      case 1: goto block_11;
-      case 2: goto block_11;
-      case 3: goto block_11;
-      case 4: goto block_11;
-      case 5: goto block_11;
-      case 6: goto block_11;
-      case 7: goto block_11;
-      case 8: goto block_11;
-      case 9: goto block_11;
-      case 10: goto block_23;
-      default: goto block_12;
-    }
-    block_23:;
-    i0 = 0u;
-    l3 = i0;
-    goto block_20;
-    block_22:;
-    i0 = 2u;
-    l3 = i0;
-    block_20:;
-  }
-  i0 = l7;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    StepRecordResume(ctx, i0);
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = l7;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = func_state;
-    i2 = 8u;
-    i0 = CheckStatementLimits(ctx, i0, i1, i2);
-    l5 = i0;
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l5;
-    l4 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 48u);
-    l4 = i0;
-  }
-  i0 = l7;
-  i1 = 3u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l4;
-    i1 = l3;
-    i2 = func_state;
-    EmitStatement(ctx, i0, i1, i2);
-    i0 = 3u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {goto block_7;}
-  block_18:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l4 = i0;
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 48u);
-    l3 = i0;
-  }
-  i0 = l7;
-  i1 = 4u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l3;
-    i1 = l4;
-    i0 = EncodeConstant(ctx, i0, i1);
-    l5 = i0;
-    i0 = 4u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l5;
-    l3 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = func_state;
-    j1 = 18446744073709551615ull;
-    StoreU64(ctx, i0 + 16u, j1);
-    i0 = func_state;
-    i1 = l3;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = func_state;
-    i1 = 4u;
-    StoreU32(ctx, i0, i1);
-    goto block_9;
-  }
-  block_17:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = func_state;
-    j1 = 18446744073709551615ull;
-    StoreU64(ctx, i0 + 16u, j1);
-    i0 = func_state;
-    i1 = 0u;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = func_state;
-    i1 = 1u;
-    StoreU32(ctx, i0, i1);
-    goto block_9;
-  }
-  block_16:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = func_state;
-    j1 = 18446744073709551615ull;
-    StoreU64(ctx, i0 + 16u, j1);
-    i0 = func_state;
-    i1 = 0u;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = func_state;
-    i1 = 2u;
-    StoreU32(ctx, i0, i1);
-    goto block_9;
-  }
-  block_15:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = func_state;
-    j1 = 18446744073709551615ull;
-    StoreU64(ctx, i0 + 16u, j1);
-    i0 = func_state;
-    i1 = 0u;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = func_state;
-    i1 = 3u;
-    StoreU32(ctx, i0, i1);
-    goto block_9;
-  }
-  block_14:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 48u);
-    l6 = i0;
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU8(ctx, i0 + 74u);
-    l4 = i0;
-    i0 = !(i0);
-    l8 = i0;
-  }
-  i0 = l8;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l7;
-    i1 = 5u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = kF346MsgCannotUseOutsideA;
-      RaiseSyntaxError(ctx, i0, i1);
-      i0 = 5u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    if (i0) {
-      i0 = l4;
-    } else {
-      i0 = l6;
-      i0 = LoadU32(ctx, i0);
-      l3 = i0;
-      i0 = LoadU8(ctx, i0 + 74u);
-    }
-    l4 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    i1 = l4;
-    i2 = 251u;
-    i1 &= i2;
-    l4 = i1;
-    StoreU8(ctx, i0 + 74u, i1);
-  }
-  i0 = l7;
-  i1 = 6u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l6;
-    i1 = 37u;
-    i2 = 0u;
-    i3 = 1u;
-    i4 = 0u;
-    i0 = EmitOpInstruction(ctx, i0, i1, i2, i3, i4);
-    l5 = i0;
-    i0 = 6u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l5;
-    l3 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = func_state;
-    j1 = 18446744073709551615ull;
-    StoreU64(ctx, i0 + 16u, j1);
-    i0 = func_state;
-    i1 = l3;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = func_state;
-    i1 = 14u;
-    StoreU32(ctx, i0, i1);
-    goto block_9;
-  }
-  block_13:;
-  i0 = l7;
-  i1 = 7u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    StepRecordResume(ctx, i0);
-    i0 = 7u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l4 = i0;
-  }
-  i0 = l7;
-  i1 = 8u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = func_state;
-    i2 = 0u;
-    i3 = l4;
-    ParseParamList(ctx, i0, i1, i2, i3);
-    i0 = 8u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {goto block_7;}
-  block_12:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i1 = 123u;
-    i0 = i0 == i1;
-    l4 = i0;
-    if (i0) {goto block_8;}
-  }
-  block_11:;
-  i0 = l7;
-  i1 = 9u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = func_state;
-    CheckMatch(ctx, i0, i1);
-    i0 = 9u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {goto block_7;}
-  block_10:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = func_state;
-    j1 = 18446744073709551615ull;
-    StoreU64(ctx, i0 + 16u, j1);
-    i0 = func_state;
-    i1 = 0u;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = func_state;
-    i1 = 5u;
-    StoreU32(ctx, i0, i1);
-    i0 = func_state;
-    i1 = state;
-    d1 = LoadF64(ctx, i1 + 24u);
-    StoreF64(ctx, i0 + 8u, d1);
-  }
-  block_9:;
-  i0 = l7;
-  i1 = 10u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    StepRecordResume(ctx, i0);
-    i0 = 10u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {goto block_7;}
-  block_8:;
-  i0 = l7;
-  i1 = 11u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = func_state;
-    CompileMainBody(ctx, i0, i1);
-    i0 = 11u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  block_7:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = 15u;
-    l4 = i0;
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l6 = i0;
-    i1 = 37u;
-    i0 -= i1;
-    l8 = i0;
-    i0 = 0u;
-    l3 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l8;
-    switch (i0) {
-      case 0: goto block_64;
-      case 1: goto block_51;
-      case 2: goto block_51;
-      case 3: goto block_51;
-      case 4: goto block_51;
-      case 5: goto block_66;
-      case 6: goto block_53;
-      case 7: goto block_51;
-      case 8: goto block_67;
-      case 9: goto block_51;
-      case 10: goto block_65;
-      case 11: goto block_51;
-      case 12: goto block_51;
-      case 13: goto block_51;
-      case 14: goto block_51;
-      case 15: goto block_51;
-      case 16: goto block_51;
-      case 17: goto block_51;
-      case 18: goto block_51;
-      case 19: goto block_51;
-      case 20: goto block_51;
-      case 21: goto block_51;
-      case 22: goto block_51;
-      case 23: goto block_59;
-      case 24: goto block_51;
-      case 25: goto block_57;
-      case 26: goto block_51;
-      case 27: goto block_51;
-      case 28: goto block_51;
-      case 29: goto block_51;
-      case 30: goto block_51;
-      case 31: goto block_51;
-      case 32: goto block_51;
-      case 33: goto block_51;
-      case 34: goto block_51;
-      case 35: goto block_51;
-      case 36: goto block_51;
-      case 37: goto block_51;
-      case 38: goto block_51;
-      case 39: goto block_51;
-      case 40: goto block_51;
-      case 41: goto block_51;
-      case 42: goto block_51;
-      case 43: goto block_51;
-      case 44: goto block_51;
-      case 45: goto block_51;
-      case 46: goto block_51;
-      case 47: goto block_51;
-      case 48: goto block_51;
-      case 49: goto block_51;
-      case 50: goto block_51;
-      case 51: goto block_51;
-      case 52: goto block_51;
-      case 53: goto block_51;
-      case 54: goto block_51;
-      case 55: goto block_51;
-      case 56: goto block_51;
-      case 57: goto block_63;
-      default: goto block_68;
-    }
-    block_68:;
-    i0 = l6;
-    i1 = 257u;
-    i0 -= i1;
-    switch (i0) {
-      case 0: goto block_55;
-      case 1: goto block_51;
-      case 2: goto block_51;
-      case 3: goto block_51;
-      case 4: goto block_51;
-      case 5: goto block_51;
-      case 6: goto block_51;
-      case 7: goto block_51;
-      case 8: goto block_51;
-      case 9: goto block_51;
-      case 10: goto block_51;
-      case 11: goto block_51;
-      case 12: goto block_51;
-      case 13: goto block_51;
-      case 14: goto block_54;
-      case 15: goto block_51;
-      case 16: goto block_51;
-      case 17: goto block_51;
-      case 18: goto block_51;
-      case 19: goto block_51;
-      case 20: goto block_51;
-      case 21: goto block_62;
-      case 22: goto block_51;
-      case 23: goto block_60;
-      case 24: goto block_56;
-      case 25: goto block_58;
-      case 26: goto block_61;
-      default: goto block_51;
-    }
-    block_67:;
-    i0 = 1u;
-    l3 = i0;
-    goto block_53;
-    block_66:;
-    i0 = 2u;
-    l3 = i0;
-    goto block_53;
-    block_65:;
-    i0 = 3u;
-    l3 = i0;
-    goto block_53;
-    block_64:;
-    i0 = 4u;
-    l3 = i0;
-    goto block_53;
-    block_63:;
-    i0 = 5u;
-    l3 = i0;
-    goto block_53;
-    block_62:;
-    i0 = 6u;
-    l3 = i0;
-    goto block_53;
-    block_61:;
-    i0 = 7u;
-    l3 = i0;
-    goto block_53;
-    block_60:;
-    i0 = 8u;
-    l3 = i0;
-    goto block_53;
-    block_59:;
-    i0 = 9u;
-    l3 = i0;
-    goto block_53;
-    block_58:;
-    i0 = 10u;
-    l3 = i0;
-    goto block_53;
-    block_57:;
-    i0 = 11u;
-    l3 = i0;
-    goto block_53;
-    block_56:;
-    i0 = 12u;
-    l3 = i0;
-    goto block_53;
-    block_55:;
-    i0 = 13u;
-    l3 = i0;
-    goto block_53;
-    block_54:;
-    i0 = 14u;
-    l3 = i0;
-    block_53:;
-  }
-  loop_69: 
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      i1 = 1u;
-      i0 <<= (i1 & 31);
-      l4 = i0;
-      i1 = kF346Const2B660;
-      i0 += i1;
-      i0 = LoadU8(ctx, i0);
-      i1 = message;
-      i0 = i0 <= i1;
-      l6 = i0;
-      if (i0) {
-        i0 = l3;
-        l4 = i0;
-        goto block_51;
+  if (carry || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kTooManyLevelsCall) : 1u) {
+      LexError(ctx, state, kCheckStatementLimitsMsgTooManyLevels, 0u);
+      resume_code = kTooManyLevelsCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
       }
     }
-    i0 = l7;
-    i1 = 12u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      StepRecordResume(ctx, i0);
-      i0 = 12u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    carry = LoadU32(ctx, state + 16u);
+    record = carry - 263u;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The statement's first token picks the path; the reserved statement words
+    // map onto expression kinds, the rest go through the operator check.
+    switch (record) {
+      case 0: goto emit_false;
+      case 2: goto parse_params;
+      case 6: goto emit_nil;
+      case 7: goto statement_kind_ready;
+      case 16: goto vararg_guard;
+      case 21: goto emit_number;
+      case 23: goto emit_constant;
+      case 12: goto emit_true;
+      case 1: case 3: case 4: case 5: case 8: case 9: case 10: case 11:
+      case 13: case 14: case 15: case 17: case 18: case 19: case 20: case 22:
+        goto match_expected;
+      default: break;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 48u);
-      l6 = i0;
+    switch (carry - 35u) {
+      case 0: level = 2u; break;  // '#' length
+      case 10: level = 0u; break;  // '-' unary minus
+      case 1: case 2: case 3: case 4: case 5:
+      case 6: case 7: case 8: case 9: goto match_expected;
+      default: goto open_block;
     }
-    i0 = l7;
-    i1 = 13u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l6;
-      i1 = l3;
-      i2 = func_state;
-      EmitCondition(ctx, i0, i1, i2);
-      i0 = 13u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+  statement_kind_ready:;
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kStatementStepCall) : 1u) {
+    StepRecordResume(ctx, state);
+    resume_code = kStatementStepCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l4;
-      i1 = kF346Const2B661;
-      i0 += i1;
-      i0 = LoadU8(ctx, i0);
-      l4 = i0;
-      i0 = l9;
-      i1 = 8u;
-      i0 += i1;
-      l6 = i0;
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kNestedLimitsCall) : 1u) {
+    uint32_t const nested = CheckStatementLimits(ctx, state, func_state, 8u);
+    resume_code = kNestedLimitsCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
     }
-    i0 = l7;
-    i1 = 14u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = l6;
-      i2 = l4;
-      i0 = CheckStatementLimits(ctx, i0, i1, i2);
-      l5 = i0;
-      i0 = 14u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l5;
-      l6 = i0;
+    carry = nested;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    carry = LoadU32(ctx, state + 48u);
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kEmitStatementCall) : 1u) {
+    EmitStatement(ctx, carry, level, func_state);
+    resume_code = kEmitStatementCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 48u);
-      l8 = i0;
-      i0 = l9;
-      i1 = 8u;
-      i0 += i1;
-      l4 = i0;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    goto emit_levels;
+  }
+  emit_constant:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    carry = LoadU32(ctx, state + 24u);
+    level = LoadU32(ctx, state + 48u);
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kEncodeConstantCall) : 1u) {
+    uint32_t const constant = EncodeConstant(ctx, level, carry);
+    resume_code = kEncodeConstantCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
     }
-    i0 = l7;
-    i1 = 15u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l8;
-      i1 = l3;
-      i2 = func_state;
-      i3 = l4;
-      EmitExpression(ctx, i0, i1, i2, i3);
-      i0 = 15u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    level = constant;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU64(ctx, func_state + 16u, kCheckStatementLimitsNoNumber);
+    StoreU32(ctx, func_state + 8u, level);
+    StoreU32(ctx, func_state, 4u);
+    goto expression_ready;
+  }
+  emit_nil:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU64(ctx, func_state + 16u, kCheckStatementLimitsNoNumber);
+    StoreU32(ctx, func_state + 8u, 0u);
+    StoreU32(ctx, func_state, 1u);
+    goto expression_ready;
+  }
+  emit_true:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU64(ctx, func_state + 16u, kCheckStatementLimitsNoNumber);
+    StoreU32(ctx, func_state + 8u, 0u);
+    StoreU32(ctx, func_state, 2u);
+    goto expression_ready;
+  }
+  emit_false:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU64(ctx, func_state + 16u, kCheckStatementLimitsNoNumber);
+    StoreU32(ctx, func_state + 8u, 0u);
+    StoreU32(ctx, func_state, 3u);
+    goto expression_ready;
+  }
+  vararg_guard:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    record = LoadU32(ctx, state + 48u);
+    level = LoadU32(ctx, record);
+    carry = LoadU8(ctx, level + 74u);
+    holder = static_cast<uint32_t>(carry == 0u);
+  }
+  if (holder || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kVarargErrorCall) : 1u) {
+      RaiseSyntaxError(ctx, state, kCheckStatementLimitsMsgCannotUseOutside);
+      resume_code = kVarargErrorCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = 15u;
-      l4 = i0;
-      i0 = l6;
-      l3 = i0;
-      i1 = 15u;
-      i0 = i0 != i1;
-      l6 = i0;
-      if (i0) {goto loop_69;}
+    if (ResumePhase(ctx) != kResumeRunning) {
+      // A pass that resumes rebuilds the flag byte out of the record.
+      level = LoadU32(ctx, record);
+      carry = LoadU8(ctx, level + 74u);
     }
-  block_51:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 52u);
-    state = i0;
-    i0 = LoadU16(ctx, i0 + 52u);
-    i1 = 1u;
-    i0 -= i1;
-    func_state = i0;
-    i0 = state;
-    i1 = func_state;
-    StoreU16(ctx, i0 + 52u, i1);
-    i0 = l9;
-    i1 = 32u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    i0 = l4;
-    goto func_exit;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    carry = carry & 251u;
+    StoreU8(ctx, level + 74u, carry);
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kVarargOpCall) : 1u) {
+    uint32_t const op_index = EmitOpInstruction(ctx, record, 37u, 0u, 1u, 0u);
+    resume_code = kVarargOpCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+    level = op_index;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU64(ctx, func_state + 16u, kCheckStatementLimitsNoNumber);
+    StoreU32(ctx, func_state + 8u, level);
+    StoreU32(ctx, func_state, 14u);
+    goto expression_ready;
+  }
+  parse_params:;
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kParamStepCall) : 1u) {
+    StepRecordResume(ctx, state);
+    resume_code = kParamStepCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    carry = LoadU32(ctx, state + 4u);
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kParamListCall) : 1u) {
+    ParseParamList(ctx, state, func_state, 0u, carry);
+    resume_code = kParamListCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    goto emit_levels;
+  }
+  open_block:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    carry = static_cast<uint32_t>(carry == 123u);
+    if (carry != 0u) {
+      goto compile_body;
+    }
+  }
+  // Merge point: every token that is not a statement keyword ends up here.
+  match_expected:;
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kMatchCall) : 1u) {
+    CheckMatch(ctx, state, func_state);
+    resume_code = kMatchCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    goto emit_levels;
+  }
+  emit_number:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU64(ctx, func_state + 16u, kCheckStatementLimitsNoNumber);
+    StoreU32(ctx, func_state + 8u, 0u);
+    StoreU32(ctx, func_state, 5u);
+    StoreF64(ctx, func_state + 8u, LoadF64(ctx, state + 24u));
+  }
+  // Merge point: the expression descriptor is filled in.
+  expression_ready:;
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kExpressionStepCall) : 1u) {
+    StepRecordResume(ctx, state);
+    resume_code = kExpressionStepCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    goto emit_levels;
+  }
+  compile_body:;
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kMainBodyCall) : 1u) {
+    CompileMainBody(ctx, state, func_state);
+    resume_code = kMainBodyCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+  }
+  // Merge point: the statement's own token decides the level it emits at.
+  emit_levels:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    carry = kLevelCount;
+    record = LoadU32(ctx, state + 16u);
+    holder = record - 37u;
+    level = 0u;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    switch (holder) {
+      case 0: level = 4u; break;   // '%'
+      case 5: level = 2u; break;   // '*'
+      case 6: break;               // '+' is level 0
+      case 8: level = 1u; break;   // '-'
+      case 10: level = 3u; break;  // '/'
+      case 23: level = 9u; break;  // '<'
+      case 25: level = 11u; break;  // '>'
+      case 57: level = 5u; break;  // '^'
+      default:
+        switch (record - 257u) {
+          case 0: level = 13u; break;
+          case 14: level = 14u; break;
+          case 21: level = 6u; break;
+          case 23: level = 8u; break;
+          case 24: level = 12u; break;
+          case 25: level = 10u; break;
+          case 26: level = 7u; break;
+          default: goto statement_done;
+        }
+    }
+  }
+  while (true) {
+    // Walk the levels the statement reaches, emitting each level's condition and
+    // expression and passing the message on to the level below.
+    if (ResumePhase(ctx) == kResumeRunning) {
+      carry = level << 1u;
+      record = static_cast<uint32_t>(LoadU8(ctx, carry + kCheckStatementLimitsLevelGate) <=
+                                     message);
+      if (record != 0u) {
+        carry = level;
+        break;
+      }
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kLevelStepCall) : 1u) {
+      StepRecordResume(ctx, state);
+      resume_code = kLevelStepCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      record = LoadU32(ctx, state + 48u);
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kConditionCall) : 1u) {
+      EmitCondition(ctx, record, level, func_state);
+      resume_code = kConditionCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      carry = LoadU8(ctx, carry + kCheckStatementLimitsLevelMessage);
+      record = scratch_base + 8u;
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kNestedLevelCall) : 1u) {
+      uint32_t const nested = CheckStatementLimits(ctx, state, record, carry);
+      resume_code = kNestedLevelCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+      record = nested;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      holder = LoadU32(ctx, state + 48u);
+      carry = scratch_base + 8u;
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kExpressionCall) : 1u) {
+      EmitExpression(ctx, holder, level, func_state, carry);
+      resume_code = kExpressionCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      carry = kLevelCount;
+      level = record;
+      record = static_cast<uint32_t>(level != kLevelCount);
+      if (record != 0u) {
+        continue;
+      }
+    }
+    break;
+  }
+  // Merge point: the statement ends, so the syntax level is given back and the
+  // scratch frame is released.
+  statement_done:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    state = LoadU32(ctx, state + 52u);
+    func_state = LoadU16(ctx, state + 52u) - 1u;
+    StoreU16(ctx, state + 52u, func_state);
+    GuestStackSp(ctx) = scratch_base + 32u;
+    result = carry;
+    goto exit_path;
   }
   TrapUnreachable();
-  spill_frame:;
-  l5 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l5;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF346ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l5 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l5;
-  i1 = func_state;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l5;
-  i1 = message;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l5;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l5;
-  i1 = l3;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l5;
-  i1 = l6;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l5;
-  i1 = l8;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = l5;
-  i1 = l9;
-  StoreU32(ctx, i0 + 28u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 32u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+suspend_point:;
+  {
+    // Suspend: push the code naming the call in flight, step past it, then push
+    // the 32-byte frame a rewinding pass reads back. The stack pointer lives in
+    // the word the frame pointer itself names, so every push is a
+    // read-modify-write of that word.
+    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, state);
+    StoreU32(ctx, frame + 4u, func_state);
+    StoreU32(ctx, frame + 8u, message);
+    StoreU32(ctx, frame + 12u, carry);
+    StoreU32(ctx, frame + 16u, level);
+    StoreU32(ctx, frame + 20u, record);
+    StoreU32(ctx, frame + 24u, holder);
+    StoreU32(ctx, frame + 28u, scratch_base);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
+  }
+exit_path:;
   LeaveFrame();
-  return i0;
+  return result;
 }
-}
+}  // namespace artc
