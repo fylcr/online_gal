@@ -639,4 +639,7 @@ inline void HostThrowException(EngineContext* ctx, uint32_t record, uint32_t typ
                                uint32_t destructor_word) {
   w2c_a_w(ctx->w2c_a_instance, record, type_word, destructor_word);
 }
+// Guest scratch word that the dispatchers share; kept here so the name is defined once.
+constexpr uint32_t kDataD015C = 0xD015Cu;
+
 }  // namespace artc
