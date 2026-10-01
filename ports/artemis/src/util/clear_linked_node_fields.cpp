@@ -1,278 +1,181 @@
-// clear_linked_node_fields.cpp -- clears the linked node fields: both child links and the tail link are zeroed..
-//
-// ClearLinkedNodeFields -- clears the linked node fields: both child links and the tail link are zeroed.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 212078-212078 (f532); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Releases a raw block back to the allocator.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 
 namespace {
-
-constexpr uint32_t kF532ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF532SaveFrameBytes = 20u;
-constexpr uint32_t kF532ResumeWordBytes = 4u;
-
+// The all-bits word a signed byte compare is held against, the words a save
+// frame costs, and the word that names the call in flight.
+constexpr uint32_t kClearLinkedNodeFieldsAllBits = 0xFFFFFFFFu;
+constexpr uint32_t kClearLinkedNodeFieldsSaveFrameBytes = 20u;
+constexpr uint32_t kClearLinkedNodeFieldsResumeWordBytes = 4u;
 }  // namespace
 
+// Clears a node's own link fields: both child links are followed and cleared
+// in turn, then the tail link is unlinked from the list and the node itself is
+// released.
 void ClearLinkedNodeFields(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF532SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l6 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
+  uint32_t top = 0u;
+  uint32_t arg = 0u;
+  // The link the walk follows, and the scratch that carries a call's result
+  // and, later, the base of the save frame.
+  uint32_t link = 0u;
+  uint32_t scratch = 0u;
+  // The tail link, and the flag that says the list head already is the tail.
+  uint32_t tail = 0u;
+  uint32_t same_tail = 0u;
+  // The call a rewinding pass replays, and the word a suspending pass pushes.
+  uint32_t resume_index = 0u;
+  uint32_t resume_code = 0u;
+
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the save frame and read its words back.
+    top = ReturnFrameSp(ctx);
+    arg = ReturnFrameSp(ctx);
+    arg = LoadU32(ctx, arg) - kClearLinkedNodeFieldsSaveFrameBytes;
+    StoreU32(ctx, top, arg);
+    scratch = ReturnFrameSp(ctx);
+    scratch = LoadU32(ctx, scratch);
+    a = LoadU32(ctx, scratch);
+    link = LoadU32(ctx, scratch + 8u);
+    tail = LoadU32(ctx, scratch + 12u);
+    same_tail = LoadU32(ctx, scratch + 16u);
+    b = LoadU32(ctx, scratch + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF532ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word, which names the call in flight.
+    top = ReturnFrameSp(ctx);
+    arg = ReturnFrameSp(ctx);
+    arg = LoadU32(ctx, arg) - kClearLinkedNodeFieldsResumeWordBytes;
+    StoreU32(ctx, top, arg);
+    top = ReturnFrameSp(ctx);
+    top = LoadU32(ctx, top);
+    resume_index = LoadU32(ctx, top);
   }
-  i0 = b;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = b;
-      i0 = LoadU32(ctx, i0);
-      l2 = i0;
+  top = b;
+  arg = ResumePhase(ctx) == kResumeRewinding;
+  top = top | arg;
+  if (top != 0u) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // A running pass reads the first child link to clear.
+      link = LoadU32(ctx, b);
     }
-    i0 = l5;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = l2;
-      ClearLinkedNodeFields(ctx, i0, i1);
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = b;
-      i0 = LoadU32(ctx, i0 + 4u);
-      l2 = i0;
-    }
-    i0 = l5;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = l2;
-      ClearLinkedNodeFields(ctx, i0, i1);
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = b;
-      i0 = LoadU32(ctx, i0 + 28u);
-      l4 = i0;
-    }
-    i0 = l4;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = l4;
-        i1 = b;
-        i1 = LoadU32(ctx, i1 + 32u);
-        a = i1;
-        i0 = i0 == i1;
-        l6 = i0;
-        i0 = l4;
-        l2 = i0;
+    if (ResumePhase(ctx) == kResumeRunning || resume_index == 0u) {
+      ClearLinkedNodeFields(ctx, a, link);
+      resume_code = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto save_frame;
       }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      i1 = 0u;
-      i2 = l6;
-      i0 = i2 ? i0 : i1;
-      i0 = !(i0);
-      if (i0) {
-        loop_13: 
-          i0 = ResumePhase(ctx);
-          i0 = !(i0);
-          if (i0) {
-            i0 = a;
-            i1 = 44u;
-            i0 -= i1;
-            a = i0;
-            i0 = LoadU32(ctx, i0);
-            i0 = LoadU32(ctx, i0);
-            l2 = i0;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      link = LoadU32(ctx, b + 4u);
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_index == 1u) {
+      ClearLinkedNodeFields(ctx, a, link);
+      resume_code = 1u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto save_frame;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      tail = LoadU32(ctx, b + 28u);
+    }
+    top = tail;
+    arg = ResumePhase(ctx) == kResumeRewinding;
+    top = top | arg;
+    if (top != 0u) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // Read the head of the list the tail link belongs to.
+        arg = b;
+        arg = LoadU32(ctx, arg + 32u);
+        a = arg;
+        top = tail == arg;
+        same_tail = top;
+        link = tail;
+      }
+      if (same_tail == 0u || ResumePhase(ctx) == kResumeRewinding) {
+        // Walk the list back one node at a time, calling the table entry the
+        // node names, until the walk comes round to the tail link again.
+        while (true) {
+          if (ResumePhase(ctx) == kResumeRunning) {
+            a = a - 44u;
+            top = LoadU32(ctx, a);
+            top = LoadU32(ctx, top);
+            link = top;
           }
-          i0 = l5;
-          i1 = 2u;
-          i0 = i0 == i1;
-          i1 = 1u;
-          i2 = ResumePhase(ctx);
-          i0 = i2 ? i0 : i1;
-          if (i0) {
-            i0 = a;
-            i1 = l2;
-            i0 = CallTableT2(ctx, i1, i0);
+          if (ResumePhase(ctx) == kResumeRunning || resume_index == 2u) {
+            top = CallTableT2(ctx, link, a);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
             SyncMemoryBase(ctx);
 #endif
-            l3 = i0;
-            i0 = 2u;
-            i1 = ResumePhase(ctx);
-            i2 = 1u;
-            i1 = i1 == i2;
-            if (i1) {goto spill_frame;}
-            i0 = l3;
-            l2 = i0;
+            scratch = top;
+            resume_code = 2u;
+            if (ResumePhase(ctx) == kResumeSuspended) {
+              goto save_frame;
+            }
+            link = scratch;
           }
-          i0 = ResumePhase(ctx);
-          i0 = !(i0);
-          if (i0) {
-            i0 = a;
-            i1 = l4;
-            i0 = i0 != i1;
-            l2 = i0;
-            if (i0) {goto loop_13;}
+          if (ResumePhase(ctx) == kResumeRunning) {
+            top = a != tail;
+            link = top;
+            if (top != 0u) {
+              continue;
+            }
           }
-        i0 = ResumePhase(ctx);
-        if (i0) {
-          i0 = l2;
-        } else {
-          i0 = b;
-          i0 = LoadU32(ctx, i0 + 28u);
+          break;
         }
-        l2 = i0;
       }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = b;
-        i1 = l4;
-        StoreU32(ctx, i0 + 32u, i1);
-        i0 = l2;
-        DeallocateRawBlock(ctx, i0);
+      if (ResumePhase(ctx) != kResumeRunning) {
+        top = link;
+      } else {
+        top = LoadU32(ctx, b + 28u);
       }
+      link = top;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = b;
-      i0 = LoadS8(ctx, i0 + 27u);
-      i1 = kF532ConstFFFFFFFF;
-      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-      if (i0) {
-        i0 = b;
-        i0 = LoadU32(ctx, i0 + 16u);
-        DeallocateRawBlock(ctx, i0);
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Unlink the node and release the link the walk ended on.
+      StoreU32(ctx, b + 32u, tail);
+      DeallocateRawBlock(ctx, link);
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      top = LoadS8(ctx, b + 27u);
+      arg = kClearLinkedNodeFieldsAllBits;
+      top = (uint32_t)((int32_t)top <= (int32_t)arg);
+      if (top != 0u) {
+        top = LoadU32(ctx, b + 16u);
+        DeallocateRawBlock(ctx, top);
       }
-      i0 = b;
-      DeallocateRawBlock(ctx, i0);
+      DeallocateRawBlock(ctx, b);
     }
   }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF532ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l3;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l3;
-  i1 = l6;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 20u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  LeaveFrame();
+  return;
+save_frame:;
+  // Push the word naming the call in flight, then the save frame; a rewind
+  // reads them back in that order.
+  scratch = resume_code;
+  top = ReturnFrameSp(ctx);
+  top = LoadU32(ctx, top);
+  StoreU32(ctx, top, scratch);
+  top = ReturnFrameSp(ctx);
+  arg = ReturnFrameSp(ctx);
+  arg = LoadU32(ctx, arg) + kClearLinkedNodeFieldsResumeWordBytes;
+  StoreU32(ctx, top, arg);
+  scratch = ReturnFrameSp(ctx);
+  scratch = LoadU32(ctx, scratch);
+  StoreU32(ctx, scratch, a);
+  StoreU32(ctx, scratch + 4u, b);
+  StoreU32(ctx, scratch + 8u, link);
+  StoreU32(ctx, scratch + 12u, tail);
+  StoreU32(ctx, scratch + 16u, same_tail);
+  top = ReturnFrameSp(ctx);
+  arg = ReturnFrameSp(ctx);
+  arg = LoadU32(ctx, arg) + kClearLinkedNodeFieldsSaveFrameBytes;
+  StoreU32(ctx, top, arg);
   LeaveFrame();
 }
-}
+
+}  // namespace artc

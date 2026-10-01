@@ -1,31 +1,8 @@
-// dispatch_resource_step.cpp -- the resource/cache step dispatcher: the one
-// place a resume word picks which pending resource action to run, then hands
-// back through the asyncify throw slot.
-//
-// DispatchResourceStep -- the 28-arm dispatcher over the saved resume word. Each
-// arm rebuilds one key into the step's scratch frame and drives its host slot;
-// the arms are the generated driver's own flattening, so the goto graph below
-// is the original one with labels renamed. Not recursive: suspension, not
-// self-call, is what re-enters it (each arm is a host round trip that can park
-// the guest and hand control back).
-//
-// The step is suspendable: every arm is guarded by a resume-phase test before
-// and after its host call, and the spill path saves the 56-byte frame through
-// the return-frame stack so a suspended arm resumes at the same gate. Judgment
-// order is untouched -- the gates are replayed, not re-derived.
-//
-// src: artemis.wasm2c.c 2136185-2139412 (f3785); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations for the callees this step calls.
 uint32_t CompareBytes(EngineContext* ctx, uint32_t lhs, uint32_t rhs, uint32_t n);
 uint32_t CopyBytes(EngineContext* ctx, uint32_t dst, uint32_t src, uint32_t n);
 void StoreGlobalEntry(EngineContext* ctx, uint32_t globals, uint32_t index, uint32_t value);
@@ -38,28 +15,29 @@ void HostInitResources(EngineContext* ctx, uint32_t slot, uint32_t a, uint32_t b
 void HostAcquireResource(EngineContext* ctx, uint32_t url, uint32_t buffer, uint32_t length,
                          uint32_t error);
 
-namespace {
-constexpr uint32_t kF3785ConstFFFFFFFF = 4294967295u;  // all-ones mask
-constexpr uint32_t kF3785ConstFFFFFFE0 = 4294967280u;  // 0xFFFFFFE0, the low-nibble mask
-constexpr uint32_t kF3785Const80000000 = 2147483648u;  // 0x80000000, the sign bit
-constexpr uint32_t kF3785PendingThrowSlot = 852316u;  // the pending-throw slot the resume drain reads
-constexpr uint32_t kF3785CacheSuffix = 716895u;  // the _cache key suffix
-constexpr uint32_t kF3785Sha1Suffix = 717011u;  // the .sha1 key suffix
-constexpr uint32_t kF3785Pool717017 = 717017u;  // data word beside the key suffixes
-constexpr uint32_t kF3785Pool717048 = 717048u;  // data word beside the key suffixes
-constexpr uint32_t kF3785Pool785488 = 785488u;  // data word holding the rebuilt resource handle
-constexpr uint32_t kF3785HostSlot1286 = 1286u;  // the register-resource host slot
-constexpr uint32_t kF3785HostSlot1032 = 1032u;  // the resolve-resource host slot
-constexpr uint32_t kF3785TableSlot860 = 860u;  // the cache dispatch table slot
-constexpr uint32_t kF3785QuerySlot870 = 870u;  // the os-query host slot
-constexpr uint32_t kF3785SaveFrameBytes = 56u;  // the rewind frame this step saves
-constexpr uint32_t kF3785ResumeWordBytes = 4u;  // the resume word the dispatcher branches on
-constexpr uint32_t kF3785ScratchFrameBytes = 112u;  // the scratch frame the prologue allocates
-
-}  // namespace
+// DispatchResourceStep -- the resource/cache step dispatcher: the saved resume
+// word picks which pending resource action to run, each arm rebuilds one key
+// into the step's scratch frame and drives its host slot, parking the guest
+// while the action is performed.
 
 uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
   EnterFrame();
+  constexpr uint32_t kDataFFFFFFFF = 4294967295u;  // all-ones mask
+  constexpr uint32_t kDataFFFFFFE0 = 4294967280u;  // 0xFFFFFFE0, the low-nibble mask
+  constexpr uint32_t kData80000000 = 2147483648u;  // 0x80000000, the sign bit
+  constexpr uint32_t kPendingThrowSlot = 852316u;  // the pending-throw slot the resume drain reads
+  constexpr uint32_t kCacheSuffix = 716895u;  // the _cache key suffix
+  constexpr uint32_t kSha1Suffix = 717011u;  // the .sha1 key suffix
+  constexpr uint32_t kPool717017 = 717017u;  // data word beside the key suffixes
+  constexpr uint32_t kPool717048 = 717048u;  // data word beside the key suffixes
+  constexpr uint32_t kPool785488 = 785488u;  // data word holding the rebuilt resource handle
+  constexpr uint32_t kHostSlot1286 = 1286u;  // the register-resource host slot
+  constexpr uint32_t kHostSlot1032 = 1032u;  // the resolve-resource host slot
+  constexpr uint32_t kTableSlot860 = 860u;  // the cache dispatch table slot
+  constexpr uint32_t kQuerySlot870 = 870u;  // the os-query host slot
+  constexpr uint32_t kSaveFrameBytes = 56u;  // the rewind frame this step saves
+  constexpr uint32_t kResumeWordBytes = 4u;  // the resume word the dispatcher branches on
+  constexpr uint32_t kScratchFrameBytes = 112u;  // the scratch frame the prologue allocates
   uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u; uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l14 = 0u; uint32_t l15 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
   uint64_t j1 = 0;
@@ -71,7 +49,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, (uint64_t)(i1));
-    i2 = kF3785SaveFrameBytes;
+    i2 = kSaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, (uint64_t)(i0), i1);
     i0 = ReturnFrameSp(ctx);
@@ -116,7 +94,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = LoadU32(ctx, (uint64_t)(i0) + 52u);
     l15 = i0;
     i0 = l5;
-    i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785ResumeWordBytes);
+    i0 = LoadU32(ctx, (uint64_t)(i0) + kResumeWordBytes);
     p1 = i0;
   }
   i0 = ResumePhase(ctx);
@@ -126,7 +104,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, (uint64_t)(i1));
-    i2 = kF3785ResumeWordBytes;
+    i2 = kResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, (uint64_t)(i0), i1);
     i0 = ReturnFrameSp(ctx);
@@ -138,7 +116,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
   i0 = !(i0);
   if (i0) {
     i0 = GuestStackSp(ctx);
-    i1 = kF3785ScratchFrameBytes;
+    i1 = kScratchFrameBytes;
     i0 -= i1;
     l2 = i0;
     GuestStackSp(ctx) = i0;
@@ -224,7 +202,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i1 = 16u;
       i0 += i1;
       p1 = i0;
-      i0 = kF3785Pool785488;
+      i0 = kPool785488;
       i0 = LoadU32(ctx, (uint64_t)(i0));
       p0 = i0;
     }
@@ -236,7 +214,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = p0;
-      i1 = kF3785Pool717017;
+      i1 = kPool717017;
       i2 = p1;
       StoreGlobalEntry(ctx, i0, i1, i2);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -264,7 +242,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = l2;
     i0 = LoadU32(ctx, (uint64_t)(i0) + 88u);
     p1 = i0;
-    i1 = kF3785ConstFFFFFFE0;
+    i1 = kDataFFFFFFE0;
     i0 = i0 >= i1;
     l4 = i0;
   }
@@ -277,11 +255,11 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = l2;
-      i1 = kF3785SaveFrameBytes;
+      i1 = kSaveFrameBytes;
       i0 += i1;
       p0 = i0;
     }
@@ -292,7 +270,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i2 = ResumePhase(ctx);
     i0 = i2 ? i0 : i1;
     if (i0) {
-      i0 = kF3785HostSlot1286;
+      i0 = kHostSlot1286;
       i1 = p0;
       HostReleaseSlotPair(ctx, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -307,10 +285,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i0 = LoadU32(ctx, (uint64_t)(i0));
       p0 = i0;
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = p0;
@@ -341,13 +319,13 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = p1;
       i1 = 16u;
       i0 += i1;
-      i1 = kF3785ConstFFFFFFE0;
+      i1 = kDataFFFFFFE0;
       i0 &= i1;
       l4 = i0;
     }
@@ -358,7 +336,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i2 = ResumePhase(ctx);
     i0 = i2 ? i0 : i1;
     if (i0) {
-      i0 = kF3785HostSlot1032;
+      i0 = kHostSlot1032;
       i1 = l4;
       i0 = HostFoldLayoutOffset(ctx, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -376,10 +354,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i0 = LoadU32(ctx, (uint64_t)(i0));
       l7 = i0;
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = l7;
@@ -389,17 +367,17 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       if (i0) {goto block_16;}
       i0 = l2;
       i1 = l3;
-      StoreU32(ctx, (uint64_t)(i0) + kF3785SaveFrameBytes, i1);
+      StoreU32(ctx, (uint64_t)(i0) + kSaveFrameBytes, i1);
       i0 = l2;
       i1 = p1;
       StoreU32(ctx, (uint64_t)(i0) + 60u, i1);
       i0 = l2;
       i1 = l4;
-      i2 = kF3785Const80000000;
+      i2 = kData80000000;
       i1 |= i2;
       StoreU32(ctx, (uint64_t)(i0) + 64u, i1);
       i0 = l2;
-      i1 = kF3785SaveFrameBytes;
+      i1 = kSaveFrameBytes;
       i0 += i1;
       l4 = i0;
       goto block_24;
@@ -412,7 +390,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i1 = p1;
     StoreU8(ctx, (uint64_t)(i0) + 67u, i1);
     i0 = l2;
-    i1 = kF3785SaveFrameBytes;
+    i1 = kSaveFrameBytes;
     i0 += i1;
     l4 = i0;
     l3 = i0;
@@ -447,7 +425,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = LoadS8(ctx, (uint64_t)(i0) + 11u);
     p1 = i0;
     i0 = l2;
-    i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785SaveFrameBytes);
+    i0 = LoadU32(ctx, (uint64_t)(i0) + kSaveFrameBytes);
     l3 = i0;
     i0 = l2;
     i1 = 10u;
@@ -458,7 +436,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = p0;
     i0 = LoadU32(ctx, (uint64_t)(i0) + 16u);
     l12 = i0;
-    i0 = kF3785PendingThrowSlot;
+    i0 = kPendingThrowSlot;
     i1 = 0u;
     StoreU32(ctx, (uint64_t)(i0), i1);
     i0 = l2;
@@ -469,7 +447,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     StoreU8(ctx, (uint64_t)(i0) + 107u, i1);
     i0 = l3;
     i1 = l2;
-    i2 = kF3785SaveFrameBytes;
+    i2 = kSaveFrameBytes;
     i1 += i2;
     i2 = p1;
     i3 = 0u;
@@ -490,7 +468,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     l3 = i0;
   }
   i0 = l8;
-  i1 = kF3785ResumeWordBytes;
+  i1 = kResumeWordBytes;
   i0 = i0 == i1;
   i1 = 1u;
   i2 = ResumePhase(ctx);
@@ -506,7 +484,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    i0 = kF3785ResumeWordBytes;
+    i0 = kResumeWordBytes;
     i1 = ResumePhase(ctx);
     i2 = 1u;
     i1 = i1 == i2;
@@ -515,10 +493,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3785PendingThrowSlot;
+    i0 = kPendingThrowSlot;
     i0 = LoadU32(ctx, (uint64_t)(i0));
     p1 = i0;
-    i0 = kF3785PendingThrowSlot;
+    i0 = kPendingThrowSlot;
     i1 = 0u;
     StoreU32(ctx, (uint64_t)(i0), i1);
     i0 = p1;
@@ -527,7 +505,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     if (i0) {
       i0 = l2;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 107u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l2;
@@ -539,7 +517,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       }
       i0 = l2;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 51u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l2;
@@ -551,11 +529,11 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       }
       i0 = l4;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 11u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l2;
-        i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785SaveFrameBytes);
+        i0 = LoadU32(ctx, (uint64_t)(i0) + kSaveFrameBytes);
         DeallocateRawBlock(ctx, i0);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
@@ -589,7 +567,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
 #endif
     i0 = l2;
     i0 = LoadS8(ctx, (uint64_t)(i0) + 107u);
-    i1 = kF3785ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l2;
@@ -613,12 +591,12 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     }
     i0 = l4;
     i0 = LoadS8(ctx, (uint64_t)(i0) + 11u);
-    i1 = kF3785ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     p0 = i0;
     if (i0) {goto block_14;}
     i0 = l2;
-    i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785SaveFrameBytes);
+    i0 = LoadU32(ctx, (uint64_t)(i0) + kSaveFrameBytes);
     p0 = i0;
     DeallocateRawBlock(ctx, i0);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -650,11 +628,11 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i1 = 96u;
     i0 += i1;
     l14 = i0;
-    i0 = kF3785Pool785488;
+    i0 = kPool785488;
     i0 = LoadU32(ctx, (uint64_t)(i0));
     l15 = i0;
     i0 = p0;
-    i1 = kF3785ResumeWordBytes;
+    i1 = kResumeWordBytes;
     i0 += i1;
     l12 = i0;
   }
@@ -667,10 +645,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       StoreU32(ctx, (uint64_t)(i0) + 64u, i1);
       i0 = l2;
       j1 = 0;
-      StoreU64(ctx, (uint64_t)(i0) + kF3785SaveFrameBytes, j1);
+      StoreU64(ctx, (uint64_t)(i0) + kSaveFrameBytes, j1);
       i0 = l7;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 11u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l7;
@@ -689,7 +667,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = p0;
       i0 = LoadU32(ctx, (uint64_t)(i0) + 16u);
       l4 = i0;
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = l2;
@@ -707,7 +685,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 += i1;
       l11 = i0;
       i0 = l2;
-      i1 = kF3785SaveFrameBytes;
+      i1 = kSaveFrameBytes;
       i0 += i1;
       l3 = i0;
     }
@@ -737,10 +715,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i0 = LoadU32(ctx, (uint64_t)(i0));
       p1 = i0;
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = p1;
@@ -755,7 +733,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       if (i0) {
         i0 = l2;
         i0 = LoadS8(ctx, (uint64_t)(i0) + 107u);
-        i1 = kF3785ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l2;
@@ -767,7 +745,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
         }
         i0 = l2;
         i0 = LoadS8(ctx, (uint64_t)(i0) + 51u);
-        i1 = kF3785ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l2;
@@ -780,7 +758,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
         i0 = l2;
         i0 = LoadU32(ctx, (uint64_t)(i0) + 60u);
         i1 = l2;
-        i1 = LoadU32(ctx, (uint64_t)(i1) + kF3785SaveFrameBytes);
+        i1 = LoadU32(ctx, (uint64_t)(i1) + kSaveFrameBytes);
         p1 = i1;
         i0 -= i1;
         i1 = 24u;
@@ -789,7 +767,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
         i0 = p1;
         i0 = LoadS8(ctx, (uint64_t)(i0) + 23u);
         l4 = i0;
-        i1 = kF3785ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         l3 = i0;
         if (i0) {goto block_62;}
@@ -808,7 +786,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
 #endif
       i0 = l2;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 107u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l2;
@@ -846,7 +824,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       l4 = i0;
       i1 = l7;
       i1 = LoadS8(ctx, (uint64_t)(i1) + 11u);
-      i2 = kF3785ConstFFFFFFFF;
+      i2 = kDataFFFFFFFF;
       i1 = (uint32_t)((int32_t)i1 <= (int32_t)i2);
       if (i1) {
         i1 = l7;
@@ -866,7 +844,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = l15;
-      i1 = kF3785Pool717048;
+      i1 = kPool717048;
       i2 = l2;
       StoreGlobalEntry(ctx, i0, i1, i2);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -885,7 +863,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = l2;
@@ -917,17 +895,17 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i0 = LoadU32(ctx, (uint64_t)(i0));
       l4 = i0;
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = l4;
       i1 = 1u;
       i0 = i0 == i1;
       if (i0) {goto block_45;}
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = l2;
@@ -947,7 +925,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i2 = ResumePhase(ctx);
     i0 = i2 ? i0 : i1;
     if (i0) {
-      i0 = kF3785QuerySlot870;
+      i0 = kQuerySlot870;
       i1 = l4;
       i2 = p1;
       i0 = HostOsQuery(ctx, i0, i1, i2);
@@ -966,10 +944,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i0 = LoadU32(ctx, (uint64_t)(i0));
       p1 = i0;
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = p1;
@@ -985,11 +963,11 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = l12;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 11u);
       p1 = i0;
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = p0;
-        i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785ResumeWordBytes);
+        i0 = LoadU32(ctx, (uint64_t)(i0) + kResumeWordBytes);
         l4 = i0;
         i0 = p0;
         i0 = LoadU32(ctx, (uint64_t)(i0) + 8u);
@@ -1005,7 +983,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i1 = 6u;
       i0 += i1;
       l3 = i0;
-      i1 = kF3785ConstFFFFFFE0;
+      i1 = kDataFFFFFFE0;
       i0 = i0 >= i1;
       l6 = i0;
     }
@@ -1018,7 +996,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = l2;
@@ -1033,7 +1011,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i2 = ResumePhase(ctx);
       i0 = i2 ? i0 : i1;
       if (i0) {
-        i0 = kF3785HostSlot1286;
+        i0 = kHostSlot1286;
         i1 = p0;
         HostReleaseSlotPair(ctx, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -1048,10 +1026,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i0 = LoadU32(ctx, (uint64_t)(i0));
         p0 = i0;
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = p0;
@@ -1077,14 +1055,14 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = p1;
         i1 = 22u;
         i0 += i1;
         l3 = i0;
-        i1 = kF3785ConstFFFFFFE0;
+        i1 = kDataFFFFFFE0;
         i0 &= i1;
         l9 = i0;
       }
@@ -1095,7 +1073,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i2 = ResumePhase(ctx);
       i0 = i2 ? i0 : i1;
       if (i0) {
-        i0 = kF3785HostSlot1032;
+        i0 = kHostSlot1032;
         i1 = l9;
         i0 = HostFoldLayoutOffset(ctx, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -1113,10 +1091,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i0 = LoadU32(ctx, (uint64_t)(i0));
         l10 = i0;
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = l10;
@@ -1132,7 +1110,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
         StoreU32(ctx, (uint64_t)(i0) + 100u, i1);
         i0 = l2;
         i1 = l9;
-        i2 = kF3785Const80000000;
+        i2 = kData80000000;
         i1 |= i2;
         l6 = i1;
         StoreU32(ctx, (uint64_t)(i0) + 104u, i1);
@@ -1176,7 +1154,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 += i1;
       i1 = 0u;
       StoreU8(ctx, (uint64_t)(i0), i1);
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = l2;
@@ -1191,9 +1169,9 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i2 = ResumePhase(ctx);
     i0 = i2 ? i0 : i1;
     if (i0) {
-      i0 = kF3785TableSlot860;
+      i0 = kTableSlot860;
       i1 = p1;
-      i2 = kF3785CacheSuffix;
+      i2 = kCacheSuffix;
       i3 = 6u;
       i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -1211,10 +1189,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i0 = LoadU32(ctx, (uint64_t)(i0));
       p1 = i0;
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = p1;
@@ -1239,7 +1217,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
 #endif
       i0 = l2;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 107u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       p0 = i0;
       if (i0) {goto block_44;}
@@ -1269,7 +1247,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       j1 = 0;
       StoreU64(ctx, (uint64_t)(i0) + 40u, j1);
       i0 = l2;
-      i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785SaveFrameBytes);
+      i0 = LoadU32(ctx, (uint64_t)(i0) + kSaveFrameBytes);
       l4 = i0;
       i0 = LoadU8(ctx, (uint64_t)(i0) + 11u);
       p1 = i0;
@@ -1277,11 +1255,11 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 <<= (i1 & 31);
       i1 = 24u;
       i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
-        i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785ResumeWordBytes);
+        i0 = LoadU32(ctx, (uint64_t)(i0) + kResumeWordBytes);
         p1 = i0;
         i0 = l4;
         i0 = LoadU32(ctx, (uint64_t)(i0));
@@ -1291,7 +1269,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i1 = 5u;
       i0 += i1;
       l3 = i0;
-      i1 = kF3785ConstFFFFFFE0;
+      i1 = kDataFFFFFFE0;
       i0 = i0 >= i1;
       l6 = i0;
     }
@@ -1304,7 +1282,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = l2;
@@ -1319,7 +1297,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i2 = ResumePhase(ctx);
       i0 = i2 ? i0 : i1;
       if (i0) {
-        i0 = kF3785HostSlot1286;
+        i0 = kHostSlot1286;
         i1 = p0;
         HostReleaseSlotPair(ctx, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -1334,10 +1312,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i0 = LoadU32(ctx, (uint64_t)(i0));
         p0 = i0;
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = p0;
@@ -1363,14 +1341,14 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = p1;
         i1 = 21u;
         i0 += i1;
         l3 = i0;
-        i1 = kF3785ConstFFFFFFE0;
+        i1 = kDataFFFFFFE0;
         i0 &= i1;
         l6 = i0;
       }
@@ -1381,7 +1359,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i2 = ResumePhase(ctx);
       i0 = i2 ? i0 : i1;
       if (i0) {
-        i0 = kF3785HostSlot1032;
+        i0 = kHostSlot1032;
         i1 = l6;
         i0 = HostFoldLayoutOffset(ctx, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -1399,10 +1377,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i0 = LoadU32(ctx, (uint64_t)(i0));
         l11 = i0;
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = l11;
@@ -1418,7 +1396,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
         StoreU32(ctx, (uint64_t)(i0) + 44u, i1);
         i0 = l2;
         i1 = l6;
-        i2 = kF3785Const80000000;
+        i2 = kData80000000;
         i1 |= i2;
         l6 = i1;
         StoreU32(ctx, (uint64_t)(i0) + 48u, i1);
@@ -1462,7 +1440,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 += i1;
       i1 = 0u;
       StoreU8(ctx, (uint64_t)(i0), i1);
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = l2;
@@ -1477,9 +1455,9 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i2 = ResumePhase(ctx);
     i0 = i2 ? i0 : i1;
     if (i0) {
-      i0 = kF3785TableSlot860;
+      i0 = kTableSlot860;
       i1 = p1;
-      i2 = kF3785Sha1Suffix;
+      i2 = kSha1Suffix;
       i3 = 5u;
       i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -1497,10 +1475,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i0 = LoadU32(ctx, (uint64_t)(i0));
       p1 = i0;
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = p1;
@@ -1525,7 +1503,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
 #endif
       i0 = l2;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 51u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       p0 = i0;
       if (i0) {goto block_98;}
@@ -1542,7 +1520,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = l2;
@@ -1604,10 +1582,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i0 = LoadU32(ctx, (uint64_t)(i0));
       p1 = i0;
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = p1;
@@ -1626,7 +1604,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       if (i0) {
         i0 = l2;
         i0 = LoadS8(ctx, (uint64_t)(i0) + 51u);
-        i1 = kF3785ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l2;
@@ -1638,7 +1616,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
         }
         i0 = l2;
         i0 = LoadS8(ctx, (uint64_t)(i0) + 107u);
-        i1 = kF3785ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l2;
@@ -1654,11 +1632,11 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
         i0 = l2;
         i0 = LoadU32(ctx, (uint64_t)(i0) + 88u);
         p1 = i0;
-        i1 = kF3785ConstFFFFFFE0;
+        i1 = kDataFFFFFFE0;
         i0 = i0 < i1;
         l4 = i0;
         if (i0) {goto block_97;}
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = l2;
@@ -1673,7 +1651,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i2 = ResumePhase(ctx);
       i0 = i2 ? i0 : i1;
       if (i0) {
-        i0 = kF3785HostSlot1286;
+        i0 = kHostSlot1286;
         i1 = p0;
         HostReleaseSlotPair(ctx, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -1688,10 +1666,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i0 = LoadU32(ctx, (uint64_t)(i0));
         p0 = i0;
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = p0;
@@ -1725,7 +1703,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
 #endif
       i0 = l2;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 51u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       p0 = i0;
       if (i0) {goto block_98;}
@@ -1743,7 +1721,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     if (i0) {
       i0 = l2;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 107u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       p0 = i0;
       if (i0) {goto block_44;}
@@ -1777,14 +1755,14 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = p1;
         i1 = 16u;
         i0 += i1;
         l3 = i0;
-        i1 = kF3785ConstFFFFFFE0;
+        i1 = kDataFFFFFFE0;
         i0 &= i1;
         l9 = i0;
       }
@@ -1795,7 +1773,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i2 = ResumePhase(ctx);
       i0 = i2 ? i0 : i1;
       if (i0) {
-        i0 = kF3785HostSlot1032;
+        i0 = kHostSlot1032;
         i1 = l9;
         i0 = HostFoldLayoutOffset(ctx, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -1813,10 +1791,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i0 = LoadU32(ctx, (uint64_t)(i0));
         l10 = i0;
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = l10;
@@ -1831,7 +1809,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
         StoreU32(ctx, (uint64_t)(i0) + 100u, i1);
         i0 = l2;
         i1 = l9;
-        i2 = kF3785Const80000000;
+        i2 = kData80000000;
         i1 |= i2;
         l6 = i1;
         StoreU32(ctx, (uint64_t)(i0) + 104u, i1);
@@ -1893,7 +1871,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
       l10 = i0;
       i0 = l2;
-      i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785SaveFrameBytes);
+      i0 = LoadU32(ctx, (uint64_t)(i0) + kSaveFrameBytes);
       p1 = i0;
       i0 = LoadU8(ctx, (uint64_t)(i0) + 23u);
       l6 = i0;
@@ -2009,11 +1987,11 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = l12;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 11u);
       p1 = i0;
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = p0;
-        i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785ResumeWordBytes);
+        i0 = LoadU32(ctx, (uint64_t)(i0) + kResumeWordBytes);
         l4 = i0;
         i0 = p0;
         i0 = LoadU32(ctx, (uint64_t)(i0) + 8u);
@@ -2029,7 +2007,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i1 = 6u;
       i0 += i1;
       l3 = i0;
-      i1 = kF3785ConstFFFFFFE0;
+      i1 = kDataFFFFFFE0;
       i0 = i0 >= i1;
       l6 = i0;
     }
@@ -2042,7 +2020,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = l2;
@@ -2057,7 +2035,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i2 = ResumePhase(ctx);
       i0 = i2 ? i0 : i1;
       if (i0) {
-        i0 = kF3785HostSlot1286;
+        i0 = kHostSlot1286;
         i1 = p0;
         HostReleaseSlotPair(ctx, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -2072,10 +2050,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i0 = LoadU32(ctx, (uint64_t)(i0));
         p0 = i0;
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = p0;
@@ -2101,14 +2079,14 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = p1;
         i1 = 22u;
         i0 += i1;
         l3 = i0;
-        i1 = kF3785ConstFFFFFFE0;
+        i1 = kDataFFFFFFE0;
         i0 &= i1;
         l9 = i0;
       }
@@ -2119,7 +2097,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i2 = ResumePhase(ctx);
       i0 = i2 ? i0 : i1;
       if (i0) {
-        i0 = kF3785HostSlot1032;
+        i0 = kHostSlot1032;
         i1 = l9;
         i0 = HostFoldLayoutOffset(ctx, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -2137,10 +2115,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i0 = LoadU32(ctx, (uint64_t)(i0));
         l10 = i0;
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = l10;
@@ -2156,7 +2134,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
         StoreU32(ctx, (uint64_t)(i0) + 44u, i1);
         i0 = l2;
         i1 = l9;
-        i2 = kF3785Const80000000;
+        i2 = kData80000000;
         i1 |= i2;
         l6 = i1;
         StoreU32(ctx, (uint64_t)(i0) + 48u, i1);
@@ -2200,7 +2178,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 += i1;
       i1 = 0u;
       StoreU8(ctx, (uint64_t)(i0), i1);
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = l2;
@@ -2215,9 +2193,9 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i2 = ResumePhase(ctx);
     i0 = i2 ? i0 : i1;
     if (i0) {
-      i0 = kF3785TableSlot860;
+      i0 = kTableSlot860;
       i1 = p1;
-      i2 = kF3785CacheSuffix;
+      i2 = kCacheSuffix;
       i3 = 6u;
       i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -2235,10 +2213,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i0 = LoadU32(ctx, (uint64_t)(i0));
       p1 = i0;
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = p1;
@@ -2263,7 +2241,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
 #endif
       i0 = l2;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 51u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       p0 = i0;
       if (i0) {goto block_47;}
@@ -2292,17 +2270,17 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = i2 ? i0 : i1;
       l4 = i0;
       i0 = l2;
-      i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785SaveFrameBytes);
+      i0 = LoadU32(ctx, (uint64_t)(i0) + kSaveFrameBytes);
       p1 = i0;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 11u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = p1;
         i0 = LoadU32(ctx, (uint64_t)(i0));
         p1 = i0;
       }
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = l2;
@@ -2334,10 +2312,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i0 = LoadU32(ctx, (uint64_t)(i0));
       p1 = i0;
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = p1;
@@ -2346,7 +2324,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       if (i0) {goto block_56;}
       i0 = l2;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 51u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l2;
@@ -2365,11 +2343,11 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = l12;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 11u);
       p1 = i0;
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = p0;
-        i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785ResumeWordBytes);
+        i0 = LoadU32(ctx, (uint64_t)(i0) + kResumeWordBytes);
         l4 = i0;
         i0 = p0;
         i0 = LoadU32(ctx, (uint64_t)(i0) + 8u);
@@ -2385,7 +2363,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i1 = 6u;
       i0 += i1;
       l3 = i0;
-      i1 = kF3785ConstFFFFFFE0;
+      i1 = kDataFFFFFFE0;
       i0 = i0 >= i1;
       l6 = i0;
     }
@@ -2398,7 +2376,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = l2;
@@ -2413,7 +2391,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i2 = ResumePhase(ctx);
       i0 = i2 ? i0 : i1;
       if (i0) {
-        i0 = kF3785HostSlot1286;
+        i0 = kHostSlot1286;
         i1 = p0;
         HostReleaseSlotPair(ctx, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -2428,10 +2406,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i0 = LoadU32(ctx, (uint64_t)(i0));
         p0 = i0;
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = p0;
@@ -2457,14 +2435,14 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = p1;
         i1 = 22u;
         i0 += i1;
         l3 = i0;
-        i1 = kF3785ConstFFFFFFE0;
+        i1 = kDataFFFFFFE0;
         i0 &= i1;
         l9 = i0;
       }
@@ -2475,7 +2453,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i2 = ResumePhase(ctx);
       i0 = i2 ? i0 : i1;
       if (i0) {
-        i0 = kF3785HostSlot1032;
+        i0 = kHostSlot1032;
         i1 = l9;
         i0 = HostFoldLayoutOffset(ctx, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -2493,10 +2471,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i0 = LoadU32(ctx, (uint64_t)(i0));
         l10 = i0;
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = l10;
@@ -2512,7 +2490,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
         StoreU32(ctx, (uint64_t)(i0) + 44u, i1);
         i0 = l2;
         i1 = l9;
-        i2 = kF3785Const80000000;
+        i2 = kData80000000;
         i1 |= i2;
         l6 = i1;
         StoreU32(ctx, (uint64_t)(i0) + 48u, i1);
@@ -2556,7 +2534,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 += i1;
       i1 = 0u;
       StoreU8(ctx, (uint64_t)(i0), i1);
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = l2;
@@ -2571,9 +2549,9 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i2 = ResumePhase(ctx);
     i0 = i2 ? i0 : i1;
     if (i0) {
-      i0 = kF3785TableSlot860;
+      i0 = kTableSlot860;
       i1 = p1;
-      i2 = kF3785CacheSuffix;
+      i2 = kCacheSuffix;
       i3 = 6u;
       i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -2591,10 +2569,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i0 = LoadU32(ctx, (uint64_t)(i0));
       p1 = i0;
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = p1;
@@ -2619,7 +2597,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
 #endif
       i0 = l2;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 51u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       p0 = i0;
       if (i0) {goto block_47;}
@@ -2649,7 +2627,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       j1 = 0;
       StoreU64(ctx, (uint64_t)(i0) + 24u, j1);
       i0 = l2;
-      i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785SaveFrameBytes);
+      i0 = LoadU32(ctx, (uint64_t)(i0) + kSaveFrameBytes);
       l4 = i0;
       i0 = LoadU8(ctx, (uint64_t)(i0) + 11u);
       p1 = i0;
@@ -2657,11 +2635,11 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 <<= (i1 & 31);
       i1 = 24u;
       i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
-        i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785ResumeWordBytes);
+        i0 = LoadU32(ctx, (uint64_t)(i0) + kResumeWordBytes);
         p1 = i0;
         i0 = l4;
         i0 = LoadU32(ctx, (uint64_t)(i0));
@@ -2671,7 +2649,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i1 = 5u;
       i0 += i1;
       l3 = i0;
-      i1 = kF3785ConstFFFFFFE0;
+      i1 = kDataFFFFFFE0;
       i0 = i0 >= i1;
       l6 = i0;
     }
@@ -2684,7 +2662,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = l2;
@@ -2699,7 +2677,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i2 = ResumePhase(ctx);
       i0 = i2 ? i0 : i1;
       if (i0) {
-        i0 = kF3785HostSlot1286;
+        i0 = kHostSlot1286;
         i1 = p0;
         HostReleaseSlotPair(ctx, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -2714,10 +2692,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i0 = LoadU32(ctx, (uint64_t)(i0));
         p0 = i0;
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = p0;
@@ -2743,14 +2721,14 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = p1;
         i1 = 21u;
         i0 += i1;
         l3 = i0;
-        i1 = kF3785ConstFFFFFFE0;
+        i1 = kDataFFFFFFE0;
         i0 &= i1;
         l6 = i0;
       }
@@ -2761,7 +2739,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i2 = ResumePhase(ctx);
       i0 = i2 ? i0 : i1;
       if (i0) {
-        i0 = kF3785HostSlot1032;
+        i0 = kHostSlot1032;
         i1 = l6;
         i0 = HostFoldLayoutOffset(ctx, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -2779,10 +2757,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i0 = LoadU32(ctx, (uint64_t)(i0));
         l11 = i0;
-        i0 = kF3785PendingThrowSlot;
+        i0 = kPendingThrowSlot;
         i1 = 0u;
         StoreU32(ctx, (uint64_t)(i0), i1);
         i0 = l11;
@@ -2798,7 +2776,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
         StoreU32(ctx, (uint64_t)(i0) + 28u, i1);
         i0 = l2;
         i1 = l6;
-        i2 = kF3785Const80000000;
+        i2 = kData80000000;
         i1 |= i2;
         l6 = i1;
         StoreU32(ctx, (uint64_t)(i0) + 32u, i1);
@@ -2842,7 +2820,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 += i1;
       i1 = 0u;
       StoreU8(ctx, (uint64_t)(i0), i1);
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = l2;
@@ -2857,9 +2835,9 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i2 = ResumePhase(ctx);
     i0 = i2 ? i0 : i1;
     if (i0) {
-      i0 = kF3785TableSlot860;
+      i0 = kTableSlot860;
       i1 = p1;
-      i2 = kF3785Sha1Suffix;
+      i2 = kSha1Suffix;
       i3 = 5u;
       i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
@@ -2877,10 +2855,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i0 = LoadU32(ctx, (uint64_t)(i0));
       p1 = i0;
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = p1;
@@ -2905,7 +2883,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
 #endif
       i0 = l2;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 35u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       p0 = i0;
       if (i0) {goto block_48;}
@@ -2922,7 +2900,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = l2;
@@ -2975,10 +2953,10 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i0 = LoadU32(ctx, (uint64_t)(i0));
       p1 = i0;
-      i0 = kF3785PendingThrowSlot;
+      i0 = kPendingThrowSlot;
       i1 = 0u;
       StoreU32(ctx, (uint64_t)(i0), i1);
       i0 = p1;
@@ -2987,7 +2965,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       if (i0) {goto block_49;}
       i0 = l2;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 35u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l2;
@@ -2999,7 +2977,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       }
       i0 = l2;
       i0 = LoadS8(ctx, (uint64_t)(i0) + 51u);
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l2;
@@ -3022,7 +3000,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
       i0 <<= (i1 & 31);
       i1 = 24u;
       i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-      i1 = kF3785ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       if (i0) {goto block_57;}
     }
@@ -3042,7 +3020,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
     i0 = !(i0);
     if (i0) {
       i0 = l2;
-      i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785SaveFrameBytes);
+      i0 = LoadU32(ctx, (uint64_t)(i0) + kSaveFrameBytes);
       l4 = i0;
       if (i0) {
         i0 = l4;
@@ -3063,7 +3041,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
             i1 = 1u;
             i0 -= i1;
             i0 = LoadS8(ctx, (uint64_t)(i0));
-            i1 = kF3785ConstFFFFFFFF;
+            i1 = kDataFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = p1;
@@ -3080,7 +3058,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
             i0 = i0 != i1;
             if (i0) {goto loop_229;}
           i0 = l2;
-          i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785SaveFrameBytes);
+          i0 = LoadU32(ctx, (uint64_t)(i0) + kSaveFrameBytes);
           p1 = i0;
         }
         i0 = l2;
@@ -3118,7 +3096,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
 #endif
     i0 = l2;
     i0 = LoadS8(ctx, (uint64_t)(i0) + 51u);
-    i1 = kF3785ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     p0 = i0;
     if (i0) {goto block_47;}
@@ -3146,7 +3124,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
 #endif
     i0 = l2;
     i0 = LoadS8(ctx, (uint64_t)(i0) + 35u);
-    i1 = kF3785ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     p0 = i0;
     if (i0) {goto block_48;}
@@ -3164,7 +3142,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
   if (i0) {
     i0 = l2;
     i0 = LoadS8(ctx, (uint64_t)(i0) + 51u);
-    i1 = kF3785ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     p0 = i0;
     if (i0) {goto block_47;}
@@ -3182,7 +3160,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
   if (i0) {
     i0 = l2;
     i0 = LoadS8(ctx, (uint64_t)(i0) + 107u);
-    i1 = kF3785ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     p0 = i0;
     if (i0) {goto block_44;}
@@ -3231,7 +3209,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
   i0 = !(i0);
   if (i0) {
     i0 = l2;
-    i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785SaveFrameBytes);
+    i0 = LoadU32(ctx, (uint64_t)(i0) + kSaveFrameBytes);
     p0 = i0;
     i0 = !(i0);
     if (i0) {goto block_14;}
@@ -3251,7 +3229,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
         i1 = 1u;
         i0 -= i1;
         i0 = LoadS8(ctx, (uint64_t)(i0));
-        i1 = kF3785ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = p1;
@@ -3268,7 +3246,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
         i0 = i0 != i1;
         if (i0) {goto loop_239;}
       i0 = l2;
-      i0 = LoadU32(ctx, (uint64_t)(i0) + kF3785SaveFrameBytes);
+      i0 = LoadU32(ctx, (uint64_t)(i0) + kSaveFrameBytes);
       l4 = i0;
     }
     i0 = l2;
@@ -3304,7 +3282,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
           i1 = 1u;
           i0 -= i1;
           i0 = LoadS8(ctx, (uint64_t)(i0));
-          i1 = kF3785ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = p1;
@@ -3371,7 +3349,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
         i1 = 1u;
         i0 -= i1;
         i0 = LoadS8(ctx, (uint64_t)(i0));
-        i1 = kF3785ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = p1;
@@ -3412,7 +3390,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
   i0 = !(i0);
   if (i0) {
     i0 = l2;
-    i1 = kF3785ScratchFrameBytes;
+    i1 = kScratchFrameBytes;
     i0 += i1;
     GuestStackSp(ctx) = i0;
     i0 = l13;
@@ -3430,7 +3408,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, (uint64_t)(i1));
-  i2 = kF3785ResumeWordBytes;
+  i2 = kResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, (uint64_t)(i0), i1);
   i0 = ReturnFrameSp(ctx);
@@ -3440,7 +3418,7 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
   StoreU32(ctx, (uint64_t)(i0), i1);
   i0 = l5;
   i1 = p1;
-  StoreU32(ctx, (uint64_t)(i0) + kF3785ResumeWordBytes, i1);
+  StoreU32(ctx, (uint64_t)(i0) + kResumeWordBytes, i1);
   i0 = l5;
   i1 = l2;
   StoreU32(ctx, (uint64_t)(i0) + 8u, i1);
@@ -3480,13 +3458,13 @@ uint32_t DispatchResourceStep(EngineContext* ctx, uint32_t p0, uint32_t p1) {
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, (uint64_t)(i1));
-  i2 = kF3785SaveFrameBytes;
+  i2 = kSaveFrameBytes;
   i1 += i2;
   StoreU32(ctx, (uint64_t)(i0), i1);
   i0 = 0u;
   func_exit:;
   LeaveFrame();
   return i0;
-}
+}  // namespace artc
 
 }  // namespace artc

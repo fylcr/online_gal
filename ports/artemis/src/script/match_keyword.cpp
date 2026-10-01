@@ -1,23 +1,8 @@
-// match_keyword.cpp -- matches a keyword: the table the lexer matches against is consulted and the keyword id is answered..
-//
-// MatchKeyword -- matches a keyword: the table the lexer matches against is consulted and the keyword id is answered.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 797576-797576 (f1713); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of the callees below.
 uint32_t FormatPushString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 void StepRecordResume(EngineContext* ctx, uint32_t a0);
@@ -27,264 +12,114 @@ void CompileKeywordCondition(EngineContext* ctx, uint32_t a, uint32_t b);
 
 namespace {
 
-constexpr uint32_t kF1713MsgSExpected = 0x2B625u;  // '%s' expected
-constexpr uint32_t kF1713SaveFrameBytes = 16u;
-constexpr uint32_t kF1713ResumeWordBytes = 4u;
+constexpr uint32_t kMatchKeywordExpectedMessage = 0x2B625u;  // "'%s' expected"
+constexpr uint32_t kMatchKeywordCloseBracket = 93u;          // ']'
+constexpr uint32_t kMatchKeywordSaveFrameBytes = 16u;        // words saved below the resume code
+constexpr uint32_t kMatchKeywordResumeWordBytes = 4u;        // resume code slot
 
 }  // namespace
 
+// Matches a keyword: the lexer's keyword table is consulted and the keyword id
+// is answered.  The calls can suspend, so the parser state, the keyword, the
+// working value and the formatter's scratch record are kept in the frame.
 void MatchKeyword(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1713SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l5 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
+  uint32_t value = 0u;         // the keyword's slot, then the formatter's argument
+  uint32_t scratch = 0u;       // the 16-byte formatter record on the guest stack
+  uint32_t called = 0u;        // result of the call in the gate above
+  uint32_t resume_point = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 16-byte frame the suspend path saved.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+        LoadU32(ctx, ReturnFrameSp(ctx)) - kMatchKeywordSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    a = LoadU32(ctx, frame);
+    value = LoadU32(ctx, frame + 8u);
+    scratch = LoadU32(ctx, frame + 12u);
+    b = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1713ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 4-byte frame that saves the resume code.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+        LoadU32(ctx, ReturnFrameSp(ctx)) - kMatchKeywordResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 16u;
-    i0 -= i1;
-    l5 = i0;
-    GuestStackSp(ctx) = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    scratch = GuestStackSp(ctx) - 16u;
+    GuestStackSp(ctx) = scratch;
   }
-  i0 = l4;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    StepRecordResume(ctx, i0);
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+    StepRecordResume(ctx, a);
+    resume_point = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  i0 = l4;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = b;
-    i2 = 0u;
-    i0 = CheckStatementLimits(ctx, i0, i1, i2);
-    l2 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l2;
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+    called = CheckStatementLimits(ctx, a, b, 0u);
+    resume_point = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    value = called;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 48u);
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = LoadU32(ctx, a + 48u);
   }
-  i0 = l4;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l3;
-    i1 = b;
-    CompileKeywordCondition(ctx, i0, i1);
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+    CompileKeywordCondition(ctx, value, b);
+    resume_point = 2u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 16u);
-    i1 = 93u;
-    i0 = i0 != i1;
-    b = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    b = LoadU32(ctx, a + 16u) != kMatchKeywordCloseBracket;
   }
-  i0 = b;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 52u);
-      b = i0;
+  if (b != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      b = LoadU32(ctx, a + 52u);
     }
-    i0 = l4;
-    i1 = 3u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = 93u;
-      i0 = FormatCharValue(ctx, i0, i1);
-      l2 = i0;
-      i0 = 3u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l2;
-      l3 = i0;
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+      called = FormatCharValue(ctx, a, kMatchKeywordCloseBracket);
+      resume_point = 3u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      value = called;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l5;
-      i1 = l3;
-      StoreU32(ctx, i0, i1);
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, scratch, value);
     }
-    i0 = l4;
-    i1 = 4u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = b;
-      i1 = kF1713MsgSExpected;
-      i2 = l5;
-      i0 = FormatPushString(ctx, i0, i1, i2);
-      l2 = i0;
-      i0 = 4u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l2;
-      b = i0;
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
+      called = FormatPushString(ctx, b, kMatchKeywordExpectedMessage, scratch);
+      resume_point = 4u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      b = called;
     }
-    i0 = l4;
-    i1 = 5u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = b;
-      RaiseSyntaxError(ctx, i0, i1);
-      i0 = 5u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
+      RaiseSyntaxError(ctx, a, b);
+      resume_point = 5u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
     }
   }
-  i0 = l4;
-  i1 = 6u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    StepRecordResume(ctx, i0);
-    i0 = 6u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
+    StepRecordResume(ctx, a);
+    resume_point = 6u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l5;
-    i1 = 16u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    GuestStackSp(ctx) = scratch + 16u;
   }
-  goto func_exit;
-  spill_frame:;
-  l2 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1713ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l2 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l2;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l2;
-  i1 = l3;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l2;
-  i1 = l5;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 16u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto exit_path;
+suspend_point:
+  // Suspend: write the resume code, then push the frame with the live state.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+      LoadU32(ctx, ReturnFrameSp(ctx)) + kMatchKeywordResumeWordBytes);
+  {
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, a);
+    StoreU32(ctx, frame + 4u, b);
+    StoreU32(ctx, frame + 8u, value);
+    StoreU32(ctx, frame + 12u, scratch);
+  }
+  StoreU32(ctx, ReturnFrameSp(ctx),
+      LoadU32(ctx, ReturnFrameSp(ctx)) + kMatchKeywordSaveFrameBytes);
+exit_path:
   LeaveFrame();
 }
-}
+
+}  // namespace artc

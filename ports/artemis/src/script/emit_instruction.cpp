@@ -1,69 +1,13 @@
-// emit_instruction.cpp — append one instruction to a function's code array,
-// record its line, and discharge the pending jump list.
-//
-// EmitInstruction is the parser's code sink: every instruction the expression
-// and statement passes produce lands here, and the answer is the pc slot the
-// word took. Three things happen in one call, in the generated order.
-//
-// First the pending jump list is discharged. A jump emitted before its target
-// was known parks itself as a marker word whose argument fields carry the link
-// to the previous pending jump, and the list head is the function state's own
-// word at +32. That head is read and cleared in the same running pass, then the
-// list is walked: each marker is rewritten into a real jump whose offset points
-// at the pc being emitted, and the walk follows the link the marker carried
-// until the no-jump sentinel ends it. Which word the walk completes is not
-// simply the one the link names — when the word before it is still accumulating
-// operands （the engine keeps one signed mode byte per opcode, and a negative
-// mode means the word is unfinished） the walk adopts the previous word instead,
-// which is the one case that skips the two assignments naming the current one.
-// An offset too wide for the field raises the parser's own "control structure
-// too long" rather than being truncated.
-//
-// Then the code array takes the word: the instruction count is tested against
-// the code block's capacity, and a full block is grown by the parser's array
-// grower, which is the first place this body may suspend. The word is written
-// at the count, and only then is the count read back for the line array, whose
-// own grow call is the second suspend point. Both grow calls hand over the same
-// allocator, block, capacity word, element size, limit and message, and both
-// answer with the possibly moved block. The pending-list word is cleared before
-// either call, so a caller that recovers still sees the list discharged, and the
-// answer is the count from before the increment.
-//
-// Because the grower can suspend, the body is laid out as the generated driver
-// runs it rather than as three straight-line steps. The two frame pops come
-// first — the 48-byte parameter and working frame, then the four-byte resume
-// point pushed with it — and they read the frame in the generated order: the
-// frame base, the function state, the line and the eight working words, and only
-// last the instruction word, which is why the rewind cannot be folded into the
-// frame read. The frame the suspend path saves lists those same twelve words in
-// a different order, and the resume point it publishes names which of the three
-// guarded calls was in flight, so a rewinding frame re-issues exactly that one.
-// Judgment order is the engine's own throughout: the pending-list gate is taken
-// before the rewinding bit is merged into it, the walk keeps its two duplicated
-// offset tests rather than sharing one, the marker's opcode test runs before the
-// patch, and every guarded call is followed by its own suspension check.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declaration — defined in script/grow_array.cpp.
-// Provisional: that is the generated f704 body — the parser's array grower
-// （it reallocates the code or line block named by a capacity word and answers
-// with the new block） — and is not yet registered in rewrite-names.tsv, so this
-// callee name and its presumed product file are both provisional. The two
-// suspension sites below are the only callers here.
+// The parser's array grower (script/grow_array.cpp): reallocates the code or
+// line block named by a capacity word and answers with the new block.
 uint32_t GrowArray(EngineContext* ctx, uint32_t state, uint32_t data, uint32_t capacity_addr,
                    uint32_t element_size, uint32_t limit, uint32_t message);
-// Forward declaration — defined in script/raise_syntax_error.cpp.
-// Provisional: that is the generated f243 body — the parser's syntax-error
-// raiser, which formats the text against the lexer state and starts the raise,
-// the third suspension site — and is not registered in rewrite-names.tsv
-// either, so this name and file are provisional too.
+// The parser's syntax-error raiser (core/raise_syntax_error.cpp): formats the
+// text against the lexer state and raises it.
 void RaiseSyntaxError(EngineContext* ctx, uint32_t lex_state, uint32_t message);
 
 namespace {
@@ -119,14 +63,17 @@ constexpr uint32_t kCodeOverflowTextAddr = kNilValueAddr - 3937u;
 
 }  // namespace
 
+// The parser's code sink: discharges the pending jump list, appends one
+// instruction word to the function's code array and its line number to the line
+// array, and answers with the pc the word took.
 uint32_t EmitInstruction(EngineContext* ctx, uint32_t func_state, uint32_t instruction, uint32_t line) {
   EnterFrame();
-  // The asyncify save frame base: a rewind pops it and the suspend path writes
-  // its twelve words into it.
+  // The save frame base: a rewind pops it and the suspend path writes its twelve
+  // words into it.
   uint32_t frame = 0u;
-  // The pc the pending-list walk stands on, and — as the generated body reuses
-  // the one cell — the offset it resolves, the code and line blocks the grow
-  // calls work on, the instruction count and a capacity address.
+  // The pc the pending-list walk stands on, and — since the walk reuses the one
+  // cell — the offset it resolves, the code and line blocks the grow calls work
+  // on, the instruction count and a capacity address.
   uint32_t pc = 0u;
   // The record holding both arrays: the code block at +12 with its capacity at
   // +44, the line block at +20 with its capacity at +48.
@@ -146,7 +93,7 @@ uint32_t EmitInstruction(EngineContext* ctx, uint32_t func_state, uint32_t instr
   // Whether the walk's word is a jump instruction, and before that whether its
   // offset was the no-jump sentinel.
   uint32_t marker = 0u;
-  // The generated body's one scratch cell: the pending-list flag the walk is
+  // The walk's one scratch cell: the pending-list flag the walk is
   // gated on, then the code owner, the marker slot, the offset test's answer,
   // the allocator handle and the line block. It keeps one name because the
   // suspend frame carries it in one word.
@@ -158,13 +105,13 @@ uint32_t EmitInstruction(EngineContext* ctx, uint32_t func_state, uint32_t instr
   // The resume point a rewind pops, naming the call that was in flight.
   uint32_t resume_point = 0u;
   // The pc the emitted word took, which is the count from before the increment;
-  // the generated body reuses the function-state word for this answer.
+  // the function-state word is reused for this answer.
   uint32_t emitted_pc = 0u;
   if (ResumePhase(ctx) == kResumeRewinding) {
     // Rewinding: pop the 48-byte frame the suspend path saved and read it. The
-    // words come out in the generated pop's order — the frame base, then the
-    // function state, the line and the eight working words, and only last the
-    // instruction word, which is the final word taken from the frame.
+    // words come out in the saved order — the frame base, then the function
+    // state, the line and the eight working words, and only last the instruction
+    // word, which is the final word taken from the frame.
     StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 48u);
     frame = LoadU32(ctx, ReturnFrameSp(ctx));
     func_state = LoadU32(ctx, frame);
@@ -237,7 +184,7 @@ uint32_t EmitInstruction(EngineContext* ctx, uint32_t func_state, uint32_t instr
         // A jump marker is completed in place: the argument ranges the link used
         // are rebuilt as the offset field's neighbours and the jump opcode is
         // stamped over the marker's. Only the first range is kept in the working
-        // word, as the generated body keeps it.
+        // word, as the marker keeps it.
         word = patched & kKeptFieldMask;
         StoreU32(ctx, cursor,
                  (word | ((patched >> kMovedFieldShift) & kMovedFieldMask)) | kDischargedJumpOpcode);
@@ -255,8 +202,8 @@ uint32_t EmitInstruction(EngineContext* ctx, uint32_t func_state, uint32_t instr
         }
         goto patch_done;
       }
-      // The same test for a word that is not a jump. The generated body keeps
-      // the two apart rather than sharing one, so they stay apart here.
+      // The same test for a word that is not a jump. The two tests stay apart
+      // rather than sharing one.
       pc = count + (pc ^ 0xFFFFFFFFu);
       cursor = static_cast<uint32_t>(static_cast<int32_t>(pc) >> 31);
       patched = cursor + pc;
@@ -351,8 +298,7 @@ code_ready:;
   if (ResumePhase(ctx) == kResumeRunning) {
     // The word goes at the count, and the count is read back once more, this
     // time to be tested against the line block's capacity. The instruction word
-    // this call was given is spent by now, so its cell carries that test, as the
-    // generated body lets it.
+    // this call was given is spent by now, so its cell carries that test.
     cursor = pc + (count << 2);
     StoreU32(ctx, cursor, instruction);
     pc = LoadU32(ctx, func_state + 24u);

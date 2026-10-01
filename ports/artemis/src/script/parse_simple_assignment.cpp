@@ -1,23 +1,8 @@
-// parse_simple_assignment.cpp -- parses the single-target assignment form, with no target list to reconcile..
-//
-// ParseSimpleAssignment -- parses the single-target assignment form, with no target list to reconcile.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 802349-802349 (f1720); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of the callees below.
 uint32_t FormatPushString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 void StepRecordResume(EngineContext* ctx, uint32_t a0);
@@ -28,312 +13,148 @@ void EmitVariableStore(EngineContext* ctx, uint32_t state, uint32_t variable);
 
 namespace {
 
-constexpr uint32_t kF1720MsgSExpected = 0x2B625u;  // '%s' expected
-constexpr uint32_t kF1720SaveFrameBytes = 20u;
-constexpr uint32_t kF1720ResumeWordBytes = 4u;
+constexpr uint32_t kParseSimpleAssignmentExpectedToken = 274u;  // the token the form expects
+constexpr uint32_t kParseSimpleAssignmentExpectedMessage = 0x2B625u;  // '%s' expected
+constexpr uint32_t kParseSimpleAssignmentBooleanTag = 1u;  // the tag of a boolean value
+constexpr uint32_t kParseSimpleAssignmentNumberTag = 3u;  // the tag of a number value
+constexpr uint32_t kParseSimpleAssignmentGuestFrameBytes = 32u;  // room for the pending record
+constexpr uint32_t kParseSimpleAssignmentSaveFrameBytes = 20u;
+constexpr uint32_t kParseSimpleAssignmentResumeWordBytes = 4u;
 
 }  // namespace
 
+// Parses the single-target assignment form: it records the parse step, checks
+// the statement limit for the operand, emits the store into the target
+// variable and closes the block scope; a statement that is not an assignment
+// raises "'%s' expected" for the token the form wanted.  The pending record
+// lives in a 32-byte area reserved on the guest stack -- its +8 word is the
+// type tag of the value it holds, its +28 word the operand this step returns.
+// In the compiler state, +16 is the token the parse reached, +48 the
+// func_state and +52 the buffer the error text is formatted from.
+//
+// Suspendable: every call below can suspend, so whichever values must outlive
+// a suspend go into the frame, and the resume code (0..7) names the call that
+// has to be replayed.
 uint32_t ParseSimpleAssignment(EngineContext* ctx, uint32_t state) {
   EnterFrame();
-  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1720SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l1 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l1;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l4 = i0;
-    i0 = l1;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
-    i0 = l1;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l6 = i0;
-    i0 = l1;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l2 = i0;
+  uint32_t operand = 0u;
+  uint32_t target_slot = 0u;
+  uint32_t guest_frame = 0u;
+  uint32_t expected_char = 0u;
+  uint32_t resume_point = 0u;
+  uint32_t result = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 20-byte frame the suspend path saved.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+        LoadU32(ctx, ReturnFrameSp(ctx)) - kParseSimpleAssignmentSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    guest_frame = LoadU32(ctx, frame + 8u);
+    target_slot = LoadU32(ctx, frame + 12u);
+    expected_char = LoadU32(ctx, frame + 16u);
+    operand = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1720ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 4-byte frame that saves the resume code.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+        LoadU32(ctx, ReturnFrameSp(ctx)) - kParseSimpleAssignmentResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 32u;
-    i0 -= i1;
-    l4 = i0;
-    GuestStackSp(ctx) = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    guest_frame = GuestStackSp(ctx) - kParseSimpleAssignmentGuestFrameBytes;
+    GuestStackSp(ctx) = guest_frame;
   }
-  i0 = l5;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    StepRecordResume(ctx, i0);
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+    StepRecordResume(ctx, state);
+    resume_point = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  i0 = l2;
-  i1 = l4;
-  i2 = 8u;
-  i1 += i2;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  l2 = i0;
-  i0 = l5;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = l2;
-    i2 = 0u;
-    i0 = CheckStatementLimits(ctx, i0, i1, i2);
-    l1 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l1;
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    operand = guest_frame + 8u;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 8u);
-    i1 = 1u;
-    i0 = i0 == i1;
-    if (i0) {
-      i0 = l4;
-      i1 = 3u;
-      StoreU32(ctx, i0 + 8u, i1);
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+    uint32_t const called = CheckStatementLimits(ctx, state, operand, 0u);
+    resume_point = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    operand = called;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (LoadU32(ctx, guest_frame + 8u) == kParseSimpleAssignmentBooleanTag) {
+      StoreU32(ctx, guest_frame + 8u, kParseSimpleAssignmentNumberTag);
     }
-    i0 = l4;
-    i1 = 8u;
-    i0 += i1;
-    l3 = i0;
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 48u);
-    l2 = i0;
+    target_slot = guest_frame + 8u;
+    operand = LoadU32(ctx, state + 48u);
   }
-  i0 = l5;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l2;
-    i1 = l3;
-    EmitVariableStore(ctx, i0, i1);
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+    EmitVariableStore(ctx, operand, target_slot);
+    resume_point = 2u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 16u);
-    i1 = 274u;
-    i0 = i0 != i1;
-    l3 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    target_slot = static_cast<uint32_t>(LoadU32(ctx, state + 16u) !=
+        kParseSimpleAssignmentExpectedToken);
+    operand = LoadU32(ctx, guest_frame + 28u);
   }
-  i0 = l3;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 52u);
-      l3 = i0;
+  if (target_slot != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      target_slot = LoadU32(ctx, state + 52u);
     }
-    i0 = l5;
-    i1 = 3u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = 274u;
-      i0 = FormatCharValue(ctx, i0, i1);
-      l1 = i0;
-      i0 = 3u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l1;
-      l6 = i0;
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+      uint32_t const called = FormatCharValue(ctx, state, kParseSimpleAssignmentExpectedToken);
+      resume_point = 3u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      expected_char = called;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l4;
-      i1 = l6;
-      StoreU32(ctx, i0, i1);
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, guest_frame, expected_char);
     }
-    i0 = l5;
-    i1 = 4u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l3;
-      i1 = kF1720MsgSExpected;
-      i2 = l4;
-      i0 = FormatPushString(ctx, i0, i1, i2);
-      l1 = i0;
-      i0 = 4u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l1;
-      l3 = i0;
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
+      uint32_t const called = FormatPushString(ctx, target_slot,
+          kParseSimpleAssignmentExpectedMessage, guest_frame);
+      resume_point = 4u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      target_slot = called;
     }
-    i0 = l5;
-    i1 = 5u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = l3;
-      RaiseSyntaxError(ctx, i0, i1);
-      i0 = 5u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
+      RaiseSyntaxError(ctx, state, target_slot);
+      resume_point = 5u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
     }
   }
-  i0 = l5;
-  i1 = 6u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    StepRecordResume(ctx, i0);
-    i0 = 6u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
+    StepRecordResume(ctx, state);
+    resume_point = 6u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  i0 = l5;
-  i1 = 7u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    CloseBlockScope(ctx, i0);
-    i0 = 7u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 7u) {
+    CloseBlockScope(ctx, state);
+    resume_point = 7u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i1 = 32u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    i0 = l2;
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    GuestStackSp(ctx) = guest_frame + kParseSimpleAssignmentGuestFrameBytes;
+    result = operand;
+    goto exit_path;
   }
   TrapUnreachable();
-  spill_frame:;
-  l1 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l1;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1720ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l1 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l1;
-  i1 = l2;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l1;
-  i1 = l4;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l1;
-  i1 = l3;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l1;
-  i1 = l6;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 20u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+suspend_point:
+  // Suspend: write the resume code, then push the frame with the live state.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+      LoadU32(ctx, ReturnFrameSp(ctx)) + kParseSimpleAssignmentResumeWordBytes);
+  {
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, state);
+    StoreU32(ctx, frame + 4u, operand);
+    StoreU32(ctx, frame + 8u, guest_frame);
+    StoreU32(ctx, frame + 12u, target_slot);
+    StoreU32(ctx, frame + 16u, expected_char);
+  }
+  StoreU32(ctx, ReturnFrameSp(ctx),
+      LoadU32(ctx, ReturnFrameSp(ctx)) + kParseSimpleAssignmentSaveFrameBytes);
+exit_path:
   LeaveFrame();
-  return i0;
+  return result;
 }
-}
+
+}  // namespace artc

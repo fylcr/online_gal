@@ -1,634 +1,233 @@
-// compact_entry_queue.cpp -- slides the live entries of a queue together and resets the tail past the holes..
-//
-// CompactEntryQueue -- slides the live entries of a queue together and resets the tail past the holes.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 489298-489298 (f1128); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations for the callees this step drives.
 void RelocateElementArray(EngineContext* ctx, uint32_t state, uint32_t table);
 
-namespace {
-
-constexpr uint32_t kF1128ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF1128SaveFrameBytes = 40u;
-constexpr uint32_t kF1128ResumeWordBytes = 4u;
-
-}  // namespace
-
+// Slides the live entries of an entry queue together and clears the tail past the
+// holes.  An entry is 24 bytes and its first 16 bytes are the payload that moves.
+// Returns the number of entries still queued.  Suspendable: relocating the element
+// array and the queue callback can both suspend.
 uint32_t CompactEntryQueue(EngineContext* ctx, uint32_t state, uint32_t queue) {
   EnterFrame();
-  uint32_t l10 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  uint64_t j1 = 0;
-      l10 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1128SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l6 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 4u);
-    queue = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l4 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l7 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l8 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l9 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l10 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 36u);
-    l6 = i0;
+  uint32_t cursor = 0u;
+  uint32_t flag = 0u;
+  uint32_t dest = 0u;
+  uint32_t saved_cursor = 0u;
+  uint32_t count = 0u;
+  uint32_t callback = 0u;
+  uint32_t scratch_frame = 0u;
+  uint32_t value = 0u;
+  uint32_t resume_point = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 40-byte frame the suspend path saved.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 40u);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    queue = LoadU32(ctx, frame + 4u);
+    cursor = LoadU32(ctx, frame + 8u);
+    flag = LoadU32(ctx, frame + 12u);
+    dest = LoadU32(ctx, frame + 16u);
+    count = LoadU32(ctx, frame + 20u);
+    callback = LoadU32(ctx, frame + 24u);
+    scratch_frame = LoadU32(ctx, frame + 28u);
+    value = LoadU32(ctx, frame + 32u);
+    saved_cursor = LoadU32(ctx, frame + 36u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1128ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 4-byte frame that saves the resume point.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 112u;
-    i0 -= i1;
-    l9 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = state;
-    i0 = LoadU8(ctx, i0 + 56u);
-    i1 = 2u;
-    i0 &= i1;
-    i0 = !(i0);
-    l7 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Claim the 112-byte scratch area this step needs on the guest stack.
+    scratch_frame = GuestStackSp(ctx) - 112u;
+    GuestStackSp(ctx) = scratch_frame;
+    count = (LoadU8(ctx, state + 56u) & 2u) == 0u ? 1u : 0u;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l7;
-    if (i0) {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 20u);
-      l4 = i0;
-      goto running_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (count != 0u) {
+      // Nothing to compact: the queue cursor only slides off the last entry.
+      dest = LoadU32(ctx, state + 20u);
+      goto skip_compaction;
     }
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 68u);
-    l8 = i0;
-    i0 = !(i0);
-    l3 = i0;
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l7 = i0;
-    l2 = i0;
+    callback = LoadU32(ctx, state + 68u);
+    flag = callback == 0u ? 1u : 0u;
+    count = LoadU32(ctx, state + 32u);
+    cursor = count;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    if (i0) {goto block_7;}
-    i0 = l7;
-    l2 = i0;
-    i0 = state;
-    i0 = LoadU8(ctx, i0 + 57u);
-    i0 = !(i0);
-    l3 = i0;
-    if (i0) {goto block_7;}
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l10 = i0;
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l4 = i0;
-    i0 = l9;
-    i1 = kF1128ConstFFFFFFFF;
-    StoreU32(ctx, i0 + 28u, i1);
-    i0 = l9;
-    i1 = 1u;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = l9;
-    i1 = l2;
-    i2 = state;
-    i2 = LoadU32(ctx, i2 + 40u);
-    l3 = i2;
-    i1 -= i2;
-    i2 = 24u;
-    i1 = I32_DIV_S(i1, i2);
-    StoreU32(ctx, i0 + 104u, i1);
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 28u);
-    i1 = l4;
-    i0 -= i1;
-    i1 = 320u;
-    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (flag != 0u) goto scan_entry;
+    flag = LoadU8(ctx, state + 57u) == 0u ? 1u : 0u;
+    if (flag != 0u) goto scan_entry;
+    cursor = LoadU32(ctx, state + 20u);
+    value = LoadU32(ctx, cursor + 8u);
+    dest = LoadU32(ctx, state + 8u);
+    StoreU32(ctx, scratch_frame + 28u, 0xFFFFFFFFu);
+    StoreU32(ctx, scratch_frame + 8u, 1u);
+    StoreU32(ctx, scratch_frame + 104u, I32_DIV_S(cursor - LoadU32(ctx, state + 40u), 24u));
+    cursor = (uint32_t)((int32_t)(LoadU32(ctx, state + 28u) - dest) <= (int32_t)320);
   }
-  i0 = l2;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 44u);
-      l2 = i0;
-      i1 = 20u;
-      i0 += i1;
-      i1 = l2;
-      i2 = 1u;
-      i1 <<= (i2 & 31);
-      l3 = i1;
-      i2 = l2;
-      i3 = 20u;
-      i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
-      i0 = i2 ? i0 : i1;
-      l2 = i0;
+  if (cursor != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      cursor = LoadU32(ctx, state + 44u);
+      flag = cursor << 1u;
+      cursor = (int32_t)cursor < 20 ? cursor + 20u : flag;
     }
-    i0 = l5;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = l2;
-      RelocateElementArray(ctx, i0, i1);
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+      RelocateElementArray(ctx, state, cursor);
+      resume_point = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l3 = i0;
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 8u);
-    i2 = 320u;
-    i1 += i2;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = state;
-    i1 = 0u;
-    StoreU8(ctx, i0 + 57u, i1);
-    i0 = l9;
-    i1 = 8u;
-    i0 += i1;
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    flag = LoadU32(ctx, state + 20u);
+    StoreU32(ctx, flag + 8u, LoadU32(ctx, state + 8u) + 320u);
+    StoreU8(ctx, state + 57u, 0u);
+    cursor = scratch_frame + 8u;
   }
-  i0 = l5;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = l2;
-    i2 = l8;
-    CallTableT0(ctx, i2, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+    CallTableT0(ctx, callback, state, cursor);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+    resume_point = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i1 = 1u;
-    StoreU8(ctx, i0 + 57u, i1);
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 20u);
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 32u);
-    l2 = i1;
-    i2 = l10;
-    i3 = l7;
-    i2 -= i3;
-    i1 += i2;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = state;
-    i1 = l2;
-    i2 = l4;
-    i3 = l7;
-    i2 -= i3;
-    i1 += i2;
-    l3 = i1;
-    StoreU32(ctx, i0 + 8u, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU8(ctx, state + 57u, 1u);
+    StoreU32(ctx, LoadU32(ctx, state + 20u) + 8u, LoadU32(ctx, state + 32u) + (value - count));
+    flag = LoadU32(ctx, state + 32u) + (dest - count);
+    StoreU32(ctx, state + 8u, flag);
   }
-  block_7:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0 + 4u);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU8(ctx, i0 + 6u);
-    l3 = i0;
+scan_entry:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    dest = LoadU32(ctx, state + 20u);
+    uint32_t const entry = LoadU32(ctx, LoadU32(ctx, dest + 4u));
+    flag = LoadU8(ctx, entry + 6u);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    if (i0) {goto block_17;}
-    i0 = state;
-    i0 = LoadU8(ctx, i0 + 56u);
-    l8 = i0;
-    i1 = 2u;
-    i0 &= i1;
-    i0 = !(i0);
-    l3 = i0;
-    if (i0) {goto block_17;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (flag != 0u) goto settle_queue;
+    flag = (LoadU8(ctx, state + 56u) & 2u) == 0u ? 1u : 0u;
+    if (flag != 0u) goto settle_queue;
   }
-  loop_19: 
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l4;
-      i1 = l4;
-      i1 = LoadU32(ctx, i1 + 20u);
-      l10 = i1;
-      i2 = 1u;
-      i1 -= i2;
-      StoreU32(ctx, i0 + 20u, i1);
-      i0 = l10;
-      i0 = !(i0);
-      if (i0) {goto block_17;}
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 68u);
-      l10 = i0;
-      i0 = !(i0);
-      l3 = i0;
+next_node:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    uint32_t const pending = LoadU32(ctx, dest + 20u);
+    StoreU32(ctx, dest + 20u, pending - 1u);
+    if (pending == 0u) goto settle_queue;
+    value = LoadU32(ctx, state + 68u);  // the queue callback index
+    flag = value == 0u ? 1u : 0u;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (flag != 0u) goto check_more;
+    if (LoadU8(ctx, state + 57u) == 0u) goto check_more;
+    callback = LoadU32(ctx, state + 8u);
+    saved_cursor = LoadU32(ctx, dest + 8u);
+    StoreU32(ctx, scratch_frame + 104u, 0u);
+    StoreU32(ctx, scratch_frame + 28u, 0xFFFFFFFFu);
+    StoreU32(ctx, scratch_frame + 8u, 4u);
+    flag = (uint32_t)((int32_t)(LoadU32(ctx, state + 28u) - callback) <= (int32_t)320);
+  }
+  if (flag != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      dest = LoadU32(ctx, state + 44u);
+      flag = dest << 1u;
+      flag = (int32_t)dest < 20 ? dest + 20u : flag;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      if (i0) {goto block_21;}
-      i0 = state;
-      i0 = LoadU8(ctx, i0 + 57u);
-      i0 = !(i0);
-      if (i0) {goto block_21;}
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 8u);
-      l8 = i0;
-      i0 = l4;
-      i0 = LoadU32(ctx, i0 + 8u);
-      l6 = i0;
-      i0 = l9;
-      i1 = 0u;
-      StoreU32(ctx, i0 + 104u, i1);
-      i0 = l9;
-      i1 = kF1128ConstFFFFFFFF;
-      StoreU32(ctx, i0 + 28u, i1);
-      i0 = l9;
-      i1 = 4u;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 28u);
-      i1 = l8;
-      i0 -= i1;
-      i1 = 320u;
-      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-      l3 = i0;
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+      RelocateElementArray(ctx, state, flag);
+      resume_point = 2u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
     }
-    i0 = l3;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = state;
-        i0 = LoadU32(ctx, i0 + 44u);
-        l4 = i0;
-        i1 = 1u;
-        i0 <<= (i1 & 31);
-        l3 = i0;
-        i0 = l4;
-        i1 = 20u;
-        i0 += i1;
-        i1 = l3;
-        i2 = l4;
-        i3 = 20u;
-        i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
-        i0 = i2 ? i0 : i1;
-        l3 = i0;
-      }
-      i0 = l5;
-      i1 = 2u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = state;
-        i1 = l3;
-        RelocateElementArray(ctx, i0, i1);
-        i0 = 2u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 20u);
-      i1 = state;
-      i1 = LoadU32(ctx, i1 + 8u);
-      i2 = 320u;
-      i1 += i2;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = state;
-      i1 = 0u;
-      StoreU8(ctx, i0 + 57u, i1);
-      i0 = l9;
-      i1 = 8u;
-      i0 += i1;
-      l3 = i0;
-      i0 = l8;
-      i1 = l2;
-      i0 -= i1;
-      l8 = i0;
-    }
-    i0 = l5;
-    i1 = 3u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = l3;
-      i2 = l10;
-      CallTableT0(ctx, i2, i0, i1);
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, LoadU32(ctx, state + 20u) + 8u, LoadU32(ctx, state + 8u) + 320u);
+    StoreU8(ctx, state + 57u, 0u);
+    flag = scratch_frame + 8u;
+    callback = callback - cursor;
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+    CallTableT0(ctx, value, state, flag);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
-      SyncMemoryBase(ctx);
+    SyncMemoryBase(ctx);
 #endif
-      i0 = 3u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    resume_point = 3u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU8(ctx, state + 57u, 1u);
+    dest = LoadU32(ctx, state + 20u);
+    StoreU32(ctx, dest + 8u, LoadU32(ctx, state + 32u) + (saved_cursor - cursor));
+    cursor = LoadU32(ctx, state + 32u);
+    StoreU32(ctx, state + 8u, cursor + callback);
+    callback = LoadU8(ctx, state + 56u);
+  }
+check_more:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    flag = (LoadU8(ctx, state + 56u) & 2u) == 0u ? 1u : 0u;
+    if (flag != 0u) goto next_node;
+  }
+settle_queue:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    queue = queue + cursor - count;
+  }
+skip_compaction:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The retired entry is the one before the cursor; its trailing run of
+    // entries is what gets moved and then cleared.
+    cursor = dest - 24u;
+    StoreU32(ctx, state + 20u, cursor);
+    uint32_t const moved = LoadU32(ctx, dest + 16u);
+    dest = LoadU32(ctx, dest + 4u);
+    StoreU32(ctx, state + 12u, LoadU32(ctx, cursor));
+    StoreU32(ctx, state + 24u, LoadU32(ctx, cursor + 12u));
+    if (moved == 0u) goto store_cursor;
+    cursor = moved;
+  copy_head:
+    if (LoadU32(ctx, state + 8u) > queue) {
+      StoreU64(ctx, dest, LoadU64(ctx, queue));
+      StoreU32(ctx, dest + 8u, LoadU32(ctx, queue + 8u));
+      dest += 16u;
+      queue += 16u;
+      cursor -= 1u;
+      if (cursor != 0u) goto copy_head;
+      goto store_cursor;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i1 = 1u;
-      StoreU8(ctx, i0 + 57u, i1);
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 20u);
-      l4 = i0;
-      i1 = l6;
-      i2 = l2;
-      i1 -= i2;
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 32u);
-      l2 = i2;
-      i1 += i2;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = state;
-      i1 = l2;
-      i2 = l8;
-      i1 += i2;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = state;
-      i0 = LoadU8(ctx, i0 + 56u);
-      l8 = i0;
+    if ((int32_t)cursor < 1) goto store_cursor;
+  clear_tail:
+    for (;;) {
+      StoreU32(ctx, dest + 8u, 0u);
+      dest += 16u;
+      bool const more = (int32_t)cursor > 1;
+      cursor -= 1u;
+      if (!more) break;
     }
-    block_21:;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l8;
-      i1 = 2u;
-      i0 &= i1;
-      l3 = i0;
-      if (i0) {goto loop_19;}
-    }
-  block_17:;
-  i0 = queue;
-  i1 = l2;
-  i2 = queue;
-  i3 = l7;
-  i2 -= i3;
-  i1 += i2;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  queue = i0;
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i1 = l4;
-    i2 = 24u;
-    i1 -= i2;
-    l2 = i1;
-    StoreU32(ctx, i0 + 20u, i1);
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l7 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l4 = i0;
-    i0 = state;
-    i1 = l2;
-    i1 = LoadU32(ctx, i1);
-    StoreU32(ctx, i0 + 12u, i1);
-    i0 = state;
-    i1 = l2;
-    i1 = LoadU32(ctx, i1 + 12u);
-    StoreU32(ctx, i0 + 24u, i1);
-    i0 = l7;
-    i0 = !(i0);
-    if (i0) {goto block_32;}
-    i0 = l7;
-    l2 = i0;
-    loop_33: 
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 8u);
-      i1 = queue;
-      i0 = i0 > i1;
-      if (i0) {
-        i0 = l4;
-        i1 = queue;
-        j1 = LoadU64(ctx, i1);
-        StoreU64(ctx, i0, j1);
-        i0 = l4;
-        i1 = queue;
-        i1 = LoadU32(ctx, i1 + 8u);
-        StoreU32(ctx, i0 + 8u, i1);
-        i0 = l4;
-        i1 = 16u;
-        i0 += i1;
-        l4 = i0;
-        i0 = queue;
-        i1 = 16u;
-        i0 += i1;
-        queue = i0;
-        i0 = l2;
-        i1 = 1u;
-        i0 -= i1;
-        l2 = i0;
-        if (i0) {goto loop_33;}
-        goto block_32;
-      }
-    i0 = l2;
-    i1 = 1u;
-    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-    if (i0) {goto block_32;}
-    loop_35: 
-      i0 = l4;
-      i1 = 0u;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = l4;
-      i1 = 16u;
-      i0 += i1;
-      l4 = i0;
-      i0 = l2;
-      i1 = 1u;
-      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-      queue = i0;
-      i0 = l2;
-      i1 = 1u;
-      i0 -= i1;
-      l2 = i0;
-      i0 = queue;
-      if (i0) {goto loop_35;}
-    block_32:;
-    i0 = state;
-    i1 = l4;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = l9;
-    i1 = 112u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    i0 = l7;
-    i1 = 1u;
-    i0 += i1;
-    goto func_exit;
+  store_cursor:
+    StoreU32(ctx, state + 8u, dest);
+    GuestStackSp(ctx) = scratch_frame + 112u;
+    LeaveFrame();
+    return moved + 1u;
   }
   TrapUnreachable();
-  spill_frame:;
-  l5 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l5;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1128ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l5 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l5;
-  i1 = queue;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l5;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l5;
-  i1 = l3;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l5;
-  i1 = l4;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l5;
-  i1 = l7;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l5;
-  i1 = l8;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = l5;
-  i1 = l9;
-  StoreU32(ctx, i0 + 28u, i1);
-  i0 = l5;
-  i1 = l10;
-  StoreU32(ctx, i0 + 32u, i1);
-  i0 = l5;
-  i1 = l6;
-  StoreU32(ctx, i0 + 36u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 40u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+suspend_point:
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
+  uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, frame, state);
+  StoreU32(ctx, frame + 4u, queue);
+  StoreU32(ctx, frame + 8u, cursor);
+  StoreU32(ctx, frame + 12u, flag);
+  StoreU32(ctx, frame + 16u, dest);
+  StoreU32(ctx, frame + 20u, count);
+  StoreU32(ctx, frame + 24u, callback);
+  StoreU32(ctx, frame + 28u, scratch_frame);
+  StoreU32(ctx, frame + 32u, value);
+  StoreU32(ctx, frame + 36u, saved_cursor);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 40u);
   LeaveFrame();
-  return i0;
+  return 0u;
 }
-}
+
+}  // namespace artc

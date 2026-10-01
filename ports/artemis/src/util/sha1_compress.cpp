@@ -1,35 +1,19 @@
-// sha1_compress.cpp — SHA-1 block compression over the engine's chaining state.
-//
-// Sha1CompressBlock folds one 64-byte message block into the five chaining words
-// the record keeps at its head; the block itself follows them at +20. The
-// caller streams through this record and calls in whenever its buffer fills, so
-// the fold has to leave the chaining words holding the incoming value plus
-// whatever the eighty rounds added. The message schedule and the round window
-// live only for the duration of the call and nothing outside can observe them,
-// so the rewrite keeps them in a local array and locals rather than in guest
-// stack scratch: the frame the generated body takes and releases has no net
-// effect on guest state. Round dispatch order, the constant each branch binds,
-// the read of the round's message word before the branch, and the order the
-// chaining words are read and written back are the engine's own, so a trapping
-// access still faults in the same sequence.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
 #include "util/engine_context.h"
 
 namespace artc {
+
 namespace {
 
-// FIPS 180-1 left rotate, one named step so the round and schedule expressions
-// stay as readable as the specification they came from.
-inline uint32_t RotateLeft(uint32_t value, uint32_t bits) {
+// One left rotate of a 32-bit word.
+uint32_t RotateLeft(uint32_t value, uint32_t bits) {
   return (value << bits) | (value >> (32u - bits));
 }
 
 }  // namespace
 
+// Folds one sixty-four byte message block into the five chaining words at the head
+// of the hash record, leaving them holding the incoming value plus whatever the
+// eighty rounds added. Returns nothing.
 void Sha1CompressBlock(EngineContext* ctx, uint32_t hash) {
   EnterFrame();
   // The message block sits directly behind the chaining words.

@@ -1,23 +1,8 @@
-// raise_script_error.cpp -- raises a script error: the formatted message is handed to the error route together with the traceback frame..
-//
-// RaiseScriptError -- raises a script error: the formatted message is handed to the error route together with the traceback frame.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 138249-138249 (f313); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Defined elsewhere in the tree.
 void InvokeCallValueWithStack(EngineContext* ctx, uint32_t a);
 uint32_t FormatPushString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 void FormatSourceId(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
@@ -25,254 +10,159 @@ uint32_t FormatNumber(EngineContext* ctx, uint32_t state, uint32_t value, uint32
 
 namespace {
 
-constexpr uint32_t kF313MsgSDS = 0x2A80Du;  // %s:%d: %s
-constexpr uint32_t kF313ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF313SaveFrameBytes = 24u;
-constexpr uint32_t kF313ResumeWordBytes = 4u;
+// Format string the formatted message is pushed with: "%s:%d: %s".
+constexpr uint32_t kRaiseScriptErrorMessageFormat = 0x2A80Du;
+// Source name the message carries when the value has no usable source.
+constexpr uint32_t kRaiseScriptErrorNoSource = 0xFFFFFFFFu;
+// Bytes of the caller's frame spilled while this step is suspended.
+constexpr uint32_t kRaiseScriptErrorFrameBytes = 24u;
+// Bytes of the resume word that rides with the spilled frame.
+constexpr uint32_t kRaiseScriptErrorResumeWordBytes = 4u;
 
 }  // namespace
 
-void RaiseScriptError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
+// Raises a script error: formats the source position and the message into a
+// stack buffer, then hands the result to the value's error handler.
+void RaiseScriptError(EngineContext* ctx, uint32_t state, uint32_t value, uint32_t options) {
   EnterFrame();
-  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF313SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 8u);
-    c = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l3 = i0;
+  uint32_t frame = 0u;
+  uint32_t word = 0u;
+  uint32_t buffer = 0u;
+  uint32_t number = 0u;
+  uint32_t result = 0u;
+  uint32_t resume_code = 0u;
+  uint32_t next_resume_code = 0u;
+  uint32_t sp = 0u;
+  uint32_t prev = 0u;
+  uint32_t entry = 0u;
+  uint32_t source_name = 0u;
+  uint32_t dest = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    sp = ReturnFrameSp(ctx);
+    prev = ReturnFrameSp(ctx);
+    prev = LoadU32(ctx, prev);
+    StoreU32(ctx, sp, prev - kRaiseScriptErrorFrameBytes);
+    sp = ReturnFrameSp(ctx);
+    frame = LoadU32(ctx, sp);
+    state = LoadU32(ctx, frame);
+    value = LoadU32(ctx, frame + 4u);
+    options = LoadU32(ctx, frame + 8u);
+    word = LoadU32(ctx, frame + 12u);
+    buffer = LoadU32(ctx, frame + 16u);
+    number = LoadU32(ctx, frame + 20u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF313ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l7 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    sp = ReturnFrameSp(ctx);
+    prev = ReturnFrameSp(ctx);
+    prev = LoadU32(ctx, prev);
+    StoreU32(ctx, sp, prev - kRaiseScriptErrorResumeWordBytes);
+    sp = ReturnFrameSp(ctx);
+    sp = LoadU32(ctx, sp);
+    sp = LoadU32(ctx, sp);
+    resume_code = sp;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    l4 = i0;
-    i1 = 80u;
-    i0 -= i1;
-    l5 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = l5;
-    i1 = c;
-    StoreU32(ctx, i0 + 12u, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Carve the message buffer out of the guest stack.
+    word = GuestStackSp(ctx);
+    buffer = word - 80u;
+    GuestStackSp(ctx) = buffer;
+    StoreU32(ctx, buffer + 12u, options);
   }
-  i0 = l7;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = b;
-    i2 = c;
-    i0 = FormatNumber(ctx, i0, i1, i2);
-    l6 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l6;
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_code == 0u) {
+    result = FormatNumber(ctx, state, value, options);
+    next_resume_code = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_frame;
+    }
+    number = result;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 20u);
-    b = i0;
-    i0 = LoadU32(ctx, i0 + 4u);
-    c = i0;
-    i0 = LoadU32(ctx, i0 + 8u);
-    i1 = 6u;
-    i0 = i0 != i1;
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = LoadU32(ctx, state + 20u);
+    options = LoadU32(ctx, value + 4u);
+    word = LoadU32(ctx, options + 8u) != 6u;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    if (i0) {goto block_6;}
-    i0 = c;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU8(ctx, i0 + 6u);
-    if (i0) {goto block_6;}
-    i0 = b;
-    i1 = a;
-    i1 = LoadU32(ctx, i1 + 24u);
-    l4 = i1;
-    StoreU32(ctx, i0 + 12u, i1);
-    i0 = kF313ConstFFFFFFFF;
-    i1 = l4;
-    i2 = c;
-    i2 = LoadU32(ctx, i2);
-    i2 = LoadU32(ctx, i2 + 16u);
-    c = i2;
-    i2 = LoadU32(ctx, i2 + 12u);
-    i1 -= i2;
-    l4 = i1;
-    i2 = 4u;
-    i1 = (uint32_t)((int32_t)i1 < (int32_t)i2);
-    if (i1) {goto block_8;}
-    i0 = 0u;
-    i1 = c;
-    i1 = LoadU32(ctx, i1 + 20u);
-    b = i1;
-    i1 = !(i1);
-    if (i1) {goto block_8;}
-    i0 = l4;
-    i1 = 2u;
-    i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-    i1 = 1u;
-    i0 -= i1;
-    i1 = 2u;
-    i0 <<= (i1 & 31);
-    i1 = b;
-    i0 += i1;
-    i0 = LoadU32(ctx, i0);
-    block_8:;
-    l4 = i0;
-    i0 = l5;
-    i1 = 16u;
-    i0 += i1;
-    i1 = c;
-    i1 = LoadU32(ctx, i1 + 32u);
-    i2 = 16u;
-    i1 += i2;
-    i2 = 60u;
-    FormatSourceId(ctx, i0, i1, i2);
-    i0 = l5;
-    i1 = l3;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = l5;
-    i1 = l4;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = l5;
-    i1 = l5;
-    i2 = 16u;
-    i1 += i2;
-    StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (word != 0u) {
+      goto invoke_error;
+    }
+    word = LoadU32(ctx, options);
+    word = LoadU8(ctx, word + 6u);
+    if (word != 0u) {
+      goto invoke_error;
+    }
+    // Resolve the source name the message reports, if the value has one.
+    word = LoadU32(ctx, state + 24u);
+    StoreU32(ctx, value + 12u, word);
+    source_name = kRaiseScriptErrorNoSource;
+    entry = LoadU32(ctx, options);
+    entry = LoadU32(ctx, entry + 16u);
+    options = entry;
+    word -= LoadU32(ctx, options + 12u);
+    if ((uint32_t)((int32_t)word < (int32_t)4u)) {
+      goto source_resolved;
+    }
+    source_name = 0u;
+    value = LoadU32(ctx, options + 20u);
+    if (value == 0u) {
+      goto source_resolved;
+    }
+    word = (uint32_t)((int32_t)word >> (2u & 31u));
+    word -= 1u;
+    word <<= (2u & 31u);
+    word += value;
+    source_name = LoadU32(ctx, word);
+  source_resolved:;
+    dest = buffer + 16u;
+    entry = LoadU32(ctx, options + 32u);
+    FormatSourceId(ctx, dest, entry + 16u, 60u);
+    StoreU32(ctx, buffer + 8u, number);
+    StoreU32(ctx, buffer + 4u, source_name);
+    StoreU32(ctx, buffer, buffer + 16u);
   }
-  i0 = l7;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = kF313MsgSDS;
-    i2 = l5;
-    i0 = FormatPushString(ctx, i0, i1, i2);
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_code == 1u) {
+    FormatPushString(ctx, state, kRaiseScriptErrorMessageFormat, buffer);
+    next_resume_code = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_frame;
+    }
   }
-  block_6:;
-  i0 = l7;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    InvokeCallValueWithStack(ctx, i0);
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+invoke_error:;
+  if (ResumePhase(ctx) == kResumeRunning || resume_code == 2u) {
+    InvokeCallValueWithStack(ctx, state);
+    next_resume_code = 2u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_frame;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l5;
-    i1 = 80u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    GuestStackSp(ctx) = buffer + 80u;
   }
-  goto func_exit;
-  spill_frame:;
-  l6 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l6;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF313ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l6 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l6;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l6;
-  i1 = c;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l6;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l6;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l6;
-  i1 = l3;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 24u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
   LeaveFrame();
+  return;
+suspend_frame:;
+  // The call suspended: spill the live locals above the return frame and hand
+  // the resume code back to the runner so it can replay this step.
+  sp = ReturnFrameSp(ctx);
+  sp = LoadU32(ctx, sp);
+  StoreU32(ctx, sp, next_resume_code);
+  sp = ReturnFrameSp(ctx);
+  prev = ReturnFrameSp(ctx);
+  prev = LoadU32(ctx, prev);
+  StoreU32(ctx, sp, prev + kRaiseScriptErrorResumeWordBytes);
+  sp = ReturnFrameSp(ctx);
+  frame = LoadU32(ctx, sp);
+  StoreU32(ctx, frame, state);
+  StoreU32(ctx, frame + 4u, value);
+  StoreU32(ctx, frame + 8u, options);
+  StoreU32(ctx, frame + 12u, word);
+  StoreU32(ctx, frame + 16u, buffer);
+  StoreU32(ctx, frame + 20u, number);
+  sp = ReturnFrameSp(ctx);
+  prev = ReturnFrameSp(ctx);
+  prev = LoadU32(ctx, prev);
+  StoreU32(ctx, sp, prev + kRaiseScriptErrorFrameBytes);
+  LeaveFrame();
+  return;
 }
-}
+
+}  // namespace artc

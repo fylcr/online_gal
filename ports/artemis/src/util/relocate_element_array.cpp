@@ -1,313 +1,166 @@
-// relocate_element_array.cpp -- moves a table element array into a freshly allocated block and updates the owner pointer..
-//
-// RelocateElementArray -- moves a table element array into a freshly allocated block and updates the owner pointer.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 189921-189921 (f450); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Cross-product callees, defined in util/reallocate_block.cpp and core/raise_block_too_big.cpp.
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
 uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t a);
 
 namespace {
 
-constexpr uint32_t kF450ConstFFFFFFF = 0xFFFFFFFu;  // 
-constexpr uint32_t kF450SaveFrameBytes = 24u;
-constexpr uint32_t kF450ResumeWordBytes = 4u;
+constexpr uint32_t kRelocateElementArrayConstFFFFFFF = 0xFFFFFFFu;
+constexpr uint32_t kRelocateElementArraySaveFrameBytes = 24u;
+constexpr uint32_t kRelocateElementArrayResumeWordBytes = 4u;
 
 }  // namespace
 
+// Moves the element array of `table` to a block with room for `table + 7` records
+// and repoints every owner and every record word at the new block. Suspendable --
+// each call below replays with the resume code its own frame spilled.
 void RelocateElementArray(EngineContext* ctx, uint32_t state, uint32_t table) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF450SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l6 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    table = i0;
+  // The size gate, then its byte size, then the block the relocation answered with.
+  uint32_t in_range = 0u;
+  uint32_t new_array = 0u;
+  uint32_t old_block = 0u;
+  uint32_t count = 0u;
+  uint32_t old_bytes = 0u;
+  uint32_t resume_code = 0u;
+  uint32_t frame = 0u;
+  uint32_t result = 0u;
+  uint32_t phase = 0u;
+  // The owner list, the record list and the block they are repointed at.
+  uint32_t link = 0u;
+  uint32_t cursor = 0u;
+  uint32_t new_base = 0u;
+
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the saved frame and read its words back in the saved order.
+    uint32_t sp = ReturnFrameSp(ctx);
+    uint32_t frame_top = ReturnFrameSp(ctx);
+    frame_top = LoadU32(ctx, frame_top) - kRelocateElementArraySaveFrameBytes;
+    StoreU32(ctx, sp, frame_top);
+    frame = ReturnFrameSp(ctx);
+    uint32_t base = LoadU32(ctx, frame);
+    state = LoadU32(ctx, base);
+    new_array = LoadU32(ctx, base + 8u);
+    old_block = LoadU32(ctx, base + 12u);
+    count = LoadU32(ctx, base + 16u);
+    old_bytes = LoadU32(ctx, base + 20u);
+    table = LoadU32(ctx, base + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF450ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l7 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word that names the call that was in flight.
+    uint32_t sp = ReturnFrameSp(ctx);
+    uint32_t word_top = ReturnFrameSp(ctx);
+    word_top = LoadU32(ctx, word_top) - kRelocateElementArrayResumeWordBytes;
+    StoreU32(ctx, sp, word_top);
+    uint32_t word = ReturnFrameSp(ctx);
+    word = LoadU32(ctx, word);
+    resume_code = LoadU32(ctx, word);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = table;
-    i1 = 6u;
-    i0 += i1;
-    l5 = i0;
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l4 = i0;
-    i0 = table;
-    i1 = 7u;
-    i0 += i1;
-    i1 = kF450ConstFFFFFFF;
-    i0 = i0 <= i1;
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // A running pass starts from the count the table asks to make room for.
+    count = table + 6u;
+    old_block = LoadU32(ctx, state + 32u);
+    in_range = static_cast<uint32_t>((table + 7u) <= kRelocateElementArrayConstFFFFFFF);
   }
-  i0 = l2;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 44u);
-      i1 = 4u;
-      i0 <<= (i1 & 31);
-      l6 = i0;
-      i0 = l5;
-      i1 = 4u;
-      i0 <<= (i1 & 31);
-      l2 = i0;
+  uint32_t entered = in_range | static_cast<uint32_t>(ResumePhase(ctx) == kResumeRewinding);
+  if (entered != 0u) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The count and the array the records live in both move in whole records.
+      old_bytes = LoadU32(ctx, state + 44u) << (4u & 31u);
+      new_array = count << (4u & 31u);
     }
-    i0 = l7;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = l4;
-      i2 = l6;
-      i3 = l2;
-      i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
-      l3 = i0;
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l3;
-      l2 = i0;
+    phase = ResumePhase(ctx);
+    if (phase == kResumeRunning || resume_code == 0u) {
+      result = ReallocateBlock(ctx, state, old_block, old_bytes, new_array);
+      resume_code = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_here;
+      }
+      new_array = result;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto block_3;}
-  }
-  i0 = l7;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i0 = RaiseBlockTooBig(ctx, i0);
-    l3 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    l2 = i0;
-  }
-  block_3:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i1 = l5;
-    StoreU32(ctx, i0 + 44u, i1);
-    i0 = state;
-    i1 = l2;
-    StoreU32(ctx, i0 + 32u, i1);
-    i0 = state;
-    i1 = l2;
-    i2 = table;
-    i3 = 4u;
-    i2 <<= (i3 & 31);
-    i1 += i2;
-    StoreU32(ctx, i0 + 28u, i1);
-    i0 = state;
-    i1 = l2;
-    i2 = state;
-    i2 = LoadU32(ctx, i2 + 8u);
-    i3 = l4;
-    i2 -= i3;
-    i1 += i2;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 104u);
-    table = i0;
-    i0 = !(i0);
-    if (i0) {goto block_11;}
-    i0 = table;
-    i1 = table;
-    i1 = LoadU32(ctx, i1 + 8u);
-    i2 = l4;
-    i1 -= i2;
-    i2 = l2;
-    i1 += i2;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = table;
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = !(i0);
-    if (i0) {goto block_11;}
-    loop_12: 
-      i0 = l2;
-      i1 = state;
-      i1 = LoadU32(ctx, i1 + 32u);
-      i2 = l2;
-      i2 = LoadU32(ctx, i2 + 8u);
-      i3 = l4;
-      i2 -= i3;
-      i1 += i2;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = l2;
-      i0 = LoadU32(ctx, i0);
-      l2 = i0;
-      if (i0) {goto loop_12;}
-    block_11:;
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 32u);
-    table = i0;
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 40u);
-    l2 = i0;
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 20u);
-    l5 = i1;
-    i0 = i0 <= i1;
-    if (i0) {
-      loop_14: 
-        i0 = l2;
-        i1 = l2;
-        i1 = LoadU32(ctx, i1 + 8u);
-        i2 = l4;
-        i1 -= i2;
-        i2 = table;
-        i1 += i2;
-        StoreU32(ctx, i0 + 8u, i1);
-        i0 = l2;
-        i1 = l2;
-        i1 = LoadU32(ctx, i1);
-        i2 = l4;
-        i1 -= i2;
-        i2 = table;
-        i1 += i2;
-        StoreU32(ctx, i0, i1);
-        i0 = l2;
-        i1 = l2;
-        i1 = LoadU32(ctx, i1 + 4u);
-        i2 = l4;
-        i1 -= i2;
-        i2 = table;
-        i1 += i2;
-        StoreU32(ctx, i0 + 4u, i1);
-        i0 = l5;
-        i1 = l2;
-        i2 = 24u;
-        i1 += i2;
-        l2 = i1;
-        i0 = i0 >= i1;
-        if (i0) {goto loop_14;}
+    if (ResumePhase(ctx) == kResumeRunning) {
+      goto capacity_set;
     }
-    i0 = state;
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 12u);
-    i2 = l4;
-    i1 -= i2;
-    i2 = table;
-    i1 += i2;
-    StoreU32(ctx, i0 + 12u, i1);
   }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF450ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = table;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l3;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l3;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l3;
-  i1 = l6;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 24u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning || resume_code == 1u) {
+    result = RaiseBlockTooBig(ctx, state);
+    resume_code = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
+    }
+    new_array = result;
+  }
+capacity_set:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The array is in place: record the count it now holds and the offsets the
+    // fields, the owners and the records have to move by.
+    StoreU32(ctx, state + 44u, count);
+    StoreU32(ctx, state + 32u, new_array);
+    uint32_t array_end = new_array + (table << (4u & 31u));
+    StoreU32(ctx, state + 28u, array_end);
+    uint32_t offset = LoadU32(ctx, state + 8u) - old_block;
+    StoreU32(ctx, state + 8u, new_array + offset);
+    uint32_t owner = LoadU32(ctx, state + 104u);
+    if (owner == 0u) { goto owners_done; }
+    link = LoadU32(ctx, owner + 8u);
+    link = link - old_block + new_array;
+    StoreU32(ctx, owner + 8u, link);
+    cursor = LoadU32(ctx, owner);
+    if (cursor == 0u) { goto owners_done; }
+  repoint_owner:;
+    new_base = LoadU32(ctx, state + 32u);
+    link = LoadU32(ctx, cursor + 8u) - old_block + new_base;
+    StoreU32(ctx, cursor + 8u, link);
+    cursor = LoadU32(ctx, cursor);
+    if (cursor != 0u) { goto repoint_owner; }
+  owners_done:;
+    uint32_t array_base = LoadU32(ctx, state + 32u);
+    uint32_t records = LoadU32(ctx, state + 40u);
+    uint32_t chain_end = LoadU32(ctx, state + 20u);
+    if (records <= chain_end) {
+    repoint_record:;
+      // A record's link pair is written back to front, the order the pop reads it.
+      link = LoadU32(ctx, records + 8u) - old_block + array_base;
+      StoreU32(ctx, records + 8u, link);
+      link = LoadU32(ctx, records) - old_block + array_base;
+      StoreU32(ctx, records, link);
+      link = LoadU32(ctx, records + 4u) - old_block + array_base;
+      StoreU32(ctx, records + 4u, link);
+      records = records + 24u;
+      if (chain_end >= records) { goto repoint_record; }
+    }
+    uint32_t used = LoadU32(ctx, state + 12u) - old_block;
+    StoreU32(ctx, state + 12u, used + array_base);
+  }
+  LeaveFrame();
+  return;
+suspend_here:;
+  // Push the resume word naming the call that was in flight, then the frame the
+  // rewind pops; the words go in the order that pop reads them back.
+  uint32_t slot = ReturnFrameSp(ctx);
+  slot = LoadU32(ctx, slot);
+  StoreU32(ctx, slot, resume_code);
+  uint32_t sp = ReturnFrameSp(ctx);
+  uint32_t word_top = ReturnFrameSp(ctx);
+  word_top = LoadU32(ctx, word_top) + kRelocateElementArrayResumeWordBytes;
+  StoreU32(ctx, sp, word_top);
+  frame = ReturnFrameSp(ctx);
+  frame = LoadU32(ctx, frame);
+  StoreU32(ctx, frame, state);
+  StoreU32(ctx, frame + 4u, table);
+  StoreU32(ctx, frame + 8u, new_array);
+  StoreU32(ctx, frame + 12u, old_block);
+  StoreU32(ctx, frame + 16u, count);
+  StoreU32(ctx, frame + 20u, old_bytes);
+  sp = ReturnFrameSp(ctx);
+  word_top = ReturnFrameSp(ctx);
+  word_top = LoadU32(ctx, word_top) + kRelocateElementArraySaveFrameBytes;
+  StoreU32(ctx, sp, word_top);
   LeaveFrame();
 }
-}
+
+}  // namespace artc

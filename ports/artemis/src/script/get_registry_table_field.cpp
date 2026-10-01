@@ -1,23 +1,8 @@
-// get_registry_table_field.cpp -- reads one field by key out of the Lua registry pseudo-table into two cleared value slots..
-//
-// GetRegistryTableField -- reads one field by key out of the Lua registry pseudo-table into two cleared value slots.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 296211-296211 (f772); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations for the callees this step drives.
 void Panic(EngineContext* ctx, uint32_t a0);
 void ResizeValueStack(EngineContext* ctx, uint32_t a0, uint32_t a1);
 void PushTableField(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
@@ -25,722 +10,300 @@ void SetStackTop(EngineContext* ctx, uint32_t stack, uint32_t index);
 
 namespace {
 
-constexpr uint32_t kF772ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF772ConstFFFFD8F0 = 0xFFFFD8F0u;  // 
-constexpr uint32_t kF772ConstFFFFFFFD = 0xFFFFFFFDu;  // 
-constexpr uint32_t kF772ConstFFFFFFFE = 0xFFFFFFFEu;  // 
-constexpr uint32_t kF772ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF772SaveFrameBytes = 24u;
-constexpr uint32_t kF772ResumeWordBytes = 4u;
+constexpr uint32_t kRegistryPendingFlag = 0xD015Cu;  // the pending-call flag's guest address
+constexpr uint32_t kRegistryWaitTag = 0xFFFFD8F0u;                   // wait tag handed to the sync host calls
+constexpr uint32_t kRegistryResizeTag = 0xFFFFFFFDu;                 // value-stack resize tag for one slot
+constexpr uint32_t kRegistryEmptyValue = 0xFFFFFFFEu;                // tag marking an empty value slot
+constexpr uint32_t kRegistryStackTopAll = 0xFFFFFFFFu;               // SetStackTop index meaning "all of it"
+constexpr uint32_t kRegistryFrameBytes = 24u;                        // saved frame: six words
+constexpr uint32_t kRegistryResumeWordBytes = 4u;                    // resume word written before it
+constexpr uint64_t kRegistryEmptyPair = 0xFFFFFFFE00000000ull;       // marks both halves of a slot pair empty
 
 }  // namespace
 
+// Reads the registry pseudo-table field named by `b` into the two value slots
+// held by `a`: the pair is marked empty, whatever it held is released, and the
+// read is retried while the registry is still locked.
 uint32_t GetRegistryTableField(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF772SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l6 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l7 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
+  uint32_t value = 0u;
+  uint32_t frame = 0u;
+  uint32_t call_result = 0u;
+  uint32_t entry = 0u;
+  uint32_t resume_point = 0u;
+  uint32_t pending = 0u;
+  uint32_t saved = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the frame this step saved when it suspended.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kRegistryFrameBytes);
+    frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    a = LoadU32(ctx, frame);
+    value = LoadU32(ctx, frame + 8u);
+    entry = LoadU32(ctx, frame + 12u);
+    pending = LoadU32(ctx, frame + 16u);
+    saved = LoadU32(ctx, frame + 20u);
+    b = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF772ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word naming the call this step stopped at.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kRegistryResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = b;
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = a;
-    j1 = 18446744065119617024ull;
-    StoreU64(ctx, i0 + 12u, j1);
-    i0 = a;
-    j1 = 18446744065119617024ull;
-    StoreU64(ctx, i0 + 4u, j1);
-    i0 = a;
-    i1 = l4;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l4;
-    i1 = kF772ConstFFFFD8F0;
-    i2 = b;
-    PushTableField(ctx, i0, i1, i2);
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = 1u;
-    i0 = i0 == i1;
-    b = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Take the key's current value, empty both slots, then start the read.
+    entry = LoadU32(ctx, b);
+    StoreU64(ctx, a + 12u, kRegistryEmptyPair);
+    StoreU64(ctx, a + 4u, kRegistryEmptyPair);
+    StoreU32(ctx, a, entry);
+    b = LoadU32(ctx, b + 4u);
+    StoreU32(ctx, kDataD015C, 0u);
+    PushTableField(ctx, entry, kRegistryWaitTag, b);
+    value = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    b = (uint32_t)(value == 1u);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = b;
-    if (i0) {goto block_10;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
-    i1 = 0u;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = b;
-    i1 = l2;
-    i2 = 16u;
-    i1 += i2;
-    l2 = i1;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = 1u;
-    i0 = i0 == i1;
-    b = i0;
-    if (i0) {goto block_10;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // If the push already finished the value is in place; otherwise drop the
+    // value the field still holds and try once more.
+    if (b) goto take_pending_result;
+    b = LoadU32(ctx, a);
+    StoreU32(ctx, kDataD015C, 0u);
+    value = LoadU32(ctx, b + 8u);
+    StoreU32(ctx, value + 8u, 0u);
+    value = value + 16u;
+    StoreU32(ctx, b + 8u, value);
+    b = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    b = (uint32_t)(b == 1u);
+    if (b) goto take_pending_result;
+    b = LoadU32(ctx, a);
+    StoreU32(ctx, kDataD015C, 0u);
   }
-  i0 = l5;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 987u;
-    i1 = b;
-    i2 = kF772ConstFFFFFFFE;
-    i0 = HostOsQuery(ctx, i0, i1, i2);
-    l3 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    b = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+    call_result = HostOsQuery(ctx, 987u, b, kRegistryEmptyValue);
+    resume_point = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    b = call_result;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l2;
-    i1 = 1u;
-    i0 = i0 == i1;
-    l2 = i0;
-    if (i0) {goto block_10;}
-    i0 = b;
-    i0 = !(i0);
-    b = i0;
-    if (i0) {goto block_8;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = kF772ConstFFFFFFFE;
-    SetStackTop(ctx, i0, i1);
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l2;
-    i1 = 1u;
-    i0 = i0 == i1;
-    l2 = i0;
-    if (i0) {goto block_9;}
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    value = (uint32_t)(value == 1u);
+    if (value) goto take_pending_result;
+    b = !b;
+    if (b) goto clear_result;
+    b = LoadU32(ctx, a);
+    StoreU32(ctx, kDataD015C, 0u);
+    SetStackTop(ctx, b, kRegistryEmptyValue);
+    value = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    value = (uint32_t)(value == 1u);
+    if (value) goto take_pending_result_and_resize;
+    StoreU32(ctx, kDataD015C, 0u);
   }
-  i0 = l5;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 1001u;
-    i1 = b;
-    i2 = kF772ConstFFFFD8F0;
-    i0 = HostOsQuery(ctx, i0, i1, i2);
-    l3 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    l6 = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+    call_result = HostOsQuery(ctx, 1001u, b, kRegistryWaitTag);
+    resume_point = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    pending = call_result;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l2;
-    i1 = 1u;
-    i0 = i0 == i1;
-    l2 = i0;
-    if (i0) {goto block_9;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l2 = i0;
-    i0 = a;
-    i1 = b;
-    StoreU32(ctx, i0 + 12u, i1);
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l7 = i0;
-    i0 = a;
-    i1 = l6;
-    StoreU32(ctx, i0 + 16u, i1);
-    i0 = l2;
-    i0 = !(i0);
-    l6 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    value = (uint32_t)(value == 1u);
+    if (value) goto take_pending_result_and_resize;
+    value = LoadU32(ctx, a + 12u);
+    StoreU32(ctx, a + 12u, b);
+    saved = LoadU32(ctx, a + 16u);
+    StoreU32(ctx, a + 16u, pending);
+    pending = !value;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l6;
-    if (i0) {goto block_16;}
-    i0 = l7;
-    i1 = kF772ConstFFFFFFFE;
-    i0 = i0 == i1;
-    if (i0) {goto block_16;}
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (pending) goto store_pending_slots;
+    if (saved == kRegistryEmptyValue) goto store_pending_slots;
+    StoreU32(ctx, kDataD015C, 0u);
   }
-  i0 = l5;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 1002u;
-    i1 = l2;
-    i2 = kF772ConstFFFFD8F0;
-    i3 = l7;
-    HostSyncSlot(ctx, i0, i1, i2, i3);
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+    HostSyncSlot(ctx, 1002u, value, kRegistryWaitTag, saved);
+    resume_point = 2u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l2;
-    i1 = 1u;
-    i0 = i0 == i1;
-    l2 = i0;
-    if (i0) {goto running_exit;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    value = (uint32_t)(value == 1u);
+    if (value) goto wait_failed;
   }
-  block_16:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = kF772ConstFFFFFFFD;
-    ResizeValueStack(ctx, i0, i1);
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = 1u;
-    i0 = i0 == i1;
-    if (i0) {goto running_exit;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = kF772ConstFFFFFFFF;
-    SetStackTop(ctx, i0, i1);
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l2;
-    i1 = 1u;
-    i0 = i0 == i1;
-    l2 = i0;
-    if (i0) {goto block_6;}
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
+store_pending_slots:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Hand the slots the field's old values, then retry the read.
+    StoreU32(ctx, kDataD015C, 0u);
+    ResizeValueStack(ctx, b, kRegistryResizeTag);
+    b = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    if (b == 1u) goto wait_failed;
+    b = LoadU32(ctx, a);
+    StoreU32(ctx, kDataD015C, 0u);
+    SetStackTop(ctx, b, kRegistryStackTopAll);
+    value = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    value = (uint32_t)(value == 1u);
+    if (value) goto take_result;
+    StoreU32(ctx, kDataD015C, 0u);
   }
-  i0 = l5;
-  i1 = 3u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 1001u;
-    i1 = b;
-    i2 = kF772ConstFFFFD8F0;
-    i0 = HostOsQuery(ctx, i0, i1, i2);
-    l3 = i0;
-    i0 = 3u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    l7 = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+    call_result = HostOsQuery(ctx, 1001u, b, kRegistryWaitTag);
+    resume_point = 3u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    saved = call_result;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l2;
-    i1 = 1u;
-    i0 = i0 == i1;
-    l2 = i0;
-    if (i0) {goto block_6;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l2 = i0;
-    i0 = a;
-    i1 = b;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 8u);
-    b = i0;
-    i0 = a;
-    i1 = l7;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = l2;
-    i0 = !(i0);
-    if (i0) {goto block_7;}
-    i0 = b;
-    i1 = kF772ConstFFFFFFFE;
-    i0 = i0 == i1;
-    if (i0) {goto block_7;}
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    value = (uint32_t)(value == 1u);
+    if (value) goto take_result;
+    value = LoadU32(ctx, a + 4u);
+    StoreU32(ctx, a + 4u, b);
+    b = LoadU32(ctx, a + 8u);
+    StoreU32(ctx, a + 8u, saved);
+    if (!value) goto resize_result_slots;
+    if (b == kRegistryEmptyValue) goto resize_result_slots;
+    StoreU32(ctx, kDataD015C, 0u);
   }
-  i0 = l5;
-  i1 = 4u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 1002u;
-    i1 = l2;
-    i2 = kF772ConstFFFFD8F0;
-    i3 = b;
-    HostSyncSlot(ctx, i0, i1, i2, i3);
-    i0 = 4u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
+    HostSyncSlot(ctx, 1002u, value, kRegistryWaitTag, b);
+    resume_point = 4u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = 1u;
-    i0 = i0 != i1;
-    b = i0;
-    if (i0) {goto block_7;}
-    goto running_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    b = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    b = (uint32_t)(b != 1u);
+    if (b) goto resize_result_slots;
+    goto wait_failed;
   }
-  block_10:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = HostRet0(ctx);
-    l2 = i0;
-    i0 = HostTempRet0(ctx);
-    b = i0;
-    goto block_5;
+take_pending_result:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = HostRet0(ctx);
+    b = HostTempRet0(ctx);
+    goto resize_slots;
   }
-  block_9:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = HostRet0(ctx);
-    l2 = i0;
-    i0 = HostTempRet0(ctx);
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = kF772ConstFFFFFFFD;
-    ResizeValueStack(ctx, i0, i1);
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = 1u;
-    i0 = i0 != i1;
-    b = i0;
-    if (i0) {goto block_5;}
-    goto running_exit;
+take_pending_result_and_resize:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = HostRet0(ctx);
+    HostTempRet0(ctx);
+    StoreU32(ctx, kDataD015C, 0u);
+    ResizeValueStack(ctx, b, kRegistryResizeTag);
+    b = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    b = (uint32_t)(b != 1u);
+    if (b) goto resize_slots;
+    goto wait_failed;
   }
-  block_8:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
+clear_result:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, a, 0u);
   }
-  block_7:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l4;
-    i1 = kF772ConstFFFFFFFE;
-    ResizeValueStack(ctx, i0, i1);
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = 1u;
-    i0 = i0 == i1;
-    if (i0) {goto running_exit;}
-    i0 = a;
-    goto func_exit;
+resize_result_slots:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, kDataD015C, 0u);
+    ResizeValueStack(ctx, entry, kRegistryEmptyValue);
+    b = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    if (b == 1u) goto wait_failed;
+    LeaveFrame();
+    return a;
   }
-  block_6:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = HostRet0(ctx);
-    l2 = i0;
-    i0 = HostTempRet0(ctx);
-    b = i0;
+take_result:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = HostRet0(ctx);
+    b = HostTempRet0(ctx);
   }
-  block_5:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l4;
-    i1 = kF772ConstFFFFFFFE;
-    ResizeValueStack(ctx, i0, i1);
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = 1u;
-    i0 = i0 == i1;
-    if (i0) {goto running_exit;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 12u);
-    b = i0;
-    i0 = !(i0);
-    l4 = i0;
+resize_slots:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, kDataD015C, 0u);
+    ResizeValueStack(ctx, entry, kRegistryEmptyValue);
+    b = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    if (b == 1u) goto wait_failed;
+    b = LoadU32(ctx, a + 12u);
+    entry = !b;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    if (i0) {goto block_31;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l4 = i0;
-    i1 = kF772ConstFFFFFFFE;
-    i0 = i0 == i1;
-    if (i0) {goto block_31;}
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (entry) goto check_second_slot;
+    entry = LoadU32(ctx, a + 16u);
+    if (entry == kRegistryEmptyValue) goto check_second_slot;
+    StoreU32(ctx, kDataD015C, 0u);
   }
-  i0 = l5;
-  i1 = 5u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 1002u;
-    i1 = b;
-    i2 = kF772ConstFFFFD8F0;
-    i3 = l4;
-    HostSyncSlot(ctx, i0, i1, i2, i3);
-    i0 = 5u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
+    HostSyncSlot(ctx, 1002u, b, kRegistryWaitTag, entry);
+    resume_point = 5u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = 1u;
-    i0 = i0 == i1;
-    b = i0;
-    if (i0) {goto running_exit;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    b = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    b = (uint32_t)(b == 1u);
+    if (b) goto wait_failed;
   }
-  block_31:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
-    i0 = !(i0);
-    l4 = i0;
+check_second_slot:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    b = LoadU32(ctx, a + 4u);
+    entry = !b;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    if (i0) {goto block_36;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 8u);
-    a = i0;
-    i1 = kF772ConstFFFFFFFE;
-    i0 = i0 == i1;
-    if (i0) {goto block_36;}
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (entry) goto release_guard;
+    a = LoadU32(ctx, a + 8u);
+    if (a == kRegistryEmptyValue) goto release_guard;
+    StoreU32(ctx, kDataD015C, 0u);
   }
-  i0 = l5;
-  i1 = 6u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 1002u;
-    i1 = b;
-    i2 = kF772ConstFFFFD8F0;
-    i3 = a;
-    HostSyncSlot(ctx, i0, i1, i2, i3);
-    i0 = 6u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
+    HostSyncSlot(ctx, 1002u, b, kRegistryWaitTag, a);
+    resume_point = 6u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF772ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = kF772ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = a;
-    i1 = 1u;
-    i0 = i0 == i1;
-    a = i0;
-    if (i0) {goto running_exit;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    a = LoadU32(ctx, kDataD015C);
+    StoreU32(ctx, kDataD015C, 0u);
+    a = (uint32_t)(a == 1u);
+    if (a) goto wait_failed;
   }
-  block_36:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l2;
-    HostOsRelease(ctx, i0);
+release_guard:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    HostOsRelease(ctx, value);
     TrapUnreachable();
   }
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = 0u;
-    i0 = FindMatchingCatch(ctx, i0);
-    a = i0;
-    i0 = HostTempRet0(ctx);
+wait_failed:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    a = FindMatchingCatch(ctx, 0u);
+    HostTempRet0(ctx);
   }
-  i0 = l5;
-  i1 = 7u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    Panic(ctx, i0);
-    i0 = 7u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 7u) {
+    Panic(ctx, a);
+    resume_point = 7u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
+  if (ResumePhase(ctx) == kResumeRunning) {
     TrapUnreachable();
   }
   TrapUnreachable();
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF772ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l3;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l3;
-  i1 = l6;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l3;
-  i1 = l7;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 24u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+suspend_point:
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kRegistryResumeWordBytes);
+  frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, frame, a);
+  StoreU32(ctx, frame + 4u, b);
+  StoreU32(ctx, frame + 8u, value);
+  StoreU32(ctx, frame + 12u, entry);
+  StoreU32(ctx, frame + 16u, pending);
+  StoreU32(ctx, frame + 20u, saved);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kRegistryFrameBytes);
   LeaveFrame();
-  return i0;
+  return 0u;
 }
-}
+
+}  // namespace artc

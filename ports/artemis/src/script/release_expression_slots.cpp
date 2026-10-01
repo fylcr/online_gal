@@ -1,23 +1,8 @@
-// release_expression_slots.cpp -- returns expression registers to the free list once the instruction has consumed them..
-//
-// ReleaseExpressionSlots -- returns expression registers to the free list once the instruction has consumed them.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 482395-482395 (f1117); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of the callees below.
 void CheckExprComplexity(EngineContext* ctx, uint32_t a, uint32_t b);
 void EmitBranchWord(EngineContext* ctx, uint32_t state, uint32_t opcode, uint32_t operands);
 void ReserveRegisters(EngineContext* ctx, uint32_t state, uint32_t count);
@@ -25,247 +10,135 @@ void AllocateExpressionRegister(EngineContext* ctx, uint32_t state, uint32_t ins
 
 namespace {
 
-constexpr uint32_t kF1117SaveFrameBytes = 16u;
-constexpr uint32_t kF1117ResumeWordBytes = 4u;
+constexpr uint32_t kReleaseExpressionSlotsSaveFrameBytes = 16u;  // live state pushed on suspend
+constexpr uint32_t kReleaseExpressionSlotsResumeWordBytes = 4u;  // resume word above frame
 
 }  // namespace
 
+// Releases the expression registers an instruction consumed: the incoming count
+// rebases the instruction index, and the count the compiler state now holds
+// selects the path — the widest operands step the index first, the ordinary ones
+// have their expression checked, and every path that goes on reserves the
+// registers the branch needs and emits the branch word. The step is suspendable:
+// each gate replays the call its resume code names, and the save frame holds
+// state @0, instruction @4, count @8 and the compiler-state pointer @12.
 void ReleaseExpressionSlots(EngineContext* ctx, uint32_t state, uint32_t instruction, uint32_t count, uint32_t unused) {
   EnterFrame();
-  uint32_t l4 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1117SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    unused = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = unused;
-    i0 = LoadU32(ctx, i0 + 4u);
-    instruction = i0;
-    i0 = unused;
-    i0 = LoadU32(ctx, i0 + 8u);
-    count = i0;
-    i0 = unused;
-    i0 = LoadU32(ctx, i0 + 12u);
-    unused = i0;
+  // The save frame base: a rewind pops it and the suspend path writes its four
+  // words into it.
+  uint32_t frame = 0u;
+  // The resume point a rewind pops, naming the call that was in flight.
+  uint32_t resume_point = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 16-byte frame the suspend path saved and read it in the
+    // order it was written.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kReleaseExpressionSlotsSaveFrameBytes);
+    frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    instruction = LoadU32(ctx, frame + 4u);
+    count = LoadU32(ctx, frame + 8u);
+    unused = LoadU32(ctx, frame + 12u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1117ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume point pushed above that frame.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kReleaseExpressionSlotsResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = instruction;
-    i1 = count;
-    i0 -= i1;
-    instruction = i0;
-    i0 = unused;
-    i0 = LoadU32(ctx, i0);
-    count = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Running: the count the incoming call was given is dropped from the
+    // instruction index, and the count to release is read from the compiler
+    // state.
+    instruction -= count;
+    count = LoadU32(ctx, unused);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = count;
-    switch (i0) {
-      case 0: goto block_5;
-      case 1: goto block_6;
-      case 2: goto block_6;
-      case 3: goto block_6;
-      case 4: goto block_6;
-      case 5: goto block_6;
-      case 6: goto block_6;
-      case 7: goto block_6;
-      case 8: goto block_6;
-      case 9: goto block_6;
-      case 10: goto block_6;
-      case 11: goto block_6;
-      case 12: goto block_6;
-      case 13: goto block_8;
-      case 14: goto block_8;
-      default: goto block_6;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The count selects the path: nothing to release, an ordinary operand whose
+    // expression is checked first, or one of the widest, whose index is stepped.
+    switch (count) {
+      case 0: goto emit_branch;
+      case 13:
+      case 14: goto widen_operand;
+      default: goto check_expression;
     }
-    block_8:;
-    i0 = 0u;
-    i1 = instruction;
-    i2 = 1u;
-    i1 += i2;
-    count = i1;
-    i2 = instruction;
-    i3 = 0u;
-    i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
-    i0 = i2 ? i0 : i1;
-    instruction = i0;
+  widen_operand:;
+    count = instruction + 1u;
+    instruction = static_cast<int32_t>(instruction) < 0 ? 0u : count;
   }
-  i0 = l4;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = unused;
-    i2 = instruction;
-    AllocateExpressionRegister(ctx, i0, i1, i2);
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+    AllocateExpressionRegister(ctx, state, unused, instruction);
+    resume_point = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = instruction;
-    i1 = 2u;
-    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-    count = i0;
-    if (i0) {goto running_exit;}
-    i0 = instruction;
-    i1 = 1u;
-    i0 -= i1;
-    instruction = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Running: a register short of two leaves nothing to reserve.
+    count = static_cast<uint32_t>(static_cast<int32_t>(instruction) < 2);
+    if (count != 0u) {
+      goto exit_path;
+    }
+    instruction -= 1u;
   }
-  i0 = l4;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = instruction;
-    ReserveRegisters(ctx, i0, i1);
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+    ReserveRegisters(ctx, state, instruction);
+    resume_point = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    goto exit_path;
   }
-  block_6:;
-  i0 = l4;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = unused;
-    CheckExprComplexity(ctx, i0, i1);
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+check_expression:;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+    CheckExprComplexity(ctx, state, unused);
+    resume_point = 2u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
   }
-  block_5:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = instruction;
-    i1 = 1u;
-    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-    if (i0) {goto running_exit;}
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 36u);
-    count = i0;
+emit_branch:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Running: only an instruction that still owes registers reaches the branch
+    // word, which the compiler state names.
+    if (static_cast<int32_t>(instruction) < static_cast<int32_t>(1u)) {
+      goto exit_path;
+    }
+    count = LoadU32(ctx, state + 36u);
   }
-  i0 = l4;
-  i1 = 3u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = instruction;
-    ReserveRegisters(ctx, i0, i1);
-    i0 = 3u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+    ReserveRegisters(ctx, state, instruction);
+    resume_point = 3u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
   }
-  i0 = l4;
-  i1 = 4u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = count;
-    i2 = instruction;
-    EmitBranchWord(ctx, i0, i1, i2);
-    i0 = 4u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
+    EmitBranchWord(ctx, state, count, instruction);
+    resume_point = 4u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
   }
-  running_exit:;
-  goto func_exit;
-  spill_frame:;
-  l4 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l4;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1117ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l4 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l4;
-  i1 = instruction;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l4;
-  i1 = count;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l4;
-  i1 = unused;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 16u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto exit_path;
+suspend_point:;
+  // Push the resume point naming the call in flight, then the frame this pass's
+  // save words read back. The resume word goes below the frame pointer, which
+  // then advances past it to make room for the four saved words.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kReleaseExpressionSlotsResumeWordBytes);
+  frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, frame, state);
+  StoreU32(ctx, frame + 4u, instruction);
+  StoreU32(ctx, frame + 8u, count);
+  StoreU32(ctx, frame + 12u, unused);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kReleaseExpressionSlotsSaveFrameBytes);
+exit_path:;
   LeaveFrame();
 }
-}
+
+}  // namespace artc

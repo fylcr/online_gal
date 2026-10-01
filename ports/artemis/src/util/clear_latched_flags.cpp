@@ -1,18 +1,10 @@
-// clear_latched_flags.cpp — consume a latched flag mask.
-//
-// ClearLatchedFlags reads and clears the mask the record has latched at +52,
-// then drops exactly those bits from its flag word at +40. The handle is
-// relocated to its owning record through the descriptor delta behind the
-// handle's first word, so either form of reference reaches the same record.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
 #include "util/engine_context.h"
 
 namespace artc {
 
+// Consumes the flag mask the record latched at +52 and drops exactly those bits
+// from its flag word at +40. The handle is relocated to its owning record
+// through the descriptor delta behind its first word.
 void ClearLatchedFlags(EngineContext* ctx, uint32_t handle) {
   EnterFrame();
   uint32_t const descriptor = LoadU32(ctx, handle);

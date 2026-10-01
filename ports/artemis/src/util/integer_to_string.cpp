@@ -1,425 +1,245 @@
-// integer_to_string.cpp -- the signed 32-bit decimal formatter: the sign is split off, a minus is written for negatives and the destination string is filled with the digits of the absolute value..
-//
-// IntegerToString -- the signed 32-bit decimal formatter: the sign is split off, a minus is written for negatives and the destination string is filled with the digits of the absolute value.
-//
-// The step is a plain call: the body holds no suspend point, so the
-// frame pair is bookkeeping only. Judgment order is untouched -- the
-// goto graph is the generated driver's own flattening, renamed labels
-// only.
-//
-// src: artemis.wasm2c.c 289439-289439 (f755); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Cross-product callee: the heap's block release.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 
 namespace {
 
-constexpr uint32_t kF755ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF755Const7FFFFFFF = 0x7FFFFFFFu;  // 
-constexpr uint32_t kF755ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF755ResumeWordBytes = 4u;
+constexpr uint32_t kIntegerToStringConstD015C = 0xD015Cu;
+constexpr uint32_t kIntegerToStringConst7FFFFFFF = 0x7FFFFFFFu;
+constexpr uint32_t kIntegerToStringConstFFFFFFFF = 0xFFFFFFFFu;
+constexpr uint32_t kIntegerToStringResumeWordBytes = 4u;
 
 }  // namespace
 
+// Formats the number in `value` as signed decimal text in the string object at
+// `dest`: the digits are produced backwards in a scratch frame and then copied
+// forwards, and the resulting length is stored back into `dest`.
 void IntegerToString(EngineContext* ctx, uint32_t dest, uint32_t value) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u; uint32_t i6 = 0u; uint32_t i7 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = 32u;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    dest = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l6 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l7 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l8 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    value = i0;
+  uint32_t frame = 0u;
+  uint32_t budget = 0u;
+  uint32_t number = 0u;
+  uint32_t saved_word = 0u;
+  uint32_t limit = 0u;
+  uint32_t buffer_end = 0u;
+  uint32_t resume_code = 0u;
+  uint32_t selected = 0u;
+  uint32_t flag = 0u;
+
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the saved frame and read its words back in the saved order.
+    uint32_t sp = ReturnFrameSp(ctx);
+    uint32_t frame_top = ReturnFrameSp(ctx);
+    frame_top = LoadU32(ctx, frame_top) - 32u;
+    StoreU32(ctx, sp, frame_top);
+    uint32_t saved = ReturnFrameSp(ctx);
+    saved = LoadU32(ctx, saved);
+    dest = LoadU32(ctx, saved);
+    frame = LoadU32(ctx, saved + 8u);
+    budget = LoadU32(ctx, saved + 12u);
+    number = LoadU32(ctx, saved + 16u);
+    saved_word = LoadU32(ctx, saved + 20u);
+    limit = LoadU32(ctx, saved + 24u);
+    buffer_end = LoadU32(ctx, saved + 28u);
+    value = LoadU32(ctx, saved + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF755ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l9 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word that names the call that was in flight.
+    uint32_t sp = ReturnFrameSp(ctx);
+    uint32_t word_top = ReturnFrameSp(ctx);
+    word_top = LoadU32(ctx, word_top) - kIntegerToStringResumeWordBytes;
+    StoreU32(ctx, sp, word_top);
+    uint32_t word = ReturnFrameSp(ctx);
+    word = LoadU32(ctx, word);
+    resume_code = LoadU32(ctx, word);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 48u;
-    i0 -= i1;
-    l3 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = dest;
-    j1 = 0ull;
-    StoreU64(ctx, i0, j1);
-    i0 = dest;
-    i1 = 0u;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = l3;
-    i1 = l3;
-    i2 = 23u;
-    i1 += i2;
-    l8 = i1;
-    StoreU32(ctx, i0 + 28u, i1);
-    i0 = l3;
-    i1 = l3;
-    i2 = 2u;
-    i1 |= i2;
-    StoreU32(ctx, i0 + 24u, i1);
-    i0 = value;
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
-    i0 = kF755ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l3;
-    i1 = 48u;
-    StoreU32(ctx, i0 + 44u, i1);
-    i0 = l3;
-    i1 = 48u;
-    StoreU8(ctx, i0 + 40u, i1);
-    i0 = l3;
-    i1 = l8;
-    StoreU32(ctx, i0 + 36u, i1);
-    i0 = l5;
-    i1 = l5;
-    i2 = 31u;
-    i1 = (uint32_t)((int32_t)i1 >> (i2 & 31));
-    value = i1;
-    i0 += i1;
-    l6 = i0;
-    i0 = l3;
-    i1 = value;
-    i2 = l6;
-    i1 ^= i2;
-    StoreU32(ctx, i0 + 32u, i1);
-    i0 = l3;
-    i1 = 32u;
-    i0 += i1;
-    value = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Carve the scratch frame; the digits are written backwards inside it.
+    frame = GuestStackSp(ctx) - 48u;
+    GuestStackSp(ctx) = frame;
+    StoreU64(ctx, dest, 0ull);
+    StoreU32(ctx, dest + 8u, 0u);
+    buffer_end = frame + 23u;
+    StoreU32(ctx, frame + 28u, buffer_end);
+    // The saved frame pointer goes in with bit 1 set.
+    uint32_t tagged = frame | 2u;
+    StoreU32(ctx, frame + 24u, tagged);
+    number = LoadU32(ctx, value);
+    StoreU32(ctx, kIntegerToStringConstD015C, 0u);
+    // The header repeats this value in two fields, a word and a byte.
+    uint32_t size_word{48u};
+    StoreU32(ctx, frame + 44u, size_word);
+    uint32_t size_byte{48u};
+    StoreU8(ctx, frame + 40u, size_byte);
+    StoreU32(ctx, frame + 36u, buffer_end);
+    // The sign as a mask, zero or all ones; the flattened form masks the shift
+    // count with 31 as well.
+    uint32_t sign_mask = static_cast<uint32_t>(static_cast<int32_t>(number) >> (31u & 31u));
+    saved_word = number + sign_mask;
+    StoreU32(ctx, frame + 32u, sign_mask ^ saved_word);
+    value = frame + 32u;
   }
-  i0 = l9;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 1275u;
-    i1 = value;
-    i0 = HostFoldLayoutOffset(ctx, i0, i1);
-    l2 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l2;
-    value = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_code == 0u) {
+    // The folded layout offset becomes the cursor the digit stores walk
+    // backwards from.
+    uint32_t layout = HostFoldLayoutOffset(ctx, 1275u, value);
+    resume_code = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
+    }
+    value = layout;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF755ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = kF755ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l4;
-    i1 = 1u;
-    i0 = i0 == i1;
-    l6 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Read and clear the flag at 0xD015C.
+    uint32_t guard = LoadU32(ctx, kIntegerToStringConstD015C);
+    StoreU32(ctx, kIntegerToStringConstD015C, 0u);
+    flag = guard == 1u;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l6;
-    if (i0) {goto block_6;}
-    i0 = l5;
-    i1 = 0u;
-    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-    if (i0) {
-      i0 = 0u;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (flag != 0u) {
+      goto unresumable;
+    }
+    // A negative number gets a leading minus; the length byte read back below is
+    // sign-extended into the flag that picks the digit budget.
+    uint32_t first = 0u;
+    if (static_cast<int32_t>(number) >= 0) {
+      first = 0u;
     } else {
-      i0 = value;
-      i1 = 1u;
-      i0 -= i1;
-      value = i0;
-      i1 = 45u;
-      StoreU8(ctx, i0, i1);
-      i0 = dest;
-      i0 = LoadU8(ctx, i0 + 11u);
+      value = value - 1u;
+      StoreU8(ctx, value, 45u);
+      first = LoadU8(ctx, dest + 11u);
     }
-    l6 = i0;
-    i0 = l3;
-    i1 = value;
-    StoreU32(ctx, i0 + 24u, i1);
-    i0 = l3;
-    i1 = l8;
-    StoreU32(ctx, i0 + 28u, i1);
-    i0 = l8;
-    i1 = value;
-    i0 -= i1;
-    l5 = i0;
-    i0 = l6;
-    i1 = 24u;
-    i0 <<= (i1 & 31);
-    i1 = 24u;
-    i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-    i1 = kF755ConstFFFFFFFF;
-    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-    l7 = i0;
+    StoreU32(ctx, frame + 24u, value);
+    StoreU32(ctx, frame + 28u, buffer_end);
+    number = buffer_end - value;
+    // Sign-extend the low byte; both shift counts are masked by the flattening.
+    first = first << (24u & 31u);
+    first = static_cast<uint32_t>(static_cast<int32_t>(first) >> (24u & 31u));
+    limit = static_cast<uint32_t>(static_cast<int32_t>(first) <=
+                                  static_cast<int32_t>(kIntegerToStringConstFFFFFFFF));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l7;
-    if (i0) {
-      i0 = l5;
-      i1 = dest;
-      i1 = LoadU32(ctx, i1 + 8u);
-      i2 = kF755Const7FFFFFFF;
-      i1 &= i2;
-      i2 = 1u;
-      i1 -= i2;
-      l4 = i1;
-      i0 = i0 <= i1;
-      if (i0) {goto block_10;}
-      i0 = dest;
-      i0 = LoadU32(ctx, i0 + 4u);
-      l6 = i0;
-      goto block_12;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (limit != 0u) {
+      // The sign-extended length byte came out negative, so the budget is taken
+      // from the string's spare room, one short of what may be filled.
+      uint32_t room = LoadU32(ctx, dest + 8u);
+      budget = (room & kIntegerToStringConst7FFFFFFF) - 1u;
+      if (number <= budget) {
+        goto resume_digits;
+      }
+      saved_word = LoadU32(ctx, dest + 4u);
+    } else {
+      // Otherwise the budget is ten digits.
+      budget = 10u;
+      selected = dest;
+      if (number <= 10u) {
+        goto digit_start;
+      }
     }
-    i0 = 10u;
-    l4 = i0;
-    i0 = dest;
-    i1 = l5;
-    i2 = 10u;
-    i1 = i1 <= i2;
-    if (i1) {goto block_9;}
-    block_12:;
-    i0 = kF755ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l5;
-    i1 = l4;
-    i0 -= i1;
-    l7 = i0;
+    // Clear the flag before the conversion runs.
+    StoreU32(ctx, kIntegerToStringConstD015C, 0u);
+    limit = number - budget;
   }
-  i0 = l9;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 1276u;
-    i1 = dest;
-    i2 = l4;
-    i3 = l7;
-    i4 = l6;
-    i5 = 0u;
-    i6 = l6;
-    i7 = 0u;
-    HostInvokeViiiiiii(ctx, i0, i1, i2, i3, i4, i5, i6, i7);
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_code == 1u) {
+    HostInvokeViiiiiii(ctx, 1276u, dest, budget, limit, saved_word, 0u, saved_word, 0u);
+    resume_code = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF755ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = kF755ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l4;
-    i1 = 1u;
-    i0 = i0 == i1;
-    if (i0) {goto block_6;}
-    i0 = dest;
-    l7 = i0;
-    i1 = dest;
-    i1 = LoadS8(ctx, i1 + 11u);
-    i2 = kF755ConstFFFFFFFF;
-    i1 = (uint32_t)((int32_t)i1 > (int32_t)i2);
-    if (i1) {goto block_9;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The re-entry flag is read and cleared again: one means the conversion
+    // already ran and this call cannot be resumed.
+    uint32_t guard = LoadU32(ctx, kIntegerToStringConstD015C);
+    StoreU32(ctx, kIntegerToStringConstD015C, 0u);
+    if (guard == 1u) {
+      goto unresumable;
+    }
+    selected = dest;
+    // A non-negative length byte jumps straight to the digit walk.
+    if (LoadS8(ctx, dest + 11u) > static_cast<int32_t>(kIntegerToStringConstFFFFFFFF)) {
+      goto digit_start;
+    }
   }
-  block_10:;
-  i0 = ResumePhase(ctx);
-  if (i0) {
-    i0 = l7;
+resume_digits:;
+  // On a rewind pass the digit pointer is either already restored or read back
+  // out of the string object.
+  selected = ResumePhase(ctx);
+  if (selected != 0u) {
+    selected = limit;
   } else {
-    i0 = dest;
-    i0 = LoadU32(ctx, i0);
+    selected = LoadU32(ctx, dest);
   }
-  block_9:;
-  l7 = i0;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l7;
-    l4 = i0;
-    i0 = value;
-    i1 = l8;
-    i0 = i0 != i1;
-    if (i0) {
-      loop_19: 
-        i0 = l4;
-        i1 = value;
-        i1 = LoadU8(ctx, i1);
-        StoreU8(ctx, i0, i1);
-        i0 = l4;
-        i1 = 1u;
-        i0 += i1;
-        l4 = i0;
-        i0 = l8;
-        i1 = value;
-        i2 = 1u;
-        i1 += i2;
-        value = i1;
-        i0 = i0 != i1;
-        if (i0) {goto loop_19;}
+digit_start:;
+  limit = selected;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The digits were written backwards, so the copy walks them forwards; the
+    // cursor ends up on the terminator.
+    uint32_t cursor = limit;
+    if (value != buffer_end) {
+    copy_digits:;
+      uint32_t digit = LoadU8(ctx, value);
+      StoreU8(ctx, cursor, digit);
+      cursor = cursor + 1u;
+      value = value + 1u;
+      if (value != buffer_end) {
+        goto copy_digits;
+      }
     }
-    i0 = l4;
-    i1 = 0u;
-    StoreU8(ctx, i0, i1);
-    i0 = dest;
-    i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kF755ConstFFFFFFFF;
-    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-    if (i0) {
-      i0 = dest;
-      i1 = l5;
-      StoreU32(ctx, i0 + 4u, i1);
-      goto block_20;
+    StoreU8(ctx, cursor, 0u);
+    // A negative length byte takes the wide store.
+    if (LoadS8(ctx, dest + 11u) <= static_cast<int32_t>(kIntegerToStringConstFFFFFFFF)) {
+      StoreU32(ctx, dest + 4u, number);
+    } else {
+      StoreU8(ctx, dest + 11u, number);
     }
-    i0 = dest;
-    i1 = l5;
-    StoreU8(ctx, i0 + 11u, i1);
-    block_20:;
-    i0 = l3;
-    i1 = 48u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    goto func_exit;
+    GuestStackSp(ctx) = frame + 48u;
+    goto finish;
   }
-  block_6:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = HostRet0(ctx);
-    value = i0;
-    i0 = HostTempRet0(ctx);
-    i0 = dest;
-    i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kF755ConstFFFFFFFF;
-    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-    if (i0) {
-      i0 = dest;
-      i0 = LoadU32(ctx, i0);
-      DeallocateRawBlock(ctx, i0);
+unresumable:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The call cannot be resumed: the pending return value and the string
+    // object are released, then the trap fires.
+    value = HostRet0(ctx);
+    HostTempRet0(ctx);
+    if (LoadS8(ctx, dest + 11u) <= static_cast<int32_t>(kIntegerToStringConstFFFFFFFF)) {
+      uint32_t text = LoadU32(ctx, dest);
+      DeallocateRawBlock(ctx, text);
     }
-    i0 = value;
-    HostOsRelease(ctx, i0);
+    HostOsRelease(ctx, value);
     TrapUnreachable();
   }
-  goto func_exit;
-  spill_frame:;
-  l2 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF755ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l2 = i0;
-  i1 = dest;
-  StoreU32(ctx, i0, i1);
-  i0 = l2;
-  i1 = value;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l2;
-  i1 = l3;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l2;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l2;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l2;
-  i1 = l6;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l2;
-  i1 = l7;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = l2;
-  i1 = l8;
-  StoreU32(ctx, i0 + 28u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 32u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+finish:;
+  LeaveFrame();
+  return;
+suspend_here:;
+  // Push the resume word naming the call that was in flight, then the frame the
+  // rewind pops; the words go in the order that pop reads them back.
+  uint32_t slot = ReturnFrameSp(ctx);
+  slot = LoadU32(ctx, slot);
+  StoreU32(ctx, slot, resume_code);
+  uint32_t sp = ReturnFrameSp(ctx);
+  uint32_t word_top = ReturnFrameSp(ctx);
+  word_top = LoadU32(ctx, word_top) + kIntegerToStringResumeWordBytes;
+  StoreU32(ctx, sp, word_top);
+  uint32_t base = ReturnFrameSp(ctx);
+  base = LoadU32(ctx, base);
+  StoreU32(ctx, base, dest);
+  StoreU32(ctx, base + 4u, value);
+  StoreU32(ctx, base + 8u, frame);
+  StoreU32(ctx, base + 12u, budget);
+  StoreU32(ctx, base + 16u, number);
+  StoreU32(ctx, base + 20u, saved_word);
+  StoreU32(ctx, base + 24u, limit);
+  StoreU32(ctx, base + 28u, buffer_end);
+  sp = ReturnFrameSp(ctx);
+  word_top = ReturnFrameSp(ctx);
+  word_top = LoadU32(ctx, word_top) + 32u;
+  StoreU32(ctx, sp, word_top);
   LeaveFrame();
 }
-}
+
+}  // namespace artc

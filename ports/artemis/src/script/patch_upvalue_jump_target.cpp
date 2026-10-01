@@ -1,747 +1,310 @@
-// patch_upvalue_jump_target.cpp -- patches upvalue jump targets: the pending upvalue jumps are resolved once the binding is known..
-//
-// PatchUpvalueJumpTarget -- patches upvalue jump targets: the pending upvalue jumps are resolved once the binding is known.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 802664-802664 (f1721); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
-void EmitJumpInstruction(EngineContext* ctx, uint32_t state, uint32_t register_hint, uint32_t target);
-uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
+// Forward declarations for the callees this step drives.
+void EmitJumpInstruction(EngineContext* ctx, uint32_t state, uint32_t register_hint,
+                         uint32_t target);
+uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size,
+                         uint32_t new_size);
 uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t a);
 uint32_t BindUpvalueCell(EngineContext* ctx, uint32_t state, uint32_t local, uint32_t upvalue);
 
 namespace {
 
-constexpr uint32_t kF1721ConstFFFFFFF = 0xFFFFFFFu;  // 
-constexpr uint32_t kF1721Const15555555 = 0x15555555u;  // 
-constexpr uint32_t kF1721Const3FFFFFFF = 0x3FFFFFFFu;  // 
-constexpr uint32_t kF1721SaveFrameBytes = 32u;
-constexpr uint32_t kF1721ResumeWordBytes = 4u;
+// One past the element count each of the prototype's arrays can hold: when a
+// site would pass it, that site hands over to the too-big raise instead.
+constexpr uint32_t kPatchUpvalueJumpTargetLineInfoLimit = 0x3FFFFFFFu;
+constexpr uint32_t kPatchUpvalueJumpTargetCodeLimit = 0xFFFFFFFu;
+constexpr uint32_t kPatchUpvalueJumpTargetConstantsLimit = 0xFFFFFFFu;
+constexpr uint32_t kPatchUpvalueJumpTargetProtosLimit = 0x3FFFFFFFu;
+constexpr uint32_t kPatchUpvalueJumpTargetLocVarsLimit = 0x15555555u;
+constexpr uint32_t kPatchUpvalueJumpTargetSaveFrameBytes = 32u;
+constexpr uint32_t kPatchUpvalueJumpTargetResumeWordBytes = 4u;
 
 }  // namespace
 
-void PatchUpvalueJumpTarget(EngineContext* ctx, uint32_t a) {
+// Ends the function the parser just finished: every local still open gets the
+// pc its record ends at, the instruction the function closes with is emitted,
+// the prototype's six arrays are shrunk to the counts the body actually used,
+// the parser steps back to the function that enclosed it, and a name or
+// string token the parse stopped on gets the cell it points at bound.
+//
+// The frame saves one word per slot below, so each slot keeps a single name
+// across the whole walk even where a later site reuses it as a carry: `size`
+// is the count a site grows to, then its byte size, then the base the
+// reallocation answers with; `slot` is the array field a site writes, then the
+// base it resizes, then the address of the upvalue's cell; `grow` is a site's
+// fit check, then the base it resizes, then the byte count the upvalue array
+// asks for; `mark` is the pc the closed locals end at, then a site's previous
+// byte size; `proto` is the prototype the arrays belong to, then the parser
+// state the upvalue step is handed.
+void PatchUpvalueJumpTarget(EngineContext* ctx, uint32_t state) {
   EnterFrame();
-  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-      l9 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1721SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l6 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l7 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l9 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l1 = i0;
+  uint32_t size = 0u;
+  uint32_t proto = 0u;
+  uint32_t slot = 0u;
+  uint32_t grow = 0u;
+  uint32_t func_state = 0u;
+  uint32_t holder = 0u;
+  uint32_t resume_point = 0u;
+  uint32_t mark = 0u;
+  uint32_t call_result = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 32-byte frame the suspend path saved.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kPatchUpvalueJumpTargetSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    proto = LoadU32(ctx, frame + 8u);
+    slot = LoadU32(ctx, frame + 12u);
+    grow = LoadU32(ctx, frame + 16u);
+    func_state = LoadU32(ctx, frame + 20u);
+    holder = LoadU32(ctx, frame + 24u);
+    mark = LoadU32(ctx, frame + 28u);
+    size = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1721ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l8 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume point pushed with that frame.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kPatchUpvalueJumpTargetResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 52u);
-    l7 = i0;
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 48u);
-    l6 = i0;
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = l6;
-    i0 = LoadU8(ctx, i0 + 50u);
-    l1 = i0;
-    if (i0) {
-      i0 = l3;
-      i0 = LoadU32(ctx, i0 + 24u);
-      l5 = i0;
-      i0 = l6;
-      i0 = LoadU32(ctx, i0 + 24u);
-      l9 = i0;
-      loop_5: 
-        i0 = l1;
-        i1 = 1u;
-        i0 -= i1;
-        l1 = i0;
-        i1 = 255u;
-        i0 &= i1;
-        l4 = i0;
-        i1 = 1u;
-        i0 <<= (i1 & 31);
-        i1 = l6;
-        i0 += i1;
-        i0 = LoadU16(ctx, i0 + 172u);
-        i1 = 12u;
-        i0 *= i1;
-        i1 = l5;
-        i0 += i1;
-        i1 = l9;
-        StoreU32(ctx, i0 + 8u, i1);
-        i0 = l4;
-        if (i0) {goto loop_5;}
-      i0 = l6;
-      i1 = 0u;
-      StoreU8(ctx, i0 + 50u, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    holder = LoadU32(ctx, state + 52u);
+    func_state = LoadU32(ctx, state + 48u);
+    proto = LoadU32(ctx, func_state);
+    size = LoadU8(ctx, func_state + 50u);
+    if (size != 0u) {
+      // Close every local still open: each one's record ends at this pc.
+      grow = LoadU32(ctx, proto + 24u);
+      mark = LoadU32(ctx, func_state + 24u);
+      do {
+        size -= 1u;
+        slot = size & 255u;
+        StoreU32(ctx, grow + LoadU16(ctx, func_state + (slot << 1u) + 172u) * 12u + 8u, mark);
+      } while (slot != 0u);
+      StoreU8(ctx, func_state + 50u, 0u);
     }
   }
-  i0 = l8;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l6;
-    i1 = 0u;
-    i2 = 0u;
-    EmitJumpInstruction(ctx, i0, i1, i2);
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+    // Emit the instruction the function closes with.
+    EmitJumpInstruction(ctx, func_state, 0u, 0u);
+    resume_point = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l1 = i0;
-    i1 = 1u;
-    i0 += i1;
-    i1 = kF1721Const3FFFFFFF;
-    i0 = i0 <= i1;
-    l5 = i0;
-    i0 = l3;
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    size = LoadU32(ctx, func_state + 24u);
+    grow = static_cast<uint32_t>(size + 1u <= kPatchUpvalueJumpTargetLineInfoLimit);
+    slot = proto;
   }
-  i0 = l5;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      i0 = LoadU32(ctx, i0 + 12u);
-      l5 = i0;
-      i0 = l3;
-      i0 = LoadU32(ctx, i0 + 44u);
-      i1 = 2u;
-      i0 <<= (i1 & 31);
-      l9 = i0;
-      i0 = l1;
-      i1 = 2u;
-      i0 <<= (i1 & 31);
-      l1 = i0;
+  if (grow != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    // Line info has no entry left for this pc.
+    if (ResumePhase(ctx) == kResumeRunning) {
+      grow = LoadU32(ctx, proto + 12u);
+      mark = LoadU32(ctx, proto + 44u) << 2u;
+      size = size << 2u;
     }
-    i0 = l8;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l7;
-      i1 = l5;
-      i2 = l9;
-      i3 = l1;
-      i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
-      l2 = i0;
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l2;
-      l1 = i0;
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+      call_result = ReallocateBlock(ctx, holder, grow, mark, size);
+      resume_point = 1u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      size = call_result;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto block_8;}
-  }
-  i0 = l8;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l7;
-    i0 = RaiseBlockTooBig(ctx, i0);
-    l2 = i0;
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l2;
-    l1 = i0;
-  }
-  block_8:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i1 = l1;
-    StoreU32(ctx, i0 + 12u, i1);
-    i0 = l3;
-    i1 = l6;
-    i1 = LoadU32(ctx, i1 + 24u);
-    l1 = i1;
-    StoreU32(ctx, i0 + 44u, i1);
-    i0 = l1;
-    i1 = 1u;
-    i0 += i1;
-    i1 = kF1721Const3FFFFFFF;
-    i0 = i0 <= i1;
-    l5 = i0;
-    i0 = l3;
-    l4 = i0;
-  }
-  i0 = l5;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      i0 = LoadU32(ctx, i0 + 20u);
-      l5 = i0;
-      i0 = l3;
-      i0 = LoadU32(ctx, i0 + 48u);
-      i1 = 2u;
-      i0 <<= (i1 & 31);
-      l9 = i0;
-      i0 = l1;
-      i1 = 2u;
-      i0 <<= (i1 & 31);
-      l1 = i0;
-    }
-    i0 = l8;
-    i1 = 3u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l7;
-      i1 = l5;
-      i2 = l9;
-      i3 = l1;
-      i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
-      l2 = i0;
-      i0 = 3u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l2;
-      l1 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto block_14;}
-  }
-  i0 = l8;
-  i1 = 4u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l7;
-    i0 = RaiseBlockTooBig(ctx, i0);
-    l2 = i0;
-    i0 = 4u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l2;
-    l1 = i0;
-  }
-  block_14:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i1 = l1;
-    StoreU32(ctx, i0 + 20u, i1);
-    i0 = l3;
-    i1 = l6;
-    i1 = LoadU32(ctx, i1 + 24u);
-    StoreU32(ctx, i0 + 48u, i1);
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 40u);
-    l1 = i0;
-    i1 = 1u;
-    i0 += i1;
-    i1 = kF1721ConstFFFFFFF;
-    i0 = i0 <= i1;
-    l5 = i0;
-    i0 = l3;
-    l4 = i0;
-  }
-  i0 = l5;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      i0 = LoadU32(ctx, i0 + 8u);
-      l5 = i0;
-      i0 = l3;
-      i0 = LoadU32(ctx, i0 + 40u);
-      i1 = kF1721ResumeWordBytes;
-      i0 <<= (i1 & 31);
-      l9 = i0;
-      i0 = l1;
-      i1 = 4u;
-      i0 <<= (i1 & 31);
-      l1 = i0;
-    }
-    i0 = l8;
-    i1 = 5u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l7;
-      i1 = l5;
-      i2 = l9;
-      i3 = l1;
-      i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
-      l2 = i0;
-      i0 = 5u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l2;
-      l1 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto block_20;}
-  }
-  i0 = l8;
-  i1 = 6u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l7;
-    i0 = RaiseBlockTooBig(ctx, i0);
-    l2 = i0;
-    i0 = 6u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l2;
-    l1 = i0;
-  }
-  block_20:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i1 = l1;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = l3;
-    i1 = l6;
-    i1 = LoadU32(ctx, i1 + 40u);
-    StoreU32(ctx, i0 + 40u, i1);
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 44u);
-    l1 = i0;
-    i1 = 1u;
-    i0 += i1;
-    i1 = kF1721Const3FFFFFFF;
-    i0 = i0 <= i1;
-    l5 = i0;
-    i0 = l3;
-    l4 = i0;
-  }
-  i0 = l5;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      i0 = LoadU32(ctx, i0 + 16u);
-      l5 = i0;
-      i0 = l3;
-      i0 = LoadU32(ctx, i0 + 52u);
-      i1 = 2u;
-      i0 <<= (i1 & 31);
-      l9 = i0;
-      i0 = l1;
-      i1 = 2u;
-      i0 <<= (i1 & 31);
-      l1 = i0;
-    }
-    i0 = l8;
-    i1 = 7u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l7;
-      i1 = l5;
-      i2 = l9;
-      i3 = l1;
-      i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
-      l2 = i0;
-      i0 = 7u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l2;
-      l1 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto block_26;}
-  }
-  i0 = l8;
-  i1 = 8u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l7;
-    i0 = RaiseBlockTooBig(ctx, i0);
-    l2 = i0;
-    i0 = 8u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l2;
-    l1 = i0;
-  }
-  block_26:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i1 = l1;
-    StoreU32(ctx, i0 + 16u, i1);
-    i0 = l3;
-    i1 = l6;
-    i1 = LoadU32(ctx, i1 + 44u);
-    StoreU32(ctx, i0 + 52u, i1);
-    i0 = l6;
-    i0 = LoadS16(ctx, i0 + 48u);
-    l1 = i0;
-    i1 = 1u;
-    i0 += i1;
-    i1 = kF1721Const15555555;
-    i0 = i0 <= i1;
-    l5 = i0;
-    i0 = l3;
-    l4 = i0;
-  }
-  i0 = l5;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      i0 = LoadU32(ctx, i0 + 24u);
-      l5 = i0;
-      i0 = l3;
-      i0 = LoadU32(ctx, i0 + 56u);
-      i1 = 12u;
-      i0 *= i1;
-      l9 = i0;
-      i0 = l1;
-      i1 = 12u;
-      i0 *= i1;
-      l1 = i0;
-    }
-    i0 = l8;
-    i1 = 9u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l7;
-      i1 = l5;
-      i2 = l9;
-      i3 = l1;
-      i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
-      l2 = i0;
-      i0 = 9u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l2;
-      l1 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto block_32;}
-  }
-  i0 = l8;
-  i1 = 10u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l7;
-    i0 = RaiseBlockTooBig(ctx, i0);
-    l2 = i0;
-    i0 = 10u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l2;
-    l1 = i0;
-  }
-  block_32:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i1 = l1;
-    StoreU32(ctx, i0 + 24u, i1);
-    i0 = l3;
-    i1 = l6;
-    i1 = LoadS16(ctx, i1 + 48u);
-    StoreU32(ctx, i0 + 56u, i1);
-    i0 = l3;
-    i0 = LoadU8(ctx, i0 + 72u);
-    i1 = 2u;
-    i0 <<= (i1 & 31);
-    l5 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l4 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 36u);
-    i1 = 2u;
-    i0 <<= (i1 & 31);
-    l1 = i0;
-  }
-  i0 = l8;
-  i1 = 11u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l7;
-    i1 = l4;
-    i2 = l1;
-    i3 = l5;
-    i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
-    l2 = i0;
-    i0 = 11u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l2;
-    l4 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    i1 = l4;
-    StoreU32(ctx, i0 + 28u, i1);
-    i0 = l3;
-    i1 = l3;
-    i1 = LoadU8(ctx, i1 + 72u);
-    l4 = i1;
-    StoreU32(ctx, i0 + 36u, i1);
-    i0 = a;
-    i1 = l6;
-    i1 = LoadU32(ctx, i1 + 8u);
-    StoreU32(ctx, i0 + 48u, i1);
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 16u);
-    i1 = 285u;
-    i0 -= i1;
-    i1 = 1u;
-    i0 = i0 <= i1;
-    l3 = i0;
-  }
-  i0 = l3;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = a;
-      l3 = i0;
-      i0 = LoadU32(ctx, i0 + 24u);
-      a = i0;
-      i1 = 16u;
-      i0 += i1;
-      l4 = i0;
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 12u);
-      a = i0;
-    }
-    i0 = l8;
-    i1 = 12u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l3;
-      i1 = l4;
-      i2 = a;
-      i0 = BindUpvalueCell(ctx, i0, i1, i2);
-      i0 = 12u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning) { goto lineinfo_ready; }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+      call_result = RaiseBlockTooBig(ctx, holder);
+      resume_point = 2u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      size = call_result;
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l7;
-    i1 = l7;
-    i1 = LoadU32(ctx, i1 + 8u);
-    i2 = 32u;
-    i1 -= i2;
-    StoreU32(ctx, i0 + 8u, i1);
+lineinfo_ready:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The line-info array holds every pc the body reached; the code array is
+    // checked next.
+    StoreU32(ctx, slot + 12u, size);
+    StoreU32(ctx, proto + 44u, LoadU32(ctx, func_state + 24u));
+    size = LoadU32(ctx, func_state + 24u);
+    grow = static_cast<uint32_t>(size + 1u <= kPatchUpvalueJumpTargetCodeLimit);
+    slot = proto;
   }
-  goto func_exit;
-  spill_frame:;
-  l2 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1721ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l2 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l2;
-  i1 = l1;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l2;
-  i1 = l3;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l2;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l2;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l2;
-  i1 = l6;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l2;
-  i1 = l7;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = l2;
-  i1 = l9;
-  StoreU32(ctx, i0 + 28u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 32u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  if (grow != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    // The code array has no room left for one more instruction.
+    if (ResumePhase(ctx) == kResumeRunning) {
+      grow = LoadU32(ctx, proto + 20u);
+      mark = LoadU32(ctx, proto + 48u) << 2u;
+      size = size << 2u;
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+      call_result = ReallocateBlock(ctx, holder, grow, mark, size);
+      resume_point = 3u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      size = call_result;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) { goto code_ready; }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
+      call_result = RaiseBlockTooBig(ctx, holder);
+      resume_point = 4u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      size = call_result;
+    }
+  }
+code_ready:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The code array holds the whole body; the constants array is checked next.
+    StoreU32(ctx, slot + 20u, size);
+    StoreU32(ctx, proto + 48u, LoadU32(ctx, func_state + 24u));
+    size = LoadU32(ctx, func_state + 40u);
+    grow = static_cast<uint32_t>(size + 1u <= kPatchUpvalueJumpTargetConstantsLimit);
+    slot = proto;
+  }
+  if (grow != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    // The constants array has no room left for one more entry.
+    if (ResumePhase(ctx) == kResumeRunning) {
+      grow = LoadU32(ctx, proto + 8u);
+      mark = LoadU32(ctx, proto + 40u) << 4u;
+      size = size << 4u;
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
+      call_result = ReallocateBlock(ctx, holder, grow, mark, size);
+      resume_point = 5u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      size = call_result;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) { goto constants_ready; }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
+      call_result = RaiseBlockTooBig(ctx, holder);
+      resume_point = 6u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      size = call_result;
+    }
+  }
+constants_ready:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The constants array holds every constant the body used; the nested
+    // prototypes are checked next.
+    StoreU32(ctx, slot + 8u, size);
+    StoreU32(ctx, proto + 40u, LoadU32(ctx, func_state + 40u));
+    size = LoadU32(ctx, func_state + 44u);
+    grow = static_cast<uint32_t>(size + 1u <= kPatchUpvalueJumpTargetProtosLimit);
+    slot = proto;
+  }
+  if (grow != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    // The prototype array has no room left for one more nested prototype.
+    if (ResumePhase(ctx) == kResumeRunning) {
+      grow = LoadU32(ctx, proto + 16u);
+      mark = LoadU32(ctx, proto + 52u) << 2u;
+      size = size << 2u;
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 7u) {
+      call_result = ReallocateBlock(ctx, holder, grow, mark, size);
+      resume_point = 7u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      size = call_result;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) { goto protos_ready; }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 8u) {
+      call_result = RaiseBlockTooBig(ctx, holder);
+      resume_point = 8u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      size = call_result;
+    }
+  }
+protos_ready:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The prototype array holds every nested prototype; the local records are
+    // checked next.
+    StoreU32(ctx, slot + 16u, size);
+    StoreU32(ctx, proto + 52u, LoadU32(ctx, func_state + 44u));
+    size = LoadS16(ctx, func_state + 48u);
+    grow = static_cast<uint32_t>(size + 1u <= kPatchUpvalueJumpTargetLocVarsLimit);
+    slot = proto;
+  }
+  if (grow != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    // The local record array has no room left for one more record.
+    if (ResumePhase(ctx) == kResumeRunning) {
+      grow = LoadU32(ctx, proto + 24u);
+      mark = LoadU32(ctx, proto + 56u) * 12u;
+      size = size * 12u;
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 9u) {
+      call_result = ReallocateBlock(ctx, holder, grow, mark, size);
+      resume_point = 9u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      size = call_result;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) { goto locvars_ready; }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 10u) {
+      call_result = RaiseBlockTooBig(ctx, holder);
+      resume_point = 10u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      size = call_result;
+    }
+  }
+locvars_ready:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The local records are sized; the upvalue array is resized outright, so
+    // it needs no fit check.
+    StoreU32(ctx, slot + 24u, size);
+    StoreU32(ctx, proto + 56u, LoadS16(ctx, func_state + 48u));
+    grow = LoadU8(ctx, proto + 72u) << 2u;
+    slot = LoadU32(ctx, proto + 28u);
+    size = LoadU32(ctx, proto + 36u) << 2u;
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 11u) {
+    // The upvalue array is shrunk to the count of upvalues the body bound.
+    call_result = ReallocateBlock(ctx, holder, slot, size, grow);
+    resume_point = 11u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    slot = call_result;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, proto + 28u, slot);
+    slot = LoadU8(ctx, proto + 72u);
+    StoreU32(ctx, proto + 36u, slot);
+    StoreU32(ctx, state + 48u, LoadU32(ctx, func_state + 8u));
+    proto = static_cast<uint32_t>(LoadU32(ctx, state + 16u) - 285u <= 1u);
+  }
+  if (proto != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The name or string token the parse stopped on carries a string: hand
+      // the parser state, the string's data and its length to the binder.
+      proto = state;
+      state = LoadU32(ctx, state + 24u);
+      slot = state + 16u;
+      state = LoadU32(ctx, state + 12u);
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 12u) {
+      BindUpvalueCell(ctx, proto, slot, state);
+      resume_point = 12u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Give back the 32-byte scratch this step was handed.
+    StoreU32(ctx, holder + 8u, LoadU32(ctx, holder + 8u) - 32u);
+  }
+  goto exit_path;
+suspend_point:
+  // Suspend: record the resume point, then push the frame with the live words.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kPatchUpvalueJumpTargetResumeWordBytes);
+  {
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, state);
+    StoreU32(ctx, frame + 4u, size);
+    StoreU32(ctx, frame + 8u, proto);
+    StoreU32(ctx, frame + 12u, slot);
+    StoreU32(ctx, frame + 16u, grow);
+    StoreU32(ctx, frame + 20u, func_state);
+    StoreU32(ctx, frame + 24u, holder);
+    StoreU32(ctx, frame + 28u, mark);
+  }
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kPatchUpvalueJumpTargetSaveFrameBytes);
+exit_path:
   LeaveFrame();
 }
-}
+}  // namespace artc

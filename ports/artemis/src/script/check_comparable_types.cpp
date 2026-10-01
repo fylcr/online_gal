@@ -1,218 +1,102 @@
-// check_comparable_types.cpp -- rejects operand types that cannot be compared, before the comparison is emitted..
-//
-// CheckComparableTypes -- rejects operand types that cannot be compared, before the comparison is emitted.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 819983-819983 (f1741); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declaration for the callee this step drives.
 void RaiseScriptError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
 namespace {
 
-constexpr uint32_t kF1741MsgAttemptToCompareTwo = 0x2A776u;  // attempt to compare two %s values
-constexpr uint32_t kF1741MsgAttemptToCompareS = 0x2A797u;  // attempt to compare %s with %s
-constexpr uint32_t kF1741Const2BD80 = 0x2BD80u;  // 
-constexpr uint32_t kF1741SaveFrameBytes = 16u;
-constexpr uint32_t kF1741ResumeWordBytes = 4u;
+constexpr uint32_t kCompareMsgTwoValues = 0x2A776u;  // attempt to compare two %s values
+constexpr uint32_t kCompareMsgWithValues = 0x2A797u;  // attempt to compare %s with %s
+constexpr uint32_t kCompareClassWordTable = 0x2BD80u;  // record pointer per value class
+constexpr uint32_t kCheckComparableTypesSaveFrameBytes = 16u;
+constexpr uint32_t kCheckComparableTypesResumeWordBytes = 4u;
 
 }  // namespace
 
+// Rejects an operand pair that cannot be compared, before the comparison is
+// emitted.  Both operands are slots; the record a slot's class word points at
+// carries the class tag at byte 2.  Suspendable: either error call can suspend,
+// so the frame below holds the operands and the resume code names the call.
 uint32_t CheckComparableTypes(EngineContext* ctx, uint32_t state, uint32_t left, uint32_t right) {
   EnterFrame();
-  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1741SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    left = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 8u);
-    right = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
+  uint32_t scratch = 0u;
+  uint32_t resume_point = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 16-byte frame the suspend path saved.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kCheckComparableTypesSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    left = LoadU32(ctx, frame + 4u);
+    right = LoadU32(ctx, frame + 8u);
+    scratch = LoadU32(ctx, frame + 12u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1741ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 4-byte frame that saves the resume code.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kCheckComparableTypesResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  if (i0) {
-    i0 = l5;
-  } else {
-    i0 = GuestStackSp(ctx);
-    i1 = 32u;
-    i0 -= i1;
-    l3 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = left;
-    i0 = LoadU32(ctx, i0 + 8u);
-    i1 = 2u;
-    i0 <<= (i1 & 31);
-    i1 = kF1741Const2BD80;
-    i0 += i1;
-    i0 = LoadU32(ctx, i0);
-    left = i0;
-    i0 = LoadU8(ctx, i0 + 2u);
-    i1 = right;
-    i1 = LoadU32(ctx, i1 + 8u);
-    i2 = 2u;
-    i1 <<= (i2 & 31);
-    i2 = kF1741Const2BD80;
-    i1 += i2;
-    i1 = LoadU32(ctx, i1);
-    right = i1;
-    i1 = LoadU8(ctx, i1 + 2u);
-    i0 = i0 == i1;
+  // Take the scratch record, then resolve both operands and compare their class
+  // tags.  A rewind pass skips the comparison and replays the error it suspended
+  // inside, which is what forcing the flag below is for.
+  uint32_t same_class = 0u;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    scratch = GuestStackSp(ctx) - 32u;
+    GuestStackSp(ctx) = scratch;
+    left = LoadU32(ctx, kCompareClassWordTable + (LoadU32(ctx, left + 8u) << 2));
+    uint32_t const left_tag = LoadU8(ctx, left + 2u);
+    right = LoadU32(ctx, kCompareClassWordTable + (LoadU32(ctx, right + 8u) << 2));
+    same_class = static_cast<uint32_t>(left_tag == LoadU8(ctx, right + 2u));
   }
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      i1 = left;
-      StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    same_class = 1u;
+  }
+  if (same_class != 0u) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The message reads the operand back out of the scratch record.
+      StoreU32(ctx, scratch, left);
     }
-    i0 = l4;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = kF1741MsgAttemptToCompareTwo;
-      i2 = l3;
-      RaiseScriptError(ctx, i0, i1, i2);
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+      RaiseScriptError(ctx, state, kCompareMsgTwoValues, scratch);
+      resume_point = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto block_3;}
+    if (ResumePhase(ctx) == kResumeRunning) { goto finish; }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    i1 = right;
-    StoreU32(ctx, i0 + 20u, i1);
-    i0 = l3;
-    i1 = left;
-    StoreU32(ctx, i0 + 16u, i1);
-    i0 = l3;
-    i1 = 16u;
-    i0 += i1;
-    left = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The two-operand message reads a pair of slots, so the pair goes into the
+    // record and the pointer to it is the argument.
+    StoreU32(ctx, scratch + 20u, right);
+    StoreU32(ctx, scratch + 16u, left);
+    left = scratch + 16u;
   }
-  i0 = l4;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = kF1741MsgAttemptToCompareS;
-    i2 = left;
-    RaiseScriptError(ctx, i0, i1, i2);
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+    RaiseScriptError(ctx, state, kCompareMsgWithValues, left);
+    resume_point = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  block_3:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    i1 = 32u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    i0 = 0u;
-    goto func_exit;
+finish:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    GuestStackSp(ctx) = scratch + 32u;
+    goto exit_path;
   }
   TrapUnreachable();
-  spill_frame:;
-  l4 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l4;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1741ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l4 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l4;
-  i1 = left;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l4;
-  i1 = right;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l4;
-  i1 = l3;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 16u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+suspend_point:
+  // Suspend: write the resume code, then push the frame with the live state.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kCheckComparableTypesResumeWordBytes);
+  {
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, state);
+    StoreU32(ctx, frame + 4u, left);
+    StoreU32(ctx, frame + 8u, right);
+    StoreU32(ctx, frame + 12u, scratch);
+  }
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kCheckComparableTypesSaveFrameBytes);
+exit_path:
   LeaveFrame();
-  return i0;
+  return 0u;
 }
-}
+
+}  // namespace artc

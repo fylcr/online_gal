@@ -1,279 +1,167 @@
-// patch_jump_chain.cpp -- walks a pending jump list and retargets every entry at the chain head..
-//
-// PatchJumpChain -- walks a pending jump list and retargets every entry at the chain head.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 190209-190209 (f451); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of the callees below.
 void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 
 namespace {
 
-constexpr uint32_t kF451Const1FFFF = 0x1FFFFu;  // 
-constexpr uint32_t kF451Const20000 = 0x20000u;  // 
-constexpr uint32_t kF451MsgControlStructureTooLong = 0x2A394u;  // control structure too long
-constexpr uint32_t kF451Const7FFFC000 = 0x7FFFC000u;  // 
-constexpr uint32_t kF451ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF451SaveFrameBytes = 24u;
-constexpr uint32_t kF451ResumeWordBytes = 4u;
+// A pending jump list's entry is an instruction word whose offset field counts
+// backwards to the entry before it, biased by that field's own maximum; the
+// all-ones word ends the chain.
+constexpr uint32_t kPatchJumpChainNoJump = 0xFFFFFFFFu;
+constexpr uint32_t kPatchJumpChainOffsetShift = 14u;
+constexpr uint32_t kPatchJumpChainMaxOffset = 0x1FFFFu;
+constexpr uint32_t kPatchJumpChainOffsetLimit = 0x20000u;
+constexpr uint32_t kPatchJumpChainOffsetBias = 0x7FFFC000u;
+
+// Everything below the offset field is kept when the entry's link is re-encoded.
+constexpr uint32_t kPatchJumpChainArgMask = 0x3FFFu;
+
+// The text this body raises when the retargeted distance will not fit the field.
+constexpr uint32_t kPatchJumpChainTooLongText = kNilValueAddr - 3988u;
+
+// The save frame the suspend path writes and a rewind pops, and the resume word
+// pushed above it.
+constexpr uint32_t kPatchJumpChainSaveFrameBytes = 24u;
+constexpr uint32_t kPatchJumpChainResumeWordBytes = 4u;
 
 }  // namespace
 
+// Walks the pending jump list hanging off `state[32]` back to its first entry and
+// re-encodes that entry's link as the distance to `instruction`, so the whole
+// list is retargeted at this instruction; the instruction then becomes the new
+// chain head. `state[24]` is the instruction the previous step compiled and
+// `state[28]` the one recorded here, and a distance too wide for the field is
+// raised against the parser. The step is suspendable: the gate replays the call
+// its resume code names, and the save frame holds state @0, instruction @4,
+// slot @8, cursor @12, word @16 and entry @20.
 void PatchJumpChain(EngineContext* ctx, uint32_t state, uint32_t instruction) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u; uint32_t i6 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF451SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    instruction = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l4 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l5 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l6 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l3 = i0;
+  // The save frame base: a rewind pops it and the suspend path writes its six
+  // words into it.
+  uint32_t frame = 0u;
+  // The chain entry's address and the word in it.
+  uint32_t entry = 0u;
+  uint32_t word = 0u;
+  // The chain slot being followed — its index, then the offset it encodes, then
+  // its address — and the walk position carried across the loop.
+  uint32_t slot = 0u;
+  uint32_t cursor = 0u;
+  // The code block the walk reads, and the resume point a rewind pops, naming the
+  // call that was in flight.
+  uint32_t code = 0u;
+  uint32_t resume_point = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 24-byte frame the suspend path saved and read it in the
+    // order it was written.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kPatchJumpChainSaveFrameBytes);
+    frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    instruction = LoadU32(ctx, frame + 4u);
+    slot = LoadU32(ctx, frame + 8u);
+    cursor = LoadU32(ctx, frame + 12u);
+    word = LoadU32(ctx, frame + 16u);
+    entry = LoadU32(ctx, frame + 20u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF451ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l7 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume point pushed above that frame.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kPatchJumpChainResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 24u);
-    StoreU32(ctx, i0 + 28u, i1);
-    i0 = instruction;
-    i1 = kF451ConstFFFFFFFF;
-    i0 = i0 != i1;
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Running: the instruction this step walked is recorded, and whether it names
+    // no target decides whether there is a chain to walk at all.
+    StoreU32(ctx, state + 28u, LoadU32(ctx, state + 24u));
+    slot = static_cast<uint32_t>(instruction != kPatchJumpChainNoJump);
   }
-  i0 = l4;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = l2;
-    i2 = ResumePhase(ctx);
-    i2 = !(i2);
-    if (i2) {
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 32u);
-      l4 = i2;
-      i3 = kF451ConstFFFFFFFF;
-      i2 = i2 == i3;
-      if (i2) {goto block_3;}
-      i2 = state;
-      i2 = LoadU32(ctx, i2);
-      i2 = LoadU32(ctx, i2 + 12u);
-      l2 = i2;
-      loop_9: 
-        i2 = l4;
-        l5 = i2;
-        i2 = kF451ConstFFFFFFFF;
-        i3 = l5;
-        i4 = l2;
-        i5 = l4;
-        i6 = 2u;
-        i5 <<= (i6 & 31);
-        i4 += i5;
-        l3 = i4;
-        i4 = LoadU32(ctx, i4);
-        l6 = i4;
-        i5 = 14u;
-        i4 >>= (i5 & 31);
-        i5 = kF451Const1FFFF;
-        i4 -= i5;
-        l4 = i4;
-        i3 += i4;
-        i4 = 1u;
-        i3 += i4;
-        i4 = l4;
-        i5 = kF451ConstFFFFFFFF;
-        i4 = i4 == i5;
-        i2 = i4 ? i2 : i3;
-        l4 = i2;
-        i3 = kF451ConstFFFFFFFF;
-        i2 = i2 != i3;
-        if (i2) {goto loop_9;}
-      i2 = l3;
-      l4 = i2;
-      i2 = l5;
-      i3 = kF451ConstFFFFFFFF;
-      i2 ^= i3;
-      i3 = instruction;
-      i2 += i3;
-      l5 = i2;
-      i3 = 31u;
-      i2 = (uint32_t)((int32_t)i2 >> (i3 & 31));
-      instruction = i2;
-      i3 = l5;
-      i2 += i3;
-      l2 = i2;
-      i2 = instruction;
-      i3 = l2;
-      i2 ^= i3;
-      i3 = kF451Const20000;
-      i2 = (uint32_t)((int32_t)i2 >= (int32_t)i3);
-      instruction = i2;
+  if (slot != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    bool const rewinding = ResumePhase(ctx) == kResumeRewinding;
+    uint32_t latch = code;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The chain hangs off the state's own head: a head that names no target
+      // leaves the chain as it stands.
+      slot = LoadU32(ctx, state + 32u);
+      if (slot == kPatchJumpChainNoJump) {
+        goto store_head;
+      }
+      code = LoadU32(ctx, LoadU32(ctx, state) + 12u);
+    walk_chain:;
+      cursor = slot;
+      entry = code + (slot << 2u);
+      word = LoadU32(ctx, entry);
+      uint32_t const back = (word >> kPatchJumpChainOffsetShift) - kPatchJumpChainMaxOffset;
+      slot = back == kPatchJumpChainNoJump ? kPatchJumpChainNoJump : cursor + back + 1u;
+      if (slot != kPatchJumpChainNoJump) {
+        goto walk_chain;
+      }
+      slot = entry;
+      cursor = (cursor ^ kPatchJumpChainNoJump) + instruction;
+      instruction = static_cast<uint32_t>(static_cast<int32_t>(cursor) >> 31);
+      code = instruction + cursor;
+      instruction = static_cast<uint32_t>(static_cast<int32_t>(instruction ^ code) >=
+                                          static_cast<int32_t>(kPatchJumpChainOffsetLimit));
     }
-    i2 = instruction;
-    i3 = ResumePhase(ctx);
-    i1 = i3 ? i1 : i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = state;
-        i0 = LoadU32(ctx, i0 + 12u);
-        state = i0;
-      }
-      i0 = l7;
-      i0 = !(i0);
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = state;
-        i1 = kF451MsgControlStructureTooLong;
-        RaiseSyntaxError(ctx, i0, i1);
-        i0 = 0u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      if (i0) {
-        i0 = l6;
-      } else {
-        i0 = l3;
-        i0 = LoadU32(ctx, i0);
-      }
-      l6 = i0;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      latch = instruction;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l4;
-      i1 = l5;
-      i2 = 14u;
-      i1 <<= (i2 & 31);
-      instruction = i1;
-      i2 = l6;
-      i3 = 16383u;
-      i2 &= i3;
-      i1 |= i2;
-      i2 = kF451Const7FFFC000;
-      i1 += i2;
-      state = i1;
-      StoreU32(ctx, i0, i1);
+    if (rewinding || latch != 0u) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // Running: the state the error text is raised against.
+        state = LoadU32(ctx, state + 12u);
+      }
+      if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+        RaiseSyntaxError(ctx, state, kPatchJumpChainTooLongText);
+        resume_point = 0u;
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          goto suspend_point;
+        }
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // The word the re-encoding below reads: a running pass reads it back, a
+        // rewind keeps the one the frame restored.
+        word = LoadU32(ctx, entry);
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The first entry's link is replaced: the offset field takes the distance
+      // to this instruction, biased by the field's own maximum, and everything
+      // below the field is kept.
+      uint32_t const encoded = (cursor << kPatchJumpChainOffsetShift) |
+                               (word & kPatchJumpChainArgMask);
+      StoreU32(ctx, slot, encoded + kPatchJumpChainOffsetBias);
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    goto exit_path;
   }
-  block_3:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i1 = instruction;
-    StoreU32(ctx, i0 + 32u, i1);
+store_head:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Running: the chain now starts at this instruction.
+    StoreU32(ctx, state + 32u, instruction);
   }
-  goto func_exit;
-  spill_frame:;
-  l2 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF451ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l2 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l2;
-  i1 = instruction;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l2;
-  i1 = l4;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l2;
-  i1 = l5;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l2;
-  i1 = l6;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l2;
-  i1 = l3;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 24u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto exit_path;
+suspend_point:;
+  // Push the resume point naming the call in flight, then the frame this pass's
+  // save words read back. The resume word goes below the frame pointer, which
+  // then advances past it to make room for the six saved words.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kPatchJumpChainResumeWordBytes);
+  frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, frame, state);
+  StoreU32(ctx, frame + 4u, instruction);
+  StoreU32(ctx, frame + 8u, slot);
+  StoreU32(ctx, frame + 12u, cursor);
+  StoreU32(ctx, frame + 16u, word);
+  StoreU32(ctx, frame + 20u, entry);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kPatchJumpChainSaveFrameBytes);
+exit_path:;
   LeaveFrame();
 }
-}
+
+}  // namespace artc

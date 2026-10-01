@@ -267,10 +267,13 @@ jobs:
           engine="$(find candidate -name bridge.wasm -print -quit)"
           test -n "$engine" || { echo "::error::bridge.wasm is missing from the artifact"; exit 1; }
           echo "## engine: $engine"
+          # A cold boot streams ~18 MB through one wasm thread and needs well over 90 s before the
+          # first frame: pin the wait so the check cannot mistake loading for a broken module.
           node ports/artemis/tools/real-game-test.mjs \
             --game "${{ inputs.game_tree }}" \
             --engine "$engine" \
             --flavour "${{ inputs.flavour || 'asyncify' }}" \
+            --wait 240000 \
             --json-out real-game-result.json
           cat real-game-result.json
 

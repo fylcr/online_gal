@@ -1,23 +1,8 @@
-// compile_operation.cpp -- compiles one expression: folds what it can at compile time and emits the rest..
-//
-// CompileOperation -- compiles one expression: folds what it can at compile time and emits the rest.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 780576-780576 (f1701); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations for the callees this step calls.
 void FormatNumberValue(EngineContext* ctx, uint32_t state, uint32_t value, uint32_t options);
 uint32_t CompactEntryQueue(EngineContext* ctx, uint32_t state, uint32_t queue);
 void DeclareUpvalue(EngineContext* ctx, uint32_t state, uint32_t local);
@@ -48,28 +33,26 @@ uint32_t GetTableFieldByNumber(EngineContext* ctx, uint32_t a0, uint32_t a1, uin
 uint32_t Call(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 void RaiseTypeError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
-namespace {
-
-constexpr uint32_t kF1701Const2B328 = 0x2B328u;  // 
-constexpr uint32_t kF1701Const2B330 = 0x2B330u;  // 
-constexpr uint32_t kF1701MsgGetLengthOf = 0x2BF1Eu;  // get length of
-constexpr uint32_t kF1701MsgForInitialValueMust = 0x2BF2Cu;  // 'for' initial value must be a number
-constexpr uint32_t kF1701MsgForLimitMustBe = 0x2BF51u;  // 'for' limit must be a number
-constexpr uint32_t kF1701MsgForStepMustBe = 0x2BF6Eu;  // 'for' step must be a number
-constexpr uint32_t kF1701Const7FFFC = 0x7FFFCu;  // 
-constexpr uint32_t kF1701ConstFFFFC = 0xFFFFCu;  // 
-constexpr uint32_t kF1701Const3FFFF0 = 0x3FFFF0u;  // 
-constexpr uint32_t kF1701Const400000 = 0x400000u;  // 
-constexpr uint32_t kF1701Const7FC000 = 0x7FC000u;  // 
-constexpr uint32_t kF1701ConstFFFFFFC0 = 0xFFFFFFC0u;  // 
-constexpr uint32_t kF1701ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF1701SaveFrameBytes = 72u;
-constexpr uint32_t kF1701ResumeWordBytes = 4u;
-
-}  // namespace
+// CompileOperation -- compiles one expression: it folds what it can at compile
+// time and emits the rest as code.
 
 void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
   EnterFrame();
+  constexpr uint32_t kData2B328 = 0x2B328u;
+  constexpr uint32_t kData2B330 = 0x2B330u;
+  constexpr uint32_t kMsgGetLengthOf = 0x2BF1Eu;  // get length of
+  constexpr uint32_t kMsgForInitialValueMust = 0x2BF2Cu;  // 'for' initial value must be a number
+  constexpr uint32_t kMsgForLimitMustBe = 0x2BF51u;  // 'for' limit must be a number
+  constexpr uint32_t kMsgForStepMustBe = 0x2BF6Eu;  // 'for' step must be a number
+  constexpr uint32_t kData7FFFC = 0x7FFFCu;
+  constexpr uint32_t kDataFFFFC = 0xFFFFCu;
+  constexpr uint32_t kData3FFFF0 = 0x3FFFF0u;
+  constexpr uint32_t kData400000 = 0x400000u;
+  constexpr uint32_t kData7FC000 = 0x7FC000u;
+  constexpr uint32_t kDataFFFFFFC0 = 0xFFFFFFC0u;
+  constexpr uint32_t kDataFFFFFFFF = 0xFFFFFFFFu;
+  constexpr uint32_t kSaveFrameBytes = 72u;
+  constexpr uint32_t kResumeWordBytes = 4u;
   uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l14 = 0u; uint32_t l15 = 0u; uint32_t l16 = 0u; uint32_t l17 = 0u; uint64_t l18 = 0; uint64_t l19 = 0; uint32_t l2 = 0u; double l20 = 0; double l21 = 0; double l22 = 0; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
   uint64_t j0 = 0; uint64_t j1 = 0; uint64_t j2 = 0;
@@ -82,7 +65,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kF1701SaveFrameBytes;
+    i2 = kSaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -146,7 +129,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kF1701ResumeWordBytes;
+    i2 = kResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -163,10 +146,10 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
     i0 -= i1;
     l11 = i0;
     GuestStackSp(ctx) = i0;
-    i0 = kF1701Const2B330;
+    i0 = kData2B330;
     i0 = LoadU32(ctx, i0);
     l17 = i0;
-    i0 = kF1701Const2B328;
+    i0 = kData2B328;
     j0 = LoadU64(ctx, i0);
     l18 = j0;
   }
@@ -196,7 +179,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
       if (i0) {
         i0 = l9;
         l4 = i0;
-        i1 = kF1701ResumeWordBytes;
+        i1 = kResumeWordBytes;
         i0 += i1;
         l9 = i0;
         i0 = state;
@@ -381,7 +364,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 = l3;
             i3 = 10u;
             i2 >>= (i3 & 31);
-            i3 = kF1701Const3FFFF0;
+            i3 = kData3FFFF0;
             i2 &= i3;
             i1 += i2;
             l5 = i1;
@@ -416,7 +399,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             l4 = i0;
             i1 = l9;
             i2 = l3;
-            i3 = kF1701Const7FC000;
+            i3 = kData7FC000;
             i2 &= i3;
             l3 = i2;
             i0 = i2 ? i0 : i1;
@@ -498,7 +481,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i1 = l3;
             i2 = 10u;
             i1 >>= (i2 & 31);
-            i2 = kF1701Const3FFFF0;
+            i2 = kData3FFFF0;
             i1 &= i2;
             i0 += i1;
             l4 = i0;
@@ -567,7 +550,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i1 += i2;
             l2 = i1;
             i2 = l3;
-            i3 = kF1701Const400000;
+            i3 = kData400000;
             i2 &= i3;
             l12 = i2;
             i0 = i2 ? i0 : i1;
@@ -627,7 +610,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i1 = l3;
             i2 = 10u;
             i1 >>= (i2 & 31);
-            i2 = kF1701Const3FFFF0;
+            i2 = kData3FFFF0;
             i1 &= i2;
             i0 += i1;
             l4 = i0;
@@ -752,7 +735,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701ConstFFFFFFFF;
+            i3 = kDataFFFFFFFF;
             i2 = (uint32_t)((int32_t)i2 > (int32_t)i3);
             i0 = i2 ? i0 : i1;
             l5 = i0;
@@ -772,7 +755,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i1 += i2;
             l2 = i1;
             i2 = l3;
-            i3 = kF1701Const400000;
+            i3 = kData400000;
             i2 &= i3;
             i0 = i2 ? i0 : i1;
             l3 = i0;
@@ -980,7 +963,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i1 += i2;
             l5 = i1;
             i2 = l3;
-            i3 = kF1701Const400000;
+            i3 = kData400000;
             i2 &= i3;
             i0 = i2 ? i0 : i1;
             l3 = i0;
@@ -1029,7 +1012,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701Const400000;
+            i3 = kData400000;
             i2 &= i3;
             i0 = i2 ? i0 : i1;
             l2 = i0;
@@ -1058,7 +1041,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701ConstFFFFFFFF;
+            i3 = kDataFFFFFFFF;
             i2 = (uint32_t)((int32_t)i2 > (int32_t)i3);
             i0 = i2 ? i0 : i1;
             l4 = i0;
@@ -1440,7 +1423,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701Const400000;
+            i3 = kData400000;
             i2 &= i3;
             i0 = i2 ? i0 : i1;
             l2 = i0;
@@ -1469,7 +1452,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701ConstFFFFFFFF;
+            i3 = kDataFFFFFFFF;
             i2 = (uint32_t)((int32_t)i2 > (int32_t)i3);
             i0 = i2 ? i0 : i1;
             l4 = i0;
@@ -1851,7 +1834,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701Const400000;
+            i3 = kData400000;
             i2 &= i3;
             i0 = i2 ? i0 : i1;
             l2 = i0;
@@ -1880,7 +1863,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701ConstFFFFFFFF;
+            i3 = kDataFFFFFFFF;
             i2 = (uint32_t)((int32_t)i2 > (int32_t)i3);
             i0 = i2 ? i0 : i1;
             l4 = i0;
@@ -2262,7 +2245,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701Const400000;
+            i3 = kData400000;
             i2 &= i3;
             i0 = i2 ? i0 : i1;
             l2 = i0;
@@ -2291,7 +2274,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701ConstFFFFFFFF;
+            i3 = kDataFFFFFFFF;
             i2 = (uint32_t)((int32_t)i2 > (int32_t)i3);
             i0 = i2 ? i0 : i1;
             l4 = i0;
@@ -2673,7 +2656,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701Const400000;
+            i3 = kData400000;
             i2 &= i3;
             i0 = i2 ? i0 : i1;
             l2 = i0;
@@ -2702,7 +2685,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701ConstFFFFFFFF;
+            i3 = kDataFFFFFFFF;
             i2 = (uint32_t)((int32_t)i2 > (int32_t)i3);
             i0 = i2 ? i0 : i1;
             l4 = i0;
@@ -3102,7 +3085,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701Const400000;
+            i3 = kData400000;
             i2 &= i3;
             i0 = i2 ? i0 : i1;
             l2 = i0;
@@ -3131,7 +3114,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701ConstFFFFFFFF;
+            i3 = kDataFFFFFFFF;
             i2 = (uint32_t)((int32_t)i2 > (int32_t)i3);
             i0 = i2 ? i0 : i1;
             l4 = i0;
@@ -3964,7 +3947,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i0 = l3;
             if (i0) {
               i0 = state;
-              i1 = kF1701Const2B328;
+              i1 = kData2B328;
               i2 = 12u;
               i0 = FetchObjectMetamethod(ctx, i0, i1, i2);
               l5 = i0;
@@ -4113,7 +4096,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
           if (i0) {
             i0 = state;
             i1 = l2;
-            i2 = kF1701MsgGetLengthOf;
+            i2 = kMsgGetLengthOf;
             RaiseTypeError(ctx, i0, i1, i2);
             i0 = 45u;
             i1 = ResumePhase(ctx);
@@ -4241,11 +4224,11 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i1 = l3;
             i2 = 12u;
             i1 >>= (i2 & 31);
-            i2 = kF1701ConstFFFFC;
+            i2 = kDataFFFFC;
             i1 &= i2;
             i0 += i1;
             l3 = i0;
-            i1 = kF1701Const7FFFC;
+            i1 = kData7FFFC;
             i0 -= i1;
             l9 = i0;
             goto loop_6;
@@ -4272,7 +4255,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i3 &= i4;
             i2 += i3;
             i3 = l3;
-            i4 = kF1701ConstFFFFFFFF;
+            i4 = kDataFFFFFFFF;
             i3 = (uint32_t)((int32_t)i3 > (int32_t)i4);
             i1 = i3 ? i1 : i2;
             l2 = i1;
@@ -4292,7 +4275,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i4 &= i5;
             i3 += i4;
             i4 = l3;
-            i5 = kF1701Const400000;
+            i5 = kData400000;
             i4 &= i5;
             i2 = i4 ? i2 : i3;
             l5 = i2;
@@ -4368,16 +4351,16 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
               i1 = LoadU32(ctx, i1);
               i2 = 12u;
               i1 >>= (i2 & 31);
-              i2 = kF1701ConstFFFFC;
+              i2 = kDataFFFFC;
               i1 &= i2;
               i0 += i1;
               l3 = i0;
-              i1 = kF1701Const7FFFC;
+              i1 = kData7FFFC;
               i0 -= i1;
             } else {
               i0 = l9;
             }
-            i1 = kF1701ResumeWordBytes;
+            i1 = kResumeWordBytes;
             i0 += i1;
             l9 = i0;
             i0 = state;
@@ -4406,7 +4389,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701ConstFFFFFFFF;
+            i3 = kDataFFFFFFFF;
             i2 = (uint32_t)((int32_t)i2 > (int32_t)i3);
             i0 = i2 ? i0 : i1;
             l4 = i0;
@@ -4425,7 +4408,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i1 += i2;
             l2 = i1;
             i2 = l3;
-            i3 = kF1701Const400000;
+            i3 = kData400000;
             i2 &= i3;
             l6 = i2;
             i0 = i2 ? i0 : i1;
@@ -4468,16 +4451,16 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
               i1 = LoadU32(ctx, i1);
               i2 = 12u;
               i1 >>= (i2 & 31);
-              i2 = kF1701ConstFFFFC;
+              i2 = kDataFFFFC;
               i1 &= i2;
               i0 += i1;
               l3 = i0;
-              i1 = kF1701Const7FFFC;
+              i1 = kData7FFFC;
               i0 -= i1;
             } else {
               i0 = l9;
             }
-            i1 = kF1701ResumeWordBytes;
+            i1 = kResumeWordBytes;
             i0 += i1;
             l9 = i0;
             i0 = state;
@@ -4512,7 +4495,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i2 &= i3;
             i1 += i2;
             i2 = l3;
-            i3 = kF1701ConstFFFFFFFF;
+            i3 = kDataFFFFFFFF;
             i2 = (uint32_t)((int32_t)i2 > (int32_t)i3);
             i0 = i2 ? i0 : i1;
             l2 = i0;
@@ -4533,7 +4516,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i3 &= i4;
             i2 += i3;
             i3 = l3;
-            i4 = kF1701Const400000;
+            i4 = kData400000;
             i3 &= i4;
             i1 = i3 ? i1 : i2;
             l5 = i1;
@@ -4604,7 +4587,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
               i0 = i0 == i1;
               l7 = i0;
               if (i0) {
-                i0 = kF1701ConstFFFFFFFF;
+                i0 = kDataFFFFFFFF;
                 l2 = i0;
                 goto block_317;
               }
@@ -5018,16 +5001,16 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
               i1 = LoadU32(ctx, i1);
               i2 = 12u;
               i1 >>= (i2 & 31);
-              i2 = kF1701ConstFFFFC;
+              i2 = kDataFFFFC;
               i1 &= i2;
               i0 += i1;
               l3 = i0;
-              i1 = kF1701Const7FFFC;
+              i1 = kData7FFFC;
               i0 -= i1;
             } else {
               i0 = l9;
             }
-            i1 = kF1701ResumeWordBytes;
+            i1 = kResumeWordBytes;
             i0 += i1;
             l9 = i0;
             i0 = state;
@@ -5083,16 +5066,16 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
               i1 = LoadU32(ctx, i1);
               i2 = 12u;
               i1 >>= (i2 & 31);
-              i2 = kF1701ConstFFFFC;
+              i2 = kDataFFFFC;
               i1 &= i2;
               i0 += i1;
               l3 = i0;
-              i1 = kF1701Const7FFFC;
+              i1 = kData7FFFC;
               i0 -= i1;
             } else {
               i0 = l9;
             }
-            i1 = kF1701ResumeWordBytes;
+            i1 = kResumeWordBytes;
             i0 += i1;
             l9 = i0;
             goto loop_6;
@@ -5163,16 +5146,16 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
               i1 = LoadU32(ctx, i1);
               i2 = 12u;
               i1 >>= (i2 & 31);
-              i2 = kF1701ConstFFFFC;
+              i2 = kDataFFFFC;
               i1 &= i2;
               i0 += i1;
               l3 = i0;
-              i1 = kF1701Const7FFFC;
+              i1 = kData7FFFC;
               i0 -= i1;
             } else {
               i0 = l9;
             }
-            i1 = kF1701ResumeWordBytes;
+            i1 = kResumeWordBytes;
             i0 += i1;
             l9 = i0;
             goto loop_6;
@@ -5307,7 +5290,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
           if (i1) {
             i1 = state;
             i2 = l2;
-            i3 = kF1701ConstFFFFFFFF;
+            i3 = kDataFFFFFFFF;
             i1 = LuaEngine::Call(ctx, i1, i2, i3);
             l8 = i1;
             i1 = 56u;
@@ -5669,11 +5652,11 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i1 = l3;
             i2 = 12u;
             i1 >>= (i2 & 31);
-            i2 = kF1701ConstFFFFC;
+            i2 = kDataFFFFC;
             i1 &= i2;
             i0 += i1;
             l3 = i0;
-            i1 = kF1701Const7FFFC;
+            i1 = kData7FFFC;
             i0 -= i1;
             l9 = i0;
             goto loop_6;
@@ -5895,7 +5878,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
           i0 = i2 ? i0 : i1;
           if (i0) {
             i0 = state;
-            i1 = kF1701MsgForStepMustBe;
+            i1 = kMsgForStepMustBe;
             i2 = 0u;
             RaiseScriptError(ctx, i0, i1, i2);
             i0 = 63u;
@@ -5918,7 +5901,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
           i0 = i2 ? i0 : i1;
           if (i0) {
             i0 = state;
-            i1 = kF1701MsgForInitialValueMust;
+            i1 = kMsgForInitialValueMust;
             i2 = 0u;
             RaiseScriptError(ctx, i0, i1, i2);
             i0 = 64u;
@@ -5949,7 +5932,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             j1 = l19;
             StoreU64(ctx, i0 + 80u, j1);
             i0 = l2;
-            i1 = kF1701ConstFFFFFFC0;
+            i1 = kDataFFFFFFC0;
             i0 -= i1;
             i1 = l2;
             j1 = LoadU64(ctx, i1 + 16u);
@@ -6036,16 +6019,16 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
               i1 = LoadU32(ctx, i1);
               i2 = 12u;
               i1 >>= (i2 & 31);
-              i2 = kF1701ConstFFFFC;
+              i2 = kDataFFFFC;
               i1 &= i2;
               i0 += i1;
               l3 = i0;
-              i1 = kF1701Const7FFFC;
+              i1 = kData7FFFC;
               i0 -= i1;
             } else {
               i0 = l9;
             }
-            i1 = kF1701ResumeWordBytes;
+            i1 = kResumeWordBytes;
             i0 += i1;
             l9 = i0;
             goto loop_6;
@@ -6298,7 +6281,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i1 = l3;
             i2 = 12u;
             i1 >>= (i2 & 31);
-            i2 = kF1701ConstFFFFC;
+            i2 = kDataFFFFC;
             i1 &= i2;
             i0 += i1;
             i0 = LoadU32(ctx, i0);
@@ -6416,7 +6399,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
                 i1 = l12;
                 StoreU32(ctx, i0 + 20u, i1);
                 i0 = l9;
-                i1 = kF1701ResumeWordBytes;
+                i1 = kResumeWordBytes;
                 i0 += i1;
                 l9 = i0;
                 i0 = l5;
@@ -6504,7 +6487,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
             i0 = l14;
             i0 = LoadU32(ctx, i0 + 16u);
             i0 = LoadU8(ctx, i0 + 73u);
-            i1 = kF1701ConstFFFFFFFF;
+            i1 = kDataFFFFFFFF;
             i0 ^= i1;
             i1 = state;
             i1 = LoadU32(ctx, i1 + 20u);
@@ -6665,7 +6648,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
           i1 = l3;
           i2 = 10u;
           i1 >>= (i2 & 31);
-          i2 = kF1701Const3FFFF0;
+          i2 = kData3FFFF0;
           i1 &= i2;
           i0 += i1;
           l2 = i0;
@@ -6747,7 +6730,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = state;
-          i1 = kF1701MsgForLimitMustBe;
+          i1 = kMsgForLimitMustBe;
           i2 = 0u;
           RaiseScriptError(ctx, i0, i1, i2);
           i0 = 74u;
@@ -6803,11 +6786,11 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
         i1 = l3;
         i2 = 12u;
         i1 >>= (i2 & 31);
-        i2 = kF1701ConstFFFFC;
+        i2 = kDataFFFFC;
         i1 &= i2;
         i0 += i1;
         l3 = i0;
-        i1 = kF1701Const7FFFC;
+        i1 = kData7FFFC;
         i0 -= i1;
         l9 = i0;
         goto loop_6;
@@ -6822,7 +6805,7 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kF1701ResumeWordBytes;
+  i2 = kResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
@@ -6887,4 +6870,4 @@ void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression) {
   func_exit:;
   LeaveFrame();
 }
-}
+}  // namespace artc

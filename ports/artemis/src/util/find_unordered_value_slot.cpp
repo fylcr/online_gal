@@ -1,314 +1,145 @@
-// find_unordered_value_slot.cpp -- hash table read: buckets the given hash, walks the bucket chain past the marked nodes and returns the stored value slot..
-//
-// FindUnorderedValueSlot -- hash table read: buckets the given hash, walks the bucket chain past the marked nodes and returns the stored value slot.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 327606-327606 (f850); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declaration -- the shared_ptr precondition failure below.
 void Panic(EngineContext* ctx, uint32_t a0);
 
-namespace {
-
-constexpr uint32_t kF850MsgBuckets = 0xB5B6Cu;  // buckets_
-constexpr uint32_t kF850MsgBoostBoostUnorderedDetail = 0xB5B75u;  // ../../../../boost_1_66_0/boost/unordered/detail/implementation.hpp
-constexpr uint32_t kF850MsgGetBucket = 0xB5BB8u;  // get_bucket
-constexpr uint32_t kF850MsgPx = 0xB5E31u;  // px != 0
-constexpr uint32_t kF850MsgBoostBoostSmartPtr = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
-constexpr uint32_t kF850MsgOperator = 0xB5E71u;  // operator->
-constexpr uint32_t kF850ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF850Const7FFFFFFF = 0x7FFFFFFFu;  // 
-constexpr uint32_t kF850SaveFrameBytes = 12u;
-constexpr uint32_t kF850ResumeWordBytes = 4u;
-
-}  // namespace
-
-uint32_t FindUnorderedValueSlot(EngineContext* ctx, uint32_t a, uint32_t b) {
+// Looks `key` up in the unordered map `entry` and answers the value slot it
+// resolves to: the key hashes into the bucket table, the bucket's chain is
+// walked past the nodes whose group word is negative, and the node that matches
+// goes through one table dispatch. A miss trips the shared_ptr precondition and
+// panics. Suspendable -- each call below spills and is replayed on rewind.
+// `entry` enters as the map and walks on to the bucket table, the chain node and
+// the value slot; `key` is the lookup key, then the miss flag, then the
+// dispatch slot.
+uint32_t FindUnorderedValueSlot(EngineContext* ctx, uint32_t entry, uint32_t key) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF850SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
+  uint32_t const kMsgBuckets = 0xB5B6Cu;          // "buckets_"
+  uint32_t const kMsgUnorderedDetail = 0xB5B75u;  // boost/unordered/detail/implementation.hpp
+  uint32_t const kMsgGetBucket = 0xB5BB8u;        // "get_bucket"
+  uint32_t const kMsgPx = 0xB5E31u;               // "px != 0"
+  uint32_t const kMsgSharedPtr = 0xB5E39u;        // boost/smart_ptr/shared_ptr.hpp
+  uint32_t const kMsgOperator = 0xB5E71u;         // "operator->"
+  uint32_t const kPendingThrowCell = 0xD015Cu;    // the cell the throw handoff leaves set
+  uint32_t const kGroupWordMask = 0x7FFFFFFFu;    // clears the chain's single-group flag
+  uint32_t const kSaveFrameBytes = 12u;
+  uint32_t const kResumeWordBytes = 4u;
+  uint32_t frame = 0u;
+  uint32_t result = 0u;
+  uint32_t resume_word = 0u;
+  uint32_t call_code = 0u;
+  uint32_t bucket = 0u;
+  uint32_t group = 0u;
+  uint32_t no_table = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 12-byte frame -- the map, the key, the result.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
+    frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    entry = LoadU32(ctx, frame);
+    key = LoadU32(ctx, frame + 4u);
+    result = LoadU32(ctx, frame + 8u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF850ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: the second pop names the call that was in flight.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
+    resume_word = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = b;
-    i1 = a;
-    i1 = LoadU32(ctx, i1 + 24u);
-    i0 = REM_U(i0, i1);
-    l5 = i0;
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 28u);
-    i0 = !(i0);
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    bucket = key % LoadU32(ctx, entry + 24u);
+    no_table = static_cast<uint32_t>(LoadU32(ctx, entry + 28u) == 0u);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l2;
-    if (i0) {goto block_6;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 40u);
-    a = i0;
-    i0 = !(i0);
-    if (i0) {goto block_5;}
-    i0 = l5;
-    i1 = 2u;
-    i0 <<= (i1 & 31);
-    i1 = a;
-    i0 += i1;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = !(i0);
-    if (i0) {goto block_6;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = !(i0);
-    if (i0) {goto block_6;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 8u);
-    i1 = b;
-    i0 = i0 != i1;
-    if (i0) {
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 4u);
-      l2 = i0;
-      loop_10: 
-        i0 = l5;
-        i1 = l2;
-        i2 = kF850Const7FFFFFFF;
-        i1 &= i2;
-        i0 = i0 != i1;
-        if (i0) {goto block_6;}
-        loop_11: 
-          i0 = a;
-          i0 = LoadU32(ctx, i0);
-          a = i0;
-          i0 = !(i0);
-          if (i0) {goto block_6;}
-          i0 = a;
-          i0 = LoadU32(ctx, i0 + 4u);
-          l2 = i0;
-          i1 = 0u;
-          i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-          if (i0) {goto loop_11;}
-        i0 = a;
-        i0 = LoadU32(ctx, i0 + 8u);
-        i1 = b;
-        i0 = i0 != i1;
-        if (i0) {goto loop_10;}
-    }
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 20u);
-    a = i0;
-    i0 = !(i0);
-    b = i0;
-  }
-  i0 = b;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF850ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-    }
-    i0 = l4;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 857u;
-      i1 = kF850MsgPx;
-      i2 = kF850MsgBoostBoostSmartPtr;
-      i3 = 734u;
-      i4 = kF850MsgOperator;
-      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF850ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      a = i0;
-      i0 = kF850ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = a;
-      i1 = 1u;
-      i0 = i0 != i1;
-      if (i0) {goto running_exit;}
-      i0 = 0u;
-      i0 = FindMatchingCatch(ctx, i0);
-      a = i0;
-      i0 = HostTempRet0(ctx);
-      b = i0;
-    }
-    i0 = l4;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      Panic(ctx, i0);
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (no_table) { LeaveFrame(); return 0u; }
+    // The bucket table, the bucket the hash landed in, then that bucket's head.
+    entry = LoadU32(ctx, entry + 40u);
+    if (entry == 0u) {
+      // No bucket array at all: the index precondition fires and traps.
+      HostAssertFail(ctx, kMsgBuckets, kMsgUnorderedDetail, 2956u, kMsgGetBucket);
       TrapUnreachable();
     }
+    entry = LoadU32(ctx, entry + (bucket << 2));
+    if (entry == 0u) { LeaveFrame(); return 0u; }
+    entry = LoadU32(ctx, entry);
+    if (entry == 0u) { LeaveFrame(); return 0u; }
+    if (LoadU32(ctx, entry + 8u) != key) {
+      // Not this node: follow the chain while its group word stays negative and
+      // stop at the first group that matches the bucket index.
+      group = LoadU32(ctx, entry + 4u);
+      for (;;) {
+        if (bucket != (group & kGroupWordMask)) { LeaveFrame(); return 0u; }
+        do {
+          entry = LoadU32(ctx, entry);
+          if (entry == 0u) { LeaveFrame(); return 0u; }
+          group = LoadU32(ctx, entry + 4u);
+        } while (static_cast<int32_t>(group) < 0);
+        if (LoadU32(ctx, entry + 8u) != key) continue;
+        break;
+      }
+    }
+    entry = LoadU32(ctx, entry + 20u);
+    key = static_cast<uint32_t>(entry == 0u);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0 + 28u);
-    b = i0;
+  if (key != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, kPendingThrowCell, 0u);
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_word == 0u) {
+      HostFailAssertion(ctx, 857u, kMsgPx, kMsgSharedPtr, 734u, kMsgOperator);
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        call_code = 0u;
+        goto suspend_frame;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The host parks the caught type in the pending cell; only a live throw
+      // (type one) finds a matching catch and picks up its temporary slot.
+      entry = LoadU32(ctx, kPendingThrowCell);
+      StoreU32(ctx, kPendingThrowCell, 0u);
+      if (entry != 1u) TrapUnreachable();
+      entry = FindMatchingCatch(ctx, 0u);
+      key = HostTempRet0(ctx);
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_word == 1u) {
+      Panic(ctx, entry);
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        call_code = 1u;
+        goto suspend_frame;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) TrapUnreachable();
   }
-  i0 = l4;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = b;
-    i0 = CallTableT2(ctx, i1, i0);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    key = LoadU32(ctx, LoadU32(ctx, entry) + 28u);
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_word == 2u) {
+    const uint32_t dispatched = CallTableT2(ctx, key, entry);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    l2 = i0;
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l2;
-    l3 = i0;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      call_code = 2u;
+      goto suspend_frame;
+    }
+    result = dispatched;
   }
-  block_6:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    goto func_exit;
-  }
-  block_5:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF850MsgBuckets;
-    i1 = kF850MsgBoostBoostUnorderedDetail;
-    i2 = 2956u;
-    i3 = kF850MsgGetBucket;
-    HostAssertFail(ctx, i0, i1, i2, i3);
-  }
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    TrapUnreachable();
+  if (ResumePhase(ctx) == kResumeRunning) {
+    LeaveFrame();
+    return result;
   }
   TrapUnreachable();
-  spill_frame:;
-  l2 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF850ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l2 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l2;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l2;
-  i1 = l3;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 12u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+suspend_frame:;
+  // Suspended: park the word naming the call above the frame, step past it, then
+  // write the 12-byte frame a rewind pass reads back.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), call_code);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
+  frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, frame, entry);
+  StoreU32(ctx, frame + 4u, key);
+  StoreU32(ctx, frame + 8u, result);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
   LeaveFrame();
-  return i0;
+  return 0u;
 }
-}
+
+}  // namespace artc

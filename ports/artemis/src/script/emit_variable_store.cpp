@@ -1,814 +1,324 @@
-// emit_variable_store.cpp -- emits the store for one variable kind, from a local slot up to an upvalue cell..
-//
-// EmitVariableStore -- emits the store for one variable kind, from a local slot up to an upvalue cell.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 359188-359188 (f909); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations for the callees this step drives.
 void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 void DischargeExpression(EngineContext* ctx, uint32_t a0, uint32_t a1);
-uint32_t ResolveBranchOffset(EngineContext* ctx, uint32_t state, uint32_t opcode, uint32_t operands, uint32_t extra, uint32_t target);
+uint32_t ResolveBranchOffset(EngineContext* ctx, uint32_t state, uint32_t opcode,
+                             uint32_t operands, uint32_t extra, uint32_t target);
 void ExpressionToOperand(EngineContext* ctx, uint32_t func_state, uint32_t expr, uint32_t operand);
 
 namespace {
 
-constexpr uint32_t kF909Const1FFFF = 0x1FFFFu;  // 
-constexpr uint32_t kF909Const20000 = 0x20000u;  // 
-constexpr uint32_t kF909MsgFunctionOrExpressionToo = 0x2A371u;  // function or expression too complex
-constexpr uint32_t kF909MsgControlStructureTooLong = 0x2A394u;  // control structure too long
-constexpr uint32_t kF909Const2B460 = 0x2B460u;  // 
-constexpr uint32_t kF909Const7FFFC000 = 0x7FFFC000u;  // 
-constexpr uint32_t kF909ConstFFFFC03F = 0xFFFFC03Fu;  // 
-constexpr uint32_t kF909ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF909SaveFrameBytes = 44u;
-constexpr uint32_t kF909ResumeWordBytes = 4u;
+constexpr uint32_t kDataVariableStoreOpcodes = 0x2B460u;            // opcode flag table in guest memory
+constexpr uint32_t kEmitVariableStoreComplexMessage = 0x2A371u;    // "function or expression too complex"
+constexpr uint32_t kEmitVariableStoreTooLongMessage = 0x2A394u;    // "control structure too long"
+constexpr uint32_t kEmitVariableStoreIndexBias = 0x1FFFFu;         // bias off a chained slot index
+constexpr uint32_t kEmitVariableStoreIndexLimit = 0x20000u;        // widest chained slot index
+constexpr uint32_t kEmitVariableStoreOpcodeBase = 0x7FFFC000u;     // base of an encoded opcode word
+constexpr uint32_t kEmitVariableStoreOperandClear = 0xFFFFC03Fu;   // clears the operand field
+constexpr uint32_t kEmitVariableStoreNone = 0xFFFFFFFFu;           // "no value" marker
+constexpr uint32_t kEmitVariableStoreFrameBytes = 44u;             // saved frame: eleven words
+constexpr uint32_t kEmitVariableStoreResumeWordBytes = 4u;         // resume word written before it
 
 }  // namespace
 
+// Emits the store for one variable kind, from a plain local slot up to an
+// upvalue cell: the slot form of the store decides whether the slot is
+// rewritten in place or a new store word is emitted for the pool.
 void EmitVariableStore(EngineContext* ctx, uint32_t state, uint32_t variable) {
   EnterFrame();
-  uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
-      l10 = 0, l11 = 0, l12 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF909SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l6 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l7 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l8 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l10 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 36u);
-    l11 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 40u);
-    l12 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 4u);
-    variable = i0;
+  uint32_t slot = 0u;
+  uint32_t word = 0u;
+  uint32_t frame = 0u;
+  uint32_t call_result = 0u;
+  uint32_t target = 0u;
+  uint32_t count = 0u;
+  uint32_t pool = 0u;
+  uint32_t entry = 0u;
+  uint32_t resume_point = 0u;
+  uint32_t too_many_slots = 0u;
+  uint32_t patch_start = 0u;
+  uint32_t patch_end = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the frame this step saved when it suspended.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kEmitVariableStoreFrameBytes);
+    frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    slot = LoadU32(ctx, frame + 8u);
+    word = LoadU32(ctx, frame + 12u);
+    target = LoadU32(ctx, frame + 16u);
+    count = LoadU32(ctx, frame + 20u);
+    pool = LoadU32(ctx, frame + 24u);
+    entry = LoadU32(ctx, frame + 28u);
+    too_many_slots = LoadU32(ctx, frame + 32u);
+    patch_start = LoadU32(ctx, frame + 36u);
+    patch_end = LoadU32(ctx, frame + 40u);
+    variable = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF909ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l9 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word naming the call this step stopped at.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kEmitVariableStoreResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = l9;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = variable;
-    DischargeExpression(ctx, i0, i1);
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+    DischargeExpression(ctx, state, variable);
+    resume_point = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = variable;
-    i0 = LoadU32(ctx, i0);
-    i1 = 2u;
-    i0 -= i1;
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The store kind, biased by two, picks the slot form to rewrite.
+    slot = LoadU32(ctx, variable) - 2u;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l2;
-    switch (i0) {
-      case 0: goto block_6;
-      case 1: goto block_11;
-      case 2: goto block_6;
-      case 3: goto block_6;
-      case 4: goto block_11;
-      case 5: goto block_11;
-      case 6: goto block_11;
-      case 7: goto block_11;
-      case 8: goto block_14;
-      case 9: goto block_13;
-      case 10: goto block_9;
-      default: goto block_11;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    switch (slot) {
+      case 0: goto common_store;
+      case 1: goto indexed_store;
+      case 2: goto common_store;
+      case 3: goto common_store;
+      case 4: goto indexed_store;
+      case 5: goto indexed_store;
+      case 6: goto indexed_store;
+      case 7: goto indexed_store;
+      case 8: goto local_store;
+      case 9: goto upvalue_store;
+      case 10: goto global_store;
+      default: goto indexed_store;
     }
-    block_14:;
-    i0 = state;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0 + 12u);
-    i1 = variable;
-    i1 = LoadU32(ctx, i1 + 8u);
-    l3 = i1;
-    i2 = 2u;
-    i1 <<= (i2 & 31);
-    i0 += i1;
-    l2 = i0;
-    i0 = l3;
-    i1 = 1u;
-    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-    if (i0) {
-      i0 = l2;
-      i1 = 4u;
-      i0 -= i1;
-      l5 = i0;
-      i0 = LoadU32(ctx, i0);
-      l3 = i0;
-      i1 = 63u;
-      i0 &= i1;
-      i1 = kF909Const2B460;
-      i0 += i1;
-      i0 = LoadS8(ctx, i0);
-      i1 = 0u;
-      i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-      l6 = i0;
-      if (i0) {goto block_15;}
+  local_store:
+    // Rewrite the slot naming the local itself, keeping its operand field.
+    word = LoadU32(ctx, variable + 8u);
+    slot = LoadU32(ctx, LoadU32(ctx, state) + 12u) + (word << 2u);
+    if ((uint32_t)((int32_t)word >= (int32_t)1)) {
+      // The slot in front of it names the opcode this store gets.
+      target = slot - 4u;
+      word = LoadU32(ctx, target);
+      count = (uint32_t)((int32_t)LoadS8(ctx, (word & 63u) + kDataVariableStoreOpcodes) < (int32_t)0);
+      if (count) goto write_slot;
     }
-    i0 = l2;
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = l2;
-    l5 = i0;
-    block_15:;
-    i0 = l5;
-    i1 = l3;
-    i2 = kF909ConstFFFFC03F;
-    i1 &= i2;
-    i2 = l3;
-    i3 = 16320u;
-    i2 &= i3;
-    i2 = !(i2);
-    i3 = 6u;
-    i2 <<= (i3 & 31);
-    l3 = i2;
-    i1 |= i2;
-    l2 = i1;
-    StoreU32(ctx, i0, i1);
-    i0 = variable;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l5 = i0;
-    goto block_7;
-    block_13:;
-    i0 = state;
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0 + 12u);
-    i1 = variable;
-    i1 = LoadU32(ctx, i1 + 8u);
-    i2 = 2u;
-    i1 <<= (i2 & 31);
-    i0 += i1;
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i1 = 63u;
-    i0 &= i1;
-    i1 = 19u;
-    i0 = i0 != i1;
-    l5 = i0;
-    if (i0) {goto block_10;}
-    i0 = state;
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 24u);
-    i2 = 1u;
-    i1 -= i2;
-    l5 = i1;
-    StoreU32(ctx, i0 + 24u, i1);
-    i0 = l2;
-    i1 = 23u;
-    i0 >>= (i1 & 31);
-    l2 = i0;
+    word = LoadU32(ctx, slot);
+    target = slot;
+  write_slot:
+    word = (word & kEmitVariableStoreOperandClear) | ((word & 16320u) == 0u ? 64u : 0u);
+    StoreU32(ctx, target, word);
+    target = LoadU32(ctx, variable + 8u);
+    goto target_ready;
+  upvalue_store:
+    // An upvalue store only drops the pool count for its own slot.
+    word = LoadU32(ctx, state);
+    slot = LoadU32(ctx, LoadU32(ctx, word + 12u) + (LoadU32(ctx, variable + 8u) << 2u));
+    target = (uint32_t)((slot & 63u) != 19u);
+    if (target) goto check_capacity;
+    target = LoadU32(ctx, state + 24u) - 1u;
+    StoreU32(ctx, state + 24u, target);
+    slot = slot >> 23u;
   }
-  i0 = l9;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = 26u;
-    i2 = l2;
-    i3 = 0u;
-    i4 = 1u;
-    i0 = ResolveBranchOffset(ctx, i0, i1, i2, i3, i4);
-    l4 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+    call_result = ResolveBranchOffset(ctx, state, 26u, slot, 0u, 1u);
+    resume_point = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    target = call_result;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {goto block_7;}
-  block_11:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) goto target_ready;
+indexed_store:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    word = LoadU32(ctx, state);
   }
-  block_10:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 36u);
-    l6 = i0;
-    i1 = 1u;
-    i0 += i1;
-    l5 = i0;
-    i0 = l6;
-    i1 = l3;
-    i1 = LoadU8(ctx, i1 + 75u);
-    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-    l2 = i0;
+check_capacity:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // One more slot may still fit unless the pool count ran past its end.
+    count = LoadU32(ctx, state + 36u);
+    target = count + 1u;
+    slot = (uint32_t)((int32_t)count < (int32_t)LoadU8(ctx, word + 75u));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l2;
-    if (i0) {
-      i0 = l5;
-      l2 = i0;
-      goto block_20;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (slot) {
+      slot = target;
+      goto store_slot;
     }
-    i0 = l6;
-    i1 = 249u;
-    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-    l6 = i0;
-    i0 = l5;
-    l2 = i0;
+    count = (uint32_t)((int32_t)count >= (int32_t)249);
+    slot = target;
   }
-  i0 = l10;
-  i1 = l6;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  l10 = i0;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 12u);
-      l2 = i0;
+  too_many_slots = (ResumePhase(ctx) == kResumeRunning) ? count : too_many_slots;
+  if (too_many_slots || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      slot = LoadU32(ctx, state + 12u);
     }
-    i0 = l9;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l2;
-      i1 = kF909MsgFunctionOrExpressionToo;
-      RaiseSyntaxError(ctx, i0, i1);
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+      RaiseSyntaxError(ctx, slot, kEmitVariableStoreComplexMessage);
+      resume_point = 2u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
     }
-    i0 = ResumePhase(ctx);
-    if (i0) {
-      i0 = l2;
-    } else {
-      i0 = state;
-      i0 = LoadU32(ctx, i0);
-      l3 = i0;
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 36u);
-      i1 = 1u;
-      i0 += i1;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      word = LoadU32(ctx, state);
+      slot = LoadU32(ctx, state + 36u) + 1u;
     }
-    l2 = i0;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    i1 = l5;
-    StoreU8(ctx, i0 + 75u, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU8(ctx, word + 75u, target);
   }
-  block_20:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i1 = l2;
-    StoreU32(ctx, i0 + 36u, i1);
-    i0 = l2;
-    i1 = 1u;
-    i0 -= i1;
-    l2 = i0;
+store_slot:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, state + 36u, slot);
+    slot = slot - 1u;
   }
-  i0 = l9;
-  i1 = 3u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = variable;
-    i2 = l2;
-    ExpressionToOperand(ctx, i0, i1, i2);
-    i0 = 3u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+    ExpressionToOperand(ctx, state, variable, slot);
+    resume_point = 3u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = variable;
-    i0 = LoadU32(ctx, i0);
-    i1 = 12u;
-    i0 = i0 != i1;
-    l2 = i0;
-    if (i0) {goto block_8;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    slot = (uint32_t)(LoadU32(ctx, variable) != 12u);
+    if (slot) goto load_operand;
   }
-  block_9:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = variable;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
-    i1 = 256u;
-    i0 &= i1;
-    l2 = i0;
-    if (i0) {goto block_8;}
-    i0 = l3;
-    i1 = state;
-    i1 = LoadU8(ctx, i1 + 50u);
-    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-    l2 = i0;
-    if (i0) {goto block_8;}
-    i0 = state;
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 36u);
-    i2 = 1u;
-    i1 -= i2;
-    l2 = i1;
-    StoreU32(ctx, i0 + 36u, i1);
+global_store:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // A global store keeps its key slot unless the key needs a wide operand.
+    word = LoadU32(ctx, variable + 8u);
+    slot = word & 256u;
+    if (slot) goto load_operand;
+    slot = (uint32_t)((int32_t)word < (int32_t)LoadU8(ctx, state + 50u));
+    if (slot) goto load_operand;
+    slot = LoadU32(ctx, state + 36u) - 1u;
+    StoreU32(ctx, state + 36u, slot);
   }
-  block_8:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = variable;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
+load_operand:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    slot = LoadU32(ctx, variable + 8u);
   }
-  i0 = l9;
-  i1 = 4u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = 27u;
-    i2 = 255u;
-    i3 = l2;
-    i4 = 0u;
-    i0 = ResolveBranchOffset(ctx, i0, i1, i2, i3, i4);
-    l4 = i0;
-    i0 = 4u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
+    call_result = ResolveBranchOffset(ctx, state, 27u, 255u, slot, 0u);
+    resume_point = 4u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    target = call_result;
   }
-  block_7:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l5;
-    i1 = kF909ConstFFFFFFFF;
-    i0 = i0 == i1;
-    l2 = i0;
-    if (i0) {goto block_6;}
-    i0 = variable;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l3 = i0;
-    i1 = kF909ConstFFFFFFFF;
-    i0 = i0 != i1;
-    l2 = i0;
+target_ready:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    slot = (uint32_t)(target == kEmitVariableStoreNone);
+    if (slot) goto common_store;
+    word = LoadU32(ctx, variable + 20u);
+    slot = (uint32_t)(word != kEmitVariableStoreNone);
   }
-  i0 = l2;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l11;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {
-      i1 = state;
-      i1 = LoadU32(ctx, i1);
-      i1 = LoadU32(ctx, i1 + 12u);
-      l7 = i1;
-      loop_39: 
-        i1 = l7;
-        i2 = l3;
-        l2 = i2;
-        i3 = 2u;
-        i2 <<= (i3 & 31);
-        i1 += i2;
-        l8 = i1;
-        i1 = LoadU32(ctx, i1);
-        l6 = i1;
-        i2 = 14u;
-        i1 >>= (i2 & 31);
-        i2 = kF909Const1FFFF;
-        i1 -= i2;
-        l3 = i1;
-        i1 = kF909ConstFFFFFFFF;
-        i2 = l2;
-        i3 = l3;
-        i2 += i3;
-        i3 = 1u;
-        i2 += i3;
-        i3 = l3;
-        i4 = kF909ConstFFFFFFFF;
-        i3 = i3 == i4;
-        i1 = i3 ? i1 : i2;
-        l3 = i1;
-        i2 = kF909ConstFFFFFFFF;
-        i1 = i1 != i2;
-        if (i1) {goto loop_39;}
-      i1 = l8;
-      l7 = i1;
-      i1 = l5;
-      i2 = l2;
-      i3 = kF909ConstFFFFFFFF;
-      i2 ^= i3;
-      i1 += i2;
-      l3 = i1;
-      i2 = 31u;
-      i1 = (uint32_t)((int32_t)i1 >> (i2 & 31));
-      l2 = i1;
-      i2 = l3;
-      i1 += i2;
-      l5 = i1;
-      i1 = l2;
-      i2 = l5;
-      i1 ^= i2;
-      i2 = kF909Const20000;
-      i1 = (uint32_t)((int32_t)i1 >= (int32_t)i2);
-      l2 = i1;
-    }
-    i1 = l2;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l11 = i0;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = state;
-        i0 = LoadU32(ctx, i0 + 12u);
-        l2 = i0;
+  if (slot || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The recorded jump target is rewritten: walk the slot chain it names.
+      pool = LoadU32(ctx, LoadU32(ctx, state) + 12u);
+      for (;;) {
+        slot = word;
+        entry = pool + (slot << 2u);
+        count = LoadU32(ctx, entry);
+        word = (count >> 14u) - kEmitVariableStoreIndexBias;
+        word = (word == kEmitVariableStoreNone) ? kEmitVariableStoreNone : (slot + word + 1u);
+        if (word == kEmitVariableStoreNone) break;
       }
-      i0 = l9;
-      i1 = 5u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = l2;
-        i1 = kF909MsgControlStructureTooLong;
-        RaiseSyntaxError(ctx, i0, i1);
-        i0 = 5u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      if (i0) {
-        i0 = l6;
-      } else {
-        i0 = l8;
-        i0 = LoadU32(ctx, i0);
-      }
-      l6 = i0;
+      pool = entry;
+      word = target + (slot ^ kEmitVariableStoreNone);
+      slot = (uint32_t)((int32_t)word >> 31);
+      target = word + slot;
+      slot = (uint32_t)((int32_t)(slot ^ target) >= (int32_t)kEmitVariableStoreIndexLimit);
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l7;
-      i1 = l3;
-      i2 = 14u;
-      i1 <<= (i2 & 31);
-      l5 = i1;
-      i2 = l6;
-      i3 = 16383u;
-      i2 &= i3;
-      i1 |= i2;
-      i2 = kF909Const7FFFC000;
-      i1 += i2;
-      l2 = i1;
-      StoreU32(ctx, i0, i1);
-      goto block_6;
+    patch_start = (ResumePhase(ctx) != kResumeRunning) ? patch_start : slot;
+    if (patch_start || ResumePhase(ctx) == kResumeRewinding) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        slot = LoadU32(ctx, state + 12u);
+      }
+      if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
+        RaiseSyntaxError(ctx, slot, kEmitVariableStoreTooLongMessage);
+        resume_point = 5u;
+        if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        count = LoadU32(ctx, entry);
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      target = word << 14u;
+      slot = (target | (count & 16383u)) + kEmitVariableStoreOpcodeBase;
+      StoreU32(ctx, pool, slot);
+      goto common_store;
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = variable;
-    i1 = l5;
-    StoreU32(ctx, i0 + 20u, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, variable + 20u, target);
   }
-  block_6:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = variable;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = state;
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 24u);
-    StoreU32(ctx, i0 + 28u, i1);
-    i0 = l5;
-    i1 = kF909ConstFFFFFFFF;
-    i0 = i0 != i1;
-    l2 = i0;
+common_store:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The store's own target is rewritten the same way, from the break slot.
+    target = LoadU32(ctx, variable + 16u);
+    StoreU32(ctx, state + 28u, LoadU32(ctx, state + 24u));
+    slot = (uint32_t)(target != kEmitVariableStoreNone);
   }
-  i0 = l2;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l12;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {
-      i1 = state;
-      i1 = LoadU32(ctx, i1 + 32u);
-      l3 = i1;
-      i2 = kF909ConstFFFFFFFF;
-      i1 = i1 == i2;
-      if (i1) {goto block_46;}
-      i1 = state;
-      i1 = LoadU32(ctx, i1);
-      i1 = LoadU32(ctx, i1 + 12u);
-      l7 = i1;
-      loop_52: 
-        i1 = l7;
-        i2 = l3;
-        l2 = i2;
-        i3 = 2u;
-        i2 <<= (i3 & 31);
-        i1 += i2;
-        l8 = i1;
-        i1 = LoadU32(ctx, i1);
-        l6 = i1;
-        i2 = 14u;
-        i1 >>= (i2 & 31);
-        i2 = kF909Const1FFFF;
-        i1 -= i2;
-        l3 = i1;
-        i1 = kF909ConstFFFFFFFF;
-        i2 = l2;
-        i3 = l3;
-        i2 += i3;
-        i3 = 1u;
-        i2 += i3;
-        i3 = l3;
-        i4 = kF909ConstFFFFFFFF;
-        i3 = i3 == i4;
-        i1 = i3 ? i1 : i2;
-        l3 = i1;
-        i2 = kF909ConstFFFFFFFF;
-        i1 = i1 != i2;
-        if (i1) {goto loop_52;}
-      i1 = l8;
-      l7 = i1;
-      i1 = l5;
-      i2 = l2;
-      i3 = kF909ConstFFFFFFFF;
-      i2 ^= i3;
-      i1 += i2;
-      l3 = i1;
-      i2 = 31u;
-      i1 = (uint32_t)((int32_t)i1 >> (i2 & 31));
-      l2 = i1;
-      i2 = l3;
-      i1 += i2;
-      l5 = i1;
-      i1 = l2;
-      i2 = l5;
-      i1 ^= i2;
-      i2 = kF909Const20000;
-      i1 = (uint32_t)((int32_t)i1 >= (int32_t)i2);
-      l2 = i1;
+  if (slot || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      word = LoadU32(ctx, state + 32u);
+      if (word == kEmitVariableStoreNone) goto store_end;
+      pool = LoadU32(ctx, LoadU32(ctx, state) + 12u);
+      for (;;) {
+        slot = word;
+        entry = pool + (slot << 2u);
+        count = LoadU32(ctx, entry);
+        word = (count >> 14u) - kEmitVariableStoreIndexBias;
+        word = (word == kEmitVariableStoreNone) ? kEmitVariableStoreNone : (slot + word + 1u);
+        if (word == kEmitVariableStoreNone) break;
+      }
+      pool = entry;
+      word = target + (slot ^ kEmitVariableStoreNone);
+      slot = (uint32_t)((int32_t)word >> 31);
+      target = word + slot;
+      slot = (uint32_t)((int32_t)(slot ^ target) >= (int32_t)kEmitVariableStoreIndexLimit);
     }
-    i1 = l2;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l12 = i0;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = state;
-        i0 = LoadU32(ctx, i0 + 12u);
-        state = i0;
+    patch_end = (ResumePhase(ctx) != kResumeRunning) ? patch_end : slot;
+    if (patch_end || ResumePhase(ctx) == kResumeRewinding) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        word = LoadU32(ctx, state + 12u);
       }
-      i0 = l9;
-      i1 = 6u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = state;
-        i1 = kF909MsgControlStructureTooLong;
-        RaiseSyntaxError(ctx, i0, i1);
-        i0 = 6u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
+      if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
+        RaiseSyntaxError(ctx, word, kEmitVariableStoreTooLongMessage);
+        resume_point = 6u;
+        if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
       }
-      i0 = ResumePhase(ctx);
-      if (i0) {
-        i0 = l6;
-      } else {
-        i0 = l8;
-        i0 = LoadU32(ctx, i0);
+      if (ResumePhase(ctx) == kResumeRunning) {
+        count = LoadU32(ctx, entry);
       }
-      l6 = i0;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l7;
-      i1 = l6;
-      i2 = 16383u;
-      i1 &= i2;
-      i2 = l3;
-      i3 = 14u;
-      i2 <<= (i3 & 31);
-      i1 |= i2;
-      i2 = kF909Const7FFFC000;
-      i1 += i2;
-      state = i1;
-      StoreU32(ctx, i0, i1);
+    if (ResumePhase(ctx) == kResumeRunning) {
+      word = ((count & 16383u) | (target << 14u)) + kEmitVariableStoreOpcodeBase;
+      StoreU32(ctx, pool, word);
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = variable;
-    i1 = kF909ConstFFFFFFFF;
-    StoreU32(ctx, i0 + 16u, i1);
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, variable + 16u, kEmitVariableStoreNone);
+    goto step_done;
   }
-  block_46:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i1 = l5;
-    StoreU32(ctx, i0 + 32u, i1);
-    i0 = variable;
-    i1 = kF909ConstFFFFFFFF;
-    StoreU32(ctx, i0 + 16u, i1);
+store_end:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, state + 32u, target);
+    StoreU32(ctx, variable + 16u, kEmitVariableStoreNone);
   }
-  goto func_exit;
-  spill_frame:;
-  l4 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l4;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF909ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l4 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l4;
-  i1 = variable;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l4;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l4;
-  i1 = l3;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l4;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l4;
-  i1 = l6;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l4;
-  i1 = l7;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = l4;
-  i1 = l8;
-  StoreU32(ctx, i0 + 28u, i1);
-  i0 = l4;
-  i1 = l10;
-  StoreU32(ctx, i0 + 32u, i1);
-  i0 = l4;
-  i1 = l11;
-  StoreU32(ctx, i0 + 36u, i1);
-  i0 = l4;
-  i1 = l12;
-  StoreU32(ctx, i0 + 40u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 44u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto step_done;
+suspend_point:
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kEmitVariableStoreResumeWordBytes);
+  frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, frame, state);
+  StoreU32(ctx, frame + 4u, variable);
+  StoreU32(ctx, frame + 8u, slot);
+  StoreU32(ctx, frame + 12u, word);
+  StoreU32(ctx, frame + 16u, target);
+  StoreU32(ctx, frame + 20u, count);
+  StoreU32(ctx, frame + 24u, pool);
+  StoreU32(ctx, frame + 28u, entry);
+  StoreU32(ctx, frame + 32u, too_many_slots);
+  StoreU32(ctx, frame + 36u, patch_start);
+  StoreU32(ctx, frame + 40u, patch_end);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kEmitVariableStoreFrameBytes);
+step_done:
   LeaveFrame();
 }
-}
+
+}  // namespace artc

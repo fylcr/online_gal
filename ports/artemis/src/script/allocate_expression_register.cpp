@@ -1,286 +1,136 @@
-// allocate_expression_register.cpp -- allocates the next free register for an expression and records it on the instruction..
-//
-// AllocateExpressionRegister -- allocates the next free register for an expression and records it on the instruction.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 360494-360494 (f911); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of the callees below.
 void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 
 namespace {
 
-constexpr uint32_t kF911MsgFunctionOrExpressionToo = 0x2A371u;  // function or expression too complex
-constexpr uint32_t kF911Const7FC000 = 0x7FC000u;  // 
-constexpr uint32_t kF911Const7FFFFF = 0x7FFFFFu;  // 
-constexpr uint32_t kF911Const800000 = 0x800000u;  // 
-constexpr uint32_t kF911ConstFF803FFF = 0xFF803FFFu;  // 
-constexpr uint32_t kF911ConstFFFFC03F = 0xFFFFC03Fu;  // 
-constexpr uint32_t kF911SaveFrameBytes = 16u;
-constexpr uint32_t kF911ResumeWordBytes = 4u;
+constexpr uint32_t kAllocateTooComplexMessage = 0x2A371u;  // "function or expression too complex"
+constexpr uint32_t kAllocateLowFieldClear = 0xFF803FFFu;  // the operand word without bits 14..22
+constexpr uint32_t kAllocateLowFieldMask = 0x7FC000u;  // bits 14..22, the low operand field
+constexpr uint32_t kAllocateLowFieldBias = 16384u;  // one register as that field counts it
+constexpr uint32_t kAllocateHighFieldKeep = 0x7FFFFFu;  // the operand word below bit 23
+constexpr uint32_t kAllocateHighFieldBias = 0x800000u;  // one register as that field counts it
+constexpr uint32_t kAllocateSlotClear = 0xFFFFC03Fu;  // the operand word without bits 6..13
+constexpr uint32_t kAllocateSlotMask = 16320u;  // bits 6..13, the register slot field
+constexpr uint32_t kAllocateRegisterLimit = 249u;  // most registers a frame may hold
+constexpr uint32_t kAllocateSaveFrameBytes = 16u;  // saved state words below the resume code
+constexpr uint32_t kAllocateResumeWordBytes = 4u;  // resume code slot
 
 }  // namespace
 
+// Gives an expression the register that holds it and records that register on
+// the instruction that produced it.  The operand cell carries the register in
+// one of two fields, and a frame with no room left calls for more room.
 void AllocateExpressionRegister(EngineContext* ctx, uint32_t state, uint32_t instruction, uint32_t expression) {
   EnterFrame();
-  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF911SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 4u);
-    instruction = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 8u);
-    expression = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
+  uint32_t registers = 0u;   // the register frame the expression lives in
+  uint32_t cell = 0u;        // the operand cell the instruction points at
+  uint32_t reg_base = 0u;    // where the frame's register slots begin
+  uint32_t reg_index = 0u;   // the register the expression was given
+  uint32_t at_limit = 0u;    // the frame cannot hold another register
+  uint32_t resume_point = 0u;
+  uint32_t merged = 0u;      // the operand word once the register is in it
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 16-byte frame the suspend path saved.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+        LoadU32(ctx, ReturnFrameSp(ctx)) - kAllocateSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    instruction = LoadU32(ctx, frame + 4u);
+    expression = LoadU32(ctx, frame + 8u);
+    registers = LoadU32(ctx, frame + 12u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF911ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 4-byte frame that saves the resume code.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+        LoadU32(ctx, ReturnFrameSp(ctx)) - kAllocateResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = instruction;
-    i0 = LoadU32(ctx, i0);
-    i1 = 13u;
-    i0 -= i1;
-    switch (i0) {
-      case 0: goto block_6;
-      case 1: goto block_5;
-      default: goto block_3;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    switch (LoadU32(ctx, instruction) - 13u) {
+      case 0u: goto patch_low_field;
+      case 1u: goto patch_high_field;
+      default: goto skip_patch;
     }
-    block_6:;
-    i0 = state;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0 + 12u);
-    i1 = instruction;
-    i1 = LoadU32(ctx, i1 + 8u);
-    i2 = 2u;
-    i1 <<= (i2 & 31);
-    i0 += i1;
-    state = i0;
-    i0 = LoadU32(ctx, i0);
-    i1 = kF911ConstFF803FFF;
-    i0 &= i1;
-    i1 = expression;
-    i2 = 14u;
-    i1 <<= (i2 & 31);
-    i2 = 16384u;
-    i1 += i2;
-    i2 = kF911Const7FC000;
-    i1 &= i2;
-    i0 |= i1;
-    instruction = i0;
-    i0 = state;
-    i1 = instruction;
-    StoreU32(ctx, i0, i1);
-    goto func_exit;
-    block_5:;
-    i0 = state;
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
-    i1 = instruction;
-    i1 = LoadU32(ctx, i1 + 8u);
-    i2 = 2u;
-    i1 <<= (i2 & 31);
-    i0 += i1;
-    l6 = i0;
-    i0 = LoadU32(ctx, i0);
-    i1 = kF911Const7FFFFF;
-    i0 &= i1;
-    i1 = expression;
-    i2 = 23u;
-    i1 <<= (i2 & 31);
-    i0 |= i1;
-    i1 = kF911Const800000;
-    i0 += i1;
-    expression = i0;
-    i0 = l6;
-    i1 = expression;
-    StoreU32(ctx, i0, i1);
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 36u);
-    i1 = 6u;
-    i0 <<= (i1 & 31);
-    i1 = 16320u;
-    i0 &= i1;
-    i1 = l3;
-    i2 = instruction;
-    i2 = LoadU32(ctx, i2 + 8u);
-    i3 = 2u;
-    i2 <<= (i3 & 31);
-    i1 += i2;
-    instruction = i1;
-    i1 = LoadU32(ctx, i1);
-    i2 = kF911ConstFFFFC03F;
-    i1 &= i2;
-    i0 |= i1;
-    expression = i0;
-    i0 = instruction;
-    i1 = expression;
-    StoreU32(ctx, i0, i1);
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 36u);
-    l3 = i0;
-    i1 = 1u;
-    i0 += i1;
-    instruction = i0;
-    i0 = l3;
-    i1 = l4;
-    i1 = LoadU8(ctx, i1 + 75u);
-    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-    expression = i0;
+  patch_low_field:
+    // Opcode 13 keeps its register in bits 14..22.
+    cell = LoadU32(ctx, LoadU32(ctx, state) + 12u) + (LoadU32(ctx, instruction + 8u) << 2u);
+    merged = (LoadU32(ctx, cell) & kAllocateLowFieldClear)
+        | (((expression << 14u) + kAllocateLowFieldBias) & kAllocateLowFieldMask);
+    StoreU32(ctx, cell, merged);
+    goto exit_path;
+  patch_high_field:
+    // Opcode 14 keeps its register in bits 23..31, and the operand cell it
+    // points at carries the register slot in bits 6..13 as well.
+    registers = LoadU32(ctx, state);
+    reg_base = LoadU32(ctx, registers + 12u);
+    cell = reg_base + (LoadU32(ctx, instruction + 8u) << 2u);
+    merged = ((LoadU32(ctx, cell) & kAllocateHighFieldKeep) | (expression << 23u))
+        + kAllocateHighFieldBias;
+    StoreU32(ctx, cell, merged);
+    reg_index = LoadU32(ctx, state + 36u);
+    cell = reg_base + (LoadU32(ctx, instruction + 8u) << 2u);
+    merged = ((reg_index << 6u) & kAllocateSlotMask) | (LoadU32(ctx, cell) & kAllocateSlotClear);
+    StoreU32(ctx, cell, merged);
+    reg_index = LoadU32(ctx, state + 36u);
+    instruction = reg_index + 1u;
+    expression = (int32_t)reg_index < (int32_t)LoadU8(ctx, registers + 75u);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = expression;
-    if (i0) {
-      i0 = instruction;
-      expression = i0;
-      goto block_7;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (expression != 0u) {
+      // The frame has room: the register just taken is what the caller stores.
+      expression = instruction;
+      goto commit;
     }
-    i0 = l3;
-    i1 = 249u;
-    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-    l3 = i0;
-    i0 = instruction;
-    expression = i0;
+    at_limit = (int32_t)reg_index >= (int32_t)kAllocateRegisterLimit;
+    expression = instruction;
   }
-  i0 = l3;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 12u);
-      expression = i0;
+  if (at_limit != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The expression register is the frame's own free slot.
+      expression = LoadU32(ctx, state + 12u);
     }
-    i0 = l5;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = expression;
-      i1 = kF911MsgFunctionOrExpressionToo;
-      RaiseSyntaxError(ctx, i0, i1);
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+      RaiseSyntaxError(ctx, expression, kAllocateTooComplexMessage);
+      resume_point = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
     }
-    i0 = ResumePhase(ctx);
-    if (i0) {
-      i0 = expression;
-    } else {
-      i0 = state;
-      i0 = LoadU32(ctx, i0);
-      l4 = i0;
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 36u);
-      i1 = 1u;
-      i0 += i1;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // A fresh register: the frame's free slot becomes the result, and the
+      // register frame is reloaded for the count below.
+      registers = LoadU32(ctx, state);
+      expression = LoadU32(ctx, state + 36u) + 1u;
     }
-    expression = i0;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i1 = instruction;
-    StoreU8(ctx, i0 + 75u, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The frame now holds the new register as well.
+    StoreU8(ctx, registers + 75u, instruction);
   }
-  block_7:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i1 = expression;
-    StoreU32(ctx, i0 + 36u, i1);
+commit:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, state + 36u, expression);
   }
-  block_3:;
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF911ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = instruction;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = expression;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l3;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 16u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+skip_patch:
+  goto exit_path;
+suspend_point:
+  // Suspend: write the resume code, then push the frame with the live state.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+      LoadU32(ctx, ReturnFrameSp(ctx)) + kAllocateResumeWordBytes);
+  {
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, state);
+    StoreU32(ctx, frame + 4u, instruction);
+    StoreU32(ctx, frame + 8u, expression);
+    StoreU32(ctx, frame + 12u, registers);
+  }
+  StoreU32(ctx, ReturnFrameSp(ctx),
+      LoadU32(ctx, ReturnFrameSp(ctx)) + kAllocateSaveFrameBytes);
+exit_path:
   LeaveFrame();
 }
-}
+
+}  // namespace artc

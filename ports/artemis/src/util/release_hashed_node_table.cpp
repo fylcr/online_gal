@@ -1,185 +1,89 @@
-// release_hashed_node_table.cpp -- tears down a hashed node table: every bucket is resolved through UnorderedGetBucket, each node chain on it is released, and the bucket storage goes back to the pool last..
-//
-// ReleaseHashedNodeTable -- tears down a hashed node table: every bucket is resolved through UnorderedGetBucket, each node chain on it is released, and the bucket storage goes back to the pool last.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 286265-286265 (f747); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations -- the raw block pool and the bucket lookup.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void UnorderedGetBucket(EngineContext* ctx, uint32_t a);
 
-namespace {
-
-constexpr uint32_t kF747SaveFrameBytes = 12u;
-constexpr uint32_t kF747ResumeWordBytes = 4u;
-
-}  // namespace
-
-void ReleaseHashedNodeTable(EngineContext* ctx, uint32_t a, uint32_t b) {
+// Tears a hashed node table down: the chain hanging off each of the bucket
+// storage's two words is released first, then the storage is handed to the
+// bucket lookup, and the storage itself goes back to the pool last. Returns
+// nothing.
+void ReleaseHashedNodeTable(EngineContext* ctx, uint32_t table, uint32_t buckets) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF747SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
+  // The reused slots: the node chain taken off the bucket storage, the resume
+  // word naming the call in flight, and the value the suspend path hands over.
+  uint32_t node = 0u;
+  uint32_t resume_word = 0u;
+  uint32_t spilled = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 12-byte frame the suspend path pushed and rebuild the
+    // table, the bucket storage and the node from it.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 12u);
+    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    table = LoadU32(ctx, saved_frame);
+    buckets = LoadU32(ctx, saved_frame + 4u);
+    node = LoadU32(ctx, saved_frame + 8u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF747ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: the second pop names the call that was in flight. The two pops
+    // stay separate -- the driver keeps one region at a time.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
+    resume_word = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = b;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = b;
-      i0 = LoadU32(ctx, i0);
-      l2 = i0;
+  // The rewinding bit is orred into the storage word rather than tested beside
+  // it: null storage means there is nothing to tear down.
+  if (buckets | static_cast<uint32_t>(ResumePhase(ctx) == kResumeRewinding)) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      node = LoadU32(ctx, buckets);
     }
-    i0 = l3;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = l2;
-      ReleaseHashedNodeTable(ctx, i0, i1);
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_word == 0u) : 1u) {
+      ReleaseHashedNodeTable(ctx, table, node);
+      spilled = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = b;
-      i0 = LoadU32(ctx, i0 + 4u);
-      l2 = i0;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      node = LoadU32(ctx, buckets + 4u);
     }
-    i0 = l3;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = l2;
-      ReleaseHashedNodeTable(ctx, i0, i1);
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_word == 1u) : 1u) {
+      ReleaseHashedNodeTable(ctx, table, node);
+      spilled = 1u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
     }
-    i0 = a;
-    i1 = b;
-    i2 = 16u;
-    i1 += i2;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    a = i0;
-    i0 = l3;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      UnorderedGetBucket(ctx, i0);
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    // A running pass looks the storage's own bucket up; a rewinding pass keeps
+    // the address its frame restored.
+    table = ResumePhase(ctx) ? table : (buckets + 16u);
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_word == 2u) : 1u) {
+      UnorderedGetBucket(ctx, table);
+      spilled = 2u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = b;
-      DeallocateRawBlock(ctx, i0);
+    if (ResumePhase(ctx) == kResumeRunning) {
+      DeallocateRawBlock(ctx, buckets);
     }
   }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF747ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 12u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto exit_path;
+ suspend_point:;
+  {
+    // The stack pointer lives in the word the frame pointer names, so every push
+    // is a read-modify-write of that word.
+    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), spilled);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
+    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, saved_frame, table);
+    StoreU32(ctx, saved_frame + 4u, buckets);
+    StoreU32(ctx, saved_frame + 8u, node);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 12u);
+  }
+ exit_path:;
   LeaveFrame();
 }
-}
+
+}  // namespace artc

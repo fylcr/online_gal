@@ -1,23 +1,8 @@
-// call_value.cpp -- calls a value: the callable is projected, the argument window is prepared, and the call is entered..
-//
-// CallValue -- calls a value: the callable is projected, the argument window is prepared, and the call is entered.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 166727-166727 (f372); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of the callees below.
 void CompileOperation(EngineContext* ctx, uint32_t state, uint32_t expression);
 void ThrowScriptError(EngineContext* ctx, uint32_t a0, uint32_t a1);
 void RaiseScriptError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
@@ -26,270 +11,120 @@ uint32_t Call(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
 namespace {
 
-constexpr uint32_t kF372MsgCStackOverflow = 0x2A841u;  // C stack overflow
-constexpr uint32_t kF372SaveFrameBytes = 16u;
-constexpr uint32_t kF372ResumeWordBytes = 4u;
+constexpr uint32_t kCallValueStackOverflowMessage = 0x2A841u;  // "C stack overflow"
+constexpr uint32_t kCallValueDepthCap = 200u;  // deepest call window that is accepted
+constexpr uint32_t kCallValueDepthLimit = 225u;  // past this the step reports an overflow
+constexpr uint32_t kCallValueSaveFrameBytes = 16u;  // saved state words below the resume code
+constexpr uint32_t kCallValueResumeWordBytes = 4u;  // resume code slot
 
 }  // namespace
 
+// Calls a value: the callable's depth slot is raised, the argument window is
+// prepared and the call is entered.  The call can suspend, so the arguments and
+// the depth the step works with are kept in the frame.
 void CallValue(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   EnterFrame();
-  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF372SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 8u);
-    c = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
+  uint32_t depth = 0u;        // the depth slot this call takes
+  uint32_t depth16 = 0u;      // that same value wrapped to 16 bits
+  uint32_t depth_ok = 0u;     // whether the depth is still under the cap
+  uint32_t overflow = 0u;     // whether the depth error has to be raised
+  uint32_t result = 0u;       // what the call hands back
+  uint32_t room_needed = 0u;  // whether the table array has to grow
+  uint32_t resume_point = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 16-byte frame the suspend path saved.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+        LoadU32(ctx, ReturnFrameSp(ctx)) - kCallValueSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    a = LoadU32(ctx, frame);
+    b = LoadU32(ctx, frame + 4u);
+    c = LoadU32(ctx, frame + 8u);
+    depth = LoadU32(ctx, frame + 12u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF372ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 4-byte frame that saves the resume code.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+        LoadU32(ctx, ReturnFrameSp(ctx)) - kCallValueResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i1 = a;
-    i1 = LoadU16(ctx, i1 + 52u);
-    i2 = 1u;
-    i1 += i2;
-    l4 = i1;
-    StoreU16(ctx, i0 + 52u, i1);
-    i0 = l4;
-    i1 = 65535u;
-    i0 &= i1;
-    l6 = i0;
-    i1 = 200u;
-    i0 = i0 < i1;
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Take the depth slot for this call; the counter is 16 bits wide.
+    depth = LoadU16(ctx, a + 52u) + 1u;
+    StoreU16(ctx, a + 52u, depth);
+    depth16 = depth & 65535u;
+    depth_ok = depth16 < kCallValueDepthCap;
   }
-  i0 = ResumePhase(ctx);
-  if (i0) {
-    i0 = l6;
-  } else {
-    i0 = l3;
-    if (i0) {goto block_5;}
-    i0 = l6;
-    i1 = 200u;
-    i0 = i0 == i1;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (depth_ok != 0u) { goto call_step; }
+    // Rewinding always replays the error check below.
+    overflow = depth16 == kCallValueDepthCap;
   }
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l5;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = kF372MsgCStackOverflow;
-      i2 = 0u;
-      RaiseScriptError(ctx, i0, i1, i2);
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+  if (overflow != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    // The window is full, so the call is refused unless it is being replayed.
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+      RaiseScriptError(ctx, a, kCallValueStackOverflowMessage, 0u);
+      resume_point = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto block_5;}
+    if (ResumePhase(ctx) == kResumeRunning) { goto call_step; }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  i1 = 0u;
-  i2 = l4;
-  i3 = 65535u;
-  i2 &= i3;
-  i3 = 225u;
-  i2 = i2 >= i3;
-  i0 = i2 ? i0 : i1;
-  if (i0) {goto running_exit;}
-  block_5:;
-  i0 = l5;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = b;
-    i2 = c;
-    i0 = LuaEngine::Call(ctx, i0, i1, i2);
-    l3 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    b = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if ((depth & 65535u) >= kCallValueDepthLimit) { goto overflow_path; }
   }
-  i0 = b;
-  i1 = b;
-  i1 = !(i1);
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  b = i0;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l5;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = 1u;
-      CompileOperation(ctx, i0, i1);
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+call_step:
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+    result = LuaEngine::Call(ctx, a, b, c);
+    resume_point = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    b = result;
+  }
+  b = ResumePhase(ctx) != kResumeRunning ? b : b == 0u;
+  if (b != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+      CompileOperation(ctx, a, 1u);
+      resume_point = 2u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
     }
   }
-  i0 = ResumePhase(ctx);
-  if (i0) {
-    i0 = b;
-  } else {
-    i0 = a;
-    i1 = a;
-    i1 = LoadU16(ctx, i1 + 52u);
-    i2 = 1u;
-    i1 -= i2;
-    StoreU16(ctx, i0 + 52u, i1);
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 16u);
-    b = i0;
-    i0 = LoadU32(ctx, i0 + 68u);
-    c = i0;
-    i0 = c;
-    i1 = b;
-    i1 = LoadU32(ctx, i1 + 64u);
-    i0 = i0 >= i1;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Give the depth slot back and see whether the table array has room.
+    StoreU16(ctx, a + 52u, LoadU16(ctx, a + 52u) - 1u);
+    b = LoadU32(ctx, a + 16u);
+    c = LoadU32(ctx, b + 68u);
+    room_needed = c >= LoadU32(ctx, b + 64u);
   }
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l5;
-    i1 = 3u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      EnsureTableArrayRoom(ctx, i0);
-      i0 = 3u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+  if (room_needed != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+      EnsureTableArrayRoom(ctx, a);
+      resume_point = 3u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) { goto exit_path; }
+overflow_path:
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
+    ThrowScriptError(ctx, a, 5u);
+    resume_point = 4u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  running_exit:;
-  i0 = l5;
-  i1 = 4u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = 5u;
-    ThrowScriptError(ctx, i0, i1);
-    i0 = 4u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning) { TrapUnreachable(); }
+  goto exit_path;
+suspend_point:
+  // Suspend: write the resume code, then push the frame with the live state.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+      LoadU32(ctx, ReturnFrameSp(ctx)) + kCallValueResumeWordBytes);
+  {
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, a);
+    StoreU32(ctx, frame + 4u, b);
+    StoreU32(ctx, frame + 8u, c);
+    StoreU32(ctx, frame + 12u, depth);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    TrapUnreachable();
-  }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF372ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = c;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l3;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 16u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  StoreU32(ctx, ReturnFrameSp(ctx),
+      LoadU32(ctx, ReturnFrameSp(ctx)) + kCallValueSaveFrameBytes);
+exit_path:
   LeaveFrame();
 }
-}
+
+}  // namespace artc

@@ -1,129 +1,60 @@
-// erase_tagged_tree_entry.cpp -- unlinks one tagged-tree node, rebalances, destroys the CScriptBlock value it held and answers the successor..
-//
-// EraseTaggedTreeEntry -- unlinks one tagged-tree node, rebalances, destroys the CScriptBlock value it held and answers the successor.
-//
-// The step is a plain call: the body holds no suspend point, so the
-// frame pair is bookkeeping only. Judgment order is untouched -- the
-// goto graph is the generated driver's own flattening, renamed labels
-// only.
-//
-// src: artemis.wasm2c.c 328510-328510 (f852); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
-void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
+// Forward declarations -- the block freer, the node-tree releaser and the
+// rebalancer.
+void DeallocateRawBlock(EngineContext* ctx, uint32_t block);
 void ReleaseNodeTree(EngineContext* ctx, uint32_t state, uint32_t node);
 void EraseTreeRebalance(EngineContext* ctx, uint32_t a, uint32_t b);
 
-namespace {
-
-constexpr uint32_t kF852ConstB5F40 = 0xB5F40u;  // 
-constexpr uint32_t kF852ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-
-}  // namespace
-
-uint32_t EraseTaggedTreeEntry(EngineContext* ctx, uint32_t a, uint32_t b) {
+// Unlinks one node from the tagged tree, rebalances from the tree's root and
+// destroys the values the node held. Answers the node that takes its place, or
+// the node itself when it has no successor.
+uint32_t EraseTaggedTreeEntry(EngineContext* ctx, uint32_t tree, uint32_t node) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  i0 = b;
-  i0 = LoadU32(ctx, i0 + 4u);
-  l2 = i0;
-  i0 = !(i0);
-  if (i0) {
-    i0 = b;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    i1 = b;
-    i0 = i0 == i1;
-    if (i0) {goto block_0;}
-    i0 = b;
-    i1 = 8u;
-    i0 += i1;
-    l4 = i0;
-    loop_2: 
-      i0 = l4;
-      i0 = LoadU32(ctx, i0);
-      l2 = i0;
-      i1 = 8u;
-      i0 += i1;
-      l4 = i0;
-      i0 = l2;
-      i0 = LoadU32(ctx, i0 + 8u);
-      l3 = i0;
-      i0 = LoadU32(ctx, i0);
-      i1 = l2;
-      i0 = i0 != i1;
-      if (i0) {goto loop_2;}
-    goto block_0;
+  uint32_t const kErasedMarker = 0xB5F40u;
+  uint32_t cursor = LoadU32(ctx, node + 4u);
+  uint32_t successor = 0u;
+  if (cursor == 0u) {
+    // A leaf: the successor is the node the parent's link points at, kept while
+    // that link still points back at the node being erased.
+    successor = LoadU32(ctx, node + 8u);
+    if (LoadU32(ctx, successor) != node) {
+      uint32_t link_cell = node + 8u;
+      for (;;) {
+        cursor = LoadU32(ctx, link_cell);
+        link_cell = cursor + 8u;
+        successor = LoadU32(ctx, cursor + 8u);
+        if (LoadU32(ctx, successor) == cursor) {
+          break;
+        }
+      }
+    }
+  } else {
+    // Otherwise the successor is the leftmost node of the right subtree, whose
+    // own left link is null.
+    while (cursor != 0u) {
+      successor = cursor;
+      cursor = LoadU32(ctx, cursor);
+    }
   }
-  loop_3: 
-    i0 = l2;
-    l3 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    if (i0) {goto loop_3;}
-  block_0:;
-  i0 = a;
-  i0 = LoadU32(ctx, i0);
-  i1 = b;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = a;
-    i1 = l3;
-    StoreU32(ctx, i0, i1);
+  if (LoadU32(ctx, tree) == node) {
+    StoreU32(ctx, tree, successor);
   }
-  i0 = a;
-  i1 = a;
-  i1 = LoadU32(ctx, i1 + 8u);
-  i2 = 1u;
-  i1 -= i2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = a;
-  i0 = LoadU32(ctx, i0 + 4u);
-  i1 = b;
-  EraseTreeRebalance(ctx, i0, i1);
-  i0 = b;
-  i1 = kF852ConstB5F40;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = b;
-  i0 = LoadS8(ctx, i0 + 59u);
-  i1 = kF852ConstFFFFFFFF;
-  i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-  if (i0) {
-    i0 = b;
-    i0 = LoadU32(ctx, i0 + 48u);
-    DeallocateRawBlock(ctx, i0);
+  StoreU32(ctx, tree + 8u, LoadU32(ctx, tree + 8u) - 1u);
+  EraseTreeRebalance(ctx, LoadU32(ctx, tree + 4u), node);
+  StoreU32(ctx, node + 20u, kErasedMarker);
+  if (static_cast<int32_t>(LoadS8(ctx, node + 59u)) <= -1) {
+    DeallocateRawBlock(ctx, LoadU32(ctx, node + 48u));
   }
-  i0 = b;
-  i1 = 36u;
-  i0 += i1;
-  i1 = b;
-  i1 = LoadU32(ctx, i1 + 40u);
-  ReleaseNodeTree(ctx, i0, i1);
-  i0 = b;
-  i0 = LoadS8(ctx, i0 + 35u);
-  i1 = kF852ConstFFFFFFFF;
-  i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-  if (i0) {
-    i0 = b;
-    i0 = LoadU32(ctx, i0 + 24u);
-    DeallocateRawBlock(ctx, i0);
+  ReleaseNodeTree(ctx, node + 36u, LoadU32(ctx, node + 40u));
+  if (static_cast<int32_t>(LoadS8(ctx, node + 35u)) <= -1) {
+    DeallocateRawBlock(ctx, LoadU32(ctx, node + 24u));
   }
-  i0 = b;
-  DeallocateRawBlock(ctx, i0);
-  i0 = l3;
+  DeallocateRawBlock(ctx, node);
   LeaveFrame();
-  return i0;
+  return successor;
 }
-}
+
+}  // namespace artc

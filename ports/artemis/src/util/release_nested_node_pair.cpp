@@ -1,67 +1,29 @@
-// release_nested_node_pair.cpp -- releases a nested node pair: the inner node is freed first, then the outer node's own storage..
-//
-// ReleaseNestedNodePair -- releases a nested node pair: the inner node is freed first, then the outer node's own storage.
-//
-// The step is a plain call: the body holds no suspend point, so the
-// frame pair is bookkeeping only. Judgment order is untouched -- the
-// goto graph is the generated driver's own flattening, renamed labels
-// only.
-//
-// src: artemis.wasm2c.c 182291-182291 (f422); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 
-namespace {
-
-constexpr uint32_t kF422ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-
-}  // namespace
-
-void ReleaseNestedNodePair(EngineContext* ctx, uint32_t a, uint32_t b) {
+// Releases a nested node pair depth-first: both links are followed, the tail link
+// is handed to the node's next slot and freed, the inline payload goes when the
+// size byte is negative, and finally the node itself.
+void ReleaseNestedNodePair(EngineContext* ctx, uint32_t owner, uint32_t node) {
   EnterFrame();
-  uint32_t i0 = 0u; uint32_t i1 = 0u;
-  i0 = b;
-  if (i0) {
-    i0 = a;
-    i1 = b;
-    i1 = LoadU32(ctx, i1);
-    ReleaseNestedNodePair(ctx, i0, i1);
-    i0 = a;
-    i1 = b;
-    i1 = LoadU32(ctx, i1 + 4u);
-    ReleaseNestedNodePair(ctx, i0, i1);
-    i0 = b;
-    i0 = LoadU32(ctx, i0 + 28u);
-    a = i0;
-    if (i0) {
-      i0 = b;
-      i1 = a;
-      StoreU32(ctx, i0 + 32u, i1);
-      i0 = a;
-      DeallocateRawBlock(ctx, i0);
+  if (node != 0u) {
+    ReleaseNestedNodePair(ctx, owner, LoadU32(ctx, node));
+    ReleaseNestedNodePair(ctx, owner, LoadU32(ctx, node + 4u));
+    const uint32_t tail = LoadU32(ctx, node + 28u);
+    if (tail != 0u) {
+      StoreU32(ctx, node + 32u, tail);
+      DeallocateRawBlock(ctx, tail);
     }
-    i0 = b;
-    i0 = LoadS8(ctx, i0 + 27u);
-    i1 = kF422ConstFFFFFFFF;
-    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-    if (i0) {
-      i0 = b;
-      i0 = LoadU32(ctx, i0 + 16u);
-      DeallocateRawBlock(ctx, i0);
+    // A negative size byte marks the payload as a separately owned block.
+    if (LoadS8(ctx, node + 27u) < 0) {
+      DeallocateRawBlock(ctx, LoadU32(ctx, node + 16u));
     }
-    i0 = b;
-    DeallocateRawBlock(ctx, i0);
+    DeallocateRawBlock(ctx, node);
   }
   LeaveFrame();
 }
-}
+
+}  // namespace artc

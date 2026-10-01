@@ -1,330 +1,145 @@
-// init_node_storage.cpp -- initialises the node storage: the node slots are zeroed and the storage chain is primed..
-//
-// InitNodeStorage -- initialises the node storage: the node slots are zeroed and the storage chain is primed.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 229462-229462 (f582); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of the callees below.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 
 namespace {
 
-constexpr uint32_t kF582SaveFrameBytes = 28u;
-constexpr uint32_t kF582ResumeWordBytes = 4u;
+constexpr uint32_t kInitNodeSaveFrameBytes = 28u;  // saved state words below the resume code
+constexpr uint32_t kInitNodeResumeWordBytes = 4u;  // resume code slot
 
 }  // namespace
 
+// Initialises the node storage: the live node slots are walked through the
+// chunk table and handed to the storage callback, then the chain is freed down
+// to its two spare blocks and the slot count is republished.  Suspendable: the
+// callback can suspend, so every value that outlives it is kept in the frame.
 void InitNodeStorage(EngineContext* ctx, uint32_t a) {
   EnterFrame();
-  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-      l9 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF582SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l6 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l7 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l1 = i0;
+  uint32_t value = 0u;
+  uint32_t called = 0u;
+  uint32_t slot = 0u;
+  uint32_t chunk = 0u;
+  uint32_t nodes = 0u;
+  uint32_t last_slot = 0u;
+  uint32_t table_end = 0u;
+  uint32_t slot_ref = 0u;
+  uint32_t resume_point = 0u;
+  uint32_t index = 0u;
+  uint32_t chunk_table = 0u;
+  uint32_t base = 0u;
+  uint32_t chain = 0u;
+  uint32_t new_nodes = 0u;
+  uint32_t table_empty = 0u;
+  uint32_t chunk_index = 0u;
+  uint32_t left = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 28-byte frame the suspend path saved.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kInitNodeSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    a = LoadU32(ctx, frame);
+    value = LoadU32(ctx, frame + 4u);
+    slot = LoadU32(ctx, frame + 8u);
+    chunk = LoadU32(ctx, frame + 12u);
+    last_slot = LoadU32(ctx, frame + 16u);
+    table_end = LoadU32(ctx, frame + 20u);
+    slot_ref = LoadU32(ctx, frame + 24u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF582ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l8 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 4-byte frame that saves the resume code.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kInitNodeResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i1 = 93u;
-    i0 = DIV_U(i0, i1);
-    l3 = i0;
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l1 = i0;
-    i1 = a;
-    i1 = LoadU32(ctx, i1 + 8u);
-    l6 = i1;
-    i0 = i0 == i1;
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    nodes = LoadU32(ctx, a + 16u);
+    chunk_index = DIV_U(nodes, 93u);
+    chunk_table = LoadU32(ctx, a + 4u);
+    table_end = LoadU32(ctx, a + 8u);
+    table_empty = chunk_table == table_end;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    if (i0) {
-      i0 = a;
-      i1 = 20u;
-      i0 += i1;
-      l7 = i0;
-      goto running_exit;
-    }
-    i0 = a;
-    i1 = 20u;
-    i0 += i1;
-    l7 = i0;
-    i0 = l3;
-    i1 = 2u;
-    i0 <<= (i1 & 31);
-    i1 = l1;
-    i0 += i1;
-    l4 = i0;
-    i0 = LoadU32(ctx, i0);
-    i1 = l5;
-    i2 = l3;
-    i3 = 93u;
-    i2 *= i3;
-    i1 -= i2;
-    i2 = 44u;
-    i1 *= i2;
-    i0 += i1;
-    l3 = i0;
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 20u);
-    i1 = l5;
-    i0 += i1;
-    l5 = i0;
-    i1 = 93u;
-    i0 = DIV_U(i0, i1);
-    l9 = i0;
-    i1 = 2u;
-    i0 <<= (i1 & 31);
-    i1 = l1;
-    i0 += i1;
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = l2;
-    i1 = l5;
-    i2 = l9;
-    i3 = 93u;
-    i2 *= i3;
-    i1 -= i2;
-    i2 = 44u;
-    i1 *= i2;
-    i0 += i1;
-    l5 = i0;
-    i1 = l3;
-    i0 = i0 == i1;
-    if (i0) {goto running_exit;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    slot_ref = a + 20u;
+    if (table_empty != 0u) goto zero_slot;
+    // The slot the count names, then one past it: the walk stops at the last.
+    chunk = chunk_table + (chunk_index << 2u);
+    slot = LoadU32(ctx, chunk) + (nodes - chunk_index * 93u) * 44u;
+    nodes = LoadU32(ctx, a + 20u) + nodes;
+    index = DIV_U(nodes, 93u);
+    base = LoadU32(ctx, chunk_table + (index << 2u));
+    last_slot = base + (nodes - index * 93u) * 44u;
+    if (last_slot == slot) goto zero_slot;
   }
-  loop_7: 
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0);
-      l1 = i0;
-    }
-    i0 = l8;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l3;
-      i1 = l1;
-      i0 = CallTableT2(ctx, i1, i0);
+walk_slots:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = LoadU32(ctx, LoadU32(ctx, slot));
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+    called = CallTableT2(ctx, value, slot);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
-      SyncMemoryBase(ctx);
+    SyncMemoryBase(ctx);
 #endif
-      l2 = i0;
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l2;
-      l1 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      i1 = 44u;
-      i0 += i1;
-      l3 = i0;
-      i1 = l4;
-      i1 = LoadU32(ctx, i1);
-      i0 -= i1;
-      i1 = 4092u;
-      i0 = i0 == i1;
-      if (i0) {
-        i0 = l4;
-        i0 = LoadU32(ctx, i0 + 4u);
-        l3 = i0;
-        i0 = l4;
-        i1 = 4u;
-        i0 += i1;
-        l4 = i0;
-      }
-      i0 = l3;
-      i1 = l5;
-      i0 = i0 != i1;
-      l1 = i0;
-      if (i0) {goto loop_7;}
-    }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l6 = i0;
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l1 = i0;
+    resume_point = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    value = called;
   }
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l7;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l6;
-    i1 = l1;
-    i0 -= i1;
-    i1 = 2u;
-    i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-    l3 = i0;
-    i1 = 2u;
-    i0 = i0 > i1;
-    if (i0) {
-      loop_15: 
-        i0 = l1;
-        i0 = LoadU32(ctx, i0);
-        DeallocateRawBlock(ctx, i0);
-        i0 = a;
-        i1 = a;
-        i1 = LoadU32(ctx, i1 + 4u);
-        i2 = 4u;
-        i1 += i2;
-        l1 = i1;
-        StoreU32(ctx, i0 + 4u, i1);
-        i0 = a;
-        i0 = LoadU32(ctx, i0 + 8u);
-        i1 = l1;
-        i0 -= i1;
-        i1 = 2u;
-        i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-        l3 = i0;
-        i1 = 2u;
-        i0 = i0 > i1;
-        if (i0) {goto loop_15;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Step to the next slot, hopping to the next block at the end of this one.
+    slot += 44u;
+    if (slot - LoadU32(ctx, chunk) == 4092u) {
+      slot = LoadU32(ctx, chunk + 4u);
+      chunk += 4u;
     }
-    i0 = 46u;
-    l1 = i0;
-    i0 = l3;
-    i1 = 1u;
-    i0 -= i1;
-    switch (i0) {
-      case 0: goto block_17;
-      case 1: goto block_18;
-      default: goto block_16;
-    }
-    block_18:;
-    i0 = 93u;
-    l1 = i0;
-    block_17:;
-    i0 = a;
-    i1 = l1;
-    StoreU32(ctx, i0 + 16u, i1);
-    block_16:;
+    if (slot != last_slot) goto walk_slots;
   }
-  goto func_exit;
-  spill_frame:;
-  l2 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF582ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l2 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l2;
-  i1 = l1;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l2;
-  i1 = l3;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l2;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l2;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l2;
-  i1 = l6;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l2;
-  i1 = l7;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 28u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    table_end = LoadU32(ctx, a + 8u);
+    chain = LoadU32(ctx, a + 4u);
+  }
+zero_slot:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, slot_ref, 0u);
+    left = (uint32_t)((int32_t)(table_end - chain) >> 2);
+    if (left > 2u) {
+    free_chain:
+      DeallocateRawBlock(ctx, LoadU32(ctx, chain));
+      chain = LoadU32(ctx, a + 4u) + 4u;
+      StoreU32(ctx, a + 4u, chain);
+      left = (uint32_t)((int32_t)(LoadU32(ctx, a + 8u) - chain) >> 2);
+      if (left > 2u) goto free_chain;
+    }
+    // Two spare blocks stay behind: the ones the next layer starts from.
+    new_nodes = 46u;
+    switch (left - 1u) {
+      case 0: goto set_nodes;
+      case 1: goto double_nodes;
+      default: goto leave_nodes;
+    }
+  double_nodes:
+    new_nodes = 93u;
+  set_nodes:
+    StoreU32(ctx, a + 16u, new_nodes);
+  leave_nodes:;
+  }
+  goto exit_path;
+suspend_point:
+  // Suspend: write the resume code, then push the frame with the live state.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kInitNodeResumeWordBytes);
+  {
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, a);
+    StoreU32(ctx, frame + 4u, value);
+    StoreU32(ctx, frame + 8u, slot);
+    StoreU32(ctx, frame + 12u, chunk);
+    StoreU32(ctx, frame + 16u, last_slot);
+    StoreU32(ctx, frame + 20u, table_end);
+    StoreU32(ctx, frame + 24u, slot_ref);
+  }
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kInitNodeSaveFrameBytes);
+exit_path:
   LeaveFrame();
 }
-}
+
+}  // namespace artc

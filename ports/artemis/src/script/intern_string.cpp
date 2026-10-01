@@ -1,44 +1,3 @@
-// intern_string.cpp — intern a byte range as a string node in the state's table.
-//
-// InternString turns a byte range and its length into the node the engine keys
-// its string table by: the node that is already there when the range has been
-// seen before, a freshly built one when it has not. The lookup is the engine's
-// own. The bytes are mixed into a 32-bit hash — one byte per stride, seeded
-// with the length and walking backwards — and that hash is masked down to one
-// slot of the table's pointer array; the chain hanging off the slot is then
-// walked with the stored length compared first and the bytes only where the
-// lengths already agree. A zero-length range has no bytes to compare at all, so
-// its walk stops at the first node whose stored length is zero. Coming up empty
-// is not the end: the slot's chain is about to receive the new node, so the
-// body goes on to build it.
-//
-// Building stamps the whole node header — the value tag, the marked byte, the
-// spare byte, the hash and the length — copies the bytes in behind it,
-// terminates them, and threads the node onto the head of its chain. The chain
-// is linked through the table's current pointer array before the table is asked
-// to grow, so a node that arrives together with a growth is rehashed into the
-// larger array by that same step, and the growth is skipped entirely once the
-// capacity is the engine's ceiling. One earlier gate stops the build outright:
-// a range whose terminator would not fit an address is handed to the
-// block-too-big raise instead of being built at all.
-//
-// The raise, the allocation of the node itself and the growth are guest calls
-// that can suspend the worker, so the body carries the engine's asyncify state
-// machine and is laid out as the generated driver runs it rather than as a
-// straight lookup. Phase rewinding pops the frame the suspend path saved — both
-// parameters, the length, the live node, the hash and one working word, in that
-// order — and then pops the code naming the call that was in flight, because
-// each of the three calls keeps its own gate and a rewind replays exactly the
-// one the frame names. Phase suspended pushes that code, then the frame, and
-// answers zero. The two rewinding pops stay two blocks: the code word sits
-// above the saved frame, so folding them would read the wrong words. The found
-// node's exit is phase-guarded the same way, because only a running pass hands
-// a node back and a resuming frame has nothing left to say.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
 #include "util/engine_context.h"
 
 namespace artc {
@@ -47,10 +6,7 @@ namespace artc {
 uint32_t CompareBytes(EngineContext* ctx, uint32_t lhs, uint32_t rhs, uint32_t n);
 // Forward declaration — defined in util/copy_bytes.cpp.
 uint32_t CopyBytes(EngineContext* ctx, uint32_t dst, uint32_t src, uint32_t n);
-// Forward declarations — the three resumable callees below are still generated
-// bodies（f250 raises the block-too-big error、f223 is the block allocator and
-// f1114 rehashes the string table into a new capacity), so both their product
-// names and their product files are provisional.
+// The three resumable callees below are defined elsewhere in the tree.
 uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t state);
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size,
                          uint32_t new_size);
@@ -60,36 +16,31 @@ namespace {
 
 // The code a rewinding frame reads back names the call it was inside, so a
 // resumed frame replays exactly that call and no other.
-constexpr uint32_t kResumeBlockTooBig = 0u;
-constexpr uint32_t kResumeAllocateNode = 1u;
-constexpr uint32_t kResumeGrowTable = 2u;
+constexpr uint32_t kInternStringResumeBlockTooBig = 0u;
+constexpr uint32_t kInternStringResumeAllocateNode = 1u;
+constexpr uint32_t kInternStringResumeGrowTable = 2u;
 
 // The tag a string node carries at +4, and the two low bits of its marked byte
 // that pair the white generations.
-constexpr uint32_t kTypeString = 4u;
-constexpr uint32_t kWhitePair = 3u;
+constexpr uint32_t kInternStringTypeTag = 4u;
+constexpr uint32_t kInternStringWhitePair = 3u;
 
 // A range one byte short of this leaves no room for its terminator in the
 // address space, so it is never built.
-constexpr uint32_t kTerminatorLimit = 0xFFFFFFEEu;
+constexpr uint32_t kInternStringTerminatorLimit = 0xFFFFFFEEu;
 // The largest table capacity the engine will still double.
-constexpr uint32_t kMaxTableCapacity = 0x3FFFFFFEu;
+constexpr uint32_t kInternStringMaxTableCapacity = 0x3FFFFFFEu;
 // The node header plus the range's terminator byte.
-constexpr uint32_t kNodeOverhead = 17u;
+constexpr uint32_t kInternStringNodeOverhead = 17u;
 
 }  // namespace
 
 uint32_t InternString(EngineContext* ctx, uint32_t state, uint32_t bytes, uint32_t length) {
   EnterFrame();
-  // One name per generated slot, across every role that slot plays. `node` is
-  // the bucket's chain head, then the node the walk found, then the too-big
-  // flag a miss leaves behind, and finally the fresh node itself. `scratch` is
-  // the backwards chain stride, then the pointer array's base, then the flag
-  // that says the slot was empty, then the generation byte the table carries,
-  // then a call's answer, then the chain slot's byte offset, and at the very
-  // end the frame base the suspend push writes through. `hold` is the hash
-  // stride and then the table that owns the chains. `hash` is the mixed hash
-  // and `resume_point` names the call a rewinding frame has to replay.
+  // The four working slots below each carry several roles in turn: `node` is the
+  // chain head and later the node the walk found, `scratch` the stride and later
+  // a call's answer, `hold` the hash stride and later the table that owns the
+  // chains, and `resume_point` names the call a rewinding frame has to replay.
   uint32_t node = 0u;
   uint32_t scratch = 0u;
   uint32_t hold = 0u;
@@ -166,21 +117,21 @@ uint32_t InternString(EngineContext* ctx, uint32_t state, uint32_t bytes, uint32
     }
     // The miss leaves the too-big flag behind: it arms the first gate below on
     // this running pass.
-    node = static_cast<uint32_t>((length + 1u) >= kTerminatorLimit);
+    node = static_cast<uint32_t>((length + 1u) >= kInternStringTerminatorLimit);
   }
   // The too-big raise. A running pass takes the gate only when the flag above
   // says the range cannot be built; a rewinding pass takes it to replay the
   // raise when the frame it popped names that call.
   if (node != 0u || ResumePhase(ctx) == kResumeRewinding) {
     uint32_t const issue_raise =
-        ResumePhase(ctx) ? static_cast<uint32_t>(resume_point == kResumeBlockTooBig) : 1u;
+        ResumePhase(ctx) ? static_cast<uint32_t>(resume_point == kInternStringResumeBlockTooBig) : 1u;
     if (issue_raise) {
       scratch = RaiseBlockTooBig(ctx, state);
       if (ResumePhase(ctx) == kResumeSuspended) {
         // The raise ran guest code and suspended. It answers zero, so the block
         // value and the code word handed to the rewinder are the same word.
-        scratch = kResumeBlockTooBig;
-        goto spill_frame;
+        scratch = kInternStringResumeBlockTooBig;
+        goto suspend_point;
       }
       node = scratch;
     }
@@ -188,17 +139,17 @@ uint32_t InternString(EngineContext* ctx, uint32_t state, uint32_t bytes, uint32
   // The size to allocate. A running pass always has one; a rewinding pass only
   // has it once the raise above has been replayed, where the block value is
   // what the raise answered.
-  node = ResumePhase(ctx) ? node : (length + kNodeOverhead);
+  node = ResumePhase(ctx) ? node : (length + kInternStringNodeOverhead);
   // The node's allocation. Running always owes it; a rewind owes it only at the
   // code it popped.
   {
     uint32_t const issue_alloc =
-        ResumePhase(ctx) ? static_cast<uint32_t>(resume_point == kResumeAllocateNode) : 1u;
+        ResumePhase(ctx) ? static_cast<uint32_t>(resume_point == kInternStringResumeAllocateNode) : 1u;
     if (issue_alloc) {
       scratch = ReallocateBlock(ctx, state, 0u, 0u, node);
       if (ResumePhase(ctx) == kResumeSuspended) {
-        scratch = kResumeAllocateNode;
-        goto spill_frame;
+        scratch = kInternStringResumeAllocateNode;
+        goto suspend_point;
       }
       node = scratch;
     }
@@ -216,8 +167,8 @@ uint32_t InternString(EngineContext* ctx, uint32_t state, uint32_t bytes, uint32
     // saves the word as it stands.
     hold = LoadU8(ctx, LoadU32(ctx, state + 16u) + 20u);
     StoreU8(ctx, node + 6u, 0u);
-    StoreU8(ctx, node + 4u, kTypeString);
-    StoreU8(ctx, node + 5u, hold & kWhitePair);
+    StoreU8(ctx, node + 4u, kInternStringTypeTag);
+    StoreU8(ctx, node + 5u, hold & kInternStringWhitePair);
     scratch = CopyBytes(ctx, node + 16u, bytes, length);
     StoreU8(ctx, scratch + length, 0u);
     // The chain slot is computed a second time: the first walk only described
@@ -236,7 +187,7 @@ uint32_t InternString(EngineContext* ctx, uint32_t state, uint32_t bytes, uint32
       // The chain still fits: the table is left as it is.
       goto return_node;
     }
-    if (static_cast<int32_t>(bytes) > static_cast<int32_t>(kMaxTableCapacity)) {
+    if (static_cast<int32_t>(bytes) > static_cast<int32_t>(kInternStringMaxTableCapacity)) {
       // At the engine's ceiling the table is left as it is, however full.
       goto return_node;
     }
@@ -247,12 +198,12 @@ uint32_t InternString(EngineContext* ctx, uint32_t state, uint32_t bytes, uint32
   // code it popped.
   {
     uint32_t const issue_grow =
-        ResumePhase(ctx) ? static_cast<uint32_t>(resume_point == kResumeGrowTable) : 1u;
+        ResumePhase(ctx) ? static_cast<uint32_t>(resume_point == kInternStringResumeGrowTable) : 1u;
     if (issue_grow) {
       ResizeStringTable(ctx, state, bytes);
       if (ResumePhase(ctx) == kResumeSuspended) {
-        scratch = kResumeGrowTable;
-        goto spill_frame;
+        scratch = kInternStringResumeGrowTable;
+        goto suspend_point;
       }
     }
   }
@@ -263,15 +214,13 @@ uint32_t InternString(EngineContext* ctx, uint32_t state, uint32_t bytes, uint32
   }
 found_path:;
   if (ResumePhase(ctx) == kResumeRunning) {
-    // A node the walk found, handed back as it stands unless the generation
+    // A node the walk found is handed back as it stands, unless the generation
     // byte the table carries still leaves one of its marker bits unclaimed, in
-    // which case that marker is flipped onto the other generation first. The
-    // generated body parks the marker byte in its state parameter, which is
-    // dead from here on, so it is kept in a word of its own.
+    // which case that marker is flipped onto the other generation first.
     uint32_t const marked = LoadU8(ctx, node + 5u);
     uint32_t const generation = LoadU8(ctx, hold + 20u);
-    if ((marked & (generation ^ 0xFFFFFFFFu) & kWhitePair) != 0u) {
-      StoreU8(ctx, node + 5u, marked ^ kWhitePair);
+    if ((marked & (generation ^ 0xFFFFFFFFu) & kInternStringWhitePair) != 0u) {
+      StoreU8(ctx, node + 5u, marked ^ kInternStringWhitePair);
     }
   }
 return_node:;
@@ -280,13 +229,9 @@ return_node:;
     return node;
   }
   TrapUnreachable();
-spill_frame:;
-  // Hand the rewinder the code naming the call to replay, then the frame this
-  // body's own rewind prologue reads back — both parameters, the length, the
-  // live node, the hash and the working word — and answer zero. The frame the
-  // words are written through is read back from the stack pointer after it
-  // advanced, so it is a fresh address rather than the frame base the rewind
-  // prologue reads.
+suspend_point:;
+  // Hand the rewinder the code naming the call to replay, then the frame the
+  // rewind prologue above reads back, and answer zero.
   StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), scratch);
   StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
   scratch = LoadU32(ctx, ReturnFrameSp(ctx));
@@ -300,5 +245,4 @@ spill_frame:;
   LeaveFrame();
   return 0u;
 }
-
 }  // namespace artc

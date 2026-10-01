@@ -1,235 +1,135 @@
-// init_crc32_table.cpp -- the lazy CRC-32 table builder: every one of the 256 entries reflects its own index byte, runs eight rounds of the 0x04C11DB7 polynomial and stores the reversed word, once, behind the initialised flag..
-//
-// InitCrc32Table -- the lazy CRC-32 table builder: every one of the 256 entries reflects its own index byte, runs eight rounds of the 0x04C11DB7 polynomial and stores the reversed word, once, behind the initialised flag.
-//
-// The step is a plain call: the body holds no suspend point, so the
-// frame pair is bookkeeping only. Judgment order is untouched -- the
-// goto graph is the generated driver's own flattening, renamed labels
-// only.
-//
-// src: artemis.wasm2c.c 628707-628707 (f1466); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
-uint32_t ReverseBits32(EngineContext* ctx, uint32_t a);
+// Registered callee, defined in util/reverse_bits32.cpp.
+uint32_t ReverseBits32(EngineContext* ctx, uint32_t value);
 
 namespace {
 
-constexpr uint32_t kF1466ConstCF224 = 0xCF224u;  // 
-constexpr uint32_t kF1466ConstCF230 = 0xCF230u;  // 
-constexpr uint32_t kF1466Const4C11DB7 = 0x4C11DB7u;  // 
-constexpr uint32_t kF1466Const9823B6E = 0x9823B6Eu;  // 
-constexpr uint32_t kF1466Const130476DC = 0x130476DCu;  // 
-constexpr uint32_t kF1466Const2608EDB8 = 0x2608EDB8u;  // 
-constexpr uint32_t kF1466Const80000000 = 0x80000000u;  // 
-constexpr uint32_t kF1466ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+// Table geometry plus the polynomial and the mask each index bit folds in.
+constexpr uint32_t kInitCrc32TableInitialisedFlag = 0xCF224u;
+constexpr uint32_t kInitCrc32TableTableBase = 0xCF230u;
+constexpr uint32_t kInitCrc32TablePolynomial = 0x4C11DB7u;
+constexpr uint32_t kInitCrc32TableXorBit5 = 0x9823B6Eu;
+constexpr uint32_t kInitCrc32TableXorBit6 = 0x130476DCu;
+constexpr uint32_t kInitCrc32TableHighSeed = 0x2608EDB8u;
+constexpr uint32_t kInitCrc32TableTopBit = 0x80000000u;
+constexpr uint32_t kInitCrc32TableMinusOne = 0xFFFFFFFFu;
 
 }  // namespace
 
+// Builds the 256-entry CRC-32 table on first use: for every index value the
+// low byte is reflected, folded through the CRC-32 polynomial, and the result
+// is stored bit-reversed at the slot that reflection selects. Answers nothing.
 void InitCrc32Table(EngineContext* ctx) {
   EnterFrame();
-  uint32_t l0 = 0u; uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
-  i0 = kF1466ConstCF224;
-  i0 = LoadU8(ctx, i0);
-  i0 = !(i0);
-  if (i0) {
-    loop_1: 
-      i0 = l1;
-      i1 = 1u;
-      i0 <<= (i1 & 31);
-      i1 = 16u;
-      i0 &= i1;
-      i1 = l1;
-      i2 = 3u;
-      i1 <<= (i2 & 31);
-      i2 = 32u;
-      i1 &= i2;
-      i2 = l1;
-      i3 = 5u;
-      i2 <<= (i3 & 31);
-      i3 = 64u;
-      i2 &= i3;
-      i3 = l1;
-      i4 = 7u;
-      i3 <<= (i4 & 31);
-      i4 = l1;
-      i5 = 255u;
-      i4 &= i5;
-      l4 = i4;
-      i5 = 7u;
-      i4 >>= (i5 & 31);
-      i3 |= i4;
-      i2 |= i3;
-      i1 |= i2;
-      i0 |= i1;
-      i1 = l4;
-      i2 = 1u;
-      i1 >>= (i2 & 31);
-      i2 = 8u;
-      i1 &= i2;
-      i0 |= i1;
-      i1 = l4;
-      i2 = 3u;
-      i1 >>= (i2 & 31);
-      i2 = 4u;
-      i1 &= i2;
-      i0 |= i1;
-      i1 = l4;
-      i2 = 5u;
-      i1 >>= (i2 & 31);
-      i2 = 2u;
-      i1 &= i2;
-      i0 |= i1;
-      i1 = 255u;
-      i0 &= i1;
-      i1 = 2u;
-      i0 <<= (i1 & 31);
-      i1 = kF1466ConstCF230;
-      i0 += i1;
-      l5 = i0;
-      i0 = 0u;
-      i1 = kF1466Const2608EDB8;
-      i2 = l1;
-      i3 = 24u;
-      i2 <<= (i3 & 31);
-      i3 = 24u;
-      i2 = (uint32_t)((int32_t)i2 >> (i3 & 31));
-      i3 = kF1466ConstFFFFFFFF;
-      i2 = (uint32_t)((int32_t)i2 > (int32_t)i3);
-      i0 = i2 ? i0 : i1;
-      l0 = i0;
-      i1 = kF1466Const130476DC;
-      i0 ^= i1;
-      i1 = l0;
-      i2 = l1;
-      i3 = 64u;
-      i2 &= i3;
-      i0 = i2 ? i0 : i1;
-      l0 = i0;
-      i1 = kF1466Const9823B6E;
-      i0 ^= i1;
-      i1 = l0;
-      i2 = l1;
-      i3 = 32u;
-      i2 &= i3;
-      i0 = i2 ? i0 : i1;
-      l0 = i0;
-      i1 = kF1466Const4C11DB7;
-      i0 ^= i1;
-      i1 = l0;
-      i2 = l1;
-      i3 = 16u;
-      i2 &= i3;
-      i0 = i2 ? i0 : i1;
-      l0 = i0;
-      i1 = kF1466Const80000000;
-      i0 ^= i1;
-      i1 = l0;
-      i2 = l1;
-      i3 = 8u;
-      i2 &= i3;
-      i0 = i2 ? i0 : i1;
-      l0 = i0;
-      i1 = 1u;
-      i0 <<= (i1 & 31);
-      l2 = i0;
-      i1 = kF1466Const4C11DB7;
-      i0 ^= i1;
-      l3 = i0;
-      i0 = l2;
-      i1 = l3;
-      i2 = l0;
-      i3 = kF1466ConstFFFFFFFF;
-      i2 = (uint32_t)((int32_t)i2 > (int32_t)i3);
-      i0 = i2 ? i0 : i1;
-      l0 = i0;
-      i1 = kF1466Const80000000;
-      i0 ^= i1;
-      i1 = l0;
-      i2 = l1;
-      i3 = 4u;
-      i2 &= i3;
-      i0 = i2 ? i0 : i1;
-      l0 = i0;
-      i1 = 1u;
-      i0 <<= (i1 & 31);
-      l2 = i0;
-      i1 = kF1466Const4C11DB7;
-      i0 ^= i1;
-      l3 = i0;
-      i0 = l2;
-      i1 = l3;
-      i2 = l0;
-      i3 = kF1466ConstFFFFFFFF;
-      i2 = (uint32_t)((int32_t)i2 > (int32_t)i3);
-      i0 = i2 ? i0 : i1;
-      l0 = i0;
-      i1 = kF1466Const80000000;
-      i0 ^= i1;
-      i1 = l0;
-      i2 = l1;
-      i3 = 2u;
-      i2 &= i3;
-      i0 = i2 ? i0 : i1;
-      l0 = i0;
-      i1 = 1u;
-      i0 <<= (i1 & 31);
-      l2 = i0;
-      i1 = kF1466Const4C11DB7;
-      i0 ^= i1;
-      l3 = i0;
-      i0 = l2;
-      i1 = l3;
-      i2 = l0;
-      i3 = kF1466ConstFFFFFFFF;
-      i2 = (uint32_t)((int32_t)i2 > (int32_t)i3);
-      i0 = i2 ? i0 : i1;
-      l0 = i0;
-      i1 = kF1466Const80000000;
-      i0 ^= i1;
-      i1 = l0;
-      i2 = l1;
-      i3 = 1u;
-      i2 &= i3;
-      i0 = i2 ? i0 : i1;
-      l1 = i0;
-      i1 = 1u;
-      i0 <<= (i1 & 31);
-      l0 = i0;
-      i1 = kF1466Const4C11DB7;
-      i0 ^= i1;
-      l2 = i0;
-      i0 = l5;
-      i1 = l0;
-      i2 = l2;
-      i3 = l1;
-      i4 = kF1466ConstFFFFFFFF;
-      i3 = (uint32_t)((int32_t)i3 > (int32_t)i4);
-      i1 = i3 ? i1 : i2;
-      i1 = ReverseBits32(ctx, i1);
-      StoreU32(ctx, i0, i1);
-      i0 = l4;
-      i1 = 1u;
-      i0 += i1;
-      l1 = i0;
-      i1 = 255u;
-      i0 &= i1;
-      i1 = l1;
-      i0 = i0 == i1;
-      if (i0) {goto loop_1;}
-    i0 = kF1466ConstCF224;
-    i1 = 1u;
-    StoreU8(ctx, i0, i1);
+  uint32_t index = 0u;
+  uint32_t index_byte = 0u;
+  uint32_t crc = 0u;
+  uint32_t reflected = 0u;
+  uint32_t table_slot = 0u;
+  uint32_t top_byte = 0u;
+  int32_t signed_index = 0;
+  uint32_t high_seed = 0u;
+  uint32_t xored = 0u;
+  uint32_t shifted = 0u;
+  uint32_t folded = 0u;
+  uint32_t result = 0u;
+
+  if (LoadU8(ctx, kInitCrc32TableInitialisedFlag) == 0u) {
+    next_index:;
+    // Reflect the low byte of the index; the shift counts stay masked to five
+    // bits, the way the engine masks them.
+    reflected = (index << (1u & 31u)) & 16u;
+    reflected |= (index << (3u & 31u)) & 32u;
+    reflected |= (index << (5u & 31u)) & 64u;
+    reflected |= index << (7u & 31u);
+    index_byte = index & 255u;
+    reflected |= index_byte >> (7u & 31u);
+    reflected |= (index_byte >> (1u & 31u)) & 8u;
+    reflected |= (index_byte >> (3u & 31u)) & 4u;
+    reflected |= (index_byte >> (5u & 31u)) & 2u;
+    reflected &= 255u;
+    // The finished table word is four bytes wide.
+    table_slot = (reflected << (2u & 31u)) + kInitCrc32TableTableBase;
+
+    // Seed the accumulator: an index byte that signs negative starts from the
+    // high seed, anything else from zero.
+    high_seed = kInitCrc32TableHighSeed;
+    top_byte = index << (24u & 31u);
+    signed_index = static_cast<int32_t>(top_byte) >> (24u & 31u);
+    if (signed_index > static_cast<int32_t>(kInitCrc32TableMinusOne)) {
+      crc = 0u;
+    } else {
+      crc = high_seed;
+    }
+
+    // Fold in the mask each index bit selects, then step the polynomial once
+    // per bit.
+    xored = crc ^ kInitCrc32TableXorBit6;
+    if ((index & 64u) != 0u) {
+      crc = xored;
+    }
+    xored = crc ^ kInitCrc32TableXorBit5;
+    if ((index & 32u) != 0u) {
+      crc = xored;
+    }
+    xored = crc ^ kInitCrc32TablePolynomial;
+    if ((index & 16u) != 0u) {
+      crc = xored;
+    }
+    xored = crc ^ kInitCrc32TableTopBit;
+    if ((index & 8u) != 0u) {
+      crc = xored;
+    }
+    // The polynomial step: the doubled word stands, unless the top bit was set
+    // and the polynomial has to be folded back in.
+    shifted = crc << (1u & 31u);
+    folded = shifted ^ kInitCrc32TablePolynomial;
+    crc = (static_cast<int32_t>(crc) > static_cast<int32_t>(kInitCrc32TableMinusOne))
+              ? shifted
+              : folded;
+    xored = crc ^ kInitCrc32TableTopBit;
+    if ((index & 4u) != 0u) {
+      crc = xored;
+    }
+    shifted = crc << (1u & 31u);
+    folded = shifted ^ kInitCrc32TablePolynomial;
+    crc = (static_cast<int32_t>(crc) > static_cast<int32_t>(kInitCrc32TableMinusOne))
+              ? shifted
+              : folded;
+    xored = crc ^ kInitCrc32TableTopBit;
+    if ((index & 2u) != 0u) {
+      crc = xored;
+    }
+    shifted = crc << (1u & 31u);
+    folded = shifted ^ kInitCrc32TablePolynomial;
+    crc = (static_cast<int32_t>(crc) > static_cast<int32_t>(kInitCrc32TableMinusOne))
+              ? shifted
+              : folded;
+    xored = crc ^ kInitCrc32TableTopBit;
+    if ((index & 1u) != 0u) {
+      crc = xored;
+    }
+    shifted = crc << (1u & 31u);
+    folded = shifted ^ kInitCrc32TablePolynomial;
+    crc = (static_cast<int32_t>(crc) > static_cast<int32_t>(kInitCrc32TableMinusOne))
+              ? shifted
+              : folded;
+
+    result = ReverseBits32(ctx, crc);
+    StoreU32(ctx, table_slot, result);
+
+    // The next index is built from the saved byte, and the loop ends when that
+    // sum no longer fits in a byte.
+    index = index_byte + 1u;
+    if ((index & 255u) == index) {
+      goto next_index;
+    }
   }
+  StoreU8(ctx, kInitCrc32TableInitialisedFlag, 1u);
   LeaveFrame();
 }
-}
+
+}  // namespace artc

@@ -1,546 +1,313 @@
-// pump_event_queue.cpp -- pumps one round of pending events through the dispatch steps and answers the round outcome..
-//
-// PumpEventQueue -- pumps one round of pending events through the dispatch steps and answers the round outcome.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 1199229-1199229 (f2801); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations -- the handoff and the dispatch steps this round drives.
 void Panic(EngineContext* ctx, uint32_t a0);
 uint32_t PollEventKind(EngineContext* ctx);
 void RunEventStep(EngineContext* ctx, uint32_t a0);
-// PROVISIONAL nested-namespace forwarders (the dispatch products land later).
 namespace AutoReadTimer {
-  void Dispatch(EngineContext* ctx, uint32_t a, uint32_t b);
+  void Dispatch(EngineContext* ctx, uint32_t a0, uint32_t a1);
 }
 namespace BacklogView {
-  void DispatchAux(EngineContext* ctx, uint32_t a, uint32_t b);
+  void DispatchAux(EngineContext* ctx, uint32_t a0, uint32_t a1);
 }
 
 namespace {
 
-constexpr uint32_t kF2801MsgPx = 0xBE5BDu;  // px != 0
-constexpr uint32_t kF2801MsgBoostBoostSmartPtr = 0xBE5C5u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
-constexpr uint32_t kF2801MsgOperator = 0xBE5FDu;  // operator->
-constexpr uint32_t kF2801ConstCF7D4 = 0xCF7D4u;  // 
-constexpr uint32_t kF2801ConstCF7DC = 0xCF7DCu;  // 
-constexpr uint32_t kF2801ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF2801SaveFrameBytes = 8u;
-constexpr uint32_t kF2801ResumeWordBytes = 4u;
+// The shared_ptr precondition the five checks below report: the leading word,
+// the "px != 0" expression, its source file, the line, and the enclosing
+// function.
+constexpr uint32_t kPumpEventQueueAssertLead = 857u;
+constexpr uint32_t kPumpEventQueueNullCheckAddr = 0xBE5BDu;
+constexpr uint32_t kPumpEventQueueSharedPtrPathAddr = 0xBE5C5u;
+constexpr uint32_t kPumpEventQueueAssertLine = 734u;
+constexpr uint32_t kPumpEventQueueAssertFuncAddr = 0xBE5FDu;
+// The engine's pending-throw latch, cleared before every bridge call that can
+// raise and read back once it returns.
+constexpr uint32_t kPumpEventQueueThrowLatch = 0xD015Cu;
+// The queue's drain flag: a byte the last step of a round raises once the round
+// has handed its work off.
+constexpr uint32_t kPumpEventQueueDrainFlagAddr = 0xCF7DCu;
+// The queue's head word, sampled again after every dispatched entry.
+constexpr uint32_t kPumpEventQueueHeadAddr = 0xCF7D4u;
 
 }  // namespace
 
+// Pumps one round of the pending event queue: samples the drain flag and the
+// queue head, then walks the guarded steps below -- each either dispatches the
+// entry it holds or hands the round to the catch machinery. A check whose latch
+// comes back clear has no exception to hand off and traps. The check groups are
+// flat, one after another: a group that finds nothing left to dispatch falls
+// through to the next step of the same round. The body is suspendable: a
+// rewinding pass restores the two slots below from the frame the suspend path
+// pushed, and the resume code names the call to replay.
 void PumpEventQueue(EngineContext* ctx) {
   EnterFrame();
-  uint32_t l0 = 0u; uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF2801SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    l0 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l1 = i0;
+  uint32_t const kSaveFrameBytes = 8u;
+  uint32_t const kResumeWordBytes = 4u;
+  // The codes the ten spill sites below name.
+  uint32_t const kFirstAssertCall = 0u;
+  uint32_t const kSecondAssertCall = 1u;
+  uint32_t const kDispatchCall = 2u;
+  uint32_t const kThirdAssertCall = 3u;
+  uint32_t const kBacklogAuxCall = 4u;
+  uint32_t const kFourthAssertCall = 5u;
+  uint32_t const kAutoReadCall = 6u;
+  uint32_t const kFifthAssertCall = 7u;
+  uint32_t const kRunEventCall = 8u;
+  uint32_t const kHandoffCall = 9u;
+  // The frame saves one word per slot below, so each slot keeps a single name
+  // across the whole walk even where a later region reuses it as a flag.
+  uint32_t entry = 0u;
+  uint32_t pending = 0u;
+  uint32_t resume_code = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 8-byte frame the suspend path pushed and rebuild the
+    // two saved slots from it.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    entry = LoadU32(ctx, frame);
+    pending = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF2801ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // The second pop names the call that was in flight. The two pops stay
+    // separate -- one region is read back at a time.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
+    resume_code = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Give the host a slice, then read the drain flag and the queue head.
     HostYieldToHost(ctx);
-    i0 = kF2801ConstCF7DC;
-    i0 = LoadU8(ctx, i0);
-    i0 = !(i0);
-    l1 = i0;
-    i0 = kF2801ConstCF7D4;
-    i0 = LoadU32(ctx, i0);
-    l0 = i0;
+    pending = static_cast<uint32_t>(LoadU8(ctx, kPumpEventQueueDrainFlagAddr) == 0u);
+    entry = LoadU32(ctx, kPumpEventQueueHeadAddr);
   }
-  i0 = l1;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l1;
-    i1 = l0;
-    i1 = !(i1);
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l1 = i0;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF2801ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
+  // A round is pumped only while something is queued, or while a rewinding pass
+  // re-walks the steps it already took.
+  if (pending || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Nothing is queued when the head word is empty.
+      pending = static_cast<uint32_t>(entry == 0u);
+    }
+    if (pending || ResumePhase(ctx) == kResumeRewinding) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        StoreU32(ctx, kPumpEventQueueThrowLatch, 0u);
       }
-      i0 = l2;
-      i0 = !(i0);
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = 857u;
-        i1 = kF2801MsgPx;
-        i2 = kF2801MsgBoostBoostSmartPtr;
-        i3 = 734u;
-        i4 = kF2801MsgOperator;
-        HostFailAssertion(ctx, i0, i1, i2, i3, i4);
-        i0 = 0u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
+      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstAssertCall) : 1u) {
+        HostFailAssertion(ctx, kPumpEventQueueAssertLead, kPumpEventQueueNullCheckAddr,
+                          kPumpEventQueueSharedPtrPathAddr, kPumpEventQueueAssertLine,
+                          kPumpEventQueueAssertFuncAddr);
+        resume_code = kFirstAssertCall;
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          goto suspend_point;
+        }
       }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF2801ConstD015C;
-        i0 = LoadU32(ctx, i0);
-        l0 = i0;
-        i0 = kF2801ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-        i0 = l0;
-        i1 = 1u;
-        i0 = i0 != i1;
-        l0 = i0;
-        if (i0) {goto block_5;}
-        goto running_exit;
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // The latch holds 1 while an exception is in flight.
+        entry = LoadU32(ctx, kPumpEventQueueThrowLatch);
+        StoreU32(ctx, kPumpEventQueueThrowLatch, 0u);
+        if (entry != 1u) {
+          goto trap_path;
+        }
+        goto catch_path;
       }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l0;
-      i0 = LoadU32(ctx, i0 + 24u);
-      l0 = i0;
-      i0 = !(i0);
-      l1 = i0;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Step into the entry: an empty follow-up word ends the round.
+      entry = LoadU32(ctx, entry + 24u);
+      pending = static_cast<uint32_t>(entry == 0u);
     }
-    i0 = l1;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF2801ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
+    if (pending || ResumePhase(ctx) == kResumeRewinding) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        StoreU32(ctx, kPumpEventQueueThrowLatch, 0u);
       }
-      i0 = l2;
-      i1 = 1u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = 857u;
-        i1 = kF2801MsgPx;
-        i2 = kF2801MsgBoostBoostSmartPtr;
-        i3 = 734u;
-        i4 = kF2801MsgOperator;
-        HostFailAssertion(ctx, i0, i1, i2, i3, i4);
-        i0 = 1u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
+      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondAssertCall) : 1u) {
+        HostFailAssertion(ctx, kPumpEventQueueAssertLead, kPumpEventQueueNullCheckAddr,
+                          kPumpEventQueueSharedPtrPathAddr, kPumpEventQueueAssertLine,
+                          kPumpEventQueueAssertFuncAddr);
+        resume_code = kSecondAssertCall;
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          goto suspend_point;
+        }
       }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF2801ConstD015C;
-        i0 = LoadU32(ctx, i0);
-        l0 = i0;
-        i0 = kF2801ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-        i0 = l0;
-        i1 = 1u;
-        i0 = i0 != i1;
-        l0 = i0;
-        if (i0) {goto block_5;}
-        goto running_exit;
+      if (ResumePhase(ctx) == kResumeRunning) {
+        entry = LoadU32(ctx, kPumpEventQueueThrowLatch);
+        StoreU32(ctx, kPumpEventQueueThrowLatch, 0u);
+        if (entry != 1u) {
+          goto trap_path;
+        }
+        goto catch_path;
       }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l0;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 8u);
-      l1 = i0;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The entry's first word names the table its dispatch slot lives in.
+      pending = LoadU32(ctx, LoadU32(ctx, entry) + 8u);
     }
-    i0 = l2;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l0;
-      i1 = l1;
-      i0 = CallTableT2(ctx, i1, i0);
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kDispatchCall) : 1u) {
+      // Dispatch the entry through the table slot.
+      uint32_t const call_result = CallTableT2(ctx, pending, entry);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
       SyncMemoryBase(ctx);
 #endif
-      l3 = i0;
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l3;
-      l0 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l0;
-      if (i0) {goto block_6;}
-      i0 = kF2801ConstCF7D4;
-      i0 = LoadU32(ctx, i0);
-      l0 = i0;
-      i0 = !(i0);
-      l1 = i0;
-    }
-    i0 = l1;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF2801ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
+      resume_code = kDispatchCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
       }
-      i0 = l2;
-      i1 = 3u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = 857u;
-        i1 = kF2801MsgPx;
-        i2 = kF2801MsgBoostBoostSmartPtr;
-        i3 = 734u;
-        i4 = kF2801MsgOperator;
-        HostFailAssertion(ctx, i0, i1, i2, i3, i4);
-        i0 = 3u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
+      entry = call_result;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // A dispatched entry ends the round; otherwise sample the head again.
+      if (entry) {
+        goto round_end;
       }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF2801ConstD015C;
-        i0 = LoadU32(ctx, i0);
-        l0 = i0;
-        i0 = kF2801ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-        i0 = l0;
-        i1 = 1u;
-        i0 = i0 != i1;
-        l0 = i0;
-        if (i0) {goto block_5;}
-        goto running_exit;
+      entry = LoadU32(ctx, kPumpEventQueueHeadAddr);
+      pending = static_cast<uint32_t>(entry == 0u);
+    }
+    if (pending || ResumePhase(ctx) == kResumeRewinding) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        StoreU32(ctx, kPumpEventQueueThrowLatch, 0u);
+      }
+      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kThirdAssertCall) : 1u) {
+        HostFailAssertion(ctx, kPumpEventQueueAssertLead, kPumpEventQueueNullCheckAddr,
+                          kPumpEventQueueSharedPtrPathAddr, kPumpEventQueueAssertLine,
+                          kPumpEventQueueAssertFuncAddr);
+        resume_code = kThirdAssertCall;
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          goto suspend_point;
+        }
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        entry = LoadU32(ctx, kPumpEventQueueThrowLatch);
+        StoreU32(ctx, kPumpEventQueueThrowLatch, 0u);
+        if (entry != 1u) {
+          goto trap_path;
+        }
+        goto catch_path;
       }
     }
-    i0 = l2;
-    i1 = 4u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l0;
-      i1 = 0u;
-      BacklogView::DispatchAux(ctx, i0, i1);
-      i0 = 4u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kBacklogAuxCall) : 1u) {
+      // Hand the entry to the backlog view's second dispatch unit.
+      BacklogView::DispatchAux(ctx, entry, 0u);
+      resume_code = kBacklogAuxCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF2801ConstCF7DC;
-      i1 = 1u;
-      StoreU8(ctx, i0, i1);
-      goto func_exit;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The round ends here: raise the drain flag and leave.
+      StoreU8(ctx, kPumpEventQueueDrainFlagAddr, 1u);
+      goto done;
     }
   }
-  i0 = l1;
-  i1 = l0;
-  i1 = !(i1);
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  l1 = i0;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF2801ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    pending = static_cast<uint32_t>(entry == 0u);
+  }
+  if (pending || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, kPumpEventQueueThrowLatch, 0u);
     }
-    i0 = l2;
-    i1 = 5u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 857u;
-      i1 = kF2801MsgPx;
-      i2 = kF2801MsgBoostBoostSmartPtr;
-      i3 = 734u;
-      i4 = kF2801MsgOperator;
-      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
-      i0 = 5u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFourthAssertCall) : 1u) {
+      HostFailAssertion(ctx, kPumpEventQueueAssertLead, kPumpEventQueueNullCheckAddr,
+                        kPumpEventQueueSharedPtrPathAddr, kPumpEventQueueAssertLine,
+                        kPumpEventQueueAssertFuncAddr);
+      resume_code = kFourthAssertCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF2801ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      l0 = i0;
-      i0 = kF2801ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = l0;
-      i1 = 1u;
-      i0 = i0 != i1;
-      l0 = i0;
-      if (i0) {goto block_5;}
-      goto running_exit;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      entry = LoadU32(ctx, kPumpEventQueueThrowLatch);
+      StoreU32(ctx, kPumpEventQueueThrowLatch, 0u);
+      if (entry != 1u) {
+        goto trap_path;
+      }
+      goto catch_path;
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = PollEventKind(ctx);
-    l1 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    pending = PollEventKind(ctx);
   }
-  i0 = l2;
-  i1 = 6u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l0;
-    i1 = l1;
-    AutoReadTimer::Dispatch(ctx, i0, i1);
-    i0 = 6u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  if (i0) {
-    i0 = l1;
-  } else {
-    i0 = kF2801ConstCF7D4;
-    i0 = LoadU32(ctx, i0);
-    l0 = i0;
-    i0 = !(i0);
-  }
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF2801ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-    }
-    i0 = l2;
-    i1 = 7u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 857u;
-      i1 = kF2801MsgPx;
-      i2 = kF2801MsgBoostBoostSmartPtr;
-      i3 = 734u;
-      i4 = kF2801MsgOperator;
-      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
-      i0 = 7u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF2801ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      l0 = i0;
-      i0 = kF2801ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = l0;
-      i1 = 1u;
-      i0 = i0 != i1;
-      l0 = i0;
-      if (i0) {goto block_5;}
-      goto running_exit;
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAutoReadCall) : 1u) {
+    // Tick the auto-read timer against the entry's kind.
+    AutoReadTimer::Dispatch(ctx, entry, pending);
+    resume_code = kAutoReadCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
     }
   }
-  i0 = l2;
-  i1 = 8u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l0;
-    RunEventStep(ctx, i0);
-    i0 = 8u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    entry = LoadU32(ctx, kPumpEventQueueHeadAddr);
+    pending = static_cast<uint32_t>(entry == 0u);
   }
-  block_6:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    goto func_exit;
+  if (pending || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, kPumpEventQueueThrowLatch, 0u);
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFifthAssertCall) : 1u) {
+      HostFailAssertion(ctx, kPumpEventQueueAssertLead, kPumpEventQueueNullCheckAddr,
+                        kPumpEventQueueSharedPtrPathAddr, kPumpEventQueueAssertLine,
+                        kPumpEventQueueAssertFuncAddr);
+      resume_code = kFifthAssertCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      entry = LoadU32(ctx, kPumpEventQueueThrowLatch);
+      StoreU32(ctx, kPumpEventQueueThrowLatch, 0u);
+      if (entry != 1u) {
+        goto trap_path;
+      }
+      goto catch_path;
+    }
   }
-  block_5:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kRunEventCall) : 1u) {
+    // Run the entry's event step.
+    RunEventStep(ctx, entry);
+    resume_code = kRunEventCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+  }
+  round_end:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    goto done;
+  }
+  trap_path:;
+  if (ResumePhase(ctx) == kResumeRunning) {
     TrapUnreachable();
   }
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = 0u;
-    i0 = FindMatchingCatch(ctx, i0);
-    l0 = i0;
-    i0 = HostTempRet0(ctx);
+  catch_path:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    entry = FindMatchingCatch(ctx, 0u);
+    (void)HostTempRet0(ctx);
   }
-  i0 = l2;
-  i1 = 9u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l0;
-    Panic(ctx, i0);
-    i0 = 9u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kHandoffCall) : 1u) {
+    Panic(ctx, entry);
+    resume_code = kHandoffCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
+  if (ResumePhase(ctx) == kResumeRunning) {
     TrapUnreachable();
   }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF2801ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = l0;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = l1;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 8u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto done;
+suspend_point:;
+  {
+    // Suspend: push the code naming the call in flight, step past it, then push
+    // the 8-byte frame a rewinding pass reads back. The stack pointer lives in
+    // the word the frame pointer itself names, so every push is a
+    // read-modify-write of that word.
+    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, entry);
+    StoreU32(ctx, frame + 4u, pending);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
+  }
+done:;
   LeaveFrame();
 }
-}
+
+}  // namespace artc

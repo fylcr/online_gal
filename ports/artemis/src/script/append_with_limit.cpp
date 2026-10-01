@@ -1,625 +1,327 @@
-// append_with_limit.cpp -- appends one entry to a growable parser list under a size limit, raising the named-limit error when the list is full..
-//
-// AppendWithLimit -- appends one entry to a growable parser list under a size limit, raising the named-limit error when the list is full.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 481796-481796 (f1116); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
-uint32_t FormatPushString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void LexError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void StoreListEntry(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-uint32_t GrowArray(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f);
+// Callees that live in their own translation unit.
+uint32_t FormatPushString(EngineContext* ctx, uint32_t buffer, uint32_t format, uint32_t args);
+void LexError(EngineContext* ctx, uint32_t message, uint32_t argument, uint32_t flag);
+void StoreListEntry(EngineContext* ctx, uint32_t table, uint32_t target, uint32_t entry);
+uint32_t GrowArray(EngineContext* ctx, uint32_t pool, uint32_t block, uint32_t count_addr,
+                   uint32_t entry_bytes, uint32_t limit, uint32_t what);
 
 namespace {
 
-constexpr uint32_t kF1116MsgMainFunctionHasMore = 0x2B6C0u;  // main function has more than %d %s
-constexpr uint32_t kF1116MsgFunctionAtLineD = 0x2B6E2u;  // function at line %d has more than %d %s
-constexpr uint32_t kF1116MsgUpvalues = 0x2B77Fu;  // upvalues
-constexpr uint32_t kF1116Const2B788 = 0x2B788u;  // 
-constexpr uint32_t kF1116Const7FFFFFFD = 0x7FFFFFFDu;  // 
-constexpr uint32_t kF1116ResumeWordBytes = 4u;
+// The messages this walk raises once a list has run out of room, and the word
+// naming what ran out.
+constexpr uint32_t kAppendWithLimitMainFunctionFmt = 0x2B6C0u;  // main function has more than %d %s
+constexpr uint32_t kAppendWithLimitFunctionAtLineFmt = 0x2B6E2u;  // function at line %d has more than %d %s
+constexpr uint32_t kAppendWithLimitUpvaluesText = 0x2B77Fu;  // upvalues
+constexpr uint32_t kAppendWithLimitEmptyText = 0x2B788u;  // the empty growth message
+// The entry count a single list may reach, and the largest count its entry
+// array block may be grown to.
+constexpr uint32_t kAppendWithLimitEntryCeiling = 60u;
+constexpr uint32_t kAppendWithLimitGrowLimit = 0x7FFFFFFDu;
 
 }  // namespace
 
+// Appends one entry to a growable list unless the list already holds it, and
+// raises the named-limit error once the list has run out of room. The body is
+// suspendable: a rewinding pass restores the ten slots below from the frame it
+// pushed and replays the one call its resume code names.
 uint32_t AppendWithLimit(EngineContext* ctx, uint32_t list, uint32_t entry, uint32_t limit, uint32_t what) {
   EnterFrame();
-  uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = 40u;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
-    i0 = LoadU32(ctx, i0);
-    list = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 8u);
-    limit = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 12u);
-    what = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l4 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l6 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l7 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l8 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l9 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 36u);
-    l10 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 4u);
-    entry = i0;
+  uint32_t const kSaveFrameBytes = 40u;
+  uint32_t const kResumeWordBytes = 4u;
+  // The codes the five call sites below spill.
+  uint32_t const kRecursiveAppend = 0u;
+  uint32_t const kFormatMainFmt = 1u;
+  uint32_t const kFormatLineFmt = 2u;
+  uint32_t const kRaiseError = 3u;
+  uint32_t const kGrowArrayCall = 4u;
+  // The index a limit record carries when there is no entry to name.
+  uint64_t const kNoIndex = 0xFFFFFFFFFFFFFFFFull;
+  // The frame saves one word per slot below, so each slot keeps a single name
+  // across the whole walk even where a later region reuses it as a carry:
+  // list, entry, limit and what are the call's own arguments, and count,
+  // cursor, target, probe, stack_slot and slot are the walk's.
+  uint32_t count = 0u;
+  uint32_t cursor = 0u;
+  uint32_t target = 0u;
+  uint32_t probe = 0u;
+  uint32_t stack_slot = 0u;
+  uint32_t slot = 0u;
+  uint32_t resume_code = 0u;
+  uint32_t result = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 40-byte frame the suspend path pushed and rebuild the
+    // ten slots from it.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    list = LoadU32(ctx, frame);
+    entry = LoadU32(ctx, frame + 4u);
+    limit = LoadU32(ctx, frame + 8u);
+    what = LoadU32(ctx, frame + 12u);
+    count = LoadU32(ctx, frame + 16u);
+    cursor = LoadU32(ctx, frame + 20u);
+    target = LoadU32(ctx, frame + 24u);
+    probe = LoadU32(ctx, frame + 28u);
+    stack_slot = LoadU32(ctx, frame + 32u);
+    slot = LoadU32(ctx, frame + 36u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1116ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l11 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // The second pop names the call that was in flight. The two pops stay
+    // separate -- one region is read back at a time.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
+    resume_code = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 32u;
-    i0 -= i1;
-    l9 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = list;
-    i0 = !(i0);
-    l6 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // A 32-byte guest-stack slot backs the message arguments built below.
+    stack_slot = GuestStackSp(ctx) - 32u;
+    GuestStackSp(ctx) = stack_slot;
+    cursor = static_cast<uint32_t>(list == 0u);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l6;
-    if (i0) {
-      i0 = limit;
-      j1 = 18446744073709551615ull;
-      StoreU64(ctx, i0 + 16u, j1);
-      i0 = limit;
-      i1 = 255u;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = 8u;
-      l6 = i0;
-      i0 = limit;
-      i1 = 8u;
-      StoreU32(ctx, i0, i1);
-      goto running_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (cursor) {
+      // No list at all: answer 8, with the entry ceiling left at its largest
+      // value and no index to name.
+      StoreU64(ctx, limit + 16u, kNoIndex);
+      StoreU32(ctx, limit + 8u, 255u);
+      cursor = 8u;
+      StoreU32(ctx, limit, 8u);
+      goto answer_path;
     }
-    i0 = list;
-    i0 = LoadU8(ctx, i0 + 50u);
-    l6 = i0;
-    dispatch_loop: 
-      i0 = l6;
-      l8 = i0;
-      i0 = l6;
-      i1 = 1u;
-      i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-      if (i0) {goto block_7;}
-      i0 = list;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 24u);
-      l10 = i0;
-      i1 = l8;
-      i2 = 1u;
-      i1 -= i2;
-      l6 = i1;
-      i2 = 1u;
-      i1 <<= (i2 & 31);
-      i2 = list;
-      i1 += i2;
-      i1 = LoadU16(ctx, i1 + 172u);
-      i2 = 12u;
-      i1 *= i2;
-      i0 += i1;
-      i0 = LoadU32(ctx, i0);
-      i1 = entry;
-      i0 = i0 != i1;
-      if (i0) {goto dispatch_loop;}
-    i0 = limit;
-    j1 = 18446744073709551615ull;
-    StoreU64(ctx, i0 + 16u, j1);
-    i0 = limit;
-    i1 = l6;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = 6u;
-    l6 = i0;
-    i0 = limit;
-    i1 = 6u;
-    StoreU32(ctx, i0, i1);
-    i0 = what;
-    if (i0) {goto running_exit;}
-    i0 = list;
-    i0 = LoadU32(ctx, i0 + 20u);
-    list = i0;
-    i0 = !(i0);
-    if (i0) {goto running_exit;}
-    loop_9: 
-      i0 = l8;
-      i1 = list;
-      i1 = LoadU8(ctx, i1 + 8u);
-      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-      if (i0) {
-        i0 = list;
-        i0 = LoadU32(ctx, i0);
-        list = i0;
-        if (i0) {goto loop_9;}
-        goto running_exit;
+    // Look the key up in the list's bucket table, most recent entry first.
+    cursor = LoadU8(ctx, list + 50u);
+    for (;;) {
+      probe = cursor;
+      if (static_cast<int32_t>(cursor) < 1) {
+        goto not_found;
       }
-    i0 = list;
-    i1 = 1u;
-    StoreU8(ctx, i0 + 9u, i1);
-    goto running_exit;
-    block_7:;
-    i0 = 8u;
-    l6 = i0;
-    i0 = list;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l4 = i0;
-    i0 = 0u;
-    what = i0;
-  }
-  i0 = l11;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l4;
-    i1 = entry;
-    i2 = limit;
-    i3 = 0u;
-    i0 = AppendWithLimit(ctx, i0, i1, i2, i3);
-    l5 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l5;
-    l4 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i1 = 8u;
-    i0 = i0 == i1;
-    if (i0) {goto running_exit;}
-    i0 = list;
-    i0 = LoadU32(ctx, i0);
-    l7 = i0;
-    i0 = LoadU32(ctx, i0 + 36u);
-    l6 = i0;
-    l4 = i0;
-    i0 = l7;
-    i0 = LoadU8(ctx, i0 + 72u);
-    l8 = i0;
-    i0 = !(i0);
-    l10 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l10;
-    if (i0) {goto block_14;}
-    i0 = limit;
-    i0 = LoadU32(ctx, i0);
-    l10 = i0;
-    i0 = 0u;
-    l4 = i0;
-    loop_18: 
-      i0 = l10;
-      i1 = l4;
-      i2 = 1u;
-      i1 <<= (i2 & 31);
-      i2 = list;
-      i1 += i2;
-      what = i1;
-      i1 = LoadU8(ctx, i1 + 51u);
-      i0 = i0 == i1;
-      if (i0) {
-        i0 = what;
-        i0 = LoadU8(ctx, i0 + 52u);
-        i1 = limit;
-        i1 = LoadU32(ctx, i1 + 8u);
-        i0 = i0 == i1;
-        if (i0) {goto block_13;}
+      slot = LoadU32(ctx, LoadU32(ctx, list) + 24u);
+      cursor = probe - 1u;
+      slot += static_cast<uint32_t>(LoadU16(ctx, list + (cursor << 1) + 172u)) * 12u;
+      if (LoadU32(ctx, slot) == entry) {
+        break;
       }
-      i0 = l8;
-      i1 = l4;
-      i2 = 1u;
-      i1 += i2;
-      l4 = i1;
-      i0 = i0 != i1;
-      if (i0) {goto loop_18;}
-    i0 = l6;
-    l4 = i0;
-    i0 = l8;
-    what = i0;
-    i1 = 60u;
-    i0 = i0 < i1;
-    l8 = i0;
-    if (i0) {goto block_14;}
-    i0 = list;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l8 = i0;
-    i0 = l7;
-    i0 = LoadU32(ctx, i0 + 60u);
-    what = i0;
-    i0 = !(i0);
-    l4 = i0;
-  }
-  i0 = l4;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l9;
-      i1 = kF1116MsgUpvalues;
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = l9;
-      i1 = 60u;
-      StoreU32(ctx, i0, i1);
     }
-    i0 = l11;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l8;
-      i1 = kF1116MsgMainFunctionHasMore;
-      i2 = l9;
-      i0 = FormatPushString(ctx, i0, i1, i2);
-      l5 = i0;
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l5;
-      l4 = i0;
+    // The list already holds it: answer 6 and name the slot it sits in. The
+    // caller can ask for the block that owns it to be left alone.
+    StoreU64(ctx, limit + 16u, kNoIndex);
+    StoreU32(ctx, limit + 8u, cursor);
+    cursor = 6u;
+    StoreU32(ctx, limit, 6u);
+    if (what) {
+      goto answer_path;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto block_15;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l9;
-    i1 = kF1116MsgUpvalues;
-    StoreU32(ctx, i0 + 24u, i1);
-    i0 = l9;
-    i1 = 60u;
-    StoreU32(ctx, i0 + 20u, i1);
-    i0 = l9;
-    i1 = what;
-    StoreU32(ctx, i0 + 16u, i1);
-    i0 = l9;
-    i1 = 16u;
-    i0 += i1;
-    what = i0;
-  }
-  i0 = l11;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l8;
-    i1 = kF1116MsgFunctionAtLineD;
-    i2 = what;
-    i0 = FormatPushString(ctx, i0, i1, i2);
-    l5 = i0;
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l5;
-    l4 = i0;
-  }
-  block_15:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = list;
-    i0 = LoadU32(ctx, i0 + 12u);
-    what = i0;
-  }
-  i0 = l11;
-  i1 = 3u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = what;
-    i1 = l4;
-    i2 = 0u;
-    LexError(ctx, i0, i1, i2);
-    i0 = 3u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l7;
-    i0 = LoadU32(ctx, i0 + 36u);
-    l4 = i0;
-    i0 = l7;
-    i0 = LoadU8(ctx, i0 + 72u);
-    what = i0;
-  }
-  block_14:;
-  i0 = what;
-  i1 = l4;
-  i2 = what;
-  i3 = 255u;
-  i2 &= i3;
-  i1 = (uint32_t)((int32_t)i1 <= (int32_t)i2);
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  what = i0;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = list;
-      i0 = LoadU32(ctx, i0 + 16u);
-      l8 = i0;
-      i0 = l7;
-      i0 = LoadU32(ctx, i0 + 28u);
-      l4 = i0;
-      i0 = l7;
-      i1 = 36u;
-      i0 += i1;
-      what = i0;
+    list = LoadU32(ctx, list + 20u);
+    if (list == 0u) {
+      goto answer_path;
     }
-    i0 = l11;
-    i1 = 4u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l8;
-      i1 = l4;
-      i2 = what;
-      i3 = 4u;
-      i4 = kF1116Const7FFFFFFD;
-      i5 = kF1116Const2B788;
-      i0 = GrowArray(ctx, i0, i1, i2, i3, i4, i5);
-      l5 = i0;
-      i0 = 4u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l5;
-      what = i0;
+    while (static_cast<int32_t>(probe) <= static_cast<int32_t>(LoadU8(ctx, list + 8u))) {
+      list = LoadU32(ctx, list);
+      if (list == 0u) {
+        goto answer_path;
+      }
     }
-    i0 = ResumePhase(ctx);
-    if (i0) {
-      i0 = l4;
-    } else {
-      i0 = l7;
-      i1 = what;
-      StoreU32(ctx, i0 + 28u, i1);
-      i0 = l7;
-      i0 = LoadU32(ctx, i0 + 36u);
+    StoreU8(ctx, list + 9u, 1u);
+    goto answer_path;
+  not_found:;
+    // Not there: append it. The list's own parent is appended into first, and
+    // the answer it gives decides whether this walk keeps going; the render
+    // below starts from the list's capacity word.
+    cursor = 8u;
+    count = LoadU32(ctx, list + 8u);
+    what = 0u;
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kRecursiveAppend) : 1u) {
+    result = AppendWithLimit(ctx, count, entry, limit, 0u);
+    resume_code = kRecursiveAppend;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
     }
-    l4 = i0;
+    count = result;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i1 = l6;
-    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-    if (i0) {
-      loop_34: 
-        i0 = l7;
-        i0 = LoadU32(ctx, i0 + 28u);
-        i1 = l6;
-        i2 = 2u;
-        i1 <<= (i2 & 31);
-        i0 += i1;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-        i0 = l6;
-        i1 = 1u;
-        i0 += i1;
-        l6 = i0;
-        i1 = l4;
-        i0 = i0 != i1;
-        if (i0) {goto loop_34;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (count == 8u) {
+      // The parent reported the missing-list case too.
+      goto answer_path;
     }
-    i0 = l7;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l6 = i0;
-    i1 = l7;
-    i1 = LoadU8(ctx, i1 + 72u);
-    l4 = i1;
-    i2 = 2u;
-    i1 <<= (i2 & 31);
-    i0 += i1;
-    i1 = entry;
-    StoreU32(ctx, i0, i1);
-    i0 = entry;
-    i0 = LoadU8(ctx, i0 + 5u);
-    i1 = 3u;
-    i0 &= i1;
-    i0 = !(i0);
-    if (i0) {goto block_35;}
-    i0 = l7;
-    i0 = LoadU8(ctx, i0 + 5u);
-    i1 = 4u;
-    i0 &= i1;
-    i0 = !(i0);
-    if (i0) {goto block_35;}
-    i0 = list;
-    i0 = LoadU32(ctx, i0 + 16u);
-    i1 = l7;
-    i2 = entry;
-    StoreListEntry(ctx, i0, i1, i2);
-    i0 = l7;
-    i0 = LoadU8(ctx, i0 + 72u);
-    l4 = i0;
-    block_35:;
-    i0 = l4;
-    i1 = 1u;
-    i0 <<= (i1 & 31);
-    i1 = list;
-    i0 += i1;
-    list = i0;
-    i1 = limit;
-    i1 = LoadU32(ctx, i1);
-    StoreU8(ctx, i0 + 51u, i1);
-    i0 = list;
-    i1 = limit;
-    i1 = LoadU32(ctx, i1 + 8u);
-    StoreU8(ctx, i0 + 52u, i1);
-    i0 = l7;
-    i1 = l4;
-    i2 = 1u;
-    i1 += i2;
-    StoreU8(ctx, i0 + 72u, i1);
+    // The object that owns the list, and its entry count byte at +72.
+    target = LoadU32(ctx, list);
+    cursor = LoadU32(ctx, target + 36u);
+    count = cursor;
+    probe = LoadU8(ctx, target + 72u);
+    slot = static_cast<uint32_t>(probe == 0u);
   }
-  block_13:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = limit;
-    i1 = 7u;
-    StoreU32(ctx, i0, i1);
-    i0 = limit;
-    i1 = l4;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = 7u;
-    l6 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (slot) {
+      goto write_entry;
+    }
+    // The list already holds entries: take the first one whose tag and index
+    // both match this entry, if there is one.
+    slot = LoadU32(ctx, limit);
+    count = 0u;
+    do {
+      what = list + (count << 1);
+      if (slot == LoadU8(ctx, what + 51u) &&
+          LoadU8(ctx, what + 52u) == LoadU32(ctx, limit + 8u)) {
+        goto append_done;
+      }
+      count += 1u;
+    } while (probe != count);
+    count = cursor;
+    what = probe;
+    if (probe < kAppendWithLimitEntryCeiling) {
+      goto write_entry;
+    }
+    probe = LoadU32(ctx, list + 16u);
+    what = LoadU32(ctx, target + 60u);
+    count = static_cast<uint32_t>(what == 0u);
   }
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l9;
-    i1 = 32u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    i0 = l6;
-    goto func_exit;
+  if (count || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // "main function has more than 60 upvalues".
+      StoreU32(ctx, stack_slot + 4u, kAppendWithLimitUpvaluesText);
+      StoreU32(ctx, stack_slot, kAppendWithLimitEntryCeiling);
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFormatMainFmt) : 1u) {
+      result = FormatPushString(ctx, probe, kAppendWithLimitMainFunctionFmt, stack_slot);
+      resume_code = kFormatMainFmt;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+      count = result;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      goto raise_error;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // "function at line %d has more than 60 upvalues".
+    StoreU32(ctx, stack_slot + 24u, kAppendWithLimitUpvaluesText);
+    StoreU32(ctx, stack_slot + 20u, kAppendWithLimitEntryCeiling);
+    StoreU32(ctx, stack_slot + 16u, what);
+    what = stack_slot + 16u;
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFormatLineFmt) : 1u) {
+    result = FormatPushString(ctx, probe, kAppendWithLimitFunctionAtLineFmt, what);
+    resume_code = kFormatLineFmt;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+    count = result;
+  }
+raise_error:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    what = LoadU32(ctx, list + 12u);
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kRaiseError) : 1u) {
+    LexError(ctx, what, count, 0u);
+    resume_code = kRaiseError;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    count = LoadU32(ctx, target + 36u);
+    what = LoadU8(ctx, target + 72u);
+  }
+write_entry:;
+  // The count has outrun the array block it was written against.
+  what = ResumePhase(ctx)
+             ? what
+             : static_cast<uint32_t>(static_cast<int32_t>(count) <=
+                                     static_cast<int32_t>(what & 255u));
+  if (what || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      probe = LoadU32(ctx, list + 16u);
+      count = LoadU32(ctx, target + 28u);
+      what = target + 36u;
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kGrowArrayCall) : 1u) {
+      result = GrowArray(ctx, probe, count, what, 4u, kAppendWithLimitGrowLimit,
+                         kAppendWithLimitEmptyText);
+      resume_code = kGrowArrayCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+      what = result;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Running: keep the block that came back and re-read the entry count.
+      StoreU32(ctx, target + 28u, what);
+      count = LoadU32(ctx, target + 36u);
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Zero the slots the block added beyond the count it grew from.
+    if (static_cast<int32_t>(count) > static_cast<int32_t>(cursor)) {
+      while (cursor != count) {
+        StoreU32(ctx, LoadU32(ctx, target + 28u) + (cursor << 2), 0u);
+        cursor += 1u;
+      }
+    }
+    // The entry goes in at the end of the block, and the limit that admitted it
+    // is recorded in the list's parallel tag and index bytes.
+    cursor = LoadU32(ctx, target + 28u);
+    count = LoadU8(ctx, target + 72u);
+    StoreU32(ctx, cursor + (count << 2), entry);
+    if ((LoadU8(ctx, entry + 5u) & 3u) == 0u) {
+      goto list_entry_done;
+    }
+    if ((LoadU8(ctx, target + 5u) & 4u) == 0u) {
+      goto list_entry_done;
+    }
+    StoreListEntry(ctx, LoadU32(ctx, list + 16u), target, entry);
+    count = LoadU8(ctx, target + 72u);
+  list_entry_done:;
+    list += count << 1;
+    StoreU8(ctx, list + 51u, LoadU32(ctx, limit));
+    StoreU8(ctx, list + 52u, LoadU32(ctx, limit + 8u));
+    StoreU8(ctx, target + 72u, count + 1u);
+  }
+append_done:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Answer 7: the entry was appended, at the count just reached.
+    StoreU32(ctx, limit, 7u);
+    StoreU32(ctx, limit + 8u, count);
+    cursor = 7u;
+  }
+answer_path:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The guest-stack slot goes back and the walk answers with its status: 6
+    // when the entry was already there, 7 when it was appended, 8 when the list
+    // itself was missing.
+    GuestStackSp(ctx) = stack_slot + 32u;
+    result = cursor;
+    goto exit_path;
   }
   TrapUnreachable();
-  spill_frame:;
-  l5 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l5;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1116ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l5 = i0;
-  i1 = list;
-  StoreU32(ctx, i0, i1);
-  i0 = l5;
-  i1 = entry;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l5;
-  i1 = limit;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l5;
-  i1 = what;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l5;
-  i1 = l4;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l5;
-  i1 = l6;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l5;
-  i1 = l7;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = l5;
-  i1 = l8;
-  StoreU32(ctx, i0 + 28u, i1);
-  i0 = l5;
-  i1 = l9;
-  StoreU32(ctx, i0 + 32u, i1);
-  i0 = l5;
-  i1 = l10;
-  StoreU32(ctx, i0 + 36u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 40u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+suspend_point:;
+  {
+    // Suspend: push the code naming the call in flight, step past it, then push
+    // the 40-byte frame a rewinding pass reads back. The stack pointer lives in
+    // the word the frame pointer itself names, so every push is a
+    // read-modify-write of that word.
+    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, list);
+    StoreU32(ctx, frame + 4u, entry);
+    StoreU32(ctx, frame + 8u, limit);
+    StoreU32(ctx, frame + 12u, what);
+    StoreU32(ctx, frame + 16u, count);
+    StoreU32(ctx, frame + 20u, cursor);
+    StoreU32(ctx, frame + 24u, target);
+    StoreU32(ctx, frame + 28u, probe);
+    StoreU32(ctx, frame + 32u, stack_slot);
+    StoreU32(ctx, frame + 36u, slot);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
+  }
+  result = 0u;
+exit_path:;
   LeaveFrame();
-  return i0;
+  return result;
 }
-}
+
+}  // namespace artc

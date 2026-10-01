@@ -1,23 +1,9 @@
-// insert_tagged_tree_node.cpp -- allocates one forty-byte tagged-tree node, constructs its key and value through the host copy slot, descends by the tag byte and rebalances the tree..
-//
-// InsertTaggedTreeNode -- allocates one forty-byte tagged-tree node, constructs its key and value through the host copy slot, descends by the tag byte and rebalances the tree.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 2146042-2146042 (f3799); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Cross-product callees: the heap free, the byte comparator, the string
+// allocator and the intrusive-list unlink.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 uint32_t CompareBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);
@@ -25,389 +11,254 @@ void UnlinkListNode(EngineContext* ctx, uint32_t node, uint32_t victim);
 
 namespace {
 
-constexpr uint32_t kF3799ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF3799ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF3799SaveFrameBytes = 20u;
-constexpr uint32_t kF3799ResumeWordBytes = 4u;
+constexpr uint32_t kInsertTaggedTreeNodeSwapAddr = 0xD015Cu;
+constexpr uint32_t kInsertTaggedTreeNodeConstFFFFFFFF = 0xFFFFFFFFu;
+constexpr uint32_t kInsertTaggedTreeNodeSaveFrameBytes = 20u;
+constexpr uint32_t kInsertTaggedTreeNodeResumeWordBytes = 4u;
 
 }  // namespace
 
+// Allocates one forty-byte tagged node, resolves its key and value through the
+// host lookup slot, descends the tree by the stored tag byte and links the new
+// node into the sibling chain. Answers nothing.
 void InsertTaggedTreeNode(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF3799SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
+  uint32_t frame = 0u;
+  uint32_t node = 0u;
+  uint32_t cursor = 0u;
+  uint32_t entry = 0u;
+  uint32_t resume_code = 0u;
+  uint32_t key = 0u;
+  uint32_t child_slot = 0u;
+  uint32_t limit = 0u;
+  uint32_t neg = 0u;
+  uint32_t cmp = 0u;
+  uint32_t order = 0u;
+  uint32_t shift = 0u;
+  uint32_t phase = 0u;
+
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the saved frame and read its words back in the saved order.
+    uint32_t sp = ReturnFrameSp(ctx);
+    uint32_t frame_top = ReturnFrameSp(ctx);
+    frame_top = LoadU32(ctx, frame_top) - kInsertTaggedTreeNodeSaveFrameBytes;
+    StoreU32(ctx, sp, frame_top);
+    frame = ReturnFrameSp(ctx);
+    frame = LoadU32(ctx, frame);
+    a = LoadU32(ctx, frame);
+    cursor = LoadU32(ctx, frame + 8u);
+    node = LoadU32(ctx, frame + 12u);
+    entry = LoadU32(ctx, frame + 16u);
+    b = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF3799ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l6 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word that names the call that was in flight.
+    uint32_t sp = ReturnFrameSp(ctx);
+    uint32_t word_top = ReturnFrameSp(ctx);
+    word_top = LoadU32(ctx, word_top) - kInsertTaggedTreeNodeResumeWordBytes;
+    StoreU32(ctx, sp, word_top);
+    uint32_t word = ReturnFrameSp(ctx);
+    word = LoadU32(ctx, word);
+    resume_code = LoadU32(ctx, word);
   }
-  i0 = l6;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 40u;
-    i0 = AllocateStringBuffer(ctx, i0);
-    l2 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l2;
-    l4 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF3799ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l4;
-    i1 = 16u;
-    i0 += i1;
-    l3 = i0;
-  }
-  i0 = l6;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 873u;
-    i1 = l3;
-    i2 = b;
-    i0 = HostOsQuery(ctx, i0, i1, i2);
-    l2 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l2;
-    l5 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF3799ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = kF3799ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l2;
-    i1 = 1u;
-    i0 = i0 != i1;
-    l5 = i0;
-  }
-  i0 = l5;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF3799ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = l4;
-      i1 = 28u;
-      i0 += i1;
-      l5 = i0;
-      i0 = b;
-      i1 = 12u;
-      i0 += i1;
-      b = i0;
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning || resume_code == 0u) {
+    // Resume code 0: allocate the node itself.
+    uint32_t fresh = AllocateStringBuffer(ctx, 40u);
+    resume_code = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
     }
-    i0 = l6;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 873u;
-      i1 = l5;
-      i2 = b;
-      i0 = HostOsQuery(ctx, i0, i1, i2);
-      l2 = i0;
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l2;
-      b = i0;
+    node = fresh;
+  }
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning) {
+    // The key field sits at +16; the swap slot is cleared before the lookup.
+    StoreU32(ctx, kInsertTaggedTreeNodeSwapAddr, 0u);
+    cursor = node + 16u;
+  }
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning || resume_code == kResumeSuspended) {
+    // Resume code 1: look the entry up under the tree root.
+    uint32_t query = HostOsQuery(ctx, 873u, cursor, b);
+    resume_code = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF3799ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      b = i0;
-      i0 = kF3799ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = b;
-      i1 = 1u;
-      i0 = i0 != i1;
-      if (i0) {goto block_7;}
-      i0 = HostRet0(ctx);
-      b = i0;
-      i0 = HostTempRet0(ctx);
-      i0 = l4;
-      i0 = LoadS8(ctx, i0 + 27u);
-      i1 = kF3799ConstFFFFFFFF;
-      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-      a = i0;
-      if (i0) {goto block_8;}
-      i0 = l3;
-      i0 = LoadU32(ctx, i0);
-      a = i0;
-      DeallocateRawBlock(ctx, i0);
-      goto block_8;
+    entry = query;
+  }
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning) {
+    // Take the pending swap word and clear the slot: a word other than one
+    // means the lookup above already had an entry to hand back.
+    uint32_t saved = LoadU32(ctx, kInsertTaggedTreeNodeSwapAddr);
+    StoreU32(ctx, kInsertTaggedTreeNodeSwapAddr, 0u);
+    entry = static_cast<uint32_t>(saved != 1u);
+  }
+  phase = ResumePhase(ctx);
+  if (entry != 0u || phase == kResumeRewinding) {
+    phase = ResumePhase(ctx);
+    if (phase == kResumeRunning) {
+      // The node's own value field goes to +28 and the chain starts twelve
+      // bytes into the root handle.
+      StoreU32(ctx, kInsertTaggedTreeNodeSwapAddr, 0u);
+      entry = node + 28u;
+      b = b + 12u;
+    }
+    phase = ResumePhase(ctx);
+    if (phase == kResumeRunning || resume_code == kResumeRewinding) {
+      // Resume code 2: look the entry up again from the advanced root.
+      uint32_t query = HostOsQuery(ctx, 873u, entry, b);
+      resume_code = 2u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_here;
+      }
+      b = query;
+    }
+    phase = ResumePhase(ctx);
+    if (phase == kResumeRunning) {
+      // A pending failure word means the lookup found nothing to hand back.
+      b = LoadU32(ctx, kInsertTaggedTreeNodeSwapAddr);
+      StoreU32(ctx, kInsertTaggedTreeNodeSwapAddr, 0u);
+      if (b != 1u) {
+        goto commit_here;
+      }
+      b = HostRet0(ctx);
+      (void)HostTempRet0(ctx);
+      // A tag byte that still signs non-negative keeps its payload block.
+      uint32_t tag_byte = LoadS8(ctx, node + 27u);
+      a = static_cast<uint32_t>(static_cast<int32_t>(tag_byte) >
+                                static_cast<int32_t>(kInsertTaggedTreeNodeConstFFFFFFFF));
+      if (a != 0u) {
+        goto teardown_here;
+      }
+      a = LoadU32(ctx, cursor);
+      DeallocateRawBlock(ctx, a);
+      goto teardown_here;
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = HostRet0(ctx);
-    b = i0;
-    i0 = HostTempRet0(ctx);
-    a = i0;
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning) {
+    b = HostRet0(ctx);
+    a = HostTempRet0(ctx);
   }
-  block_8:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    DeallocateRawBlock(ctx, i0);
-    i0 = b;
-    HostOsRelease(ctx, i0);
+teardown_here:;
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning) {
+    DeallocateRawBlock(ctx, node);
+    HostOsRelease(ctx, b);
     TrapUnreachable();
   }
-  block_7:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
-    if (i0) {
-      i0 = l4;
-      i0 = LoadU32(ctx, i0 + 16u);
-      i1 = l3;
-      i2 = l4;
-      i2 = LoadU8(ctx, i2 + 27u);
-      l3 = i2;
-      i3 = 24u;
-      i2 <<= (i3 & 31);
-      i3 = 24u;
-      i2 = (uint32_t)((int32_t)i2 >> (i3 & 31));
-      i3 = 0u;
-      i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
-      l2 = i2;
-      i0 = i2 ? i0 : i1;
-      l7 = i0;
-      i0 = l4;
-      i0 = LoadU32(ctx, i0 + 20u);
-      i1 = l3;
-      i2 = l2;
-      i0 = i2 ? i0 : i1;
-      l2 = i0;
-      loop_21: 
-        i0 = b;
-        i0 = LoadU8(ctx, i0 + 27u);
-        l3 = i0;
-        i1 = 24u;
-        i0 <<= (i1 & 31);
-        i1 = 24u;
-        i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-        i1 = 0u;
-        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-        l5 = i0;
-        i0 = l2;
-        i1 = b;
-        i1 = LoadU32(ctx, i1 + 20u);
-        i2 = l3;
-        i3 = l5;
-        i1 = i3 ? i1 : i2;
-        l3 = i1;
-        i0 = i0 > i1;
-        l6 = i0;
-        i0 = l3;
-        i1 = l2;
-        i2 = l6;
-        i0 = i2 ? i0 : i1;
-        l6 = i0;
-        if (i0) {
-          i0 = l7;
-          i1 = b;
-          i2 = 16u;
-          i1 += i2;
-          l8 = i1;
-          i1 = LoadU32(ctx, i1);
-          i2 = l8;
-          i3 = l5;
-          i1 = i3 ? i1 : i2;
-          i2 = l6;
-          i0 = CompareBytes(ctx, i0, i1, i2);
-          l5 = i0;
-          if (i0) {goto block_25;}
+commit_here:;
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning) {
+    b = LoadU32(ctx, a + 4u);
+    if (b != 0u) {
+      // Descend from the root: the tag byte says whether the key sits inline or
+      // behind a pointer, then the walk follows the child links down.
+      uint32_t key_word = LoadU32(ctx, node + 16u);
+      uint32_t tag = LoadU8(ctx, node + 27u);
+      shift = 24u;
+      uint32_t wide = tag << (shift & 31);
+      shift = 24u;
+      wide = static_cast<uint32_t>(static_cast<int32_t>(wide) >> (shift & 31));
+      neg = static_cast<uint32_t>(static_cast<int32_t>(wide) < 0);
+      key = neg != 0u ? key_word : cursor;
+      uint32_t value_word = LoadU32(ctx, node + 20u);
+      limit = neg != 0u ? value_word : tag;
+      cursor = tag;
+    descend:;
+      tag = LoadU8(ctx, b + 27u);
+      cursor = tag;
+      shift = 24u;
+      wide = tag << (shift & 31);
+      shift = 24u;
+      wide = static_cast<uint32_t>(static_cast<int32_t>(wide) >> (shift & 31));
+      neg = static_cast<uint32_t>(static_cast<int32_t>(wide) < 0);
+      value_word = LoadU32(ctx, b + 20u);
+      cursor = neg != 0u ? value_word : cursor;
+      order = static_cast<uint32_t>(limit > cursor);
+      order = order != 0u ? cursor : limit;
+      if (order != 0u) {
+        // One side of this compare is a pointer and the other is inline.
+        child_slot = b + 16u;
+        uint32_t child = LoadU32(ctx, child_slot);
+        uint32_t other = neg != 0u ? child : child_slot;
+        cmp = CompareBytes(ctx, key, other, order);
+        if (cmp != 0u) {
+          goto after_key_compare;
         }
-        i0 = l2;
-        i1 = l3;
-        i0 = i0 < i1;
-        if (i0) {goto block_24;}
-        goto block_23;
-        block_25:;
-        i0 = l5;
-        i1 = kF3799ConstFFFFFFFF;
-        i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-        if (i0) {goto block_23;}
-        block_24:;
-        i0 = b;
-        i0 = LoadU32(ctx, i0);
-        l3 = i0;
-        i0 = !(i0);
-        if (i0) {goto block_19;}
-        goto block_22;
-        block_23:;
-        i0 = b;
-        i0 = LoadU32(ctx, i0 + 4u);
-        l3 = i0;
-        if (i0) {goto block_22;}
-        i0 = b;
-        i1 = 4u;
-        i0 += i1;
-        goto block_18;
-        block_22:;
-        i0 = l3;
-        b = i0;
-        goto loop_21;
+      }
+      if (limit < cursor) {
+        goto take_left_child;
+      }
+      goto take_right_child;
+    after_key_compare:;
+      if (static_cast<int32_t>(cmp) >
+          static_cast<int32_t>(kInsertTaggedTreeNodeConstFFFFFFFF)) {
+        goto take_right_child;
+      }
+    take_left_child:;
+      cursor = LoadU32(ctx, b);
+      if (cursor == 0u) {
+        goto link_under_node;
+      }
+      goto walk_next;
+    take_right_child:;
+      cursor = LoadU32(ctx, b + 4u);
+      if (cursor != 0u) {
+        goto walk_next;
+      }
+      cursor = b + 4u;
+      goto have_link_slot;
+    walk_next:;
+      b = cursor;
+      goto descend;
       TrapUnreachable();
     }
-    i0 = a;
-    i1 = 4u;
-    i0 += i1;
-    b = i0;
-    block_19:;
-    i0 = b;
-    block_18:;
-    l3 = i0;
-    i0 = l4;
-    i1 = b;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = l4;
-    j1 = 0ull;
-    StoreU64(ctx, i0, j1);
-    i0 = l3;
-    i1 = l4;
-    StoreU32(ctx, i0, i1);
-    i0 = a;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    if (i0) {
-      i0 = a;
-      i1 = b;
-      StoreU32(ctx, i0, i1);
-      i0 = l3;
-      i0 = LoadU32(ctx, i0);
-      l4 = i0;
+    b = a + 4u;
+  link_under_node:;
+    cursor = b;
+  have_link_slot:;
+    StoreU32(ctx, node + 8u, b);
+    StoreU64(ctx, node, 0ull);
+    StoreU32(ctx, cursor, node);
+    uint32_t tree = LoadU32(ctx, a);
+    b = LoadU32(ctx, tree);
+    if (b != 0u) {
+      StoreU32(ctx, a, b);
+      node = LoadU32(ctx, cursor);
     }
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 4u);
-    i1 = l4;
-    UnlinkListNode(ctx, i0, i1);
-    i0 = a;
-    i1 = a;
-    i1 = LoadU32(ctx, i1 + 8u);
-    i2 = 1u;
-    i1 += i2;
-    StoreU32(ctx, i0 + 8u, i1);
+    uint32_t victim = LoadU32(ctx, a + 4u);
+    UnlinkListNode(ctx, victim, node);
+    uint32_t count = LoadU32(ctx, a + 8u);
+    count = count + 1u;
+    StoreU32(ctx, a + 8u, count);
   }
-  goto func_exit;
-  spill_frame:;
-  l2 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF3799ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l2 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l2;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l2;
-  i1 = l3;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l2;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l2;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 20u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  LeaveFrame();
+  return;
+suspend_here:;
+  // Store the resume word, then the saved frame words in pop order: the two
+  // rewind prologues above read them back in exactly this sequence.
+  uint32_t slot = ReturnFrameSp(ctx);
+  slot = LoadU32(ctx, slot);
+  StoreU32(ctx, slot, resume_code);
+  uint32_t sp = ReturnFrameSp(ctx);
+  uint32_t word_top = ReturnFrameSp(ctx);
+  word_top = LoadU32(ctx, word_top) + kInsertTaggedTreeNodeResumeWordBytes;
+  StoreU32(ctx, sp, word_top);
+  frame = ReturnFrameSp(ctx);
+  frame = LoadU32(ctx, frame);
+  StoreU32(ctx, frame, a);
+  StoreU32(ctx, frame + 4u, b);
+  StoreU32(ctx, frame + 8u, cursor);
+  StoreU32(ctx, frame + 12u, node);
+  StoreU32(ctx, frame + 16u, entry);
+  sp = ReturnFrameSp(ctx);
+  word_top = ReturnFrameSp(ctx);
+  word_top = LoadU32(ctx, word_top) + kInsertTaggedTreeNodeSaveFrameBytes;
+  StoreU32(ctx, sp, word_top);
   LeaveFrame();
 }
-}
+
+}  // namespace artc

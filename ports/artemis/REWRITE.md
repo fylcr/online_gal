@@ -365,7 +365,8 @@ instrument-profile.py 计数锚 = 产品体 `  EnterFrame();`（索引取自 rw-
 **改**
 - 寄存器名 → 语义名（`value length cursor byte dst src count result slot offset index chunk`），按该函数里的实际用途取；
 - 一行一赋值的链 → 正常表达式；`i0 = !(x); if (i0)` → `if (x == 0)`；双取反 → 直判（符号性照旧）；
-- 可证等价的 `goto` 汤 → `while`/`for`/早返回；真不可约的保留标签但按作用改名，`block_0/loop_1/func_exit` 不许留。
+- 可证等价的 `goto` 汤 → `while`/`for`/早返回；真不可约的保留标签但按作用改名，`block_0/loop_1/func_exit` 不许留；
+- 缩进**沿用本树既有的 2 空格**（`.ref/artemis-compat` 用 4 空格，别照搬）；行宽 ≤ 100；除已有的 `util/engine_context.h` 不引入新 include；C++17，不用 std 容器/字符串。
 
 **注释（本次重点）**
 - 每个函数上方 1–3 行，讲“它干什么、返回什么”；
@@ -374,3 +375,12 @@ instrument-profile.py 计数锚 = 产品体 `  EnterFrame();`（索引取自 rw-
 
 **分层与验收**：批次清单在 `.test/clean-batches/band-*.txt`（每行 `行数<TAB>路径`，共 327 件 / 359,661 行；a=42 小件·b=74·c=126·d=59·e=26 巨件）。每波收尾跑四门：`build-bridge-route.sh asyncify`（必须 `327 product(s) spliced` + rc=0）·`wasm-replace-test.mjs` 4/4·`wasm-diff.mjs` 66/66·`npm test` 439/85/434/0/5，再跑真游戏帧锚（官方与候选帧像素级一致），然后 commit+push。
 任务分发：主代理写规格与样板、审核交付、拥有构建与入口序列；子代理只改自己批次内的 `ports/artemis/src/**`，不跑构建、不动 git、不碰 `reverse/**`。
+
+### 9.1 巨件（e 段 26 件 / 252,363 行）的处理口径
+这 26 件是外层 wasm 函数的整段转写：**单函数 2,020–97,333 行**，体里是 `i0/j0/…` 寄存器局部、上百个 `goto`、上百条 `ResumePhase` 分支（`script/lua_tag_dispatch.cpp` 一件就 97,333 行、333 个常量）。函数体逐行手改既不可行也不可验证，因此 e 段只做**可读性骨架**，口径固定为：
+- 顶部 21 行横幅 + 出处段全删，写 3–6 行文件头说明：这个函数干什么、整体怎么组织（一句话点明它是可挂起的驱动、单一 `func_exit` 出口）；
+- 匿名 namespace 常量表**按内容改名**：`kF<nnnn>Msg<Text>` → 依注释里的字符串内容取名（`kAssertMessagePx`、`kBoostSharedPtrPath`）；纯地址常量 `kF<nnnn>Const<HEX>` → `kData<HEX>`（符号内容未知，只去掉 fnid）；`kF<nnnn>SaveFrameBytes`/`kF<nnnn>ResumeWordBytes` → 带函数名或 `kSaveFrameBytes`/`kResumeWordBytes`（注意全树唯一）；
+- 入口函数参数按用途改名（从 resume 序言的前几处用法即可判断，如 `state`/`bytes`/`length`；`a0/a1…` 是纯参数名，全词替换安全）；
+- 体内部寄存器局部与 `goto` 标签**不动**（避免在单一巨型函数里做不可验证的大面积改名）；
+- 体内部可在自明分节处（同族 callee 串、一大段字符串常量处理）加一行 `// ---- … ----` 分节注释，逻辑一字不动。
+

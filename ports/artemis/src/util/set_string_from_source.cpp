@@ -1,180 +1,81 @@
-// set_string_from_source.cpp -- replaces the string contents from a source string, delegating the grow-and-copy work..
-//
-// SetStringFromSource -- replaces the string contents from a source string, delegating the grow-and-copy work.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 116989-116989 (f226); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declaration -- the byte setter the string is grown and copied through.
 uint32_t SetStringBytes(EngineContext* ctx, uint32_t text, uint32_t bytes, uint32_t length);
 
-namespace {
-
-constexpr uint32_t kF226SaveFrameBytes = 12u;
-constexpr uint32_t kF226ResumeWordBytes = 4u;
-
-}  // namespace
-
+// Replaces a string's contents from a source string: the source's payload is
+// unwrapped first, then the bytes are handed to the grow-and-copy step. Returns
+// the destination string, or zero when the pass suspended.
 uint32_t SetStringFromSource(EngineContext* ctx, uint32_t text, uint32_t source) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF226SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    text = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    source = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
+  // The reused slots: the destination string, the word naming the call the suspend
+  // path was taken in, and the value the suspend path hands over.
+  uint32_t dest = 0u;
+  uint32_t resume_word = 0u;
+  uint32_t spilled = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 12-byte frame the suspend path pushed and rebuild the
+    // payload, the length and the destination from it.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 12u);
+    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    text = LoadU32(ctx, saved_frame);
+    source = LoadU32(ctx, saved_frame + 4u);
+    dest = LoadU32(ctx, saved_frame + 8u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF226ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: the second pop names the call that was in flight. The two pops
+    // stay separate -- the driver keeps one region at a time.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
+    resume_word = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = l4;
-  i2 = l2;
-  i3 = text;
-  i4 = source;
-  i3 = i3 != i4;
-  i4 = ResumePhase(ctx);
-  i2 = i4 ? i2 : i3;
-  l2 = i2;
-  i3 = ResumePhase(ctx);
-  i1 = i3 ? i1 : i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = text;
-      l2 = i0;
-      i0 = source;
-      i0 = LoadU8(ctx, i0 + 11u);
-      i1 = 7u;
-      i0 >>= (i1 & 31);
-      if (i0) {
-        i0 = source;
-        i0 = LoadU32(ctx, i0);
-        goto block_5;
+  // A string is never set from itself, so only the rewinding passes come through
+  // with both arguments the same.
+  if (static_cast<uint32_t>(text != source) | static_cast<uint32_t>(ResumePhase(ctx) == kResumeRewinding)) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      dest = text;
+      // A source whose tag byte has its top bit set keeps its payload out of line:
+      // the word at zero is the payload and the word at four its length.
+      if (LoadU8(ctx, source + 11u) >> 7u) {
+        text = LoadU32(ctx, source);
+      } else {
+        text = source;
       }
-      i0 = source;
-      block_5:;
-      text = i0;
-      i0 = source;
-      i0 = LoadU8(ctx, i0 + 11u);
-      i1 = 7u;
-      i0 >>= (i1 & 31);
-      if (i0) {
-        i0 = source;
-        i0 = LoadU32(ctx, i0 + 4u);
-        goto block_7;
+      if (LoadU8(ctx, source + 11u) >> 7u) {
+        source = LoadU32(ctx, source + 4u);
+      } else {
+        source = LoadU8(ctx, source + 11u);
       }
-      i0 = source;
-      i0 = LoadU8(ctx, i0 + 11u);
-      block_7:;
-      source = i0;
     }
-    i0 = l3;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l2;
-      i1 = text;
-      i2 = source;
-      i0 = SetStringBytes(ctx, i0, i1, i2);
-      l3 = i0;
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l3;
-    } else {
-      i0 = text;
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(!resume_word) : 1u) {
+      uint32_t const result = SetStringBytes(ctx, dest, text, source);
+      spilled = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+      text = result;
     }
-    text = i0;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = text;
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    LeaveFrame();
+    return text;
   }
   TrapUnreachable();
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF226ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = text;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = source;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 12u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+ suspend_point:;
+  {
+    // The stack pointer lives in the word the frame pointer names, so every push
+    // is a read-modify-write of that word.
+    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), spilled);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
+    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, saved_frame, text);
+    StoreU32(ctx, saved_frame + 4u, source);
+    StoreU32(ctx, saved_frame + 8u, dest);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 12u);
+  }
   LeaveFrame();
-  return i0;
+  return 0u;
 }
-}
+
+}  // namespace artc

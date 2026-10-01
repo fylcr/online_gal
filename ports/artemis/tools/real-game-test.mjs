@@ -38,7 +38,7 @@
  *     --flavour NAME    asyncify (default) or plain
  *     --port N          first port to serve on; the control takes N+1 (default 4710)
  *     --hashlist        also write hashlist.txt (asyncify mode wants it)
- *     --wait MS         how long to let the engine settle before sampling (default 30000)
+ *     --wait MS         how long to let the engine settle before sampling (default 240000)
  *     --json            machine-readable result on stdout
  *     --keep            leave the servers running for inspection
  *
@@ -70,7 +70,9 @@ const { ensureChrome, sleep } = await import(
 // arguments
 // ---------------------------------------------------------------------------
 function parseArgs(argv) {
-  const out = { flavour: 'asyncify', port: 4710, cdpPort: 9222, hashlist: false, wait: 30000, json: false, keep: false };
+  // A cold boot streams roughly 18 MB of game data through one wasm thread and needs well over
+  // 90 s before the first frame, so a shorter wait reports "still loading" as a broken module.
+  const out = { flavour: 'asyncify', port: 4710, cdpPort: 9222, hashlist: false, wait: 240000, json: false, keep: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     const next = () => argv[++i];
@@ -80,6 +82,7 @@ function parseArgs(argv) {
     else if (arg === '--port') out.port = Number(next());
     else if (arg === '--cdp-port') out.cdpPort = Number(next());
     else if (arg === '--wait') out.wait = Number(next());
+    else if (arg === '--no-control') out.noControl = true;
     else if (arg === '--hashlist') out.hashlist = true;
     else if (arg === '--json') out.json = true;
     else if (arg === '--json-out') out.jsonOut = next();
@@ -100,7 +103,8 @@ function usage() {
   --port N        first HTTP port; the control runs on N+1 (default 4710)
   --cdp-port N    the browser's debugging port (default 9222)
   --hashlist      also write hashlist.txt
-  --wait MS       settle time before sampling (default 30000)
+  --wait MS       settle time before sampling (default 240000)
+  --no-control    skip the official control run (candidate smoke test only)
   --json          machine-readable result on stdout
   --json-out FILE write the result to FILE
   --savepath S    fixed cache key instead of a fresh one each run
@@ -433,7 +437,6 @@ async function main() {
   const game = resolve(args.game);
 
   console.error(`== deploying ==`);
-  console.error(`  control   (official ${args.flavour}) -> ${controlPort}`);
   // A fresh cache key per run. `SAVEPATH` is the IndexedDB key the asyncify engine files its
   // downloads under, and an origin is scheme+host+port -- so reusing a port across runs reuses
   // the cache, and a run can silently read entries an earlier, different engine wrote there.
@@ -443,7 +446,10 @@ async function main() {
   console.error(`  cache key: ${runToken}`);
   const common = ['--game', game, '--flavour', args.flavour, '--savepath', runToken];
   if (args.hashlist) common.push('--hashlist');
-  await run(await findPython(), [DEPLOY, ...common, '--out', control, '--port', String(controlPort)]);
+  if (!args.noControl) {
+    console.error(`  control   (official ${args.flavour}) -> ${controlPort}`);
+    await run(await findPython(), [DEPLOY, ...common, '--out', control, '--port', String(controlPort)]);
+  }
   console.error(`  candidate (${args.engine}) -> ${candidatePort}`);
   await run(await findPython(), [
     DEPLOY, ...common, '--out', candidate, '--port', String(candidatePort),
@@ -464,7 +470,7 @@ async function main() {
       : spawn('ln', ['-s', rel, target], { stdio: 'ignore' });
     return new Promise((res) => child.on('exit', res));
   };
-  await link(control);
+  if (!args.noControl) await link(control);
   await link(candidate);
 
   const python = await findPython();
@@ -473,7 +479,7 @@ async function main() {
 
   try {
     console.error(`== serving ==`);
-    servers.push(await serve(python, control, controlPort));
+    if (!args.noControl) servers.push(await serve(python, control, controlPort));
     servers.push(await serve(python, candidate, candidatePort));
 
     console.error(`== driving Chrome ==`);
@@ -482,8 +488,10 @@ async function main() {
     const info = await ensureChrome(CdpPort);
     console.error(`     connected to ${info.Browser || 'Chrome'} on CDP ${CdpPort}`);
 
-    console.error(`== measuring the official build (this settles on its own) ==`);
-    report.control = await measure(CdpPort, `http://127.0.0.1:${controlPort}/web/artemis.html`, args.wait);
+    if (!args.noControl) {
+      console.error(`== measuring the official build (this settles on its own) ==`);
+      report.control = await measure(CdpPort, `http://127.0.0.1:${controlPort}/web/artemis.html`, args.wait);
+    }
 
     console.error(`== measuring the candidate ==`);
     report.candidate = await measure(CdpPort, `http://127.0.0.1:${candidatePort}/web/artemis.html`, args.wait);
@@ -497,17 +505,21 @@ async function main() {
   // A control that drew nothing invalidates the comparison, and saying so is more useful
   // than reporting a candidate "failure" that only reflects a broken bench.
   const stalled = (r) => r && !r.error && r.samples > 0 && r.frames === 1 && r.hash === 'stalled';
-  const controlOk = controlRun && !controlRun.error && !stalled(controlRun)
-    && controlRun.max >= 16 && controlRun.gameRequests > 0;
+  // With --no-control there is no official tab to vouch for the bench, so the candidate is
+  // judged on its own signals (it fetched the game and drew something).
+  const controlOk = args.noControl ? true
+    : Boolean(controlRun && !controlRun.error && !stalled(controlRun)
+      && controlRun.max >= 16 && controlRun.gameRequests > 0);
   const candidateRendered = candidateRun && !candidateRun.error && candidateRun.max >= 16;
   const candidateRanGame = candidateRun && candidateRun.gameRequests > 0;
   // Compare the *settled* frames, not the best ones. The best frame is whatever happened to be
   // brightest during the run, so it lands on a different animation phase depending on how long
   // each tab was sampled -- two identical engines can easily pick different "best" frames. The
   // settled frame is the one both engines converge on, and that is the one that must match.
-  const sameFrame = controlOk && candidateRendered
+  const sameFrame = !args.noControl && controlOk && candidateRendered
     && candidateRun.finalHash != null && candidateRun.finalHash === controlRun.finalHash;
 
+  report.controlSkipped = Boolean(args.noControl);
   report.controlOk = controlOk;
   report.candidateRendered = candidateRendered;
   report.candidateRanGame = candidateRanGame;
@@ -532,7 +544,8 @@ async function main() {
       );
     };
     console.log(`\n== real game through the official page ==`);
-    row('official', controlRun);
+    if (args.noControl) console.log('  official   (skipped: --no-control)');
+    else row('official', controlRun);
     row('candidate', candidateRun);
     if (controlRun && typeof controlRun.rafTicks === 'number') {
       console.log(`  frame loop ran ${controlRun.rafTicks} ticks on the official tab, ` +
@@ -565,6 +578,8 @@ async function main() {
       console.log('      loading a real title, so it cannot be called working.');
     } else if (!candidateRendered) {
       console.log('FAIL: the candidate fetched the game but drew nothing.');
+    } else if (args.noControl) {
+      console.log('PASS: the candidate rendered the real game (official control skipped).');
     } else if (sameFrame) {
       console.log('PASS: the candidate rendered the real game, and its settled frame is');
       console.log('      pixel-identical to the official build\'s.');

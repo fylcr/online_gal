@@ -1,23 +1,8 @@
-// format_number.cpp -- the number-to-string conversion, including the 14 significant digit default and the null fallback..
-//
-// FormatNumber -- the number-to-string conversion, including the 14 significant digit default and the null fallback.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 353732-353732 (f900); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations for the callees this step drives.
 void FormatNumberValue(EngineContext* ctx, uint32_t state, uint32_t value, uint32_t options);
 uint32_t StringLength(EngineContext* ctx, uint32_t text);
 uint32_t InternString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
@@ -27,1258 +12,456 @@ uint32_t FindPoolEntryByTagByte(EngineContext* ctx, uint32_t pool, uint32_t key)
 
 namespace {
 
-constexpr uint32_t kF900Const2B440 = 0x2B440u;  // 
-constexpr uint32_t kF900MsgNull = 0x2B441u;  // (null)
-constexpr uint32_t kF900Const2B448 = 0x2B448u;  // 
-constexpr uint32_t kF900Const2B44B = 0x2B44Bu;  // 
-constexpr uint32_t kF900ConstFFFFFFF8 = 0xFFFFFFF8u;  // 
-constexpr uint32_t kF900SaveFrameBytes = 72u;
-constexpr uint32_t kF900ResumeWordBytes = 4u;
+constexpr uint32_t kFormatNumberEmptyText = 0x2B440u;      // the string the result is built on
+constexpr uint32_t kFormatNumberNullText = 0x2B441u;       // "(null)"
+constexpr uint32_t kFormatNumberEntryTag = 0x2B448u;       // the tag a formatted entry is stored under
+constexpr uint32_t kFormatNumberPercentText = 0x2B44Bu;    // "%"
+constexpr uint32_t kFormatNumberAlignMask = 0xFFFFFFF8u;   // rounds a value address down to 8 bytes
+constexpr uint32_t kFormatNumberFrameBytes = 72u;          // saved frame: eighteen words
+constexpr uint32_t kFormatNumberResumeWordBytes = 4u;      // resume word written before it
 
 }  // namespace
 
+// Converts the value named by the options pointer into a string: the format
+// text is walked for '%' specifiers, each one is formatted onto the value stack,
+// and the whole run is interned as one entry, which becomes the result.
 uint32_t FormatNumber(EngineContext* ctx, uint32_t state, uint32_t value, uint32_t options) {
   EnterFrame();
-  uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l14 = 0u; uint32_t l15 = 0u; uint32_t l16 = 0u; uint32_t l17 = 0u; uint32_t l18 = 0u; uint32_t l19 = 0u; double l20 = 0; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  double d1 = 0; double d2 = 0;
-      l11 = 0, l12 = 0, l13 = 0, l14 = 0, l15 = 0, l16 = 0, l17 = 0, l18 = 0, 
-      l19 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF900SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 8u);
-    options = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l6 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l7 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l8 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l9 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l10 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 36u);
-    l11 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 40u);
-    l12 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 44u);
-    l13 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 48u);
-    l14 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 52u);
-    l15 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 56u);
-    l16 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 60u);
-    l17 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 64u);
-    l18 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 68u);
-    l19 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 4u);
-    value = i0;
+  uint32_t cursor = 0u;        // where the value under construction is pushed
+  uint32_t call_result = 0u;   // the pending call's result
+  uint32_t resume_point = 0u;
+  uint32_t scratch = 0u;       // the 48-byte scratch block on the guest stack
+  uint32_t pending = 0u;       // the state pointer, the pending span, or a "no %" flag
+  uint32_t piece = 0u;         // a piece length, the format selector, or a flag
+  uint32_t staged = 0u;        // the push depth, or a staged capacity flag
+  uint32_t percent = 0u;       // the next '%' in the format text
+  uint32_t grow_prefix = 0u;   // the staged capacity check for the prefix push
+  uint32_t grow_piece = 0u;    // ... for the pushed specifier
+  uint32_t grow_char = 0u;     // ... for the 'c' specifier
+  uint32_t grow_int = 0u;      // ... for the 'd' specifier
+  uint32_t grow_double = 0u;   // ... for the 'f' specifier
+  uint32_t grow_string = 0u;   // ... for the 'p' specifier
+  uint32_t grow_other = 0u;    // ... for an unknown specifier
+  uint32_t grow_percent = 0u;  // ... for a literal "%%"
+  uint32_t grow_final = 0u;    // ... for the finished string
+  uint32_t next_cursor = 0u;   // the cursor to store once a push is done
+  double staged_value = 0;     // the double staged for the 'f' specifier
+  uint32_t frame = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the frame this step saved when it suspended.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kFormatNumberFrameBytes);
+    frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    options = LoadU32(ctx, frame + 8u);
+    cursor = LoadU32(ctx, frame + 12u);
+    scratch = LoadU32(ctx, frame + 16u);
+    pending = LoadU32(ctx, frame + 20u);
+    piece = LoadU32(ctx, frame + 24u);
+    staged = LoadU32(ctx, frame + 28u);
+    percent = LoadU32(ctx, frame + 32u);
+    grow_prefix = LoadU32(ctx, frame + 36u);
+    grow_piece = LoadU32(ctx, frame + 40u);
+    grow_char = LoadU32(ctx, frame + 44u);
+    grow_int = LoadU32(ctx, frame + 48u);
+    grow_double = LoadU32(ctx, frame + 52u);
+    grow_string = LoadU32(ctx, frame + 56u);
+    grow_other = LoadU32(ctx, frame + 60u);
+    grow_percent = LoadU32(ctx, frame + 64u);
+    grow_final = LoadU32(ctx, frame + 68u);
+    value = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF900ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word naming the call this step stopped at.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kFormatNumberResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 48u;
-    i0 -= i1;
-    l6 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Reserve the 48-byte scratch block and aim the cursor at the stack top.
+    scratch = GuestStackSp(ctx) - 48u;
+    GuestStackSp(ctx) = scratch;
+    cursor = LoadU32(ctx, state + 8u);
   }
-  i0 = l5;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = kF900Const2B440;
-    i2 = 0u;
-    i0 = InternString(ctx, i0, i1, i2);
-    l4 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    l9 = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+    call_result = InternString(ctx, state, kFormatNumberEmptyText, 0u);
+    resume_point = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    staged = call_result;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    i1 = kF900ResumeWordBytes;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = l3;
-    i1 = l9;
-    StoreU32(ctx, i0, i1);
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 28u);
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 8u);
-    l3 = i1;
-    i0 -= i1;
-    i1 = 16u;
-    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-    l9 = i0;
-    i0 = state;
-    l7 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Stage the string so far as the value under construction.
+    StoreU32(ctx, cursor + 8u, 4u);
+    StoreU32(ctx, cursor, staged);
+    cursor = LoadU32(ctx, state + 8u);
+    staged = (uint32_t)((int32_t)(LoadU32(ctx, state + 28u) - cursor) <= (int32_t)16u);
+    pending = state;
   }
-  i0 = l11;
-  i1 = l9;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  l11 = i0;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l5;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = 1u;
-      GrowValueStack(ctx, i0, i1);
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+  grow_prefix = (ResumePhase(ctx) == kResumeRunning) ? staged : grow_prefix;
+  if (grow_prefix || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+      GrowValueStack(ctx, state, 1u);
+      resume_point = 1u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
     }
-    i0 = ResumePhase(ctx);
-    if (i0) {
-      i0 = l3;
-    } else {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 8u);
-    }
-    l3 = i0;
+    cursor = (ResumePhase(ctx) == kResumeRunning) ? LoadU32(ctx, state + 8u) : cursor;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l7;
-    i1 = l3;
-    i2 = 16u;
-    i1 += i2;
-    l3 = i1;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = value;
-    i1 = 37u;
-    i0 = FindPoolEntryByTagByte(ctx, i0, i1);
-    l10 = i0;
-    i0 = !(i0);
-    l7 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Push the cursor and look for the next '%' in the format text.
+    cursor = cursor + 16u;
+    StoreU32(ctx, pending + 8u, cursor);
+    percent = FindPoolEntryByTagByte(ctx, value, 37u);
+    pending = (percent == 0u);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l7;
-    if (i0) {
-      i0 = 1u;
-      l9 = i0;
-      goto block_10;
-    }
-    i0 = 1u;
-    l9 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    staged = 1u;
+    if (pending) goto stringify_all;
   }
-  loop_13: 
-    i0 = l7;
-    i1 = l10;
-    i2 = value;
-    i1 -= i2;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l7 = i0;
-    i0 = l5;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = value;
-      i2 = l7;
-      i0 = InternString(ctx, i0, i1, i2);
-      l4 = i0;
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l4;
-      value = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      i1 = 4u;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = l3;
-      i1 = value;
-      StoreU32(ctx, i0, i1);
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 28u);
-      i1 = state;
-      i1 = LoadU32(ctx, i1 + 8u);
-      l3 = i1;
-      i0 -= i1;
-      i1 = 16u;
-      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-      value = i0;
-    }
-    i0 = value;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = l5;
-      i1 = 3u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = state;
-        i1 = 1u;
-        GrowValueStack(ctx, i0, i1);
-        i0 = 3u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      if (i0) {
-        i0 = l3;
-      } else {
-        i0 = state;
-        i0 = LoadU32(ctx, i0 + 8u);
-      }
-      l3 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i1 = l3;
-      i2 = 16u;
-      i1 += i2;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = l10;
-      i0 = LoadS8(ctx, i0 + 1u);
-      value = i0;
-      i1 = 99u;
-      i0 -= i1;
-      l8 = i0;
-      i0 = state;
-      l7 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l8;
-      switch (i0) {
-        case 0: goto block_28;
-        case 1: goto block_27;
-        case 2: goto block_23;
-        case 3: goto block_26;
-        case 4: goto block_23;
-        case 5: goto block_23;
-        case 6: goto block_23;
-        case 7: goto block_23;
-        case 8: goto block_23;
-        case 9: goto block_23;
-        case 10: goto block_23;
-        case 11: goto block_23;
-        case 12: goto block_23;
-        case 13: goto block_25;
-        case 14: goto block_23;
-        case 15: goto block_23;
-        case 16: goto block_30;
-        default: goto block_24;
-      }
-      block_30:;
-      i0 = options;
-      i0 = LoadU32(ctx, i0);
-      value = i0;
-      i1 = kF900MsgNull;
-      i2 = value;
-      i0 = i2 ? i0 : i1;
-      value = i0;
-      i0 = StringLength(ctx, i0);
-      l8 = i0;
-    }
-    i0 = l5;
-    i1 = 4u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = value;
-      i2 = l8;
-      i0 = InternString(ctx, i0, i1, i2);
-      l4 = i0;
-      i0 = 4u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l4;
-      value = i0;
-    }
-    i0 = l12;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {
-      i1 = l3;
-      i2 = 4u;
-      StoreU32(ctx, i1 + 24u, i2);
-      i1 = l3;
-      i2 = value;
-      StoreU32(ctx, i1 + 16u, i2);
-      i1 = options;
-      i2 = 4u;
-      i1 += i2;
-      options = i1;
-      i1 = state;
-      i1 = LoadU32(ctx, i1 + 28u);
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 8u);
-      l3 = i2;
-      i1 -= i2;
-      i2 = 16u;
-      i1 = (uint32_t)((int32_t)i1 <= (int32_t)i2);
-      value = i1;
-    }
-    i1 = value;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l12 = i0;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = l5;
-      i1 = 5u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = state;
-        i1 = 1u;
-        GrowValueStack(ctx, i0, i1);
-        i0 = 5u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      if (i0) {
-        i0 = l3;
-      } else {
-        i0 = state;
-        i0 = LoadU32(ctx, i0 + 8u);
-      }
-      l3 = i0;
-    }
-    i0 = l3;
-    i1 = 16u;
-    i0 += i1;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {goto block_21;}
-    block_28:;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = options;
-      i0 = LoadU32(ctx, i0);
-      value = i0;
-      i0 = l6;
-      i1 = 0u;
-      StoreU8(ctx, i0 + 17u, i1);
-      i0 = l6;
-      i1 = value;
-      StoreU8(ctx, i0 + 16u, i1);
-      i0 = l6;
-      i1 = 16u;
-      i0 += i1;
-      i0 = StringLength(ctx, i0);
-      l8 = i0;
-      i0 = l6;
-      i1 = 16u;
-      i0 += i1;
-      value = i0;
-    }
-    i0 = l5;
-    i1 = 6u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = value;
-      i2 = l8;
-      i0 = InternString(ctx, i0, i1, i2);
-      l4 = i0;
-      i0 = 6u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l4;
-      value = i0;
-    }
-    i0 = l13;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {
-      i1 = l3;
-      i2 = 4u;
-      StoreU32(ctx, i1 + 24u, i2);
-      i1 = l3;
-      i2 = value;
-      StoreU32(ctx, i1 + 16u, i2);
-      i1 = options;
-      i2 = 4u;
-      i1 += i2;
-      options = i1;
-      i1 = state;
-      i1 = LoadU32(ctx, i1 + 28u);
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 8u);
-      l3 = i2;
-      i1 -= i2;
-      i2 = 16u;
-      i1 = (uint32_t)((int32_t)i1 <= (int32_t)i2);
-      value = i1;
-    }
-    i1 = value;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l13 = i0;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = l5;
-      i1 = 7u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = state;
-        i1 = 1u;
-        GrowValueStack(ctx, i0, i1);
-        i0 = 7u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      if (i0) {
-        i0 = l3;
-      } else {
-        i0 = state;
-        i0 = LoadU32(ctx, i0 + 8u);
-      }
-      l3 = i0;
-    }
-    i0 = l3;
-    i1 = 16u;
-    i0 += i1;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {goto block_21;}
-    block_27:;
-    i0 = l14;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {
-      i1 = options;
-      i1 = LoadU32(ctx, i1);
-      value = i1;
-      i1 = l3;
-      i2 = 3u;
-      StoreU32(ctx, i1 + 24u, i2);
-      i1 = l3;
-      i2 = value;
-      d2 = (double)(int32_t)(i2);
-      StoreF64(ctx, i1 + 16u, d2);
-      i1 = options;
-      i2 = 4u;
-      i1 += i2;
-      options = i1;
-      i1 = state;
-      i1 = LoadU32(ctx, i1 + 28u);
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 8u);
-      l3 = i2;
-      i1 -= i2;
-      i2 = 16u;
-      i1 = (uint32_t)((int32_t)i1 <= (int32_t)i2);
-      value = i1;
-    }
-    i1 = value;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l14 = i0;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = l5;
-      i1 = 8u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = state;
-        i1 = 1u;
-        GrowValueStack(ctx, i0, i1);
-        i0 = 8u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      if (i0) {
-        i0 = l3;
-      } else {
-        i0 = state;
-        i0 = LoadU32(ctx, i0 + 8u);
-      }
-      l3 = i0;
-    }
-    i0 = l3;
-    i1 = 16u;
-    i0 += i1;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {goto block_21;}
-    block_26:;
-    i0 = l15;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {
-      i1 = options;
-      i2 = 7u;
-      i1 += i2;
-      i2 = kF900ConstFFFFFFF8;
-      i1 &= i2;
-      value = i1;
-      d1 = LoadF64(ctx, i1);
-      l20 = d1;
-      i1 = l3;
-      i2 = 3u;
-      StoreU32(ctx, i1 + 24u, i2);
-      i1 = l3;
-      d2 = l20;
-      StoreF64(ctx, i1 + 16u, d2);
-      i1 = value;
-      i2 = 8u;
-      i1 += i2;
-      options = i1;
-      i1 = state;
-      i1 = LoadU32(ctx, i1 + 28u);
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 8u);
-      l3 = i2;
-      i1 -= i2;
-      i2 = 16u;
-      i1 = (uint32_t)((int32_t)i1 <= (int32_t)i2);
-      value = i1;
-    }
-    i1 = value;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l15 = i0;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = l5;
-      i1 = 9u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = state;
-        i1 = 1u;
-        GrowValueStack(ctx, i0, i1);
-        i0 = 9u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      if (i0) {
-        i0 = l3;
-      } else {
-        i0 = state;
-        i0 = LoadU32(ctx, i0 + 8u);
-      }
-      l3 = i0;
-    }
-    i0 = l3;
-    i1 = 16u;
-    i0 += i1;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {goto block_21;}
-    block_25:;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l6;
-      i1 = options;
-      i1 = LoadU32(ctx, i1);
-      StoreU32(ctx, i0, i1);
-      i0 = l6;
-      i1 = 16u;
-      i0 += i1;
-      value = i0;
-    }
-    i0 = l5;
-    i1 = 10u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = value;
-      i1 = kF900Const2B448;
-      i2 = l6;
-      StoreSuspendableEntry(ctx, i0, i1, i2);
-      i0 = 10u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 8u);
-      value = i0;
-      i0 = l6;
-      i1 = 16u;
-      i0 += i1;
-      i0 = StringLength(ctx, i0);
-      l8 = i0;
-      i0 = l6;
-      i1 = 16u;
-      i0 += i1;
-      l3 = i0;
-    }
-    i0 = l5;
-    i1 = 11u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = l3;
-      i2 = l8;
-      i0 = InternString(ctx, i0, i1, i2);
-      l4 = i0;
-      i0 = 11u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l4;
-      l3 = i0;
-    }
-    i0 = l16;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {
-      i1 = value;
-      i2 = 4u;
-      StoreU32(ctx, i1 + 8u, i2);
-      i1 = value;
-      i2 = l3;
-      StoreU32(ctx, i1, i2);
-      i1 = options;
-      i2 = 4u;
-      i1 += i2;
-      options = i1;
-      i1 = state;
-      i1 = LoadU32(ctx, i1 + 28u);
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 8u);
-      l3 = i2;
-      i1 -= i2;
-      i2 = 16u;
-      i1 = (uint32_t)((int32_t)i1 <= (int32_t)i2);
-      value = i1;
-    }
-    i1 = value;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l16 = i0;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = l5;
-      i1 = 12u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = state;
-        i1 = 1u;
-        GrowValueStack(ctx, i0, i1);
-        i0 = 12u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      if (i0) {
-        i0 = l3;
-      } else {
-        i0 = state;
-        i0 = LoadU32(ctx, i0 + 8u);
-      }
-      l3 = i0;
-    }
-    i0 = l3;
-    i1 = 16u;
-    i0 += i1;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {goto block_21;}
-    block_24:;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = value;
-      i1 = 37u;
-      i0 = i0 == i1;
-      l8 = i0;
-      if (i0) {goto block_22;}
-    }
-    block_23:;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l6;
-      i1 = 0u;
-      StoreU8(ctx, i0 + 18u, i1);
-      i0 = l6;
-      i1 = value;
-      StoreU8(ctx, i0 + 17u, i1);
-      i0 = l6;
-      i1 = 37u;
-      StoreU8(ctx, i0 + 16u, i1);
-      i0 = l6;
-      i1 = 16u;
-      i0 += i1;
-      i0 = StringLength(ctx, i0);
-      l8 = i0;
-      i0 = l6;
-      i1 = 16u;
-      i0 += i1;
-      value = i0;
-    }
-    i0 = l5;
-    i1 = 13u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = value;
-      i2 = l8;
-      i0 = InternString(ctx, i0, i1, i2);
-      l4 = i0;
-      i0 = 13u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l4;
-      value = i0;
-    }
-    i0 = l17;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {
-      i1 = l3;
-      i2 = 4u;
-      StoreU32(ctx, i1 + 24u, i2);
-      i1 = l3;
-      i2 = value;
-      StoreU32(ctx, i1 + 16u, i2);
-      i1 = state;
-      i1 = LoadU32(ctx, i1 + 28u);
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 8u);
-      l3 = i2;
-      i1 -= i2;
-      i2 = 16u;
-      i1 = (uint32_t)((int32_t)i1 <= (int32_t)i2);
-      value = i1;
-    }
-    i1 = value;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l17 = i0;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = l5;
-      i1 = 14u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = state;
-        i1 = 1u;
-        GrowValueStack(ctx, i0, i1);
-        i0 = 14u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      if (i0) {
-        i0 = l3;
-      } else {
-        i0 = state;
-        i0 = LoadU32(ctx, i0 + 8u);
-      }
-      l3 = i0;
-    }
-    i0 = l3;
-    i1 = 16u;
-    i0 += i1;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {goto block_21;}
-    block_22:;
-    i0 = l5;
-    i1 = 15u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = kF900Const2B44B;
-      i2 = 1u;
-      i0 = InternString(ctx, i0, i1, i2);
-      l4 = i0;
-      i0 = 15u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l4;
-      value = i0;
-    }
-    i0 = l18;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {
-      i1 = l3;
-      i2 = 4u;
-      StoreU32(ctx, i1 + 24u, i2);
-      i1 = l3;
-      i2 = value;
-      StoreU32(ctx, i1 + 16u, i2);
-      i1 = state;
-      i1 = LoadU32(ctx, i1 + 28u);
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 8u);
-      l3 = i2;
-      i1 -= i2;
-      i2 = 16u;
-      i1 = (uint32_t)((int32_t)i1 <= (int32_t)i2);
-      value = i1;
-    }
-    i1 = value;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l18 = i0;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = l5;
-      i1 = 16u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = state;
-        i1 = 1u;
-        GrowValueStack(ctx, i0, i1);
-        i0 = 16u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      if (i0) {
-        i0 = l3;
-      } else {
-        i0 = state;
-        i0 = LoadU32(ctx, i0 + 8u);
-      }
-      l3 = i0;
-    }
-    i0 = l3;
-    i1 = l3;
-    i2 = 16u;
-    i1 += i2;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    block_21:;
-    l3 = i0;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l7;
-      i1 = l3;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = l9;
-      i1 = 2u;
-      i0 += i1;
-      l9 = i0;
-      i0 = l10;
-      i1 = 2u;
-      i0 += i1;
-      value = i0;
-      i1 = 37u;
-      i0 = FindPoolEntryByTagByte(ctx, i0, i1);
-      l10 = i0;
-      if (i0) {goto loop_13;}
-    }
-  block_10:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = value;
-    i0 = StringLength(ctx, i0);
-    options = i0;
+loop_format:
+  pending = (ResumePhase(ctx) == kResumeRunning) ? (percent - value) : pending;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+    call_result = InternString(ctx, state, value, pending);
+    resume_point = 2u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    value = call_result;
   }
-  i0 = l5;
-  i1 = 17u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = value;
-    i2 = options;
-    i0 = InternString(ctx, i0, i1, i2);
-    l4 = i0;
-    i0 = 17u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    value = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Stage the text before the '%' as the next value.
+    StoreU32(ctx, cursor + 8u, 4u);
+    StoreU32(ctx, cursor, value);
+    cursor = LoadU32(ctx, state + 8u);
+    value = (uint32_t)((int32_t)(LoadU32(ctx, state + 28u) - cursor) <= (int32_t)16u);
   }
-  i0 = l19;
-  i1 = ResumePhase(ctx);
-  i1 = !(i1);
-  if (i1) {
-    i1 = l3;
-    i2 = 4u;
-    StoreU32(ctx, i1 + 8u, i2);
-    i1 = l3;
-    i2 = value;
-    StoreU32(ctx, i1, i2);
-    i1 = state;
-    options = i1;
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 28u);
-    i2 = state;
-    i2 = LoadU32(ctx, i2 + 8u);
-    l3 = i2;
-    i1 -= i2;
-    i2 = 16u;
-    i1 = (uint32_t)((int32_t)i1 <= (int32_t)i2);
-    value = i1;
-  }
-  i1 = value;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  l19 = i0;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l5;
-    i1 = 18u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = 1u;
-      GrowValueStack(ctx, i0, i1);
-      i0 = 18u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+  if (value || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+      GrowValueStack(ctx, state, 1u);
+      resume_point = 3u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
     }
-    i0 = ResumePhase(ctx);
-    if (i0) {
-      i0 = l3;
-    } else {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 8u);
+    cursor = (ResumePhase(ctx) == kResumeRunning) ? LoadU32(ctx, state + 8u) : cursor;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, state + 8u, cursor + 16u);
+    value = LoadS8(ctx, percent + 1u);
+    piece = value - 99u;
+    pending = state;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    switch (piece) {
+      case 0: goto char_case;
+      case 1: goto int_case;
+      case 2: goto unknown_spec_case;
+      case 3: goto double_case;
+      case 4: goto unknown_spec_case;
+      case 5: goto unknown_spec_case;
+      case 6: goto unknown_spec_case;
+      case 7: goto unknown_spec_case;
+      case 8: goto unknown_spec_case;
+      case 9: goto unknown_spec_case;
+      case 10: goto unknown_spec_case;
+      case 11: goto unknown_spec_case;
+      case 12: goto unknown_spec_case;
+      case 13: goto string_case;
+      case 14: goto unknown_spec_case;
+      case 15: goto unknown_spec_case;
+      case 16: goto string_arg_case;
+      default: goto check_literal_percent;
     }
-    l3 = i0;
+  string_arg_case:
+    value = LoadU32(ctx, options);
+    value = (value != 0u) ? value : kFormatNumberNullText;
+    piece = StringLength(ctx, value);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = options;
-    i1 = l3;
-    i2 = 16u;
-    i1 += i2;
-    value = i1;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = l9;
-    i1 = 1u;
-    i0 += i1;
-    options = i0;
-    i0 = value;
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 12u);
-    i0 -= i1;
-    i1 = 4u;
-    i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-    i1 = 1u;
-    i0 -= i1;
-    value = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
+    call_result = InternString(ctx, state, value, piece);
+    resume_point = 4u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    value = call_result;
   }
-  i0 = l5;
-  i1 = 19u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = options;
-    i2 = value;
-    FormatNumberValue(ctx, i0, i1, i2);
-    i0 = 19u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Stage the specifier's text as the next value and step past the argument.
+    StoreU32(ctx, cursor + 24u, 4u);
+    StoreU32(ctx, cursor + 16u, value);
+    options = options + 4u;
+    cursor = LoadU32(ctx, state + 8u);
+    value = (uint32_t)((int32_t)(LoadU32(ctx, state + 28u) - cursor) <= (int32_t)16u);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    value = i0;
-    i0 = LoadU32(ctx, i0 + 8u);
-    i1 = l9;
-    i2 = 4u;
-    i1 <<= (i2 & 31);
-    i0 -= i1;
-    state = i0;
-    i0 = value;
-    i1 = state;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = state;
-    i1 = 16u;
-    i0 -= i1;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l6;
-    i1 = 48u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    i0 = state;
-    i1 = 16u;
-    i0 += i1;
-    goto func_exit;
+  grow_piece = (ResumePhase(ctx) == kResumeRunning) ? value : grow_piece;
+  if (grow_piece || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
+      GrowValueStack(ctx, state, 1u);
+      resume_point = 5u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    }
+    cursor = (ResumePhase(ctx) == kResumeRunning) ? LoadU32(ctx, state + 8u) : cursor;
+  }
+  next_cursor = cursor + 16u;
+  if (ResumePhase(ctx) == kResumeRunning) goto value_pushed;
+char_case:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // A character argument goes through the scratch block as a one-byte string.
+    value = LoadU32(ctx, options);
+    StoreU8(ctx, scratch + 17u, 0u);
+    StoreU8(ctx, scratch + 16u, value);
+    piece = StringLength(ctx, scratch + 16u);
+    value = scratch + 16u;
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
+    call_result = InternString(ctx, state, value, piece);
+    resume_point = 6u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    value = call_result;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, cursor + 24u, 4u);
+    StoreU32(ctx, cursor + 16u, value);
+    options = options + 4u;
+    cursor = LoadU32(ctx, state + 8u);
+    value = (uint32_t)((int32_t)(LoadU32(ctx, state + 28u) - cursor) <= (int32_t)16u);
+  }
+  grow_char = (ResumePhase(ctx) == kResumeRunning) ? value : grow_char;
+  if (grow_char || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 7u) {
+      GrowValueStack(ctx, state, 1u);
+      resume_point = 7u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    }
+    cursor = (ResumePhase(ctx) == kResumeRunning) ? LoadU32(ctx, state + 8u) : cursor;
+  }
+  next_cursor = cursor + 16u;
+  if (ResumePhase(ctx) == kResumeRunning) goto value_pushed;
+int_case:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // An integer argument is pushed as an f64 value with tag 3.
+    value = LoadU32(ctx, options);
+    StoreU32(ctx, cursor + 24u, 3u);
+    StoreF64(ctx, cursor + 16u, (double)(int32_t)value);
+    options = options + 4u;
+    cursor = LoadU32(ctx, state + 8u);
+    value = (uint32_t)((int32_t)(LoadU32(ctx, state + 28u) - cursor) <= (int32_t)16u);
+  }
+  grow_int = (ResumePhase(ctx) == kResumeRunning) ? value : grow_int;
+  if (grow_int || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 8u) {
+      GrowValueStack(ctx, state, 1u);
+      resume_point = 8u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    }
+    cursor = (ResumePhase(ctx) == kResumeRunning) ? LoadU32(ctx, state + 8u) : cursor;
+  }
+  next_cursor = cursor + 16u;
+  if (ResumePhase(ctx) == kResumeRunning) goto value_pushed;
+double_case:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // A float argument is aligned and pushed as an f64 value with tag 3.
+    value = (options + 7u) & kFormatNumberAlignMask;
+    staged_value = LoadF64(ctx, value);
+    StoreU32(ctx, cursor + 24u, 3u);
+    StoreF64(ctx, cursor + 16u, staged_value);
+    options = value + 8u;
+    cursor = LoadU32(ctx, state + 8u);
+    value = (uint32_t)((int32_t)(LoadU32(ctx, state + 28u) - cursor) <= (int32_t)16u);
+  }
+  grow_double = (ResumePhase(ctx) == kResumeRunning) ? value : grow_double;
+  if (grow_double || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 9u) {
+      GrowValueStack(ctx, state, 1u);
+      resume_point = 9u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    }
+    cursor = (ResumePhase(ctx) == kResumeRunning) ? LoadU32(ctx, state + 8u) : cursor;
+  }
+  next_cursor = cursor + 16u;
+  if (ResumePhase(ctx) == kResumeRunning) goto value_pushed;
+string_case:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // A pointer argument is copied into the scratch block as text.
+    StoreU32(ctx, scratch, LoadU32(ctx, options));
+    value = scratch + 16u;
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 10u) {
+    StoreSuspendableEntry(ctx, value, kFormatNumberEntryTag, scratch);
+    resume_point = 10u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = LoadU32(ctx, state + 8u);
+    piece = StringLength(ctx, scratch + 16u);
+    cursor = scratch + 16u;
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 11u) {
+    call_result = InternString(ctx, state, cursor, piece);
+    resume_point = 11u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    cursor = call_result;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, value + 8u, 4u);
+    StoreU32(ctx, value, cursor);
+    options = options + 4u;
+    cursor = LoadU32(ctx, state + 8u);
+    value = (uint32_t)((int32_t)(LoadU32(ctx, state + 28u) - cursor) <= (int32_t)16u);
+  }
+  grow_string = (ResumePhase(ctx) == kResumeRunning) ? value : grow_string;
+  if (grow_string || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 12u) {
+      GrowValueStack(ctx, state, 1u);
+      resume_point = 12u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    }
+    cursor = (ResumePhase(ctx) == kResumeRunning) ? LoadU32(ctx, state + 8u) : cursor;
+  }
+  next_cursor = cursor + 16u;
+  if (ResumePhase(ctx) == kResumeRunning) goto value_pushed;
+check_literal_percent:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    piece = (value == 37u);
+    if (piece) goto literal_percent_case;
+  }
+unknown_spec_case:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Anything else is rendered literally, preceded by its '%'.
+    StoreU8(ctx, scratch + 18u, 0u);
+    StoreU8(ctx, scratch + 17u, value);
+    StoreU8(ctx, scratch + 16u, 37u);
+    piece = StringLength(ctx, scratch + 16u);
+    value = scratch + 16u;
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 13u) {
+    call_result = InternString(ctx, state, value, piece);
+    resume_point = 13u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    value = call_result;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, cursor + 24u, 4u);
+    StoreU32(ctx, cursor + 16u, value);
+    cursor = LoadU32(ctx, state + 8u);
+    value = (uint32_t)((int32_t)(LoadU32(ctx, state + 28u) - cursor) <= (int32_t)16u);
+  }
+  grow_other = (ResumePhase(ctx) == kResumeRunning) ? value : grow_other;
+  if (grow_other || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 14u) {
+      GrowValueStack(ctx, state, 1u);
+      resume_point = 14u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    }
+    cursor = (ResumePhase(ctx) == kResumeRunning) ? LoadU32(ctx, state + 8u) : cursor;
+  }
+  next_cursor = cursor + 16u;
+  if (ResumePhase(ctx) == kResumeRunning) goto value_pushed;
+literal_percent_case:
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 15u) {
+    call_result = InternString(ctx, state, kFormatNumberPercentText, 1u);
+    resume_point = 15u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    value = call_result;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, cursor + 24u, 4u);
+    StoreU32(ctx, cursor + 16u, value);
+    cursor = LoadU32(ctx, state + 8u);
+    value = (uint32_t)((int32_t)(LoadU32(ctx, state + 28u) - cursor) <= (int32_t)16u);
+  }
+  grow_percent = (ResumePhase(ctx) == kResumeRunning) ? value : grow_percent;
+  if (grow_percent || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 16u) {
+      GrowValueStack(ctx, state, 1u);
+      resume_point = 16u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    }
+    cursor = (ResumePhase(ctx) == kResumeRunning) ? LoadU32(ctx, state + 8u) : cursor;
+  }
+  // A resumed pass keeps the cursor its frame restored; a fresh pass steps
+  // past the value it has just pushed.
+  next_cursor = (ResumePhase(ctx) == kResumeRunning) ? (cursor + 16u) : cursor;
+value_pushed:
+  cursor = next_cursor;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Store the cursor and continue at the next '%'.
+    StoreU32(ctx, pending + 8u, cursor);
+    staged = staged + 2u;
+    value = percent + 2u;
+    percent = FindPoolEntryByTagByte(ctx, value, 37u);
+    if (percent) goto loop_format;
+  }
+stringify_all:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    options = StringLength(ctx, value);
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 17u) {
+    call_result = InternString(ctx, state, value, options);
+    resume_point = 17u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    value = call_result;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Stage the finished string as the last value.
+    StoreU32(ctx, cursor + 8u, 4u);
+    StoreU32(ctx, cursor, value);
+    options = state;
+    cursor = LoadU32(ctx, state + 8u);
+    value = (uint32_t)((int32_t)(LoadU32(ctx, state + 28u) - cursor) <= (int32_t)16u);
+  }
+  grow_final = (ResumePhase(ctx) == kResumeRunning) ? value : grow_final;
+  if (grow_final || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 18u) {
+      GrowValueStack(ctx, state, 1u);
+      resume_point = 18u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    }
+    cursor = (ResumePhase(ctx) == kResumeRunning) ? LoadU32(ctx, state + 8u) : cursor;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = cursor + 16u;
+    StoreU32(ctx, options + 8u, value);
+    options = staged + 1u;
+    value = (uint32_t)((int32_t)(value - LoadU32(ctx, state + 12u)) >> 4u);
+    value = value - 1u;
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 19u) {
+    FormatNumberValue(ctx, state, options, value);
+    resume_point = 19u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Drop the values pushed for the result and hand back the string.
+    value = state;
+    state = LoadU32(ctx, state + 8u) - (staged << 4u);
+    StoreU32(ctx, value + 8u, state);
+    state = LoadU32(ctx, state - 16u);
+    GuestStackSp(ctx) = scratch + 48u;
+    LeaveFrame();
+    return state + 16u;
   }
   TrapUnreachable();
-  spill_frame:;
-  l4 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l4;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF900ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l4 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l4;
-  i1 = value;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l4;
-  i1 = options;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l4;
-  i1 = l3;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l4;
-  i1 = l6;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l4;
-  i1 = l7;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l4;
-  i1 = l8;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = l4;
-  i1 = l9;
-  StoreU32(ctx, i0 + 28u, i1);
-  i0 = l4;
-  i1 = l10;
-  StoreU32(ctx, i0 + 32u, i1);
-  i0 = l4;
-  i1 = l11;
-  StoreU32(ctx, i0 + 36u, i1);
-  i0 = l4;
-  i1 = l12;
-  StoreU32(ctx, i0 + 40u, i1);
-  i0 = l4;
-  i1 = l13;
-  StoreU32(ctx, i0 + 44u, i1);
-  i0 = l4;
-  i1 = l14;
-  StoreU32(ctx, i0 + 48u, i1);
-  i0 = l4;
-  i1 = l15;
-  StoreU32(ctx, i0 + 52u, i1);
-  i0 = l4;
-  i1 = l16;
-  StoreU32(ctx, i0 + 56u, i1);
-  i0 = l4;
-  i1 = l17;
-  StoreU32(ctx, i0 + 60u, i1);
-  i0 = l4;
-  i1 = l18;
-  StoreU32(ctx, i0 + 64u, i1);
-  i0 = l4;
-  i1 = l19;
-  StoreU32(ctx, i0 + 68u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 72u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+suspend_point:
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kFormatNumberResumeWordBytes);
+  frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, frame, state);
+  StoreU32(ctx, frame + 4u, value);
+  StoreU32(ctx, frame + 8u, options);
+  StoreU32(ctx, frame + 12u, cursor);
+  StoreU32(ctx, frame + 16u, scratch);
+  StoreU32(ctx, frame + 20u, pending);
+  StoreU32(ctx, frame + 24u, piece);
+  StoreU32(ctx, frame + 28u, staged);
+  StoreU32(ctx, frame + 32u, percent);
+  StoreU32(ctx, frame + 36u, grow_prefix);
+  StoreU32(ctx, frame + 40u, grow_piece);
+  StoreU32(ctx, frame + 44u, grow_char);
+  StoreU32(ctx, frame + 48u, grow_int);
+  StoreU32(ctx, frame + 52u, grow_double);
+  StoreU32(ctx, frame + 56u, grow_string);
+  StoreU32(ctx, frame + 60u, grow_other);
+  StoreU32(ctx, frame + 64u, grow_percent);
+  StoreU32(ctx, frame + 68u, grow_final);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kFormatNumberFrameBytes);
   LeaveFrame();
-  return i0;
+  return 0u;
 }
-}
+
+}  // namespace artc

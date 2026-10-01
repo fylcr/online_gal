@@ -1,47 +1,13 @@
-// get_indexed_value.cpp — indexed field read for a target value, with the
-// index-event chain.
-//
-// GetIndexedValue is the general reader behind a guest target[key] evaluation.
-// It answers with the record the primitive lookup finds, and only when that
-// lookup comes up empty does it consult the target's index event. A target
-// whose type tag is the guest's table tag（5）has its own store of 32-byte nodes
-// probed first（see LookupTableField）; a target of any other shape asks its own
-// type for the event. Either way the record that answers is copied into the
-// caller's slot, and a target that owns no event at all is a guest type error
-// reported with the string pool's own "index" text.
-//
-// When the event found is not itself a function, the walk repeats with that
-// event as the new target, and the engine's hundred-step limit turns the
-// repetition into the guest's own "loop in gettable" error. Those two
-// diagnostics and the event call can all run guest code and suspend, so this
-// body keeps the asyncify driver's shape instead of a straight walk: a
-// rewinding pass first pops the 28-byte frame holding the four parameters and
-// the three reused locals, then the word naming the call that was in flight,
-// and every later step is guarded on the phase so exactly that one call is
-// replayed. The event call stages its three 16-byte TValues at the value-stack
-// top, asks the engine to make room only when the top is within three slots of
-// the stack limit, and afterwards relocates the caller's slot by whatever the
-// call did to the value-stack base, so the answer survives a growth.
-//
-// Judgment order is the engine's own throughout: the walk head's running select
-// is taken before the rewinding bit is merged into it, the table-shaped path's
-// three early answers come before the event lookup, and the room-making call is
-// guarded by the headroom test while the event call is not.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declaration — defined in script/lookup_table_field.cpp.
+// The callees this reader reaches: the table's own field lookup
+// (script/lookup_table_field.cpp), the two event lookups a type can offer, the
+// value stack's grower, the guest caller, and the diagnostic a type error is
+// raised with. RaiseScriptError needs no declaration here — the shared
+// vocabulary header already declares it.
 uint32_t LookupTableField(EngineContext* ctx, uint32_t table, uint32_t key);
-// Forward declarations — PROVISIONAL: all five are still generated bodies
-// （f517, f333, f289, f372 and f907）. Neither the callee names nor the product
-// files they will land in are registered yet, so both are guesses drawn from
-// what each call does at this one site.
 uint32_t FetchMetamethod(EngineContext* ctx, uint32_t metatable, uint32_t event,
                          uint32_t event_name);
 uint32_t FetchObjectMetamethod(EngineContext* ctx, uint32_t state, uint32_t object,
@@ -50,8 +16,6 @@ void GrowValueStack(EngineContext* ctx, uint32_t state, uint32_t slots);
 void CallValue(EngineContext* ctx, uint32_t state, uint32_t function_base,
                uint32_t want_result);
 void RaiseTypeError(EngineContext* ctx, uint32_t state, uint32_t object, uint32_t varname);
-// RaiseScriptError itself needs no declaration here: engine_context.h is the
-// vocabulary boundary and already declares it.
 
 namespace {
 
@@ -81,12 +45,11 @@ constexpr uint32_t kLoopErrorCall = 3u;
 void GetIndexedValue(EngineContext* ctx, uint32_t state, uint32_t target, uint32_t key,
                      uint32_t out_record) {
   EnterFrame();
-  // The generated body reuses one slot for the event record it finds, then for
-  // the base of the staged call; another for the target's tag, then for the
-  // answer the lookup produced; a third for the walk's step count, then for the
-  // frame base. All of them, and the two slots set on one path and read on
-  // another, are declared up here because the labels below are jumped over and
-  // because a rewinding pass restores them from the frame.
+  // One slot carries the event record the walk finds, and later the base of the
+  // staged call; another carries the target's tag, and later the answer the
+  // lookup produced; a third carries the walk's step count, and later the frame
+  // base. They are all declared up here because the labels below are jumped over
+  // and because a rewinding pass restores them from the frame.
   uint32_t scratch = 0u;
   uint32_t resume_code = 0u;
   uint32_t chain_steps = 0u;

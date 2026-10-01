@@ -1,179 +1,80 @@
-// reserve_three_registers.cpp -- reserves the three registers the one-operand form always needs..
-//
-// ReserveThreeRegisters -- reserves the three registers the one-operand form always needs.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 2748707-2748707 (f5679); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declaration -- defined in core/raise_syntax_error.cpp.
 void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 
-namespace {
-
-constexpr uint32_t kF5679MsgFunctionOrExpressionToo = 0x2A371u;  // function or expression too complex
-constexpr uint32_t kF5679SaveFrameBytes = 12u;
-constexpr uint32_t kF5679ResumeWordBytes = 4u;
-
-}  // namespace
-
+// Reserves the three value-stack slots a one-operand form always needs: the new
+// top is stored back and, past the frame's ceiling, the frame raises the
+// "function or expression too complex" error first. Answers nothing.
 void ReserveThreeRegisters(EngineContext* ctx, uint32_t state) {
   EnterFrame();
-  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF5679SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l1 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
+  uint32_t const kSaveFrameBytes = 12u;
+  uint32_t const kResumeWordBytes = 4u;
+  uint32_t const kComplexMessage = 0x2A371u;
+  // The frame only reports the error once its top has grown past this many slots.
+  int32_t const kSlotLimit = 250;
+  uint32_t frame = 0u;
+  // The frame record whose +75 byte holds the stack limit, then the value the
+  // error path reads back.
+  uint32_t record = 0u;
+  // The new top of the value stack.
+  uint32_t top = 0u;
+  uint32_t over_ceiling = 0u;
+  uint32_t resume_word = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 12-byte parameter frame, in the order it was written.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
+    frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    record = LoadU32(ctx, frame + 4u);
+    top = LoadU32(ctx, frame + 8u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF5679ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: the second pop names the call that was in flight.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
+    resume_word = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 36u);
-    i1 = 3u;
-    i0 += i1;
-    l2 = i0;
-    i1 = state;
-    i1 = LoadU32(ctx, i1);
-    l1 = i1;
-    i1 = LoadU8(ctx, i1 + 75u);
-    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    top = LoadU32(ctx, state + 36u) + 3u;
+    record = LoadU32(ctx, state);
+    over_ceiling = static_cast<uint32_t>(static_cast<int32_t>(top) >
+                                         static_cast<int32_t>(LoadU8(ctx, record + 75u)));
   }
-  i0 = l3;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = l5;
-    i2 = l3;
-    i3 = l2;
-    i4 = 250u;
-    i3 = (uint32_t)((int32_t)i3 >= (int32_t)i4);
-    i4 = ResumePhase(ctx);
-    i2 = i4 ? i2 : i3;
-    i3 = ResumePhase(ctx);
-    i1 = i3 ? i1 : i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = state;
-        i0 = LoadU32(ctx, i0 + 12u);
-        l1 = i0;
+  if (over_ceiling != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    // Only a frame that also passed the hard slot limit reports: a rewind
+    // replaying this block reports again, a resumed call has reported already.
+    if (ResumePhase(ctx) == kResumeRewinding ||
+        (ResumePhase(ctx) == kResumeRunning && static_cast<int32_t>(top) >= kSlotLimit)) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        record = LoadU32(ctx, state + 12u);
       }
-      i0 = l4;
-      i0 = !(i0);
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = l1;
-        i1 = kF5679MsgFunctionOrExpressionToo;
-        RaiseSyntaxError(ctx, i0, i1);
-        i0 = 0u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
+      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_word == 0u) : 1u) {
+        RaiseSyntaxError(ctx, record, kComplexMessage);
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          // Suspended: park the call word above the frame, step past it, then
+          // write the parameter frame a rewind pass reads back.
+          StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), 0u);
+          StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
+          frame = LoadU32(ctx, ReturnFrameSp(ctx));
+          StoreU32(ctx, frame, state);
+          StoreU32(ctx, frame + 4u, record);
+          StoreU32(ctx, frame + 8u, top);
+          StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
+          LeaveFrame();
+          return;
+        }
       }
-      i0 = ResumePhase(ctx);
-      if (i0) {
-        i0 = l1;
-      } else {
-        i0 = state;
-        i0 = LoadU32(ctx, i0);
+      if (ResumePhase(ctx) == kResumeRunning) {
+        record = LoadU32(ctx, LoadU32(ctx, state));
       }
-      l1 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l1;
-      i1 = l2;
-      StoreU8(ctx, i0 + 75u, i1);
     }
   }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF5679ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = l1;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 12u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU8(ctx, record + 75u, top);
+  }
   LeaveFrame();
 }
-}
+
+}  // namespace artc

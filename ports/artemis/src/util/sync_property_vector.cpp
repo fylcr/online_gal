@@ -1,431 +1,256 @@
-// sync_property_vector.cpp -- compares the cached property vector against the incoming one, takes the equality adapter for the pair when it drifts, and folds the dirty bits back afterwards..
-//
-// SyncPropertyVector -- compares the cached property vector against the incoming one, takes the equality adapter for the pair when it drifts, and folds the dirty bits back afterwards.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 2581536-2581947 (f4715); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-
 namespace {
 
-constexpr uint32_t kF4715ResumeWordBytes = 4u;
+// The resume word pushed above the saved frame when a call suspends.
+constexpr uint32_t kSyncPropertyVectorResumeWordBytes = 4u;
 
 }  // namespace
 
+// Compares the cached property vector against the incoming one, takes the
+// equality adapter for the pair when any component drifts, and folds the
+// dirty bits back into the state afterwards.
 void SyncPropertyVector(EngineContext* ctx, uint32_t state, uint32_t index, float scale, uint32_t flag) {
+  uint32_t resume_code = 0u;   // which adapter call a rewinding pass replays
+  uint32_t mask = 0u;          // dirty bits taken from the state
+  uint32_t frame_base = 0u;    // where a suspended call left its frame
+  uint32_t suspend_code = 0u;  // resume word pushed when a call suspends
+  uint32_t tmp = 0u;
+  uint32_t tmp2 = 0u;
+  float comp4 = 0;             // incoming components kept across the compares
+  float comp8 = 0;
+  float comp16 = 0;
+  float comp20 = 0;
+  float work = 0;
+  float other = 0;
   EnterFrame();
-  uint32_t l4 = 0u; uint32_t l5 = 0u; float l6 = 0; float l7 = 0; float l8 = 0; float l9 = 0;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
-  float f0 = 0; float f1 = 0; float f2 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = 20u;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 4u);
-    index = i0;
-    i0 = l4;
-    f0 = LoadF32(ctx, i0 + 8u);
-    scale = f0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 12u);
-    flag = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l4 = i0;
+  // Rewinding: pop this step's saved frame and restore the live words.
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    tmp = ReturnFrameSp(ctx);
+    tmp2 = ReturnFrameSp(ctx);
+    tmp2 = LoadU32(ctx, tmp2);
+    tmp2 -= 20u;
+    StoreU32(ctx, tmp, tmp2);
+    frame_base = ReturnFrameSp(ctx);
+    frame_base = LoadU32(ctx, frame_base);
+    state = LoadU32(ctx, frame_base);
+    index = LoadU32(ctx, frame_base + 4u);
+    scale = LoadF32(ctx, frame_base + 8u);
+    flag = LoadU32(ctx, frame_base + 12u);
+    mask = LoadU32(ctx, frame_base + 16u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF4715ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
+  // Rewinding: drop the pushed resume word and reload the resume code.
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    tmp = ReturnFrameSp(ctx);
+    tmp2 = ReturnFrameSp(ctx);
+    tmp2 = LoadU32(ctx, tmp2);
+    tmp2 -= kSyncPropertyVectorResumeWordBytes;
+    StoreU32(ctx, tmp, tmp2);
+    tmp = ReturnFrameSp(ctx);
+    tmp = LoadU32(ctx, tmp);
+    tmp = LoadU32(ctx, tmp);
+    resume_code = tmp;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    f0 = LoadF32(ctx, i0 + 24u);
-    f1 = 0.0f;
-    i0 = f0 <= f1;
-    if (i0) {goto block_3;}
-    i0 = state;
-    f0 = LoadF32(ctx, i0 + 28u);
-    f1 = 0.0f;
-    i0 = f0 <= f1;
-    if (i0) {goto block_3;}
-    i0 = index;
-    f0 = LoadF32(ctx, i0 + 8u);
-    l6 = f0;
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 40u);
-    l4 = i0;
-    i0 = index;
-    f0 = LoadF32(ctx, i0 + 4u);
-    l9 = f0;
-    i1 = state;
-    f1 = LoadF32(ctx, i1 + 88u);
-    f0 -= f1;
-    f0 = wasm_fabsf(f0);
-    f1 = 1.1920929e-07;
-    i0 = f0 >= f1;
-    if (i0) {goto block_8;}
-    f0 = l6;
-    i1 = state;
-    f1 = LoadF32(ctx, i1 + 92u);
-    f0 -= f1;
-    f0 = wasm_fabsf(f0);
-    f1 = 1.1920929e-07;
-    i0 = f0 >= f1;
-    if (i0) {goto block_8;}
-    i0 = index;
-    f0 = LoadF32(ctx, i0 + 12u);
-    i1 = state;
-    f1 = LoadF32(ctx, i1 + 96u);
-    f0 -= f1;
-    f0 = wasm_fabsf(f0);
-    f1 = 1.1920929e-07;
-    i0 = f0 >= f1;
-    if (i0) {goto block_9;}
-    i0 = index;
-    f0 = LoadF32(ctx, i0 + 16u);
-    i1 = state;
-    f1 = LoadF32(ctx, i1 + 100u);
-    f0 -= f1;
-    f0 = wasm_fabsf(f0);
-    f1 = 1.1920929e-07;
-    i0 = f0 >= f1;
-    if (i0) {goto block_9;}
-    i0 = index;
-    f0 = LoadF32(ctx, i0 + 20u);
-    i1 = state;
-    f1 = LoadF32(ctx, i1 + 104u);
-    f0 -= f1;
-    f0 = wasm_fabsf(f0);
-    f1 = 1.1920929e-07;
-    i0 = f0 >= f1;
-    if (i0) {goto block_9;}
-    i0 = index;
-    f0 = LoadF32(ctx, i0 + 24u);
-    i1 = state;
-    f1 = LoadF32(ctx, i1 + 108u);
-    f0 -= f1;
-    f0 = wasm_fabsf(f0);
-    f1 = 1.1920929e-07;
-    i0 = f0 >= f1;
-    i1 = 1u;
-    i0 ^= i1;
-    if (i0) {goto block_6;}
-    block_9:;
-    i0 = index;
-    f0 = LoadF32(ctx, i0 + 16u);
-    l7 = f0;
-    i1 = state;
-    f1 = LoadF32(ctx, i1 + 100u);
-    f0 -= f1;
-    f0 = wasm_fabsf(f0);
-    f1 = 1.1920929e-07;
-    i0 = f0 >= f1;
-    if (i0) {goto block_8;}
-    i0 = index;
-    f0 = LoadF32(ctx, i0 + 20u);
-    l8 = f0;
-    i1 = state;
-    f1 = LoadF32(ctx, i1 + 104u);
-    f0 -= f1;
-    f0 = wasm_fabsf(f0);
-    f1 = 1.1920929e-07;
-    i0 = f0 >= f1;
-    i1 = 1u;
-    i0 ^= i1;
-    i0 = !(i0);
-    if (i0) {goto block_8;}
-    i0 = l4;
-    i1 = 1u;
-    i0 |= i1;
-    goto block_7;
-    block_8:;
-    i0 = index;
-    f0 = LoadF32(ctx, i0 + 20u);
-    l8 = f0;
-    i0 = index;
-    f0 = LoadF32(ctx, i0 + 16u);
-    l7 = f0;
-    i0 = l4;
-    i1 = 5u;
-    i0 |= i1;
-    block_7:;
-    l4 = i0;
-    i0 = state;
-    f1 = l9;
-    StoreF32(ctx, i0 + 88u, f1);
-    i0 = state;
-    f1 = l6;
-    StoreF32(ctx, i0 + 92u, f1);
-    i0 = index;
-    f0 = LoadF32(ctx, i0 + 12u);
-    l6 = f0;
-    i0 = state;
-    f1 = l8;
-    StoreF32(ctx, i0 + 104u, f1);
-    i0 = state;
-    f1 = l7;
-    StoreF32(ctx, i0 + 100u, f1);
-    i0 = state;
-    f1 = l6;
-    StoreF32(ctx, i0 + 96u, f1);
-    i0 = state;
-    i1 = index;
-    f1 = LoadF32(ctx, i1 + 24u);
-    StoreF32(ctx, i0 + 108u, f1);
-    block_6:;
-    i0 = l4;
-    i1 = 1u;
-    i0 &= i1;
-    index = i0;
-  }
-  i0 = index;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 152u);
-      index = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (LoadF32(ctx, state + 24u) <= 0.0f) {
+      goto frame_stored;
     }
-    i0 = l5;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = index;
-      CallTableT1(ctx, i1, i0);
+    if (LoadF32(ctx, state + 28u) <= 0.0f) {
+      goto frame_stored;
+    }
+    comp8 = LoadF32(ctx, index + 8u);
+    mask = LoadU32(ctx, state + 40u);
+    comp4 = LoadF32(ctx, index + 4u);
+    work = comp4;
+    other = LoadF32(ctx, state + 88u);
+    work -= other;
+    work = wasm_fabsf(work);
+    other = 1.1920929e-07;
+    if (work >= other) {
+      goto both_stale;
+    }
+    work = comp8;
+    other = LoadF32(ctx, state + 92u);
+    work -= other;
+    work = wasm_fabsf(work);
+    other = 1.1920929e-07;
+    if (work >= other) {
+      goto both_stale;
+    }
+    work = LoadF32(ctx, index + 12u);
+    other = LoadF32(ctx, state + 96u);
+    work -= other;
+    work = wasm_fabsf(work);
+    other = 1.1920929e-07;
+    if (work >= other) {
+      goto later_components;
+    }
+    work = LoadF32(ctx, index + 16u);
+    other = LoadF32(ctx, state + 100u);
+    work -= other;
+    work = wasm_fabsf(work);
+    other = 1.1920929e-07;
+    if (work >= other) {
+      goto later_components;
+    }
+    work = LoadF32(ctx, index + 20u);
+    other = LoadF32(ctx, state + 104u);
+    work -= other;
+    work = wasm_fabsf(work);
+    other = 1.1920929e-07;
+    if (work >= other) {
+      goto later_components;
+    }
+    work = LoadF32(ctx, index + 24u);
+    other = LoadF32(ctx, state + 108u);
+    work -= other;
+    work = wasm_fabsf(work);
+    other = 1.1920929e-07;
+    tmp = (work >= other);
+    tmp ^= 1u;
+    if (tmp != 0u) {
+      goto skip_stores;
+    }
+  later_components:;
+    work = LoadF32(ctx, index + 16u);
+    comp16 = work;
+    other = LoadF32(ctx, state + 100u);
+    work -= other;
+    work = wasm_fabsf(work);
+    other = 1.1920929e-07;
+    if (work >= other) {
+      goto both_stale;
+    }
+    work = LoadF32(ctx, index + 20u);
+    comp20 = work;
+    other = LoadF32(ctx, state + 104u);
+    work -= other;
+    work = wasm_fabsf(work);
+    other = 1.1920929e-07;
+    if (work >= other) {
+      goto both_stale;
+    }
+    mask |= 1u;
+    goto apply_mask;
+  both_stale:;
+    comp20 = LoadF32(ctx, index + 20u);
+    comp16 = LoadF32(ctx, index + 16u);
+    mask |= 5u;
+  apply_mask:;
+    // Write the incoming components into the cache and fold in the new bits.
+    StoreF32(ctx, state + 88u, comp4);
+    StoreF32(ctx, state + 92u, comp8);
+    comp8 = LoadF32(ctx, index + 12u);
+    StoreF32(ctx, state + 104u, comp20);
+    StoreF32(ctx, state + 100u, comp16);
+    StoreF32(ctx, state + 96u, comp8);
+    work = LoadF32(ctx, index + 24u);
+    StoreF32(ctx, state + 108u, work);
+  skip_stores:;
+    index = mask & 1u;
+  }
+  if ((index != 0u) | (ResumePhase(ctx) == kResumeRewinding)) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      tmp = LoadU32(ctx, state);
+      index = LoadU32(ctx, tmp + 152u);
+    }
+    if ((resume_code == 0u) | (ResumePhase(ctx) == kResumeRunning)) {
+      CallTableT1(ctx, index, state);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
       SyncMemoryBase(ctx);
 #endif
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+      suspend_code = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto save_suspend_frame;
+      }
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 52u);
-    i2 = 8u;
-    i1 |= i2;
-    index = i1;
-    StoreU32(ctx, i0 + 52u, i1);
-    i0 = state;
-    i0 = LoadU8(ctx, i0 + 38u);
-    i0 = !(i0);
-    if (i0) {goto block_3;}
-    i0 = flag;
-    i0 = !(i0);
-    flag = i0;
-    i0 = state;
-    f0 = LoadF32(ctx, i0 + 12u);
-    f1 = scale;
-    f0 *= f1;
-    scale = f0;
-  }
-  i0 = flag;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i1 = 56u;
-      i0 += i1;
-      flag = i0;
-      i0 = state;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 156u);
-      index = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    tmp = LoadU32(ctx, state + 52u) | 8u;
+    index = tmp;
+    StoreU32(ctx, state + 52u, tmp);
+    if (LoadU8(ctx, state + 38u) == 0u) {
+      goto frame_stored;
     }
-    i0 = l5;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = flag;
-      f2 = scale;
-      i3 = l4;
-      i4 = index;
-      CallTableT16(ctx, i4, i0, i1, f2, i3);
+    flag = !flag;
+    scale = LoadF32(ctx, state + 12u) * scale;
+  }
+  if ((flag != 0u) | (ResumePhase(ctx) == kResumeRewinding)) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      flag = state + 56u;
+      tmp = LoadU32(ctx, state);
+      index = LoadU32(ctx, tmp + 156u);
+    }
+    if ((resume_code == 1u) | (ResumePhase(ctx) == kResumeRunning)) {
+      CallTableT16(ctx, index, state, flag, scale, mask);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
       SyncMemoryBase(ctx);
 #endif
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+      suspend_code = 1u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto save_suspend_frame;
+      }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      goto func_exit;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      goto frame_stored;
     }
   }
-  i0 = flag;
-  f1 = scale;
-  f2 = 1.1920929e-07;
-  i1 = f1 >= f2;
-  i2 = 1u;
-  i1 ^= i2;
-  i1 = !(i1);
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  flag = i0;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i1 = 56u;
-      i0 += i1;
-      flag = i0;
-      i0 = state;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 160u);
-      index = i0;
+  flag = (ResumePhase(ctx) != 0u) ? flag : (uint32_t)(scale >= 1.1920929e-07);
+  if ((flag != 0u) | (ResumePhase(ctx) == kResumeRewinding)) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      flag = state + 56u;
+      tmp = LoadU32(ctx, state);
+      index = LoadU32(ctx, tmp + 160u);
     }
-    i0 = l5;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = flag;
-      f2 = scale;
-      i3 = l4;
-      i4 = index;
-      CallTableT16(ctx, i4, i0, i1, f2, i3);
+    if ((resume_code == 2u) | (ResumePhase(ctx) == kResumeRunning)) {
+      CallTableT16(ctx, index, state, flag, scale, mask);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
       SyncMemoryBase(ctx);
 #endif
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+      suspend_code = 2u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto save_suspend_frame;
+      }
     }
-    i0 = ResumePhase(ctx);
-    if (i0) {
-      i0 = index;
-    } else {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 44u);
-      i1 = state;
-      i1 = LoadU32(ctx, i1 + 52u);
-      i0 |= i1;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      tmp = LoadU32(ctx, state + 44u);
+      tmp |= LoadU32(ctx, state + 52u);
+      index = tmp;
     }
-    index = i0;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 48u);
-    i2 = index;
-    i1 |= i2;
-    StoreU32(ctx, i0 + 52u, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    tmp = LoadU32(ctx, state + 48u) | index;
+    StoreU32(ctx, state + 52u, tmp);
   }
-  block_3:;
-  goto func_exit;
-  spill_frame:;
-  l5 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l5;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF4715ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l5 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l5;
-  i1 = index;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l5;
-  f1 = scale;
-  StoreF32(ctx, i0 + 8u, f1);
-  i0 = l5;
-  i1 = flag;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l5;
-  i1 = l4;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 20u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto frame_stored;
+save_suspend_frame:;
+  // A call suspended: store the resume word, push it, then hand the live
+  // words to the frame above the stack pointer.
+  tmp = ReturnFrameSp(ctx);
+  tmp = LoadU32(ctx, tmp);
+  StoreU32(ctx, tmp, suspend_code);
+  tmp = ReturnFrameSp(ctx);
+  tmp2 = ReturnFrameSp(ctx);
+  tmp2 = LoadU32(ctx, tmp2);
+  tmp2 += kSyncPropertyVectorResumeWordBytes;
+  StoreU32(ctx, tmp, tmp2);
+  tmp = ReturnFrameSp(ctx);
+  tmp = LoadU32(ctx, tmp);
+  frame_base = tmp;
+  tmp2 = state;
+  StoreU32(ctx, frame_base, tmp2);
+  StoreU32(ctx, frame_base + 4u, index);
+  StoreF32(ctx, frame_base + 8u, scale);
+  StoreU32(ctx, frame_base + 12u, flag);
+  StoreU32(ctx, frame_base + 16u, mask);
+  tmp = ReturnFrameSp(ctx);
+  tmp2 = ReturnFrameSp(ctx);
+  tmp2 = LoadU32(ctx, tmp2);
+  tmp2 += 20u;
+  StoreU32(ctx, tmp, tmp2);
+frame_stored:;
   LeaveFrame();
 }
-}
+}  // namespace artc

@@ -1,240 +1,166 @@
-// adjust_node_capacity.cpp -- grows a node to the capacity a resize asked for, re-stamping the header..
-//
-// AdjustNodeCapacity -- grows a node to the capacity a resize asked for, re-stamping the header.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 2734432-2734432 (f5631); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
-uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
+// Allocates a block owned by the same state, which may grow the arena.
+uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size,
+                         uint32_t new_size);
 
 namespace {
-
-constexpr uint32_t kF5631ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF5631SaveFrameBytes = 16u;
-constexpr uint32_t kF5631ResumeWordBytes = 4u;
-
+// Every bit set in the flag byte a block header carries.
+constexpr uint32_t kAdjustNodeCapacityAllBits = 0xFFFFFFFFu;
+// The words a save frame costs, and the word that names a call in flight.
+constexpr uint32_t kAdjustNodeCapacitySaveFrameBytes = 16u;
+constexpr uint32_t kAdjustNodeCapacityResumeWordBytes = 4u;
 }  // namespace
 
+// Gives back the node the resize asked for: walks the free list of the state
+// for a block whose capacity matches, and stamps the node's header onto it,
+// splitting it off from its owner when the owner still holds a next block.
+// When nothing matches, a fresh block is allocated and stamped instead.
 uint32_t AdjustNodeCapacity(EngineContext* ctx, uint32_t state, uint32_t node) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF5631SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    node = i0;
+  // The address the found node hangs off, its owner block, and the list cursor.
+  uint32_t link_slot = 0u;
+  uint32_t owner = 0u;
+  uint32_t link = 0u;
+  // The capacity the cursor block can hold.
+  uint32_t capacity = 0u;
+  // The node's header byte and the owner byte it is merged with.
+  uint32_t flags = 0u;
+  uint32_t merged = 0u;
+  // The freshly allocated block, and the block that followed the owner.
+  uint32_t block = 0u;
+  uint32_t old_next = 0u;
+  // Whatever value the current step stores, held aside so the address it goes
+  // to is computed after it.
+  uint32_t kind = 0u;
+  // The base of the save frame and the stack pointer it comes off.
+  uint32_t frame = 0u;
+  uint32_t sp = 0u;
+  uint32_t top = 0u;
+  // The call a rewinding pass re-issues, and the word a suspending pass pushes.
+  uint32_t resume_point = 0u;
+  uint32_t resume_code = 0u;
+
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the save frame and read its words back in the order they
+    // were written.
+    sp = ReturnFrameSp(ctx);
+    top = ReturnFrameSp(ctx);
+    top = LoadU32(ctx, top) - kAdjustNodeCapacitySaveFrameBytes;
+    StoreU32(ctx, sp, top);
+    sp = ReturnFrameSp(ctx);
+    frame = LoadU32(ctx, sp);
+    state = LoadU32(ctx, frame);
+    link_slot = LoadU32(ctx, frame + 8u);
+    owner = LoadU32(ctx, frame + 12u);
+    node = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF5631ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word. It names the call that was in flight, so
+    // only that call is issued again.
+    sp = ReturnFrameSp(ctx);
+    top = ReturnFrameSp(ctx);
+    top = LoadU32(ctx, top) - kAdjustNodeCapacityResumeWordBytes;
+    StoreU32(ctx, sp, top);
+    sp = ReturnFrameSp(ctx);
+    top = LoadU32(ctx, sp);
+    resume_point = LoadU32(ctx, top);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i1 = 104u;
-    i0 += i1;
-    l3 = i0;
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l4 = i0;
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 104u);
-    l2 = i0;
-    i0 = !(i0);
-    if (i0) {goto running_exit;}
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l6 = i0;
-    i1 = node;
-    i0 = i0 < i1;
-    if (i0) {goto running_exit;}
-    loop_5: 
-      i0 = l2;
-      l3 = i0;
-      i0 = node;
-      i1 = l6;
-      i0 = i0 == i1;
-      if (i0) {
-        i0 = l3;
-        i0 = LoadU8(ctx, i0 + 5u);
-        state = i0;
-        i1 = l4;
-        i1 = LoadU8(ctx, i1 + 20u);
-        i2 = kF5631ConstFFFFFFFF;
-        i1 ^= i2;
-        i0 &= i1;
-        i1 = 3u;
-        i0 &= i1;
-        i0 = !(i0);
-        if (i0) {
-          i0 = l3;
-          goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Walk the state's free list from the head slot, and from the state itself
+    // read the owner block the free nodes belong to.
+    link_slot = state + 104u;
+    owner = LoadU32(ctx, state + 16u);
+    link = LoadU32(ctx, state + 104u);
+    if (link != 0u) {
+      capacity = LoadU32(ctx, link + 8u);
+      if (capacity >= node) {
+        while (true) {
+          link_slot = link;
+          if (node == capacity) {
+            // Hit: keep the node's own kind bits and take the owner's, so that
+            // the header ends up with the kind the owner carries.
+            flags = LoadU8(ctx, link_slot + 5u);
+            merged = LoadU8(ctx, owner + 20u) ^ kAdjustNodeCapacityAllBits;
+            flags &= merged;
+            flags &= 3u;
+            if (flags == 0u) {
+              LeaveFrame();
+              return link_slot;
+            }
+            flags ^= 3u;
+            StoreU8(ctx, link_slot + 5u, flags);
+            LeaveFrame();
+            return link_slot;
+          }
+          link = LoadU32(ctx, link_slot);
+          if (link == 0u) {
+            break;
+          }
+          capacity = LoadU32(ctx, link + 8u);
+          if (capacity < node) {
+            break;
+          }
         }
-        i0 = l3;
-        i1 = state;
-        i2 = 3u;
-        i1 ^= i2;
-        StoreU8(ctx, i0 + 5u, i1);
-        i0 = l3;
-        goto func_exit;
       }
-      i0 = l3;
-      i0 = LoadU32(ctx, i0);
-      l2 = i0;
-      i0 = !(i0);
-      if (i0) {goto running_exit;}
-      i0 = l2;
-      i0 = LoadU32(ctx, i0 + 8u);
-      l6 = i0;
-      i1 = node;
-      i0 = i0 >= i1;
-      if (i0) {goto loop_5;}
-    running_exit:;
+    }
   }
-  i0 = l5;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = 0u;
-    i2 = 0u;
-    i3 = 32u;
-    i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
-    l2 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l2;
-    state = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+    // No free block fits: ask for a fresh one, which is the step that can
+    // suspend. Until it returns, the state keeps its old value.
+    block = ReallocateBlock(ctx, state, 0u, 0u, 32u);
+    resume_code = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto save_frame;
+    }
+    state = block;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i1 = 10u;
-    StoreU8(ctx, i0 + 4u, i1);
-    i0 = l4;
-    i0 = LoadU8(ctx, i0 + 20u);
-    l2 = i0;
-    i0 = state;
-    i1 = node;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = state;
-    i1 = l2;
-    i2 = 3u;
-    i1 &= i2;
-    StoreU8(ctx, i0 + 5u, i1);
-    i0 = state;
-    i1 = l3;
-    i1 = LoadU32(ctx, i1);
-    StoreU32(ctx, i0, i1);
-    i0 = l3;
-    i1 = state;
-    StoreU32(ctx, i0, i1);
-    i0 = state;
-    i1 = l4;
-    i2 = 120u;
-    i1 += i2;
-    StoreU32(ctx, i0 + 16u, i1);
-    i0 = state;
-    i1 = l4;
-    i1 = LoadU32(ctx, i1 + 140u);
-    node = i1;
-    StoreU32(ctx, i0 + 20u, i1);
-    i0 = node;
-    i1 = state;
-    StoreU32(ctx, i0 + 16u, i1);
-    i0 = l4;
-    i1 = state;
-    StoreU32(ctx, i0 + 140u, i1);
-    i0 = state;
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Stamp the new block as the node: its kind, its capacity, the flags it
+    // inherits from the owner, and the links on both sides of the owner's ring.
+    kind = 10u;
+    StoreU8(ctx, state + 4u, kind);
+    merged = LoadU8(ctx, owner + 20u);
+    StoreU32(ctx, state + 8u, node);
+    flags = merged & 3u;
+    StoreU8(ctx, state + 5u, flags);
+    top = LoadU32(ctx, link_slot);
+    StoreU32(ctx, state, top);
+    StoreU32(ctx, link_slot, state);
+    top = owner + 120u;
+    StoreU32(ctx, state + 16u, top);
+    old_next = LoadU32(ctx, owner + 140u);
+    StoreU32(ctx, state + 20u, old_next);
+    StoreU32(ctx, old_next + 16u, state);
+    StoreU32(ctx, owner + 140u, state);
+    LeaveFrame();
+    return state;
   }
   TrapUnreachable();
-  spill_frame:;
-  l2 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF5631ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l2 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l2;
-  i1 = node;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l2;
-  i1 = l3;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l2;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 16u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+save_frame:;
+  // Push the word naming the call in flight, then the save frame itself; the
+  // words go out in the order a rewind reads them back.
+  frame = ReturnFrameSp(ctx);
+  top = LoadU32(ctx, frame);
+  StoreU32(ctx, top, resume_code);
+  sp = ReturnFrameSp(ctx);
+  top = ReturnFrameSp(ctx);
+  top = LoadU32(ctx, top) + kAdjustNodeCapacityResumeWordBytes;
+  StoreU32(ctx, sp, top);
+  sp = ReturnFrameSp(ctx);
+  frame = LoadU32(ctx, sp);
+  StoreU32(ctx, frame, state);
+  StoreU32(ctx, frame + 4u, node);
+  StoreU32(ctx, frame + 8u, link_slot);
+  StoreU32(ctx, frame + 12u, owner);
+  sp = ReturnFrameSp(ctx);
+  top = ReturnFrameSp(ctx);
+  top = LoadU32(ctx, top) + kAdjustNodeCapacitySaveFrameBytes;
+  StoreU32(ctx, sp, top);
   LeaveFrame();
-  return i0;
+  return 0u;
 }
-}
+
+}  // namespace artc

@@ -1,214 +1,102 @@
-// reallocate_format_buffer.cpp -- reallocates the format buffer: the buffer grows to hold the text being formatted..
-//
-// ReallocateFormatBuffer -- reallocates the format buffer: the buffer grows to hold the text being formatted.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 298377-298377 (f776); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Defined in another product.
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
-uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t a);
+uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t state);
 
 namespace {
 
-constexpr uint32_t kF776ConstFFFFFFFD = 0xFFFFFFFDu;  // 
-constexpr uint32_t kF776SaveFrameBytes = 20u;
-constexpr uint32_t kF776ResumeWordBytes = 4u;
+constexpr uint32_t kReallocateFormatBufferSpaceLimit = 0xFFFFFFFDu;  // highest capacity the space can describe
+constexpr uint32_t kReallocateFormatBufferSaveFrameBytes = 20u;  // state, buffer, block, new capacity, capacity
+constexpr uint32_t kReallocateFormatBufferResumeWordBytes = 4u;
+constexpr uint32_t kReallocateFormatBufferReallocCall = 0u;  // the block reallocator was in flight
+constexpr uint32_t kReallocateFormatBufferRaiseCall = 1u;  // the block-too-big raise was in flight
 
 }  // namespace
 
-uint32_t ReallocateFormatBuffer(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
+// Grows the format buffer so that it can hold the given amount of text, and
+// returns the block the buffer holds afterwards -- the one it already had when
+// that is large enough, otherwise a freshly reallocated one. A capacity that the
+// guest space cannot describe raises the block-too-big error instead.
+//
+// The step is suspendable: each gate re-runs the call its resume word names.
+uint32_t ReallocateFormatBuffer(EngineContext* ctx, uint32_t state, uint32_t buffer, uint32_t size) {
   EnterFrame();
-  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF776SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 8u);
-    c = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
+  uint32_t saved_frame = 0u;
+  uint32_t call_result = 0u;
+  uint32_t resume_word = 0u;
+  uint32_t resume_code = 0u;
+  uint32_t new_capacity = 0u;
+  uint32_t capacity = 0u;
+  uint32_t result = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kReallocateFormatBufferSaveFrameBytes);
+    saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, saved_frame);
+    size = LoadU32(ctx, saved_frame + 8u);
+    new_capacity = LoadU32(ctx, saved_frame + 12u);
+    capacity = LoadU32(ctx, saved_frame + 16u);
+    buffer = LoadU32(ctx, saved_frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF776ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l6 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kReallocateFormatBufferResumeWordBytes);
+    resume_word = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = b;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l5 = i0;
-    i1 = c;
-    i0 = i0 >= i1;
-    if (i0) {
-      i0 = b;
-      i0 = LoadU32(ctx, i0);
-      goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    capacity = LoadU32(ctx, buffer + 8u);
+    if (capacity >= size) {
+      // Already large enough: hand back the block the buffer holds.
+      result = LoadU32(ctx, buffer);
+      goto exit_path;
     }
-    i0 = c;
-    i1 = 32u;
-    i2 = c;
-    i3 = 32u;
-    i2 = i2 > i3;
-    i0 = i2 ? i0 : i1;
-    l4 = i0;
-    i1 = 1u;
-    i0 += i1;
-    i1 = kF776ConstFFFFFFFD;
-    i0 = i0 <= i1;
-    c = i0;
+    new_capacity = (size > 32u) ? size : 32u;
+    // The size slot now carries the growth verdict; it holds the block below.
+    size = static_cast<uint32_t>((new_capacity + 1u) <= kReallocateFormatBufferSpaceLimit);
   }
-  i0 = c;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = b;
-      i0 = LoadU32(ctx, i0);
-      c = i0;
+  if (size != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The block the buffer holds now is the one that gets reallocated.
+      size = LoadU32(ctx, buffer);
     }
-    i0 = l6;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = c;
-      i2 = l5;
-      i3 = l4;
-      i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
-      l3 = i0;
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l3;
-      c = i0;
+    if (ResumePhase(ctx) == kResumeRunning || resume_word == kReallocateFormatBufferReallocCall) {
+      call_result = ReallocateBlock(ctx, state, size, capacity, new_capacity);
+      resume_code = kReallocateFormatBufferReallocCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {goto suspend_point;}
+      size = call_result;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto block_3;}
+    if (ResumePhase(ctx) == kResumeRunning) {goto commit;}
   }
-  i0 = l6;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i0 = RaiseBlockTooBig(ctx, i0);
-    l3 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    c = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_word == kReallocateFormatBufferRaiseCall) {
+    call_result = RaiseBlockTooBig(ctx, state);
+    resume_code = kReallocateFormatBufferRaiseCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {goto suspend_point;}
+    size = call_result;
   }
-  block_3:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = b;
-    i1 = l4;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = b;
-    i1 = c;
-    StoreU32(ctx, i0, i1);
-    i0 = c;
-    goto func_exit;
+  commit:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, buffer + 8u, new_capacity);
+    StoreU32(ctx, buffer, size);
+    result = size;
+    goto exit_path;
   }
   TrapUnreachable();
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF776ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = c;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l3;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l3;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 20u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+  // Suspend here: the resume word naming the call in flight goes first, then the
+  // five saved words, and the caller's frame pointer is left above both.
+  suspend_point:;
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kReallocateFormatBufferResumeWordBytes);
+  saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, saved_frame, state);
+  StoreU32(ctx, saved_frame + 4u, buffer);
+  StoreU32(ctx, saved_frame + 8u, size);
+  StoreU32(ctx, saved_frame + 12u, new_capacity);
+  StoreU32(ctx, saved_frame + 16u, capacity);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kReallocateFormatBufferSaveFrameBytes);
+  result = 0u;
+  exit_path:;
   LeaveFrame();
-  return i0;
+  return result;
 }
-}
+}  // namespace artc

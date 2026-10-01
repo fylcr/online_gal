@@ -1,192 +1,82 @@
-// find_ordered_chain_entry.cpp -- finds an entry on an ordered chain: the chain is walked in key order and the matching node is answered..
-//
-// FindOrderedChainEntry -- finds an entry on an ordered chain: the chain is walked in key order and the matching node is answered.
-//
-// The step is a plain call: the body holds no suspend point, so the
-// frame pair is bookkeeping only. Judgment order is untouched -- the
-// goto graph is the generated driver's own flattening, renamed labels
-// only.
-//
-// src: artemis.wasm2c.c 123149-123149 (f242); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
-uint32_t CompareBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+// Forward declaration -- the byte comparer.
+uint32_t CompareBytes(EngineContext* ctx, uint32_t lhs, uint32_t rhs, uint32_t n);
 
-namespace {
-
-constexpr uint32_t kF242ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-
-}  // namespace
-
+// Walks the ordered chain behind `a`, following whichever link the key ordering
+// selects at each step, and answers the entry that matches the request described
+// by `b`. The head slot is answered when the walk finds nothing.
 uint32_t FindOrderedChainEntry(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  i0 = a;
-  i1 = 4u;
-  i0 += i1;
-  l6 = i0;
-  i0 = a;
-  i0 = LoadU32(ctx, i0 + 4u);
-  a = i0;
-  i0 = !(i0);
-  if (i0) {goto spill_frame;}
-  i0 = b;
-  i0 = LoadU32(ctx, i0);
-  i1 = b;
-  i2 = b;
-  i2 = LoadU8(ctx, i2 + 11u);
-  l3 = i2;
-  i3 = 24u;
-  i2 <<= (i3 & 31);
-  i3 = 24u;
-  i2 = (uint32_t)((int32_t)i2 >> (i3 & 31));
-  i3 = 0u;
-  i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
-  l2 = i2;
-  i0 = i2 ? i0 : i1;
-  l7 = i0;
-  i0 = b;
-  i0 = LoadU32(ctx, i0 + 4u);
-  i1 = l3;
-  i2 = l2;
-  i0 = i2 ? i0 : i1;
-  l4 = i0;
-  i0 = l6;
-  l2 = i0;
-  loop_2: 
-    i0 = a;
-    i0 = LoadU8(ctx, i0 + 27u);
-    b = i0;
-    i1 = 24u;
-    i0 <<= (i1 & 31);
-    i1 = 24u;
-    i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-    i1 = 0u;
-    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-    l8 = i0;
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 20u);
-    i1 = b;
-    i2 = l8;
-    i0 = i2 ? i0 : i1;
-    l9 = i0;
-    i1 = l4;
-    i0 = i0 > i1;
-    l5 = i0;
-    i0 = l4;
-    i1 = l9;
-    i2 = l5;
-    i0 = i2 ? i0 : i1;
-    l3 = i0;
-    if (i0) {
-      i0 = a;
-      i1 = 16u;
-      i0 += i1;
-      b = i0;
-      i0 = LoadU32(ctx, i0);
-      i1 = b;
-      i2 = l8;
-      i0 = i2 ? i0 : i1;
-      i1 = l7;
-      i2 = l3;
-      i0 = CompareBytes(ctx, i0, i1, i2);
-      b = i0;
-      if (i0) {goto block_3;}
-    }
-    i0 = kF242ConstFFFFFFFF;
-    i1 = l5;
-    i2 = l4;
-    i3 = l9;
-    i2 = i2 > i3;
-    i0 = i2 ? i0 : i1;
-    b = i0;
-    block_3:;
-    i0 = l2;
-    i1 = a;
-    i2 = b;
-    i3 = 0u;
-    i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
-    i0 = i2 ? i0 : i1;
-    l2 = i0;
-    i0 = b;
-    i1 = 29u;
-    i0 >>= (i1 & 31);
-    i1 = 4u;
-    i0 &= i1;
-    i1 = a;
-    i0 += i1;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    if (i0) {goto loop_2;}
-  i0 = l2;
-  i1 = l6;
-  i0 = i0 == i1;
-  if (i0) {goto spill_frame;}
-  i0 = l2;
-  i0 = LoadU8(ctx, i0 + 27u);
-  a = i0;
-  i1 = 24u;
-  i0 <<= (i1 & 31);
-  i1 = 24u;
-  i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-  i1 = 0u;
-  i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-  l3 = i0;
-  i0 = l2;
-  i0 = LoadU32(ctx, i0 + 20u);
-  i1 = a;
-  i2 = l3;
-  i0 = i2 ? i0 : i1;
-  l5 = i0;
-  i1 = l4;
-  i0 = i0 < i1;
-  a = i0;
-  i0 = l5;
-  i1 = l4;
-  i2 = a;
-  i0 = i2 ? i0 : i1;
-  b = i0;
-  if (i0) {
-    i0 = l7;
-    i1 = l2;
-    i2 = 16u;
-    i1 += i2;
-    a = i1;
-    i1 = LoadU32(ctx, i1);
-    i2 = a;
-    i3 = l3;
-    i1 = i3 ? i1 : i2;
-    i2 = b;
-    i0 = CompareBytes(ctx, i0, i1, i2);
-    a = i0;
-    if (i0) {goto block_5;}
+  const uint32_t head_link = a + 4u;
+  uint32_t cursor = LoadU32(ctx, a + 4u);
+  if (cursor == 0u) {
+    LeaveFrame();
+    return head_link;
   }
-  i0 = l4;
-  i1 = l5;
-  i0 = i0 < i1;
-  if (i0) {goto spill_frame;}
-  goto block_0;
-  block_5:;
-  i0 = a;
-  i1 = kF242ConstFFFFFFFF;
-  i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-  if (i0) {goto block_0;}
-  spill_frame:;
-  i0 = l6;
-  l2 = i0;
-  block_0:;
-  i0 = l2;
+
+  // The tag byte says whether the key and the length live behind a pointer or
+  // inside the descriptor itself.
+  const uint32_t descriptor_data = LoadU32(ctx, b);
+  const uint32_t descriptor_tag = LoadU8(ctx, b + 11u);
+  const bool external = (static_cast<int32_t>(descriptor_tag << 24u) >> 24) < 0;
+  const uint32_t descriptor_length = LoadU32(ctx, b + 4u);
+  const uint32_t search_data = external ? descriptor_data : b;
+  const uint32_t search_length = external ? descriptor_length : descriptor_tag;
+
+  uint32_t link = head_link;
+  for (;;) {
+    const uint32_t tag = LoadU8(ctx, cursor + 27u);
+    const bool indirect = (static_cast<int32_t>(tag << 24u) >> 24) < 0;
+    const uint32_t header_length = LoadU32(ctx, cursor + 20u);
+    const uint32_t block_length = indirect ? header_length : tag;
+    const bool longer = block_length > search_length;
+    const uint32_t compare_length = longer ? block_length : search_length;
+
+    // A nonzero compare answers the ordering outright; otherwise the lengths
+    // settle it, with the block that cannot hold the request sorting low.
+    uint32_t order = 0u;
+    if (compare_length != 0u) {
+      const uint32_t key_slot = cursor + 16u;
+      const uint32_t key_field = LoadU32(ctx, key_slot);
+      const uint32_t key = indirect ? key_field : key_slot;
+      order = CompareBytes(ctx, key, search_data, compare_length);
+    }
+    if (order == 0u) {
+      order = (search_length > block_length) ? 0xFFFFFFFFu : static_cast<uint32_t>(longer);
+    }
+
+    link = (static_cast<int32_t>(order) < 0) ? link : cursor;
+    // The high bit of the ordering picks which of the two links the node keeps.
+    cursor = LoadU32(ctx, cursor + ((order >> 29) & 4u));
+    if (cursor == 0u) break;
+  }
+
+  if (link == head_link) {
+    LeaveFrame();
+    return head_link;
+  }
+
+  const uint32_t candidate_tag = LoadU8(ctx, link + 27u);
+  const bool candidate_indirect = (static_cast<int32_t>(candidate_tag << 24u) >> 24) < 0;
+  const uint32_t candidate_header = LoadU32(ctx, link + 20u);
+  const uint32_t candidate_length = candidate_indirect ? candidate_header : candidate_tag;
+  const uint32_t need = (candidate_length < search_length) ? candidate_length : search_length;
+
+  if (need != 0u) {
+    const uint32_t key_slot = link + 16u;
+    const uint32_t key_field = LoadU32(ctx, key_slot);
+    const uint32_t key = candidate_indirect ? key_field : key_slot;
+    const uint32_t final = CompareBytes(ctx, search_data, key, need);
+    if (final != 0u) {
+      LeaveFrame();
+      return static_cast<int32_t>(final) >= 0 ? link : head_link;
+    }
+  }
   LeaveFrame();
-  return i0;
+  return search_length < candidate_length ? head_link : link;
 }
-}
+
+}  // namespace artc

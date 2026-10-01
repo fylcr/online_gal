@@ -1,23 +1,8 @@
-// apply_control_skip_status.cpp -- applies the control-skip status: the skip request is honoured and the control step is released..
-//
-// ApplyControlSkipStatus -- applies the control-skip status: the skip request is honoured and the control step is released.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 420516-420516 (f1038); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of the callees below.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);
@@ -25,406 +10,182 @@ uint32_t FormatLuaEventFilterLine(EngineContext* ctx, uint32_t a0, uint32_t a1);
 
 namespace {
 
-constexpr uint32_t kF1038MsgSStatusControlskip = 0xB4A43u;  // s.status.controlskip
-constexpr uint32_t kF1038ConstB4A4B = 0xB4A4Bu;  // 
-constexpr uint32_t kF1038ConstB4A53 = 0xB4A53u;  // 
-constexpr uint32_t kF1038MsgPx = 0xB5E31u;  // px != 0
-constexpr uint32_t kF1038MsgBoostBoostSmartPtr = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
-constexpr uint32_t kF1038MsgOperator = 0xB5E71u;  // operator->
-constexpr uint32_t kF1038ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF1038ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF1038SaveFrameBytes = 20u;
-constexpr uint32_t kF1038ResumeWordBytes = 4u;
+constexpr uint32_t kApplyControlKeyLow = 0xB4A43u;  // first 8 bytes of "s.status.controlskip"
+constexpr uint32_t kApplyControlKeyHigh = 0xB4A4Bu;  // next 8 bytes of it
+constexpr uint32_t kApplyControlKeyTail = 0xB4A53u;  // last 4 bytes of it
+constexpr uint32_t kApplyControlAssertPx = 0xB5E31u;  // assertion text "px != 0"
+constexpr uint32_t kApplyControlAssertFile = 0xB5E39u;  // the boost header path it names
+constexpr uint32_t kApplyControlAssertFunc = 0xB5E71u;  // assertion text "operator->"
+constexpr uint32_t kApplyControlStatusSlot = 0xD015Cu;  // status word the host reads
+constexpr uint32_t kApplyControlNegativeOne = 0xFFFFFFFFu;  // the "release the block" mark
+constexpr uint64_t kApplyControlRecordTag = 9223372174293729300ull;  // the record's tag pair
+constexpr uint32_t kApplyControlSaveFrameBytes = 20u;  // saved state words below the resume code
+constexpr uint32_t kApplyControlResumeWordBytes = 4u;  // resume code slot
 
 }  // namespace
 
+// Honours the control-skip request: the flag is written onto the script state
+// and the pending control step is released.  Several of the steps below can
+// suspend, so the arguments and the two working pointers live in the frame.
 void ApplyControlSkipStatus(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   EnterFrame();
-  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1038SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 8u);
-    c = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
+  uint32_t record = 0u;    // the 16-byte record taken off the guest stack
+  uint32_t step = 0u;      // the pending control step (a plain flag before that)
+  uint32_t result = 0u;    // what a suspendable call hands back
+  uint32_t status = 0u;    // the status word the step left behind
+  uint32_t resume_point = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 20-byte frame the suspend path saved.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+        LoadU32(ctx, ReturnFrameSp(ctx)) - kApplyControlSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    a = LoadU32(ctx, frame);
+    c = LoadU32(ctx, frame + 8u);
+    record = LoadU32(ctx, frame + 12u);
+    step = LoadU32(ctx, frame + 16u);
+    b = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1038ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l6 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 4-byte frame that saves the resume code.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+        LoadU32(ctx, ReturnFrameSp(ctx)) - kApplyControlResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 16u;
-    i0 -= i1;
-    l4 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = b;
-    i0 = !(i0);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // A 16-byte record is taken off the guest stack for the step below.
+    record = GuestStackSp(ctx) - 16u;
+    GuestStackSp(ctx) = record;
+    step = b == 0u;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l5;
-    if (i0) {goto block_8;}
-    i0 = c;
-    if (i0) {goto block_8;}
-    i0 = a;
-    i0 = LoadU8(ctx, i0 + 48u);
-    i0 = !(i0);
-    if (i0) {goto block_5;}
-    block_8:;
-    i0 = a;
-    i0 = LoadU8(ctx, i0 + 50u);
-    i1 = b;
-    i0 = i0 == i1;
-    if (i0) {goto block_5;}
-    i0 = a;
-    i1 = b;
-    StoreU8(ctx, i0 + 50u, i1);
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 112u);
-    l5 = i0;
-    i0 = !(i0);
-    c = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (step == 0u && c == 0u && LoadU8(ctx, a + 48u) == 0u) { goto release_scratch; }
+    if (LoadU8(ctx, a + 50u) == b) { goto release_scratch; }
+    // The skip flag changed: write it down and take the pending step.
+    StoreU8(ctx, a + 50u, b);
+    step = LoadU32(ctx, a + 112u);
+    c = step == 0u;
   }
-  i0 = c;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF1038ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
+  if (c != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The host reads the status slot from zero.
+      StoreU32(ctx, kApplyControlStatusSlot, 0u);
     }
-    i0 = l6;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 857u;
-      i1 = kF1038MsgPx;
-      i2 = kF1038MsgBoostBoostSmartPtr;
-      i3 = 734u;
-      i4 = kF1038MsgOperator;
-      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+      // The assertion the pending step expected to have passed.
+      HostFailAssertion(ctx, 857u, kApplyControlAssertPx, kApplyControlAssertFile, 734u,
+          kApplyControlAssertFunc);
+      resume_point = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF1038ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      a = i0;
-      i0 = kF1038ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = a;
-      i1 = 1u;
-      i0 = i0 != i1;
-      if (i0) {goto running_exit;}
-      i0 = 0u;
-      i0 = FindMatchingCatch(ctx, i0);
-      a = i0;
-      i0 = HostTempRet0(ctx);
-      b = i0;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The step answered through the status slot rather than trapping.
+      a = LoadU32(ctx, kApplyControlStatusSlot);
+      StoreU32(ctx, kApplyControlStatusSlot, 0u);
+      if (a != 1u) { goto trap_path; }
+      a = FindMatchingCatch(ctx, 0u);
+      b = HostTempRet0(ctx);
     }
-    i0 = l6;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      Panic(ctx, i0);
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+      Panic(ctx, a);
+      resume_point = 1u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      TrapUnreachable();
-    }
+    if (ResumePhase(ctx) == kResumeRunning) { TrapUnreachable(); }
   }
-  i0 = l6;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 32u;
-    i0 = AllocateStringBuffer(ctx, i0);
-    l3 = i0;
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    c = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+    result = AllocateStringBuffer(ctx, 32u);
+    resume_point = 2u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    c = result;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i1 = c;
-    StoreU32(ctx, i0, i1);
-    i0 = l4;
-    j1 = 9223372174293729300ull;
-    StoreU64(ctx, i0 + 4u, j1);
-    i0 = c;
-    i1 = 0u;
-    StoreU8(ctx, i0 + 20u, i1);
-    i0 = c;
-    i1 = kF1038ConstB4A53;
-    i1 = LoadU32(ctx, i1);
-    StoreU32(ctx, i0 + 16u, i1);
-    i0 = c;
-    i1 = kF1038ConstB4A4B;
-    j1 = LoadU64(ctx, i1);
-    StoreU64(ctx, i0 + 8u, j1);
-    i0 = c;
-    i1 = kF1038MsgSStatusControlskip;
-    j1 = LoadU64(ctx, i1);
-    StoreU64(ctx, i0, j1);
-    i0 = l5;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0 + 20u);
-    c = i0;
-    i0 = kF1038ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Fill the record: the step, its tag pair, and the key it looks up.
+    StoreU32(ctx, record, c);
+    StoreU64(ctx, record + 4u, kApplyControlRecordTag);
+    StoreU8(ctx, c + 20u, 0u);
+    StoreU32(ctx, c + 16u, LoadU32(ctx, kApplyControlKeyTail));
+    StoreU64(ctx, c + 8u, LoadU64(ctx, kApplyControlKeyHigh));
+    StoreU64(ctx, c, LoadU64(ctx, kApplyControlKeyLow));
+    c = LoadU32(ctx, LoadU32(ctx, step) + 20u);
+    StoreU32(ctx, kApplyControlStatusSlot, 0u);
   }
-  i0 = l6;
-  i1 = 3u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = c;
-    i1 = l5;
-    i2 = l4;
-    i3 = b;
-    i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
-    l3 = i0;
-    i0 = 3u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    c = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+    result = HostDispatchInvoke(ctx, c, step, record, b);
+    resume_point = 3u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    c = result;
   }
-  i0 = ResumePhase(ctx);
-  if (i0) {
-    i0 = c;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The dispatch may have answered through the status slot as well.
+    c = LoadU32(ctx, kApplyControlStatusSlot);
+    StoreU32(ctx, kApplyControlStatusSlot, 0u);
+    status = c != 1u;
   } else {
-    i0 = kF1038ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    c = i0;
-    i0 = kF1038ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = c;
-    i1 = 1u;
-    i0 = i0 != i1;
+    status = c;
   }
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l4;
-      i0 = LoadS8(ctx, i0 + 11u);
-      i1 = kF1038ConstFFFFFFFF;
-      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-      if (i0) {
-        i0 = l4;
-        i0 = LoadU32(ctx, i0);
-        DeallocateRawBlock(ctx, i0);
+  if (status != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Release the block the record owned, then name the next step.
+      if ((int32_t)LoadS8(ctx, record + 11u) <= (int32_t)kApplyControlNegativeOne) {
+        DeallocateRawBlock(ctx, LoadU32(ctx, record));
       }
-      i0 = b;
-      i0 = !(i0);
-      b = i0;
-      if (i0) {goto block_18;}
-      i0 = a;
-      i1 = 13940u;
-      i0 += i1;
-      b = i0;
+      b = b == 0u;
+      if (b != 0u) { goto publish_step; }
+      b = a + 13940u;
     }
-    i0 = l6;
-    i1 = 4u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = b;
-      i0 = FormatLuaEventFilterLine(ctx, i0, i1);
-      l3 = i0;
-      i0 = 4u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l3;
-      a = i0;
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
+      result = FormatLuaEventFilterLine(ctx, a, b);
+      resume_point = 4u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      a = result;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto block_5;}
+    if (ResumePhase(ctx) == kResumeRunning) { goto release_scratch; }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = HostRet0(ctx);
-    a = i0;
-    i0 = HostTempRet0(ctx);
-    i0 = l4;
-    i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kF1038ConstFFFFFFFF;
-    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-    if (i0) {
-      i0 = l4;
-      i0 = LoadU32(ctx, i0);
-      DeallocateRawBlock(ctx, i0);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The step trapped: release everything, then hand the status to the host.
+    a = HostRet0(ctx);
+    HostTempRet0(ctx);
+    if ((int32_t)LoadS8(ctx, record + 11u) <= (int32_t)kApplyControlNegativeOne) {
+      DeallocateRawBlock(ctx, LoadU32(ctx, record));
     }
-    i0 = a;
-    HostOsRelease(ctx, i0);
+    HostOsRelease(ctx, a);
     TrapUnreachable();
   }
-  block_18:;
-  i0 = b;
-  i1 = a;
-  i2 = 13984u;
-  i1 += i2;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  b = i0;
-  i0 = l6;
-  i1 = 5u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = b;
-    i0 = FormatLuaEventFilterLine(ctx, i0, i1);
-    i0 = 5u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+publish_step:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    b = a + 13984u;
   }
-  block_5:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i1 = 16u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
+    FormatLuaEventFilterLine(ctx, a, b);
+    resume_point = 5u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    TrapUnreachable();
+release_scratch:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Give the 16-byte record back to the guest stack.
+    GuestStackSp(ctx) = record + 16u;
+    goto exit_path;
   }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1038ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = c;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l3;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l3;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 20u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+trap_path:
+  if (ResumePhase(ctx) == kResumeRunning) { TrapUnreachable(); }
+  goto exit_path;
+suspend_point:
+  // Suspend: write the resume code, then push the frame with the live state.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+      LoadU32(ctx, ReturnFrameSp(ctx)) + kApplyControlResumeWordBytes);
+  {
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, a);
+    StoreU32(ctx, frame + 4u, b);
+    StoreU32(ctx, frame + 8u, c);
+    StoreU32(ctx, frame + 12u, record);
+    StoreU32(ctx, frame + 16u, step);
+  }
+  StoreU32(ctx, ReturnFrameSp(ctx),
+      LoadU32(ctx, ReturnFrameSp(ctx)) + kApplyControlSaveFrameBytes);
+exit_path:
   LeaveFrame();
 }
-}
+
+}  // namespace artc

@@ -1,451 +1,264 @@
-// insert_sound_object_slot.cpp -- allocates one unordered node, constructs the sound-object value in place and links it into the bucket chain..
-//
-// InsertSoundObjectSlot -- allocates one unordered node, constructs the sound-object value in place and links it into the bucket chain.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 444737-444737 (f1058); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Cross-product callees: the guest heap's block release, the string-buffer
+// allocator and the sound-object teardown.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);
 uint32_t DestroySoundObject(EngineContext* ctx, uint32_t a);
 
 namespace {
 
-constexpr uint32_t kF1058Const90E80 = 0x90E80u;  // 
-constexpr uint32_t kF1058MsgBuckets = 0x90EFCu;  // buckets_
-constexpr uint32_t kF1058MsgBoostBoostUnorderedDetail = 0x90F05u;  // ../../../../boost_1_66_0/boost/unordered/detail/implementation.hpp
-constexpr uint32_t kF1058MsgGetBucket = 0x90F48u;  // get_bucket
-constexpr uint32_t kF1058ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF1058Const7FFFFFFF = 0x7FFFFFFFu;  // 
-constexpr uint32_t kF1058SaveFrameBytes = 28u;
-constexpr uint32_t kF1058ResumeWordBytes = 4u;
+constexpr uint32_t kInsertSoundObjectSlotConst90E80 = 0x90E80u;
+// The assert texts the bucket lookup hands to the host: the shared "buckets_"
+// label, the unordered header it names and the "get_bucket" function name.
+constexpr uint32_t kInsertSoundObjectSlotMsgBuckets = 0x90EFCu;
+constexpr uint32_t kInsertSoundObjectSlotMsgBoostUnorderedDetail = 0x90F05u;
+constexpr uint32_t kInsertSoundObjectSlotMsgGetBucket = 0x90F48u;
+constexpr uint32_t kInsertSoundObjectSlotConstD015C = 0xD015Cu;
+constexpr uint32_t kInsertSoundObjectSlotConst7FFFFFFF = 0x7FFFFFFFu;
+constexpr uint32_t kInsertSoundObjectSlotSaveFrameBytes = 28u;
+constexpr uint32_t kInsertSoundObjectSlotResumeWordBytes = 4u;
 
 }  // namespace
 
+// Inserts one sound object into the table's bucket chain: a node that already
+// holds the key is handed back, otherwise a fresh node is allocated,
+// constructed in place and spliced into its bucket. Answers nothing; the node
+// and a "was it new" flag go back through a.
 void InsertSoundObjectSlot(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   EnterFrame();
-  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1058SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 8u);
-    c = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l6 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l7 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
+  uint32_t frame = 0u;
+  uint32_t link = 0u;
+  uint32_t key = 0u;
+  uint32_t bucket_index = 0u;
+  uint32_t bucket_slot = 0u;
+  uint32_t count = 0u;
+  uint32_t resume_code = 0u;
+  uint32_t phase = 0u;
+
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the saved frame and read its words back in the saved order.
+    uint32_t sp = ReturnFrameSp(ctx);
+    uint32_t frame_top = ReturnFrameSp(ctx);
+    frame_top = LoadU32(ctx, frame_top) - kInsertSoundObjectSlotSaveFrameBytes;
+    StoreU32(ctx, sp, frame_top);
+    frame = ReturnFrameSp(ctx);
+    frame = LoadU32(ctx, frame);
+    a = LoadU32(ctx, frame);
+    c = LoadU32(ctx, frame + 8u);
+    link = LoadU32(ctx, frame + 12u);
+    key = LoadU32(ctx, frame + 16u);
+    bucket_index = LoadU32(ctx, frame + 20u);
+    count = LoadU32(ctx, frame + 24u);
+    b = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1058ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l8 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word naming the call that was in flight.
+    uint32_t sp = ReturnFrameSp(ctx);
+    uint32_t word_top = ReturnFrameSp(ctx);
+    word_top = LoadU32(ctx, word_top) - kInsertSoundObjectSlotResumeWordBytes;
+    StoreU32(ctx, sp, word_top);
+    uint32_t word = ReturnFrameSp(ctx);
+    word = LoadU32(ctx, word);
+    resume_code = LoadU32(ctx, word);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = c;
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
-    i1 = b;
-    i1 = LoadU32(ctx, i1 + 4u);
-    i0 = REM_U(i0, i1);
-    l6 = i0;
-    i0 = b;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l7 = i0;
-    i0 = !(i0);
-    c = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // A running pass re-derives the key, its bucket index and the table size.
+    key = LoadU32(ctx, c);
+    uint32_t bucket_count = LoadU32(ctx, b + 4u);
+    bucket_index = REM_U(key, bucket_count);
+    count = LoadU32(ctx, b + 8u);
+    c = (count == 0u);  // c doubles as the "the table is still empty" flag
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = c;
-    if (i0) {goto block_6;}
-    i0 = b;
-    i0 = LoadU32(ctx, i0 + 20u);
-    c = i0;
-    if (i0) {
-      i0 = l6;
-      i1 = 2u;
-      i0 <<= (i1 & 31);
-      i1 = c;
-      i0 += i1;
-      i0 = LoadU32(ctx, i0);
-      c = i0;
-      i0 = !(i0);
-      l3 = i0;
-      if (i0) {goto block_6;}
-      i0 = c;
-      i0 = LoadU32(ctx, i0);
-      c = i0;
-      i0 = !(i0);
-      l3 = i0;
-      if (i0) {goto block_6;}
-      i0 = l5;
-      i1 = c;
-      i1 = LoadU32(ctx, i1 + 8u);
-      i0 = i0 != i1;
-      if (i0) {
-        i0 = c;
-        i0 = LoadU32(ctx, i0 + 4u);
-        l3 = i0;
-        loop_9: 
-          i0 = l6;
-          i1 = l3;
-          i2 = kF1058Const7FFFFFFF;
-          i1 &= i2;
-          i0 = i0 != i1;
-          l3 = i0;
-          if (i0) {goto block_6;}
-          loop_10: 
-            i0 = c;
-            i0 = LoadU32(ctx, i0);
-            c = i0;
-            i0 = !(i0);
-            l3 = i0;
-            if (i0) {goto block_6;}
-            i0 = c;
-            i0 = LoadU32(ctx, i0 + 4u);
-            l3 = i0;
-            i1 = 0u;
-            i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-            if (i0) {goto loop_10;}
-          i0 = c;
-          i0 = LoadU32(ctx, i0 + 8u);
-          i1 = l5;
-          i0 = i0 != i1;
-          if (i0) {goto loop_9;}
-      }
-      i0 = a;
-      i1 = c;
-      StoreU32(ctx, i0, i1);
-      i0 = a;
-      i1 = 0u;
-      StoreU8(ctx, i0 + 4u, i1);
-      goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (c != 0u) {
+      goto insert_new_node;
     }
-    goto running_exit;
-    block_6:;
-  }
-  i0 = l8;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 52u;
-    i0 = AllocateStringBuffer(ctx, i0);
-    l4 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    c = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = c;
-    j1 = 0ull;
-    StoreU64(ctx, i0 + 32u, j1);
-    i0 = c;
-    i1 = 0u;
-    StoreU32(ctx, i0 + 24u, i1);
-    i0 = c;
-    j1 = 0ull;
-    StoreU64(ctx, i0 + 16u, j1);
-    i0 = c;
-    i1 = kF1058Const90E80;
-    StoreU32(ctx, i0 + 12u, i1);
-    i0 = c;
-    i1 = l5;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = c;
-    j1 = 0ull;
-    StoreU64(ctx, i0, j1);
-    i0 = c;
-    j1 = 0ull;
-    StoreU64(ctx, i0 + 44u, j1);
-    i0 = c;
-    i1 = c;
-    i2 = 32u;
-    i1 += i2;
-    StoreU32(ctx, i0 + 28u, i1);
-    i0 = c;
-    i1 = c;
-    i2 = 44u;
-    i1 += i2;
-    StoreU32(ctx, i0 + 40u, i1);
-    i0 = kF1058ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l7;
-    i1 = 1u;
-    i0 += i1;
-    l3 = i0;
-  }
-  i0 = l8;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 2141u;
-    i1 = b;
-    i2 = l3;
-    HostOsSchedule(ctx, i0, i1, i2);
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF1058ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = kF1058ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l3;
-    i1 = 1u;
-    i0 = i0 != i1;
-    l3 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    if (i0) {
-      i0 = l5;
-      i1 = b;
-      i1 = LoadU32(ctx, i1 + 4u);
-      l7 = i1;
-      i0 = REM_U(i0, i1);
-      l3 = i0;
-      i0 = b;
-      i0 = LoadU32(ctx, i0 + 20u);
-      l5 = i0;
-      i0 = !(i0);
-      if (i0) {goto block_15;}
-      i0 = c;
-      i1 = l3;
-      i2 = kF1058Const7FFFFFFF;
-      i1 &= i2;
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = l5;
-      i1 = l3;
-      i2 = 2u;
-      i1 <<= (i2 & 31);
-      i0 += i1;
-      l6 = i0;
-      i0 = LoadU32(ctx, i0);
-      l3 = i0;
-      if (i0) {goto block_17;}
-      i0 = l5;
-      i1 = l7;
-      i2 = 2u;
-      i1 <<= (i2 & 31);
-      i0 += i1;
-      l3 = i0;
-      i0 = LoadU32(ctx, i0);
-      l7 = i0;
-      if (i0) {
-        i0 = l7;
-        i0 = LoadU32(ctx, i0 + 4u);
-        i1 = 2u;
-        i0 <<= (i1 & 31);
-        i1 = l5;
-        i0 += i1;
-        i1 = c;
-        StoreU32(ctx, i0, i1);
+    c = LoadU32(ctx, b + 20u);
+    if (c != 0u) {
+      // Walk the chain the key hashes into. The word at +4 is tagged: with the
+      // top bit set it is a node pointer, otherwise it is the bucket index.
+      c = LoadU32(ctx, c + (bucket_index << (2u & 31u)));
+      if (c == 0u) {
+        goto insert_new_node;
       }
-      i0 = l6;
-      i1 = l3;
-      StoreU32(ctx, i0, i1);
-      i0 = c;
-      i1 = l3;
-      i1 = LoadU32(ctx, i1);
-      StoreU32(ctx, i0, i1);
-      goto block_16;
+      c = LoadU32(ctx, c);
+      if (c == 0u) {
+        goto insert_new_node;
+      }
+      if (key != LoadU32(ctx, c + 8u)) {
+        link = LoadU32(ctx, c + 4u);
+      test_candidate:;
+        if (bucket_index != (link & kInsertSoundObjectSlotConst7FFFFFFF)) {
+          goto insert_new_node;
+        }
+      follow_pointer:;
+        c = LoadU32(ctx, c);
+        if (c == 0u) {
+          goto insert_new_node;
+        }
+        link = LoadU32(ctx, c + 4u);
+        if (static_cast<uint32_t>(static_cast<int32_t>(link) < 0)) {
+          goto follow_pointer;
+        }
+        if (LoadU32(ctx, c + 8u) != key) {
+          goto test_candidate;
+        }
+      }
+      // The key is already there: hand the node back with a false flag.
+      StoreU32(ctx, a, c);
+      StoreU8(ctx, a + 4u, 0u);
+      LeaveFrame();
+      return;
     }
-    i0 = HostRet0(ctx);
-    a = i0;
-    i0 = HostTempRet0(ctx);
-    i0 = c;
-    i1 = 12u;
-    i0 += i1;
-    b = i0;
+    goto lookup_no_buckets;
+  insert_new_node:;
   }
-  i0 = l8;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = b;
-    i0 = DestroySoundObject(ctx, i0);
-    l4 = i0;
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    b = i0;
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning || resume_code == 0u) {
+    // No node holds the key: allocate one and stage it behind the resume word
+    // for this call site.
+    uint32_t node = AllocateStringBuffer(ctx, 52u);
+    resume_code = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
+    }
+    c = node;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = c;
-    DeallocateRawBlock(ctx, i0);
-    i0 = a;
-    HostOsRelease(ctx, i0);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Construct the node in place: two zeroed chains and their own pointers.
+    StoreU64(ctx, c + 32u, 0ull);
+    StoreU32(ctx, c + 24u, 0u);
+    StoreU64(ctx, c + 16u, 0ull);
+    uint32_t type_word = kInsertSoundObjectSlotConst90E80;
+    StoreU32(ctx, c + 12u, type_word);
+    StoreU32(ctx, c + 8u, key);
+    StoreU64(ctx, c, 0ull);
+    StoreU64(ctx, c + 44u, 0ull);
+    uint32_t payload = c + 32u;
+    StoreU32(ctx, c + 28u, payload);
+    uint32_t tail = c + 44u;
+    StoreU32(ctx, c + 40u, tail);
+    StoreU32(ctx, kInsertSoundObjectSlotConstD015C, 0u);
+    link = count + 1u;
+  }
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning || resume_code == 1u) {
+    HostOsSchedule(ctx, 2141u, b, link);
+    resume_code = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The pending-operation flag tells us whether the call in flight was ours.
+    link = LoadU32(ctx, kInsertSoundObjectSlotConstD015C);
+    StoreU32(ctx, kInsertSoundObjectSlotConstD015C, 0u);
+    link = (link != 1u);
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (link != 0u) {
+      uint32_t total = LoadU32(ctx, b + 4u);
+      link = REM_U(key, total);
+      uint32_t buckets = LoadU32(ctx, b + 20u);
+      if (buckets == 0u) {
+        goto insert_no_buckets;
+      }
+      uint32_t masked = link & kInsertSoundObjectSlotConst7FFFFFFF;
+      StoreU32(ctx, c + 4u, masked);
+      bucket_slot = buckets + (link << (2u & 31u));
+      link = LoadU32(ctx, bucket_slot);
+      if (link != 0u) {
+        goto splice_before_head;
+      }
+      link = buckets + (total << (2u & 31u));
+      uint32_t head = LoadU32(ctx, link);
+      if (head != 0u) {
+        // Backwards write: the node past the end of the bucket array names the
+        // slot the new node has to be written into.
+        uint32_t head_next = LoadU32(ctx, head + 4u);
+        uint32_t head_slot = buckets + (head_next << (2u & 31u));
+        StoreU32(ctx, head_slot, c);
+      }
+      StoreU32(ctx, bucket_slot, link);
+      head = LoadU32(ctx, link);
+      StoreU32(ctx, c, head);
+      goto finish_insert;
+    }
+    // The call in flight was not ours: hand the half-built node to the
+    // teardown path below.
+    a = HostRet0(ctx);
+    HostTempRet0(ctx);
+    b = c + 12u;
+  }
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning || resume_code == 2u) {
+    uint32_t cleaned = DestroySoundObject(ctx, b);
+    resume_code = 2u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
+    }
+    b = cleaned;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    DeallocateRawBlock(ctx, c);
+    HostOsRelease(ctx, a);
     TrapUnreachable();
   }
-  block_17:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = c;
-    i1 = l3;
-    i1 = LoadU32(ctx, i1);
-    StoreU32(ctx, i0, i1);
-    i0 = l6;
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
+splice_before_head:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // c takes the head's place: its first word becomes the rest of the chain.
+    uint32_t rest = LoadU32(ctx, link);
+    StoreU32(ctx, c, rest);
+    link = LoadU32(ctx, bucket_slot);
   }
-  block_16:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    i1 = c;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = b;
-    i1 = LoadU32(ctx, i1 + 8u);
-    i2 = 1u;
-    i1 += i2;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = a;
-    i1 = c;
-    StoreU32(ctx, i0, i1);
-    i0 = a;
-    i1 = 1u;
-    StoreU8(ctx, i0 + 4u, i1);
-    goto func_exit;
+finish_insert:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Link the node into the slot and bump the table's size.
+    StoreU32(ctx, link, c);
+    uint32_t size = LoadU32(ctx, b + 8u);
+    StoreU32(ctx, b + 8u, size + 1u);
+    StoreU32(ctx, a, c);
+    StoreU8(ctx, a + 4u, 1u);
+    LeaveFrame();
+    return;
   }
-  block_15:;
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF1058MsgBuckets;
-    i1 = kF1058MsgBoostBoostUnorderedDetail;
-    i2 = 2956u;
-    i3 = kF1058MsgGetBucket;
-    HostAssertFail(ctx, i0, i1, i2, i3);
+insert_no_buckets:;
+lookup_no_buckets:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    HostAssertFail(ctx, kInsertSoundObjectSlotMsgBuckets,
+                   kInsertSoundObjectSlotMsgBoostUnorderedDetail, 2956u,
+                   kInsertSoundObjectSlotMsgGetBucket);
     TrapUnreachable();
   }
-  goto func_exit;
-  spill_frame:;
-  l4 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l4;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1058ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l4 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l4;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l4;
-  i1 = c;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l4;
-  i1 = l3;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l4;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l4;
-  i1 = l6;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l4;
-  i1 = l7;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 28u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  LeaveFrame();
+  return;
+suspend_here:;
+  // Push the resume word naming the call that was in flight, then the frame the
+  // rewind pops; the words go in the order that pop reads them back.
+  uint32_t slot = ReturnFrameSp(ctx);
+  slot = LoadU32(ctx, slot);
+  StoreU32(ctx, slot, resume_code);
+  uint32_t sp = ReturnFrameSp(ctx);
+  uint32_t word_top = ReturnFrameSp(ctx);
+  word_top = LoadU32(ctx, word_top) + kInsertSoundObjectSlotResumeWordBytes;
+  StoreU32(ctx, sp, word_top);
+  frame = ReturnFrameSp(ctx);
+  frame = LoadU32(ctx, frame);
+  StoreU32(ctx, frame, a);
+  StoreU32(ctx, frame + 4u, b);
+  StoreU32(ctx, frame + 8u, c);
+  StoreU32(ctx, frame + 12u, link);
+  StoreU32(ctx, frame + 16u, key);
+  StoreU32(ctx, frame + 20u, bucket_index);
+  StoreU32(ctx, frame + 24u, count);
+  sp = ReturnFrameSp(ctx);
+  word_top = ReturnFrameSp(ctx);
+  word_top = LoadU32(ctx, word_top) + kInsertSoundObjectSlotSaveFrameBytes;
+  StoreU32(ctx, sp, word_top);
   LeaveFrame();
 }
-}
+
+}  // namespace artc

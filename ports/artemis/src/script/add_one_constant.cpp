@@ -1,145 +1,67 @@
-// add_one_constant.cpp -- interns the constant 1.0 into the function constant table under its own key..
-//
-// AddOneConstant -- interns the constant 1.0 into the function constant table under its own key.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 2748586-2748586 (f5678); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Interns a constant under a key and answers the table entry it landed on.
 uint32_t AddFunctionConstant(EngineContext* ctx, uint32_t func_state, uint32_t key, uint32_t value);
 
-namespace {
-
-constexpr uint32_t kF5678SaveFrameBytes = 8u;
-constexpr uint32_t kF5678ResumeWordBytes = 4u;
-
-}  // namespace
-
+// Interns the constant 1.0 into the enclosing function's constant table under a
+// key of its own, pushing the value onto the guest stack for the call. Answers
+// the table entry the interned constant landed on. Suspendable, so the state and
+// the pushed value slot travel through the return frame.
 uint32_t AddOneConstant(EngineContext* ctx, uint32_t state) {
   EnterFrame();
-  uint32_t l1 = 0u; uint32_t l2 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  double d1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF5678SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l1 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l1;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l1 = i0;
+  // The guest-stack slot the constant is pushed into, and the resume point.
+  uint32_t value_slot = 0u;
+  uint32_t resume_point = 0u;
+  // The resume point the suspend path saves (below).
+  uint32_t resume_at = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 8-byte frame the suspend path saved.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 8u);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    value_slot = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF5678ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume point pushed with that frame.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 16u;
-    i0 -= i1;
-    l1 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = l1;
-    i1 = 3u;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = l1;
-    d1 = 1.0;
-    StoreF64(ctx, i0, d1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Push the constant as a 16-byte guest value: the double, then its tag.
+    value_slot = GuestStackSp(ctx) - 16u;
+    GuestStackSp(ctx) = value_slot;
+    StoreU32(ctx, value_slot + 8u, 3u);
+    StoreF64(ctx, value_slot, 1.0);
   }
-  i0 = l2;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = l1;
-    i2 = l1;
-    i0 = AddFunctionConstant(ctx, i0, i1, i2);
-    l2 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l2;
-    state = i0;
+  // The interning call is replayed only at resume point zero.
+  uint32_t issue_add = static_cast<uint32_t>(!resume_point);
+  issue_add = ResumePhase(ctx) != kResumeRunning ? issue_add : 1u;
+  if (issue_add) {
+    state = AddFunctionConstant(ctx, state, value_slot, value_slot);
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      resume_at = 0u;
+      goto spill_point;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l1;
-    i1 = 16u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    i0 = state;
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    GuestStackSp(ctx) = value_slot + 16u;
+    LeaveFrame();
+    return state;
   }
   TrapUnreachable();
-  spill_frame:;
-  l2 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF5678ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l2 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l2;
-  i1 = l1;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 8u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+spill_point:;
+  // Suspend: push the resume point, then the 8-byte frame holding the state and
+  // the value slot the rewinding pop restores.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_at);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
+  uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, saved_frame, state);
+  StoreU32(ctx, saved_frame + 4u, value_slot);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 8u);
   LeaveFrame();
-  return i0;
+  return 0u;
 }
-}
+
+}  // namespace artc

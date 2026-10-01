@@ -1,24 +1,10 @@
-// copy_bytes.cpp — guest memory block copy (memcpy shape).
-//
-// CopyBytes moves n bytes of guest memory from src to dst and returns dst,
-// matching the engine's block-copy entry. Three strategies keep the hot shapes
-// fast while the byte tail keeps the result exact: large blocks hand off to the
-// host bulk copy, same-alignment pairs run a byte prologue up to the next
-// 4-byte boundary and then 64-byte and 4-byte word phases, and mismatched
-// pairs fall back to strided byte copies. Overlap is the caller's contract (the
-// engine uses it as a plain copy, not a move); addresses wrap in the guest's
-// own 32-bit space and every access is bounds-checked against the memory view.
-// Word phases load then store per position, so a trapping access faults in the
-// same order the engine's own copy does.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
 #include "util/engine_context.h"
 
 namespace artc {
 
+// Copies n bytes of guest memory from src to dst and answers dst. Large blocks
+// hand off to the host bulk copy; smaller ones walk 4-byte and 64-byte words
+// when the pair shares an alignment, otherwise strided bytes, plus a byte tail.
 uint32_t CopyBytes(EngineContext* ctx, uint32_t dst, uint32_t src, uint32_t n) {
   EnterFrame();
   if (n >= 512u) {

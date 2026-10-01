@@ -1,23 +1,8 @@
-// parse_param_list.cpp -- parses a parameter list: the parameter names are bound as local slots..
-//
-// ParseParamList -- parses a parameter list: the parameter names are bound as local slots.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 482643-482643 (f1118); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations for the callees this step calls.
 void PatchUpvalueJumpTarget(EngineContext* ctx, uint32_t a);
 uint32_t FormatPushString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
@@ -37,1215 +22,572 @@ uint32_t EmitInstructionABC(EngineContext* ctx, uint32_t state, uint32_t opcode,
 
 namespace {
 
-constexpr uint32_t kF1118MsgSExpected = 0x2B625u;  // '%s' expected
-constexpr uint32_t kF1118MsgChunkHasTooMany = 0x2B633u;  // chunk has too many syntax levels
-constexpr uint32_t kF1118MsgSelf = 0x2B70Au;  // self
-constexpr uint32_t kF1118Const2B738 = 0x2B738u;  // 
-constexpr uint32_t kF1118MsgNameOrExpected = 0x2B73Cu;  // <name> or '...' expected
-constexpr uint32_t kF1118MsgConstantTableOverflow = 0x2B755u;  // constant table overflow
-constexpr uint32_t kF1118Const3FFFF = 0x3FFFFu;  // 
-constexpr uint32_t kF1118Const8010007 = 0x8010007u;  // 
-constexpr uint32_t kF1118SaveFrameBytes = 40u;
-constexpr uint32_t kF1118ResumeWordBytes = 4u;
+// The `'%s' expected` message the '(' path reports.
+constexpr uint32_t kParseParamListMsgExpected = 0x2B625u;
+// The `chunk has too many syntax levels` diagnostic.
+constexpr uint32_t kParseParamListMsgChunkTooDeep = 0x2B633u;
+// The name of the implicit `self` parameter.
+constexpr uint32_t kParseParamListNameSelf = 0x2B70Au;
+// The name of the `...` vararg parameter.
+constexpr uint32_t kParseParamListNameVarArg = 0x2B738u;
+// The `'<name>' or '...' expected` message.
+constexpr uint32_t kParseParamListMsgNameExpected = 0x2B73Cu;
+// The message reported when the constant table cannot take another entry.
+constexpr uint32_t kParseParamListMsgConstantOverflow = 0x2B755u;
+// The cap on the entries grown into the constant table.
+constexpr uint32_t kParseParamListMaxConstantCount = 0x3FFFFu;
+// The token bits of the codes that can open a statement.
+constexpr uint32_t kParseParamListStatementTokenMask = 0x8010007u;
 
 }  // namespace
 
+// Parses a parameter list and binds each parameter name as a local slot: `self` for an implicit
+// method, `...` for a vararg list, one local per declared name. Every call that can run guest
+// code is a suspend gate -- a rewinding pass restores the frame slots below and replays the one
+// call its resume code names. `a` is the lexer state, `b` the parameter descriptor the caller
+// fills in, `c` the slot count and `d` the descriptor of the parameter being declared; `b`, `c`
+// and `d` also carry the temporaries the flattened driver keeps in them.
 void ParseParamList(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
   EnterFrame();
-  uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
-  uint64_t j1 = 0;
-      l12 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1118SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 8u);
-    c = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 12u);
-    d = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l4 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l7 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l8 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l9 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l10 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 36u);
-    l11 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
+  uint32_t const kSaveFrameBytes = 40u;
+  uint32_t const kResumeWordBytes = 4u;
+  // The codes the calls below spill, in the order they run.
+  uint32_t const kPrepareParameterCall = 0u;
+  uint32_t const kFormatCharCall = 1u;
+  uint32_t const kFormatExpectedCall = 2u;
+  uint32_t const kSyntaxErrorCall = 3u;
+  uint32_t const kRecordStatementCall = 4u;
+  uint32_t const kBindSelfCall = 5u;
+  uint32_t const kDeclareSelfCall = 6u;
+  uint32_t const kRecordParameterCall = 7u;
+  uint32_t const kDeclareNameCall = 8u;
+  uint32_t const kRecordVarArgCall = 9u;
+  uint32_t const kBindVarArgCall = 10u;
+  uint32_t const kDeclareVarArgCall = 11u;
+  uint32_t const kNameExpectedCall = 12u;
+  uint32_t const kRecordCommaCall = 13u;
+  uint32_t const kReserveRegistersCall = 14u;
+  uint32_t const kFormatCloseCall = 15u;
+  uint32_t const kFormatCloseExpectedCall = 16u;
+  uint32_t const kSyntaxErrorCloseCall = 17u;
+  uint32_t const kRecordListEndCall = 18u;
+  uint32_t const kSyntaxLevelsCall = 19u;
+  uint32_t const kCompileStatementCall = 20u;
+  uint32_t const kRecordBodyCall = 21u;
+  uint32_t const kCheckClosingMatchCall = 22u;
+  uint32_t const kPatchUpvalueCall = 23u;
+  uint32_t const kGrowConstantsCall = 24u;
+  uint32_t const kEmitClosureCall = 25u;
+  uint32_t const kEmitParameterCall = 26u;
+  // The frame saves one word per slot below, so each slot keeps a single name across the whole
+  // step even where a later region reuses it: the general temporary, the temporary that holds
+  // each call result, the resume code in flight, the item under examination (the token, a name
+  // pointer, the block or the constant array), the container the names are read from, the array
+  // being written, the 608-byte guest frame the parameters are collected on and a flag.
+  uint32_t scratch = 0u;
+  uint32_t call_result = 0u;
+  uint32_t resume_code = 0u;
+  uint32_t item = 0u;
+  uint32_t container = 0u;
+  uint32_t target = 0u;
+  uint32_t scratch_frame = 0u;
+  uint32_t flag = 0u;
+  uint32_t array = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the frame and restore the slots in the order the spill path saved them.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
+    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    a = LoadU32(ctx, saved_frame);
+    c = LoadU32(ctx, saved_frame + 8u);
+    d = LoadU32(ctx, saved_frame + 12u);
+    scratch = LoadU32(ctx, saved_frame + 16u);
+    item = LoadU32(ctx, saved_frame + 20u);
+    container = LoadU32(ctx, saved_frame + 24u);
+    target = LoadU32(ctx, saved_frame + 28u);
+    scratch_frame = LoadU32(ctx, saved_frame + 32u);
+    flag = LoadU32(ctx, saved_frame + 36u);
+    b = LoadU32(ctx, saved_frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1118ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l6 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // The second pop names the call that was in flight.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
+    resume_code = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 608u;
-    i0 -= i1;
-    l10 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = l10;
-    i1 = 32u;
-    i0 += i1;
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Reserve the 608-byte guest frame the parameter names are collected on.
+    scratch_frame = GuestStackSp(ctx) - 608u;
+    GuestStackSp(ctx) = scratch_frame;
+    scratch = scratch_frame + 32u;
   }
-  i0 = l6;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = l4;
-    PrepareParameterFrame(ctx, i0, i1);
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l10;
-    i0 = LoadU32(ctx, i0 + 32u);
-    i1 = d;
-    StoreU32(ctx, i0 + 60u, i1);
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 16u);
-    i1 = 40u;
-    i0 = i0 != i1;
-    l4 = i0;
-  }
-  i0 = l4;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 52u);
-      l8 = i0;
-    }
-    i0 = l6;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = 40u;
-      i0 = FormatCharValue(ctx, i0, i1);
-      l5 = i0;
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l5;
-      l4 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l10;
-      i1 = l4;
-      StoreU32(ctx, i0 + 16u, i1);
-      i0 = l10;
-      i1 = 16u;
-      i0 += i1;
-      l4 = i0;
-    }
-    i0 = l6;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l8;
-      i1 = kF1118MsgSExpected;
-      i2 = l4;
-      i0 = FormatPushString(ctx, i0, i1, i2);
-      l5 = i0;
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l5;
-      l4 = i0;
-    }
-    i0 = l6;
-    i1 = 3u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = l4;
-      RaiseSyntaxError(ctx, i0, i1);
-      i0 = 3u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kPrepareParameterCall) : 1u) {
+    // Lay the parameter names out on the guest frame.
+    PrepareParameterFrame(ctx, a, scratch);
+    resume_code = kPrepareParameterCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
     }
   }
-  i0 = l6;
-  i1 = 4u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    StepRecordResume(ctx, i0);
-    i0 = 4u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Publish the descriptor the caller handed in and flag a '(' that did not open the list.
+    StoreU32(ctx, LoadU32(ctx, scratch_frame + 32u) + 60u, d);
+    scratch = static_cast<uint32_t>(LoadU32(ctx, a + 16u) != 40u);
   }
-  i0 = c;
-  i1 = c;
-  i1 = !(i1);
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  c = i0;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = c;
-    if (i0) {
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 48u);
-      l8 = i0;
-      i0 = LoadU32(ctx, i0);
-      l9 = i0;
-      goto block_14;
+  if (scratch != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      container = LoadU32(ctx, a + 52u);
     }
-  }
-  i0 = l6;
-  i1 = 5u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = kF1118MsgSelf;
-    i2 = 4u;
-    i0 = BindUpvalueCell(ctx, i0, i1, i2);
-    l5 = i0;
-    i0 = 5u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l5;
-    c = i0;
-  }
-  i0 = l6;
-  i1 = 6u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = c;
-    i2 = 0u;
-    DeclareLocalVariable(ctx, i0, i1, i2);
-    i0 = 6u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 48u);
-    l8 = i0;
-    i0 = LoadU8(ctx, i0 + 50u);
-    i1 = 1u;
-    i0 += i1;
-    c = i0;
-    i0 = l8;
-    i1 = c;
-    StoreU8(ctx, i0 + 50u, i1);
-    i0 = l8;
-    i0 = LoadU32(ctx, i0);
-    l9 = i0;
-    i0 = LoadU32(ctx, i0 + 24u);
-    i1 = l8;
-    i2 = c;
-    i3 = 255u;
-    i2 &= i3;
-    i3 = 1u;
-    i2 <<= (i3 & 31);
-    i1 += i2;
-    i1 = LoadU16(ctx, i1 + 170u);
-    i2 = 12u;
-    i1 *= i2;
-    i0 += i1;
-    c = i0;
-    i1 = l8;
-    i1 = LoadU32(ctx, i1 + 24u);
-    l4 = i1;
-    StoreU32(ctx, i0 + 4u, i1);
-  }
-  block_14:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l9;
-    i1 = 0u;
-    StoreU8(ctx, i0 + 74u, i1);
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l7 = i0;
-    i1 = 41u;
-    i0 = i0 == i1;
-    l11 = i0;
-    i0 = 0u;
-    l4 = i0;
-    i0 = 0u;
-    c = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  i1 = 0u;
-  i2 = l11;
-  i0 = i2 ? i0 : i1;
-  if (i0) {goto block_21;}
-  loop_22: 
-    i0 = l4;
-    i1 = l7;
-    i2 = 279u;
-    i1 -= i2;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l4 = i0;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l4;
-      switch (i0) {
-        case 0: goto block_25;
-        case 1: goto block_24;
-        case 2: goto block_24;
-        case 3: goto block_24;
-        case 4: goto block_24;
-        case 5: goto block_24;
-        case 6: goto block_27;
-        default: goto block_24;
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFormatCharCall) : 1u) {
+      call_result = FormatCharValue(ctx, a, 40u);
+      resume_code = kFormatCharCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
       }
-      block_27:;
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 24u);
-      l7 = i0;
+      scratch = call_result;
     }
-    i0 = l6;
-    i1 = 7u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      StepRecordResume(ctx, i0);
-      i0 = 7u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, scratch_frame + 16u, scratch);
+      scratch = scratch_frame + 16u;
     }
-    i0 = l6;
-    i1 = 8u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = l7;
-      i2 = c;
-      DeclareLocalVariable(ctx, i0, i1, i2);
-      i0 = 8u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = c;
-      i1 = 1u;
-      i0 += i1;
-      c = i0;
-      goto block_23;
-    }
-    block_25:;
-    i0 = l6;
-    i1 = 9u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      StepRecordResume(ctx, i0);
-      i0 = 9u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = l6;
-    i1 = 10u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = kF1118Const2B738;
-      i2 = 3u;
-      i0 = BindUpvalueCell(ctx, i0, i1, i2);
-      l5 = i0;
-      i0 = 10u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l5;
-      l4 = i0;
-    }
-    i0 = l6;
-    i1 = 11u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = l4;
-      i2 = c;
-      DeclareLocalVariable(ctx, i0, i1, i2);
-      i0 = 11u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l9;
-      i1 = 7u;
-      StoreU8(ctx, i0 + 74u, i1);
-      i0 = c;
-      i1 = 1u;
-      i0 += i1;
-      c = i0;
-      i0 = 1u;
-      l4 = i0;
-      goto block_21;
-    }
-    block_24:;
-    i0 = l6;
-    i1 = 12u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = kF1118MsgNameOrExpected;
-      RaiseSyntaxError(ctx, i0, i1);
-      i0 = 12u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    block_23:;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l9;
-      i0 = LoadU8(ctx, i0 + 74u);
-      l7 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l7;
-      if (i0) {goto block_37;}
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 16u);
-      i1 = 44u;
-      i0 = i0 != i1;
-      l4 = i0;
-      if (i0) {goto block_37;}
-    }
-    i0 = l6;
-    i1 = 13u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      StepRecordResume(ctx, i0);
-      i0 = 13u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 16u);
-      l7 = i0;
-      goto loop_22;
-    }
-    block_37:;
-  i0 = l4;
-  i1 = l7;
-  i2 = 1u;
-  i1 &= i2;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  l4 = i0;
-  block_21:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 48u);
-    l7 = i0;
-    i0 = LoadU8(ctx, i0 + 50u);
-    i1 = c;
-    i0 += i1;
-    l11 = i0;
-    i0 = l7;
-    i1 = l11;
-    StoreU8(ctx, i0 + 50u, i1);
-    i0 = c;
-    if (i0) {
-      i0 = l11;
-      i1 = 255u;
-      i0 &= i1;
-      l11 = i0;
-      i0 = l7;
-      i0 = LoadU32(ctx, i0 + 24u);
-      l5 = i0;
-      i0 = l7;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 24u);
-      l12 = i0;
-      loop_43: 
-        i0 = l12;
-        i1 = l11;
-        i2 = c;
-        i1 -= i2;
-        i2 = 1u;
-        i1 <<= (i2 & 31);
-        i2 = l7;
-        i1 += i2;
-        i1 = LoadU16(ctx, i1 + 172u);
-        i2 = 12u;
-        i1 *= i2;
-        i0 += i1;
-        i1 = l5;
-        StoreU32(ctx, i0 + 4u, i1);
-        i0 = c;
-        i1 = 1u;
-        i0 -= i1;
-        c = i0;
-        if (i0) {goto loop_43;}
-    }
-    i0 = l9;
-    i1 = l8;
-    i1 = LoadU8(ctx, i1 + 50u);
-    c = i1;
-    i2 = l4;
-    i1 -= i2;
-    l4 = i1;
-    StoreU8(ctx, i0 + 73u, i1);
-  }
-  i0 = l6;
-  i1 = 14u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l8;
-    i1 = c;
-    ReserveRegisters(ctx, i0, i1);
-    i0 = 14u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 16u);
-    i1 = 41u;
-    i0 = i0 != i1;
-    c = i0;
-  }
-  i0 = c;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 52u);
-      c = i0;
-    }
-    i0 = l6;
-    i1 = 15u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = 41u;
-      i0 = FormatCharValue(ctx, i0, i1);
-      l5 = i0;
-      i0 = 15u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l5;
-      l4 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l10;
-      i1 = l4;
-      StoreU32(ctx, i0, i1);
-    }
-    i0 = l6;
-    i1 = 16u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = c;
-      i1 = kF1118MsgSExpected;
-      i2 = l10;
-      i0 = FormatPushString(ctx, i0, i1, i2);
-      l5 = i0;
-      i0 = 16u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l5;
-      c = i0;
-    }
-    i0 = l6;
-    i1 = 17u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = c;
-      RaiseSyntaxError(ctx, i0, i1);
-      i0 = 17u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-  }
-  i0 = l6;
-  i1 = 18u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    StepRecordResume(ctx, i0);
-    i0 = 18u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 52u);
-    c = i0;
-    l4 = i0;
-    i1 = c;
-    i1 = LoadU16(ctx, i1 + 52u);
-    i2 = 1u;
-    i1 += i2;
-    c = i1;
-    StoreU16(ctx, i0 + 52u, i1);
-    i0 = c;
-    i1 = 65535u;
-    i0 &= i1;
-    i1 = 201u;
-    i0 = i0 >= i1;
-    c = i0;
-  }
-  i0 = c;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l6;
-    i1 = 19u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = kF1118MsgChunkHasTooMany;
-      i2 = 0u;
-      LexError(ctx, i0, i1, i2);
-      i0 = 19u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-  }
-  loop_58: 
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 16u);
-      i1 = 260u;
-      i0 -= i1;
-      c = i0;
-      i1 = 27u;
-      i0 = i0 <= i1;
-      l4 = i0;
-      i1 = 0u;
-      i2 = 1u;
-      i3 = c;
-      i2 <<= (i3 & 31);
-      i3 = kF1118Const8010007;
-      i2 &= i3;
-      i0 = i2 ? i0 : i1;
-      i0 = !(i0);
-      c = i0;
-    }
-    i0 = c;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = l6;
-      i1 = 20u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = a;
-        i0 = CompileStatement(ctx, i0);
-        l5 = i0;
-        i0 = 20u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-        i0 = l5;
-        c = i0;
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFormatExpectedCall) : 1u) {
+      call_result = FormatPushString(ctx, container, kParseParamListMsgExpected, scratch);
+      resume_code = kFormatExpectedCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
       }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = a;
-        i0 = LoadU32(ctx, i0 + 16u);
-        i1 = 59u;
-        i0 = i0 == i1;
-        l4 = i0;
+      scratch = call_result;
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSyntaxErrorCall) : 1u) {
+      RaiseSyntaxError(ctx, a, scratch);
+      resume_code = kSyntaxErrorCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
       }
-      i0 = l4;
-      i1 = ResumePhase(ctx);
-      i2 = 2u;
-      i1 = i1 == i2;
-      i0 |= i1;
-      if (i0) {
-        i0 = l6;
-        i1 = 21u;
-        i0 = i0 == i1;
-        i1 = 1u;
-        i2 = ResumePhase(ctx);
-        i0 = i2 ? i0 : i1;
-        if (i0) {
-          i0 = a;
-          StepRecordResume(ctx, i0);
-          i0 = 21u;
-          i1 = ResumePhase(ctx);
-          i2 = 1u;
-          i1 = i1 == i2;
-          if (i1) {goto spill_frame;}
+    }
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kRecordStatementCall) : 1u) {
+    StepRecordResume(ctx, a);
+    resume_code = kRecordStatementCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // A name list rather than a single name: remember whether it was already bound.
+    c = static_cast<uint32_t>(c == 0u);
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (c != 0u) {
+      // The list is non-empty, so no implicit `self` is bound.
+      container = LoadU32(ctx, a + 48u);
+      target = LoadU32(ctx, container);
+      goto parameters_ready;
+    }
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kBindSelfCall) : 1u) {
+    call_result = BindUpvalueCell(ctx, a, kParseParamListNameSelf, 4u);
+    resume_code = kBindSelfCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+    c = call_result;
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kDeclareSelfCall) : 1u) {
+    DeclareLocalVariable(ctx, a, c, 0u);
+    resume_code = kDeclareSelfCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Reserve the slot the next parameter will occupy in the pending-name list.
+    container = LoadU32(ctx, a + 48u);
+    c = LoadU8(ctx, container + 50u) + 1u;
+    StoreU8(ctx, container + 50u, c);
+    target = LoadU32(ctx, container);
+    c = LoadU32(ctx, target + 24u) + LoadU16(ctx, container + 170u + ((c & 255u) << 1u)) * 12u;
+    scratch = LoadU32(ctx, container + 24u);
+    StoreU32(ctx, c + 4u, scratch);
+  }
+  parameters_ready:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Clear the stale list flag before the names are scanned.
+    StoreU8(ctx, target + 74u, 0u);
+    item = LoadU32(ctx, a + 16u);
+    flag = static_cast<uint32_t>(item == 41u);
+    scratch = 0u;
+    c = 0u;
+  }
+  if (flag != 0u && ResumePhase(ctx) == kResumeRunning) {
+    goto parameters_done;
+  }
+  for (;;) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      scratch = item - 279u;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      if (scratch == 0u) {
+        goto bind_self_param;
+      }
+      if (scratch != 6u) {
+        goto name_expected;
+      }
+      item = LoadU32(ctx, a + 24u);
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kRecordParameterCall) : 1u) {
+      StepRecordResume(ctx, a);
+      resume_code = kRecordParameterCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kDeclareNameCall) : 1u) {
+      DeclareLocalVariable(ctx, a, item, c);
+      resume_code = kDeclareNameCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      c = c + 1u;
+      goto parameter_scanned;
+    }
+    bind_self_param:;
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kRecordVarArgCall) : 1u) {
+      StepRecordResume(ctx, a);
+      resume_code = kRecordVarArgCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kBindVarArgCall) : 1u) {
+      call_result = BindUpvalueCell(ctx, a, kParseParamListNameVarArg, 3u);
+      resume_code = kBindVarArgCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+      scratch = call_result;
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kDeclareVarArgCall) : 1u) {
+      DeclareLocalVariable(ctx, a, scratch, c);
+      resume_code = kDeclareVarArgCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU8(ctx, target + 74u, 7u);
+      c = c + 1u;
+      scratch = 1u;
+      goto parameters_done;
+    }
+    name_expected:;
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kNameExpectedCall) : 1u) {
+      RaiseSyntaxError(ctx, a, kParseParamListMsgNameExpected);
+      resume_code = kNameExpectedCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    parameter_scanned:;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      item = LoadU8(ctx, target + 74u);
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      if (item != 0u) {
+        break;
+      }
+      scratch = static_cast<uint32_t>(LoadU32(ctx, a + 16u) != 44u);
+      if (scratch != 0u) {
+        break;
+      }
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kRecordCommaCall) : 1u) {
+      StepRecordResume(ctx, a);
+      resume_code = kRecordCommaCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      item = LoadU32(ctx, a + 16u);
+      continue;
+    }
+    break;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    scratch = item & 1u;
+  }
+  parameters_done:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Publish the collected count and fill the constant-table slots the names reserve.
+    item = LoadU32(ctx, a + 48u);
+    flag = LoadU8(ctx, item + 50u) + c;
+    StoreU8(ctx, item + 50u, flag);
+    if (c != 0u) {
+      flag = flag & 255u;
+      uint32_t const entry_value = LoadU32(ctx, item + 24u);
+      array = LoadU32(ctx, LoadU32(ctx, item) + 24u);
+      do {
+        StoreU32(ctx, array + LoadU16(ctx, item + 172u + ((flag - c) << 1u)) * 12u + 4u, entry_value);
+        c = c - 1u;
+      } while (c != 0u);
+    }
+    c = LoadU8(ctx, container + 50u);
+    scratch = c - scratch;
+    StoreU8(ctx, target + 73u, scratch);
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kReserveRegistersCall) : 1u) {
+    ReserveRegisters(ctx, container, c);
+    resume_code = kReserveRegistersCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    c = static_cast<uint32_t>(LoadU32(ctx, a + 16u) != 41u);
+  }
+  if (c != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      c = LoadU32(ctx, a + 52u);
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFormatCloseCall) : 1u) {
+      call_result = FormatCharValue(ctx, a, 41u);
+      resume_code = kFormatCloseCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+      scratch = call_result;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, scratch_frame, scratch);
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFormatCloseExpectedCall) : 1u) {
+      call_result = FormatPushString(ctx, c, kParseParamListMsgExpected, scratch_frame);
+      resume_code = kFormatCloseExpectedCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+      c = call_result;
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSyntaxErrorCloseCall) : 1u) {
+      RaiseSyntaxError(ctx, a, c);
+      resume_code = kSyntaxErrorCloseCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kRecordListEndCall) : 1u) {
+    StepRecordResume(ctx, a);
+    resume_code = kRecordListEndCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Count one syntax level for this list and flag a level count that is already too deep.
+    c = LoadU32(ctx, a + 52u);
+    scratch = c;
+    c = LoadU16(ctx, scratch + 52u) + 1u;
+    StoreU16(ctx, scratch + 52u, c);
+    c = static_cast<uint32_t>((c & 65535u) >= 201u);
+  }
+  if (c != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSyntaxLevelsCall) : 1u) {
+      LexError(ctx, a, kParseParamListMsgChunkTooDeep, 0u);
+      resume_code = kSyntaxLevelsCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+  }
+  for (;;) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Body statements are compiled to fill the parameter list's closing match.
+      c = LoadU32(ctx, a + 16u) - 260u;
+      scratch = static_cast<uint32_t>(c <= 27u);
+      uint32_t const bit_set = static_cast<uint32_t>(((1u << (c & 31u)) & kParseParamListStatementTokenMask) != 0u);
+      c = static_cast<uint32_t>((bit_set != 0u ? scratch : 0u) == 0u);
+    }
+    if (c != 0u || ResumePhase(ctx) == kResumeRewinding) {
+      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kCompileStatementCall) : 1u) {
+        call_result = CompileStatement(ctx, a);
+        resume_code = kCompileStatementCall;
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          goto suspend_point;
+        }
+        c = call_result;
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        scratch = static_cast<uint32_t>(LoadU32(ctx, a + 16u) == 59u);
+      }
+      if (scratch != 0u || ResumePhase(ctx) == kResumeRewinding) {
+        if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kRecordBodyCall) : 1u) {
+          StepRecordResume(ctx, a);
+          resume_code = kRecordBodyCall;
+          if (ResumePhase(ctx) == kResumeSuspended) {
+            goto suspend_point;
+          }
         }
       }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = a;
-        i0 = LoadU32(ctx, i0 + 48u);
-        l8 = i0;
-        i0 = LoadU8(ctx, i0 + 50u);
-        l4 = i0;
-        i0 = l8;
-        i1 = l4;
-        StoreU32(ctx, i0 + 36u, i1);
-        i0 = c;
-        i0 = !(i0);
-        c = i0;
-        if (i0) {goto loop_58;}
+      if (ResumePhase(ctx) == kResumeRunning) {
+        container = LoadU32(ctx, a + 48u);
+        scratch = LoadU8(ctx, container + 50u);
+        StoreU32(ctx, container + 36u, scratch);
+        c = static_cast<uint32_t>(c == 0u);
+        if (c != 0u) {
+          continue;
+        }
       }
     }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 52u);
-    c = i0;
-    i0 = LoadU16(ctx, i0 + 52u);
-    i1 = 1u;
-    i0 -= i1;
-    l4 = i0;
-    i0 = c;
-    i1 = l4;
-    StoreU16(ctx, i0 + 52u, i1);
-    i0 = l10;
-    i0 = LoadU32(ctx, i0 + 32u);
-    c = i0;
-    i1 = a;
-    i1 = LoadU32(ctx, i1 + 4u);
-    l4 = i1;
-    StoreU32(ctx, i0 + 64u, i1);
+    break;
   }
-  i0 = l6;
-  i1 = 22u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = 262u;
-    i2 = 265u;
-    i3 = d;
-    CheckClosingMatch(ctx, i0, i1, i2, i3);
-    i0 = 22u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Close the list: hand the level count back and publish the parameter count.
+    c = LoadU32(ctx, a + 52u);
+    scratch = LoadU16(ctx, c + 52u) - 1u;
+    StoreU16(ctx, c + 52u, scratch);
+    c = LoadU32(ctx, scratch_frame + 32u);
+    scratch = LoadU32(ctx, a + 4u);
+    StoreU32(ctx, c + 64u, scratch);
   }
-  i0 = l6;
-  i1 = 23u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    PatchUpvalueJumpTarget(ctx, i0);
-    i0 = 23u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kCheckClosingMatchCall) : 1u) {
+    CheckClosingMatch(ctx, a, 262u, 265u, d);
+    resume_code = kCheckClosingMatchCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 48u);
-    l8 = i0;
-    i0 = LoadU32(ctx, i0 + 44u);
-    l4 = i0;
-    i0 = l4;
-    i1 = l8;
-    i1 = LoadU32(ctx, i1);
-    d = i1;
-    i1 = LoadU32(ctx, i1 + 52u);
-    c = i1;
-    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-    l4 = i0;
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kPatchUpvalueCall) : 1u) {
+    PatchUpvalueJumpTarget(ctx, a);
+    resume_code = kPatchUpvalueCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    if (i0) {goto block_72;}
-    i0 = d;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l7 = i0;
-    i0 = d;
-    i1 = 52u;
-    i0 += i1;
-    l9 = i0;
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 52u);
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Type the parameter table: a table that cannot take another entry has to grow.
+    container = LoadU32(ctx, a + 48u);
+    scratch = LoadU32(ctx, container + 44u);
+    d = LoadU32(ctx, container);
+    c = LoadU32(ctx, d + 52u);
+    scratch = static_cast<uint32_t>(static_cast<int32_t>(scratch) < static_cast<int32_t>(c));
   }
-  i0 = l6;
-  i1 = 24u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l4;
-    i1 = l7;
-    i2 = l9;
-    i3 = 4u;
-    i4 = kF1118Const3FFFF;
-    i5 = kF1118MsgConstantTableOverflow;
-    i0 = GrowArray(ctx, i0, i1, i2, i3, i4, i5);
-    l5 = i0;
-    i0 = 24u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l5;
-    l7 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (scratch != 0u) {
+      goto constant_table_done;
+    }
+    item = LoadU32(ctx, d + 16u);
+    target = d + 52u;
+    scratch = LoadU32(ctx, a + 52u);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = d;
-    i1 = l7;
-    StoreU32(ctx, i0 + 16u, i1);
-    i0 = d;
-    i0 = LoadU32(ctx, i0 + 52u);
-    l9 = i0;
-    i1 = c;
-    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-    if (i0) {goto block_72;}
-    i0 = l7;
-    i1 = c;
-    i2 = 2u;
-    i1 <<= (i2 & 31);
-    i0 += i1;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l9;
-    i1 = c;
-    i2 = 1u;
-    i1 += i2;
-    c = i1;
-    i0 = i0 == i1;
-    if (i0) {goto block_72;}
-    loop_76: 
-      i0 = d;
-      i0 = LoadU32(ctx, i0 + 16u);
-      i1 = c;
-      i2 = 2u;
-      i1 <<= (i2 & 31);
-      i0 += i1;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = l9;
-      i1 = c;
-      i2 = 1u;
-      i1 += i2;
-      c = i1;
-      i0 = i0 != i1;
-      if (i0) {goto loop_76;}
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kGrowConstantsCall) : 1u) {
+    call_result = GrowArray(ctx, scratch, item, target, 4u, kParseParamListMaxConstantCount,
+                            kParseParamListMsgConstantOverflow);
+    resume_code = kGrowConstantsCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+    item = call_result;
   }
-  block_72:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = d;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l9 = i0;
-    i0 = l10;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l7 = i0;
-    i0 = l8;
-    i1 = l8;
-    i1 = LoadU32(ctx, i1 + 44u);
-    l4 = i1;
-    i2 = 1u;
-    i1 += i2;
-    c = i1;
-    StoreU32(ctx, i0 + 44u, i1);
-    i0 = l9;
-    i1 = l4;
-    i2 = 2u;
-    i1 <<= (i2 & 31);
-    i0 += i1;
-    i1 = l7;
-    StoreU32(ctx, i0, i1);
-    i0 = l10;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l9 = i0;
-    i0 = LoadU8(ctx, i0 + 5u);
-    i1 = 3u;
-    i0 &= i1;
-    i0 = !(i0);
-    if (i0) {goto block_78;}
-    i0 = d;
-    i0 = LoadU8(ctx, i0 + 5u);
-    i1 = 4u;
-    i0 &= i1;
-    i0 = !(i0);
-    if (i0) {goto block_78;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 52u);
-    i1 = d;
-    i2 = l9;
-    StoreListEntry(ctx, i0, i1, i2);
-    i0 = l8;
-    i0 = LoadU32(ctx, i0 + 44u);
-    c = i0;
-    block_78:;
-    i0 = c;
-    i1 = 1u;
-    i0 -= i1;
-    c = i0;
-    i0 = 0u;
-    a = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Store the grown table and clear the entries the old one left behind.
+    StoreU32(ctx, d + 16u, item);
+    target = LoadU32(ctx, d + 52u);
+    if (static_cast<int32_t>(target) <= static_cast<int32_t>(c)) {
+      goto constant_table_done;
+    }
+    StoreU32(ctx, item + (c << 2u), 0u);
+    c = c + 1u;
+    if (target != c) {
+      do {
+        StoreU32(ctx, LoadU32(ctx, d + 16u) + (c << 2u), 0u);
+        c = c + 1u;
+      } while (target != c);
+    }
   }
-  i0 = l6;
-  i1 = 25u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l8;
-    i1 = 36u;
-    i2 = 0u;
-    i3 = c;
-    i0 = EmitInstructionABC(ctx, i0, i1, i2, i3);
-    l5 = i0;
-    i0 = 25u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l5;
-    c = i0;
+  constant_table_done:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Append the entry for this parameter to the list the caller is filling in.
+    target = LoadU32(ctx, d + 16u);
+    item = LoadU32(ctx, scratch_frame + 32u);
+    scratch = LoadU32(ctx, container + 44u);
+    c = scratch + 1u;
+    StoreU32(ctx, container + 44u, c);
+    StoreU32(ctx, target + (scratch << 2u), item);
+    target = LoadU32(ctx, scratch_frame + 32u);
+    if ((LoadU8(ctx, target + 5u) & 3u) != 0u && (LoadU8(ctx, d + 5u) & 4u) != 0u) {
+      StoreListEntry(ctx, LoadU32(ctx, a + 52u), d, target);
+      c = LoadU32(ctx, container + 44u);
+    }
+    c = c - 1u;
+    a = 0u;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = b;
-    j1 = 18446744073709551615ull;
-    StoreU64(ctx, i0 + 16u, j1);
-    i0 = b;
-    i1 = c;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = b;
-    i1 = 11u;
-    StoreU32(ctx, i0, i1);
-    i0 = l10;
-    i0 = LoadU32(ctx, i0 + 32u);
-    i0 = LoadU8(ctx, i0 + 72u);
-    b = i0;
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kEmitClosureCall) : 1u) {
+    call_result = EmitInstructionABC(ctx, container, 36u, 0u, c);
+    resume_code = kEmitClosureCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+    c = call_result;
   }
-  i0 = b;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    loop_83: 
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = l10;
-        i1 = 32u;
-        i0 += i1;
-        i1 = a;
-        i2 = 1u;
-        i1 <<= (i2 & 31);
-        i0 += i1;
-        b = i0;
-        i0 = LoadU8(ctx, i0 + 51u);
-        i1 = 6u;
-        i0 = i0 != i1;
-        i1 = 2u;
-        i0 <<= (i1 & 31);
-        c = i0;
-        i0 = b;
-        i0 = LoadU8(ctx, i0 + 52u);
-        b = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Hand the closure and the parameter count back through the descriptor.
+    StoreU64(ctx, b + 16u, 18446744073709551615ull);
+    StoreU32(ctx, b + 8u, c);
+    StoreU32(ctx, b, 11u);
+    b = LoadU8(ctx, LoadU32(ctx, scratch_frame + 32u) + 72u);
+  }
+  if (b != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    for (;;) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // One register per parameter slot: load the argument and pass it on.
+        b = scratch_frame + 32u + (a << 1u);
+        c = static_cast<uint32_t>(LoadU8(ctx, b + 51u) != 6u) << 2u;
+        b = LoadU8(ctx, b + 52u);
       }
-      i0 = l6;
-      i1 = 26u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = l8;
-        i1 = c;
-        i2 = 0u;
-        i3 = b;
-        i4 = 0u;
-        i0 = EmitOpInstruction(ctx, i0, i1, i2, i3, i4);
-        i0 = 26u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
+      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kEmitParameterCall) : 1u) {
+        (void)EmitOpInstruction(ctx, container, c, 0u, b, 0u);
+        resume_code = kEmitParameterCall;
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          goto suspend_point;
+        }
       }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = a;
-        i1 = 1u;
-        i0 += i1;
-        a = i0;
-        i1 = l10;
-        i1 = LoadU32(ctx, i1 + 32u);
-        i1 = LoadU8(ctx, i1 + 72u);
-        i0 = i0 < i1;
-        b = i0;
-        if (i0) {goto loop_83;}
+      if (ResumePhase(ctx) == kResumeRunning) {
+        a = a + 1u;
+        b = static_cast<uint32_t>(a < LoadU8(ctx, LoadU32(ctx, scratch_frame + 32u) + 72u));
+        if (b != 0u) {
+          continue;
+        }
       }
+      break;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l10;
-    i1 = 608u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    GuestStackSp(ctx) = scratch_frame + 608u;
   }
-  goto func_exit;
-  spill_frame:;
-  l5 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l5;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1118ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l5 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l5;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l5;
-  i1 = c;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l5;
-  i1 = d;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l5;
-  i1 = l4;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l5;
-  i1 = l7;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l5;
-  i1 = l8;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = l5;
-  i1 = l9;
-  StoreU32(ctx, i0 + 28u, i1);
-  i0 = l5;
-  i1 = l10;
-  StoreU32(ctx, i0 + 32u, i1);
-  i0 = l5;
-  i1 = l11;
-  StoreU32(ctx, i0 + 36u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 40u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto exit_path;
+suspend_point:;
+  {
+    // Suspend: store the code of the call in flight, step past it, then push the 40-byte frame
+    // a rewinding pass reads back -- one word per slot, in the order they were saved.
+    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
+    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, saved_frame, a);
+    StoreU32(ctx, saved_frame + 4u, b);
+    StoreU32(ctx, saved_frame + 8u, c);
+    StoreU32(ctx, saved_frame + 12u, d);
+    StoreU32(ctx, saved_frame + 16u, scratch);
+    StoreU32(ctx, saved_frame + 20u, item);
+    StoreU32(ctx, saved_frame + 24u, container);
+    StoreU32(ctx, saved_frame + 28u, target);
+    StoreU32(ctx, saved_frame + 32u, scratch_frame);
+    StoreU32(ctx, saved_frame + 36u, flag);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
+  }
+exit_path:;
   LeaveFrame();
 }
-}
+
+}  // namespace artc

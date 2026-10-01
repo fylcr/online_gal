@@ -1,132 +1,59 @@
-// grow_value_stack.cpp -- grows the value stack: the stack is reallocated and the live slots are relocated..
-//
-// GrowValueStack -- grows the value stack: the stack is reallocated and the live slots are relocated.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 133224-133224 (f289); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Moves the record's live slots into a freshly allocated one.
 void RelocateElementArray(EngineContext* ctx, uint32_t state, uint32_t table);
 
-namespace {
-
-constexpr uint32_t kF289SaveFrameBytes = 8u;
-constexpr uint32_t kF289ResumeWordBytes = 4u;
-
-}  // namespace
-
-void GrowValueStack(EngineContext* ctx, uint32_t a, uint32_t b) {
+// Grows the value stack: reallocates the record so it can hold at least `needed`
+// slots past its live count, and moves the slots that are already there. Returns
+// nothing. Suspendable -- the reallocation can suspend.
+void GrowValueStack(EngineContext* ctx, uint32_t record, uint32_t needed) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF289SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l2 = i0;
+  // Which call site suspended this body; zero is the relocation below, the only one
+  // there is.
+  uint32_t resume_point = 0u;
+  // How many slots the record can hold, once the running pass has sized it.
+  uint32_t capacity = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 8-byte frame the suspend path saved.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 8u);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    capacity = LoadU32(ctx, frame);
+    record = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF289ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume point pushed with that frame.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    l2 = i0;
-    i0 = b;
-    i1 = a;
-    i1 = LoadU32(ctx, i1 + 44u);
-    a = i1;
-    i0 += i1;
-    i1 = a;
-    i2 = 1u;
-    i1 <<= (i2 & 31);
-    i2 = a;
-    i3 = b;
-    i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
-    i0 = i2 ? i0 : i1;
-    a = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The new size is the live count plus `needed`, unless the count has already
+    // caught up with `needed`, in which case it doubles.
+    uint32_t const slots = LoadU32(ctx, record + 44u);
+    capacity = static_cast<int32_t>(slots) < static_cast<int32_t>(needed) ? needed + slots : slots << 1;
   }
-  i0 = l3;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l2;
-    i1 = a;
-    RelocateElementArray(ctx, i0, i1);
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  uint32_t issue_relocate = static_cast<uint32_t>(!resume_point);
+  issue_relocate = ResumePhase(ctx) != kResumeRunning ? issue_relocate : 1u;
+  if (issue_relocate) {
+    RelocateElementArray(ctx, record, capacity);
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto spill_point;
+    }
   }
-  goto func_exit;
-  spill_frame:;
-  b = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = b;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF289ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  b = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = b;
-  i1 = l2;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 8u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
   LeaveFrame();
+  return;
+spill_point:;
+  // Suspend: push the resume point, then the 8-byte frame holding the new capacity
+  // and the record whose slots are being moved.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), 0u);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
+  uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, saved_frame, capacity);
+  StoreU32(ctx, saved_frame + 4u, record);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 8u);
+  LeaveFrame();
+  return;
 }
-}
+
+}  // namespace artc

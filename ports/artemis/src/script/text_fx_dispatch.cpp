@@ -1,23 +1,8 @@
-// text_fx_dispatch.cpp -- the text effect dispatch step: the pending text-effect slots are advanced one message layer step..
-//
-// MessageLayer::TextFxDispatch -- the text effect dispatch step: the pending text-effect slots are advanced one message layer step.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 1435388-1435388 (f3196); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations for the callees this step calls.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 uint32_t PushObjectDequeElement(EngineContext* ctx, uint32_t a0, uint32_t a1);
 void Panic(EngineContext* ctx, uint32_t a0);
@@ -25,41 +10,38 @@ uint32_t CompareBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2)
 uint32_t CopyBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 void ReleaseNodeTree(EngineContext* ctx, uint32_t state, uint32_t node);
 
-namespace {
-
-constexpr uint32_t kF3196ConstB5EC4 = 0xB5EC4u;  // 
-constexpr uint32_t kF3196ConstB5F40 = 0xB5F40u;  // 
-constexpr uint32_t kF3196MsgPrint = 0xB9B20u;  // print
-constexpr uint32_t kF3196MsgFont = 0xB9B26u;  // font
-constexpr uint32_t kF3196MsgFontX = 0xB9B2Bu;  // /font
-constexpr uint32_t kF3196ConstB9B45 = 0xB9B45u;  // 
-constexpr uint32_t kF3196MsgOmitblankline = 0xB9B48u;  // omitblankline
-constexpr uint32_t kF3196ConstB9B4D = 0xB9B4Du;  // 
-constexpr uint32_t kF3196ConstB9B56 = 0xB9B56u;  // 
-constexpr uint32_t kF3196MsgExcludeBacklog = 0xB9B58u;  // exclude_backlog
-constexpr uint32_t kF3196ConstB9B5F = 0xB9B5Fu;  // 
-constexpr uint32_t kF3196MsgRuby = 0xB9B68u;  // ruby
-constexpr uint32_t kF3196ConstB9B6D = 0xB9B6Du;  // 
-constexpr uint32_t kF3196MsgRubyX = 0xB9B6Eu;  // /ruby
-constexpr uint32_t kF3196MsgVoice = 0xB9B74u;  // voice
-constexpr uint32_t kF3196MsgVoiceX = 0xB9B7Au;  // /voice
-constexpr uint32_t kF3196ConstBA360 = 0xBA360u;  // 
-constexpr uint32_t kF3196MsgPx = 0xBA361u;  // px != 0
-constexpr uint32_t kF3196MsgBoostBoostSmartPtr = 0xBA369u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
-constexpr uint32_t kF3196MsgOperator = 0xBA3A1u;  // operator->
-constexpr uint32_t kF3196ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF3196Const61746164 = 0x61746164u;  // 
-constexpr uint32_t kF3196Const74786574 = 0x74786574u;  // 
-constexpr uint32_t kF3196ConstFFFFFFFE = 0xFFFFFFFEu;  // 
-constexpr uint32_t kF3196ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF3196SaveFrameBytes = 128u;
-constexpr uint32_t kF3196ResumeWordBytes = 4u;
-
-}  // namespace
-
 namespace MessageLayer {
+// MessageLayer::TextFxDispatch -- the text effect dispatch step: the pending
+// text-effect slots are advanced one message layer step.
+
 void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e) {
   EnterFrame();
+  constexpr uint32_t kDataB5EC4 = 0xB5EC4u;
+  constexpr uint32_t kDataB5F40 = 0xB5F40u;
+  constexpr uint32_t kMsgPrint = 0xB9B20u;  // print
+  constexpr uint32_t kMsgFont = 0xB9B26u;  // font
+  constexpr uint32_t kMsgFontX = 0xB9B2Bu;  // /font
+  constexpr uint32_t kDataB9B45 = 0xB9B45u;
+  constexpr uint32_t kMsgOmitblankline = 0xB9B48u;  // omitblankline
+  constexpr uint32_t kDataB9B4D = 0xB9B4Du;
+  constexpr uint32_t kDataB9B56 = 0xB9B56u;
+  constexpr uint32_t kMsgExcludeBacklog = 0xB9B58u;  // exclude_backlog
+  constexpr uint32_t kDataB9B5F = 0xB9B5Fu;
+  constexpr uint32_t kMsgRuby = 0xB9B68u;  // ruby
+  constexpr uint32_t kDataB9B6D = 0xB9B6Du;
+  constexpr uint32_t kMsgRubyX = 0xB9B6Eu;  // /ruby
+  constexpr uint32_t kMsgVoice = 0xB9B74u;  // voice
+  constexpr uint32_t kMsgVoiceX = 0xB9B7Au;  // /voice
+  constexpr uint32_t kDataBA360 = 0xBA360u;
+  constexpr uint32_t kMsgPx = 0xBA361u;  // px != 0
+  constexpr uint32_t kMsgSmartPtrPath = 0xBA369u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
+  constexpr uint32_t kMsgOperator = 0xBA3A1u;  // operator->
+  constexpr uint32_t kData61746164 = 0x61746164u;
+  constexpr uint32_t kData74786574 = 0x74786574u;
+  constexpr uint32_t kDataFFFFFFFE = 0xFFFFFFFEu;
+  constexpr uint32_t kDataFFFFFFFF = 0xFFFFFFFFu;
+  constexpr uint32_t kSaveFrameBytes = 128u;
+  constexpr uint32_t kResumeWordBytes = 4u;
   uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l14 = 0u; uint32_t l15 = 0u; uint32_t l16 = 0u; uint32_t l17 = 0u; uint32_t l18 = 0u; uint32_t l19 = 0u; uint32_t l20 = 0u; uint32_t l21 = 0u; uint32_t l22 = 0u; uint32_t l23 = 0u; uint32_t l24 = 0u; uint32_t l25 = 0u; uint32_t l26 = 0u; uint32_t l27 = 0u; uint32_t l28 = 0u; uint32_t l29 = 0u; uint64_t l30 = 0; uint64_t l31 = 0; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u; uint32_t i6 = 0u;
   uint64_t j0 = 0; uint64_t j1 = 0;
@@ -73,7 +55,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kF3196SaveFrameBytes;
+    i2 = kSaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -176,7 +158,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kF3196ResumeWordBytes;
+    i2 = kResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -376,7 +358,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -388,10 +370,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kF3196MsgPx;
-        i2 = kF3196MsgBoostBoostSmartPtr;
+        i1 = kMsgPx;
+        i2 = kMsgSmartPtrPath;
         i3 = 734u;
-        i4 = kF3196MsgOperator;
+        i4 = kMsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 1u;
         i1 = ResumePhase(ctx);
@@ -402,10 +384,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -413,7 +395,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_5;}
-        goto running_exit;
+        goto exit_path;
       }
     }
     i0 = ResumePhase(ctx);
@@ -444,7 +426,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i1 += i2;
       i2 = 68u;
       i0 = CopyBytes(ctx, i0, i1, i2);
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l13;
@@ -479,10 +461,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -490,7 +472,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = i0 == i1;
       l5 = i0;
       if (i0) {goto block_17;}
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l13;
@@ -526,10 +508,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     if (i0) {
       i0 = c;
     } else {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l13 = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l13;
@@ -651,7 +633,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     if (i0) {
       i0 = l9;
       if (i0) {goto block_38;}
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -665,8 +647,8 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = 1354u;
       i1 = l10;
       i2 = 0u;
-      i3 = kF3196ConstFFFFFFFF;
-      i4 = kF3196MsgPrint;
+      i3 = kDataFFFFFFFF;
+      i4 = kMsgPrint;
       i5 = 5u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -681,10 +663,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l7 = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l7;
@@ -726,12 +708,12 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i1 = 0u;
           StoreU8(ctx, i0 + 220u, i1);
           i0 = l6;
-          i1 = kF3196Const61746164;
+          i1 = kData61746164;
           StoreU32(ctx, i0 + 216u, i1);
           i0 = l6;
           i1 = 4u;
           StoreU8(ctx, i0 + 227u, i1);
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -771,7 +753,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i1 = c;
           i2 = l5;
           i3 = l7;
-          i4 = kF3196ConstBA360;
+          i4 = kDataBA360;
           i5 = l10;
           i6 = l15;
           HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -784,10 +766,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -814,7 +796,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = c;
           i0 = LoadU8(ctx, i0 + 39u);
           c = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -863,10 +845,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -876,7 +858,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           if (i0) {goto block_50;}
           i0 = l6;
           i0 = LoadS8(ctx, i0 + 227u);
-          i1 = kF3196ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           c = i0;
           if (i0) {
@@ -898,7 +880,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = HostTempRet0(ctx);
           i0 = l6;
           i0 = LoadS8(ctx, i0 + 227u);
-          i1 = kF3196ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           a = i0;
           if (i0) {
@@ -932,7 +914,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -944,10 +926,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kF3196MsgPx;
-          i2 = kF3196MsgBoostBoostSmartPtr;
+          i1 = kMsgPx;
+          i2 = kMsgSmartPtrPath;
           i3 = 734u;
-          i4 = kF3196MsgOperator;
+          i4 = kMsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 7u;
           i1 = ResumePhase(ctx);
@@ -958,10 +940,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -969,7 +951,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = i0 != i1;
           a = i0;
           if (i0) {goto block_5;}
-          goto running_exit;
+          goto exit_path;
         }
       }
       i0 = ResumePhase(ctx);
@@ -979,12 +961,12 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i1 = 0u;
         StoreU8(ctx, i0 + 220u, i1);
         i0 = l6;
-        i1 = kF3196Const61746164;
+        i1 = kData61746164;
         StoreU32(ctx, i0 + 216u, i1);
         i0 = l6;
         i1 = 4u;
         StoreU8(ctx, i0 + 227u, i1);
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l6;
@@ -1024,7 +1006,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i1 = l5;
         i2 = l7;
         i3 = l10;
-        i4 = kF3196ConstBA360;
+        i4 = kDataBA360;
         i5 = l15;
         i6 = l9;
         HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -1037,10 +1019,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l7 = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l7;
@@ -1061,7 +1043,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         l7 = i0;
         i0 = l15;
         i0 = LoadS8(ctx, i0 + 39u);
-        i1 = kF3196ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l7;
@@ -1073,7 +1055,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         l5 = i0;
         i0 = LoadU32(ctx, i0 + 352u);
         l15 = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1100,10 +1082,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         c = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -1113,7 +1095,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         if (i0) {goto block_66;}
         i0 = l6;
         i0 = LoadS8(ctx, i0 + 227u);
-        i1 = kF3196ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         c = i0;
         if (i0) {
@@ -1135,7 +1117,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = HostTempRet0(ctx);
         i0 = l6;
         i0 = LoadS8(ctx, i0 + 227u);
-        i1 = kF3196ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         a = i0;
         if (i0) {
@@ -1153,7 +1135,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto running_exit;}
+    if (i0) {goto exit_path;}
     block_38:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -1177,7 +1159,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     if (i0) {
       i0 = l9;
       if (i0) {goto block_75;}
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1191,8 +1173,8 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = 1354u;
       i1 = l10;
       i2 = 0u;
-      i3 = kF3196ConstFFFFFFFF;
-      i4 = kF3196ConstB9B45;
+      i3 = kDataFFFFFFFF;
+      i4 = kDataB9B45;
       i5 = 2u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -1207,10 +1189,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l7 = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l7;
@@ -1253,7 +1235,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -1265,10 +1247,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kF3196MsgPx;
-          i2 = kF3196MsgBoostBoostSmartPtr;
+          i1 = kMsgPx;
+          i2 = kMsgSmartPtrPath;
           i3 = 734u;
-          i4 = kF3196MsgOperator;
+          i4 = kMsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 11u;
           i1 = ResumePhase(ctx);
@@ -1279,10 +1261,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -1290,13 +1272,13 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = i0 != i1;
           a = i0;
           if (i0) {goto block_5;}
-          goto running_exit;
+          goto exit_path;
         }
       }
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1322,10 +1304,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         c = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -1334,11 +1316,11 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         c = i0;
         if (i0) {goto block_78;}
         i0 = l7;
-        i1 = kF3196ConstB9B4D;
+        i1 = kDataB9B4D;
         j1 = LoadU64(ctx, i1);
         StoreU64(ctx, i0 + 5u, j1);
         i0 = l7;
-        i1 = kF3196MsgOmitblankline;
+        i1 = kMsgOmitblankline;
         j1 = LoadU64(ctx, i1);
         l30 = j1;
         StoreU64(ctx, i0, j1);
@@ -1419,7 +1401,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
               goto block_101;
             }
             i0 = l14;
-            i1 = kF3196ConstFFFFFFFF;
+            i1 = kDataFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             l9 = i0;
             if (i0) {goto block_101;}
@@ -1433,7 +1415,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             l14 = i0;
             if (i0) {goto block_105;}
             i0 = l9;
-            i1 = kF3196ConstFFFFFFFF;
+            i1 = kDataFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             l9 = i0;
             if (i0) {goto block_104;}
@@ -1448,7 +1430,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = l22;
           if (i0) {goto block_102;}
           block_104:;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -1474,10 +1456,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           l5 = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l5;
@@ -1495,15 +1477,15 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i1 = 0u;
           StoreU8(ctx, i0 + 13u, i1);
           i0 = c;
-          i1 = kF3196ConstB9B4D;
+          i1 = kDataB9B4D;
           j1 = LoadU64(ctx, i1);
           StoreU64(ctx, i0 + 5u, j1);
           i0 = c;
-          i1 = kF3196MsgOmitblankline;
+          i1 = kMsgOmitblankline;
           j1 = LoadU64(ctx, i1);
           l30 = j1;
           StoreU64(ctx, i0, j1);
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -1543,7 +1525,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i1 = c;
           i2 = l5;
           i3 = l10;
-          i4 = kF3196ConstBA360;
+          i4 = kDataBA360;
           i5 = l9;
           i6 = l14;
           HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -1556,10 +1538,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -1622,7 +1604,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = i0 != i1;
         l9 = i0;
         if (i0) {goto block_97;}
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -1640,8 +1622,8 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = 1354u;
         i1 = c;
         i2 = 0u;
-        i3 = kF3196ConstFFFFFFFF;
-        i4 = kF3196ConstB9B56;
+        i3 = kDataFFFFFFFF;
+        i4 = kDataB9B56;
         i5 = 1u;
         i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
         l8 = i0;
@@ -1656,10 +1638,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -1680,7 +1662,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 364u);
         c = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1704,10 +1686,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         c = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -1719,7 +1701,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         if (i0) {goto block_120;}
         i0 = l6;
         i0 = LoadS8(ctx, i0 + 395u);
-        i1 = kF3196ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         c = i0;
         if (i0) {goto block_120;}
@@ -1759,7 +1741,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       if (i0) {
         i0 = l6;
         i0 = LoadS8(ctx, i0 + 395u);
-        i1 = kF3196ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         a = i0;
         if (i0) {goto block_93;}
@@ -1783,11 +1765,11 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       block_92:;
       i0 = ResumePhase(ctx);
       i0 = !(i0);
-      if (i0) {goto running_exit;}
+      if (i0) {goto exit_path;}
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto running_exit;}
+    if (i0) {goto exit_path;}
     block_78:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -1816,7 +1798,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i3 = 0u;
       i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
       i0 = i2 ? i0 : i1;
-      i1 = kF3196ResumeWordBytes;
+      i1 = kResumeWordBytes;
       i0 = i0 != i1;
       l9 = i0;
     }
@@ -1825,7 +1807,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     if (i0) {
       i0 = l9;
       if (i0) {goto block_127;}
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1839,8 +1821,8 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = 1354u;
       i1 = l10;
       i2 = 0u;
-      i3 = kF3196ConstFFFFFFFF;
-      i4 = kF3196MsgFont;
+      i3 = kDataFFFFFFFF;
+      i4 = kMsgFont;
       i5 = 4u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -1855,10 +1837,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l7 = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l7;
@@ -1901,7 +1883,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -1913,10 +1895,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kF3196MsgPx;
-          i2 = kF3196MsgBoostBoostSmartPtr;
+          i1 = kMsgPx;
+          i2 = kMsgSmartPtrPath;
           i3 = 734u;
-          i4 = kF3196MsgOperator;
+          i4 = kMsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 18u;
           i1 = ResumePhase(ctx);
@@ -1927,10 +1909,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -1938,7 +1920,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = i0 != i1;
           a = i0;
           if (i0) {goto block_5;}
-          goto running_exit;
+          goto exit_path;
         }
       }
       i0 = ResumePhase(ctx);
@@ -1951,7 +1933,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i2 = 68u;
         i0 = CopyBytes(ctx, i0, i1, i2);
         l21 = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -1982,10 +1964,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l7 = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l7;
@@ -2002,7 +1984,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -2036,10 +2018,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           l7 = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l7;
@@ -2051,7 +2033,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             i0 = HostTempRet0(ctx);
             i0 = l6;
             i0 = LoadS8(ctx, i0 + 299u);
-            i1 = kF3196ConstFFFFFFFF;
+            i1 = kDataFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             a = i0;
             if (i0) {goto block_130;}
@@ -2070,12 +2052,12 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = CopyBytes(ctx, i0, i1, i2);
           l22 = i0;
           i0 = l6;
-          i1 = kF3196ConstB5EC4;
+          i1 = kDataB5EC4;
           StoreU32(ctx, i0 + 216u, i1);
           i0 = c;
           i0 = LoadU32(ctx, i0 + 164u);
           c = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -2110,10 +2092,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -2132,7 +2114,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             i1 = 0u;
             StoreU32(ctx, i0 + 224u, i1);
           }
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -2158,10 +2140,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -2170,12 +2152,12 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           c = i0;
           if (i0) {goto block_132;}
           i0 = l7;
-          i1 = kF3196ConstB9B5F;
+          i1 = kDataB9B5F;
           j1 = LoadU64(ctx, i1);
           l30 = j1;
           StoreU64(ctx, i0 + 7u, j1);
           i0 = l7;
-          i1 = kF3196MsgExcludeBacklog;
+          i1 = kMsgExcludeBacklog;
           j1 = LoadU64(ctx, i1);
           l31 = j1;
           StoreU64(ctx, i0, j1);
@@ -2249,7 +2231,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
                   goto block_173;
                 }
                 i0 = l8;
-                i1 = kF3196ConstFFFFFFFF;
+                i1 = kDataFFFFFFFF;
                 i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
                 l5 = i0;
                 if (i0) {goto block_173;}
@@ -2263,7 +2245,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
                 l9 = i0;
                 if (i0) {goto block_177;}
                 i0 = l5;
-                i1 = kF3196ConstFFFFFFFF;
+                i1 = kDataFFFFFFFF;
                 i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
                 l5 = i0;
                 if (i0) {goto block_176;}
@@ -2278,7 +2260,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
               i0 = l29;
               if (i0) {goto block_174;}
               block_176:;
-              i0 = kF3196ConstD015C;
+              i0 = kDataD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
             }
@@ -2304,10 +2286,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kF3196ConstD015C;
+              i0 = kDataD015C;
               i0 = LoadU32(ctx, i0);
               l5 = i0;
-              i0 = kF3196ConstD015C;
+              i0 = kDataD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l5;
@@ -2330,7 +2312,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
               i0 = c;
               j1 = l31;
               StoreU64(ctx, i0, j1);
-              i0 = kF3196ConstD015C;
+              i0 = kDataD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l6;
@@ -2366,7 +2348,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
               i1 = c;
               i2 = l10;
               i3 = l5;
-              i4 = kF3196ConstBA360;
+              i4 = kDataBA360;
               i5 = l9;
               i6 = l14;
               HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -2379,10 +2361,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kF3196ConstD015C;
+              i0 = kDataD015C;
               i0 = LoadU32(ctx, i0);
               c = i0;
-              i0 = kF3196ConstD015C;
+              i0 = kDataD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = c;
@@ -2395,7 +2377,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
               c = i0;
               i0 = LoadS8(ctx, i0 + 39u);
               l5 = i0;
-              i1 = kF3196ConstFFFFFFFF;
+              i1 = kDataFFFFFFFF;
               i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
               l9 = i0;
               if (i0) {goto block_167;}
@@ -2451,7 +2433,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             c = i0;
             goto block_187;
           }
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -2477,10 +2459,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           l5 = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l5;
@@ -2503,7 +2485,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = c;
           j1 = l31;
           StoreU64(ctx, i0, j1);
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -2539,7 +2521,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i1 = c;
           i2 = l10;
           i3 = l5;
-          i4 = kF3196ConstBA360;
+          i4 = kDataBA360;
           i5 = l9;
           i6 = l14;
           HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -2552,10 +2534,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -2597,7 +2579,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l5;
@@ -2615,8 +2597,8 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             i0 = 1354u;
             i1 = c;
             i2 = 0u;
-            i3 = kF3196ConstFFFFFFFF;
-            i4 = kF3196ConstB9B56;
+            i3 = kDataFFFFFFFF;
+            i4 = kDataB9B56;
             i5 = 1u;
             i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
             l8 = i0;
@@ -2632,10 +2614,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           if (i0) {
             i0 = c;
           } else {
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i0 = LoadU32(ctx, i0);
             l5 = i0;
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l5;
@@ -2653,7 +2635,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         if (i0) {
           i0 = l6;
           i0 = LoadS8(ctx, i0 + 195u);
-          i1 = kF3196ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           l5 = i0;
           if (i0) {goto block_187;}
@@ -2668,7 +2650,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         if (i0) {
           i0 = l6;
           i0 = LoadS8(ctx, i0 + 211u);
-          i1 = kF3196ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           l5 = i0;
           if (i0) {
@@ -2703,7 +2685,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -2715,10 +2697,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = i2 ? i0 : i1;
           if (i0) {
             i0 = 857u;
-            i1 = kF3196MsgPx;
-            i2 = kF3196MsgBoostBoostSmartPtr;
+            i1 = kMsgPx;
+            i2 = kMsgSmartPtrPath;
             i3 = 734u;
-            i4 = kF3196MsgOperator;
+            i4 = kMsgOperator;
             HostFailAssertion(ctx, i0, i1, i2, i3, i4);
             i0 = 28u;
             i1 = ResumePhase(ctx);
@@ -2729,10 +2711,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -2740,7 +2722,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             i0 = i0 != i1;
             a = i0;
             if (i0) {goto block_5;}
-            goto running_exit;
+            goto exit_path;
           }
         }
         i0 = ResumePhase(ctx);
@@ -2752,7 +2734,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i1 = l21;
           i2 = 68u;
           i0 = CopyBytes(ctx, i0, i1, i2);
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -2783,10 +2765,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           l7 = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l7;
@@ -2794,7 +2776,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = i0 == i1;
           l5 = i0;
           if (i0) {goto block_155;}
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -2825,10 +2807,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           l7 = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l7;
@@ -2848,7 +2830,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -2876,10 +2858,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -2889,7 +2871,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           if (i0) {goto block_155;}
           i0 = l6;
           i0 = LoadS8(ctx, i0 + 311u);
-          i1 = kF3196ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l6;
@@ -2898,7 +2880,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           }
           i0 = l6;
           i0 = LoadS8(ctx, i0 + 299u);
-          i1 = kF3196ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           c = i0;
           if (i0) {goto block_37;}
@@ -2949,7 +2931,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = HostTempRet0(ctx);
           i0 = l6;
           i0 = LoadS8(ctx, i0 + 195u);
-          i1 = kF3196ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_159;}
@@ -2964,7 +2946,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         if (i0) {
           i0 = l6;
           i0 = LoadS8(ctx, i0 + 211u);
-          i1 = kF3196ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           a = i0;
           if (i0) {
@@ -2990,7 +2972,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         block_154:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
-        if (i0) {goto running_exit;}
+        if (i0) {goto exit_path;}
       }
       i0 = ResumePhase(ctx);
       i0 = !(i0);
@@ -3004,7 +2986,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto running_exit;}
+    if (i0) {goto exit_path;}
     block_132:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -3020,7 +3002,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     if (i0) {
       i0 = l6;
       i0 = LoadS8(ctx, i0 + 311u);
-      i1 = kF3196ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l6;
@@ -3029,7 +3011,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       }
       i0 = l6;
       i0 = LoadS8(ctx, i0 + 299u);
-      i1 = kF3196ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_130;}
@@ -3071,7 +3053,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     if (i0) {
       i0 = l9;
       if (i0) {goto block_229;}
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -3085,8 +3067,8 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = 1354u;
       i1 = l10;
       i2 = 0u;
-      i3 = kF3196ConstFFFFFFFF;
-      i4 = kF3196MsgFontX;
+      i3 = kDataFFFFFFFF;
+      i4 = kMsgFontX;
       i5 = 5u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -3101,10 +3083,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l7 = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l7;
@@ -3279,7 +3261,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -3291,10 +3273,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kF3196MsgPx;
-          i2 = kF3196MsgBoostBoostSmartPtr;
+          i1 = kMsgPx;
+          i2 = kMsgSmartPtrPath;
           i3 = 734u;
-          i4 = kF3196MsgOperator;
+          i4 = kMsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 34u;
           i1 = ResumePhase(ctx);
@@ -3305,10 +3287,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -3316,7 +3298,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = i0 != i1;
           a = i0;
           if (i0) {goto block_5;}
-          goto running_exit;
+          goto exit_path;
         }
       }
       i0 = ResumePhase(ctx);
@@ -3346,7 +3328,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i1 += i2;
         i2 = 68u;
         i0 = CopyBytes(ctx, i0, i1, i2);
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l7;
@@ -3381,10 +3363,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -3392,7 +3374,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = i0 == i1;
         l5 = i0;
         if (i0) {goto block_33;}
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l7;
@@ -3427,10 +3409,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -3453,7 +3435,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto running_exit;}
+    if (i0) {goto exit_path;}
     block_229:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -3468,7 +3450,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i3 = 0u;
       i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
       i0 = i2 ? i0 : i1;
-      i1 = kF3196ResumeWordBytes;
+      i1 = kResumeWordBytes;
       i0 = i0 != i1;
       l9 = i0;
     }
@@ -3477,7 +3459,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     if (i0) {
       i0 = l9;
       if (i0) {goto block_250;}
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -3491,8 +3473,8 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = 1354u;
       i1 = l10;
       i2 = 0u;
-      i3 = kF3196ConstFFFFFFFF;
-      i4 = kF3196MsgRuby;
+      i3 = kDataFFFFFFFF;
+      i4 = kMsgRuby;
       i5 = 4u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -3507,10 +3489,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l7 = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l7;
@@ -3544,7 +3526,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           l15 = i0;
           goto block_37;
         }
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l6;
@@ -3561,7 +3543,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       if (i0) {
         i0 = 996u;
         i1 = c;
-        i2 = kF3196ConstB9B6D;
+        i2 = kDataB9B6D;
         i0 = HostOsQuery(ctx, i0, i1, i2);
         l8 = i0;
         i0 = 38u;
@@ -3575,10 +3557,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         c = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -3590,12 +3572,12 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i1 = 0u;
         StoreU8(ctx, i0 + 220u, i1);
         i0 = l6;
-        i1 = kF3196Const74786574;
+        i1 = kData74786574;
         StoreU32(ctx, i0 + 216u, i1);
         i0 = l6;
         i1 = 4u;
         StoreU8(ctx, i0 + 227u, i1);
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l6;
@@ -3635,7 +3617,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i1 = c;
         i2 = l5;
         i3 = l7;
-        i4 = kF3196ConstBA360;
+        i4 = kDataBA360;
         i5 = l10;
         i6 = l15;
         HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -3648,10 +3630,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         c = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -3664,7 +3646,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       if (i0) {
         i0 = c;
         if (i0) {goto block_263;}
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l6;
@@ -3700,10 +3682,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         c = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -3713,7 +3695,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         if (i0) {goto block_263;}
         i0 = l6;
         i0 = LoadS8(ctx, i0 + 227u);
-        i1 = kF3196ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         c = i0;
         if (i0) {
@@ -3735,7 +3717,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = HostTempRet0(ctx);
         i0 = l6;
         i0 = LoadS8(ctx, i0 + 227u);
-        i1 = kF3196ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         a = i0;
         if (i0) {
@@ -3753,7 +3735,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto running_exit;}
+    if (i0) {goto exit_path;}
     block_250:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -3777,7 +3759,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     if (i0) {
       i0 = l9;
       if (i0) {goto block_271;}
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -3791,8 +3773,8 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = 1354u;
       i1 = l10;
       i2 = 0u;
-      i3 = kF3196ConstFFFFFFFF;
-      i4 = kF3196MsgRubyX;
+      i3 = kDataFFFFFFFF;
+      i4 = kMsgRubyX;
       i5 = 5u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -3807,10 +3789,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l7 = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l7;
@@ -3861,7 +3843,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -3873,10 +3855,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kF3196MsgPx;
-          i2 = kF3196MsgBoostBoostSmartPtr;
+          i1 = kMsgPx;
+          i2 = kMsgSmartPtrPath;
           i3 = 734u;
-          i4 = kF3196MsgOperator;
+          i4 = kMsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 42u;
           i1 = ResumePhase(ctx);
@@ -3887,10 +3869,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -3898,7 +3880,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = i0 != i1;
           a = i0;
           if (i0) {goto block_5;}
-          goto running_exit;
+          goto exit_path;
         }
       }
       i0 = ResumePhase(ctx);
@@ -3908,7 +3890,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 360u);
         l7 = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l6;
@@ -3960,10 +3942,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         c = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -3976,7 +3958,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto running_exit;}
+    if (i0) {goto exit_path;}
     block_271:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -4000,7 +3982,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     if (i0) {
       i0 = l9;
       if (i0) {goto block_288;}
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -4014,8 +3996,8 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = 1354u;
       i1 = l10;
       i2 = 0u;
-      i3 = kF3196ConstFFFFFFFF;
-      i4 = kF3196MsgVoice;
+      i3 = kDataFFFFFFFF;
+      i4 = kMsgVoice;
       i5 = 5u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -4030,10 +4012,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l7 = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l7;
@@ -4076,7 +4058,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -4088,10 +4070,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kF3196MsgPx;
-          i2 = kF3196MsgBoostBoostSmartPtr;
+          i1 = kMsgPx;
+          i2 = kMsgSmartPtrPath;
           i3 = 734u;
-          i4 = kF3196MsgOperator;
+          i4 = kMsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 45u;
           i1 = ResumePhase(ctx);
@@ -4102,10 +4084,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -4113,7 +4095,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = i0 != i1;
           a = i0;
           if (i0) {goto block_5;}
-          goto running_exit;
+          goto exit_path;
         }
       }
       i0 = ResumePhase(ctx);
@@ -4126,7 +4108,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i2 = 68u;
         i0 = CopyBytes(ctx, i0, i1, i2);
         l7 = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -4157,10 +4139,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l10 = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l10;
@@ -4177,7 +4159,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -4211,10 +4193,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           l9 = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l9;
@@ -4227,7 +4209,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             i0 = HostTempRet0(ctx);
             i0 = l6;
             i0 = LoadS8(ctx, i0 + 299u);
-            i1 = kF3196ConstFFFFFFFF;
+            i1 = kDataFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             a = i0;
             if (i0) {goto block_304;}
@@ -4245,12 +4227,12 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = CopyBytes(ctx, i0, i1, i2);
           l9 = i0;
           i0 = l6;
-          i1 = kF3196ConstB5EC4;
+          i1 = kDataB5EC4;
           StoreU32(ctx, i0 + 216u, i1);
           i0 = c;
           i0 = LoadU32(ctx, i0 + 164u);
           c = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -4285,10 +4267,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -4311,7 +4293,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -4323,10 +4305,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = i2 ? i0 : i1;
           if (i0) {
             i0 = 857u;
-            i1 = kF3196MsgPx;
-            i2 = kF3196MsgBoostBoostSmartPtr;
+            i1 = kMsgPx;
+            i2 = kMsgSmartPtrPath;
             i3 = 734u;
-            i4 = kF3196MsgOperator;
+            i4 = kMsgOperator;
             HostFailAssertion(ctx, i0, i1, i2, i3, i4);
             i0 = 49u;
             i1 = ResumePhase(ctx);
@@ -4337,10 +4319,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -4348,7 +4330,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             i0 = i0 != i1;
             a = i0;
             if (i0) {goto block_5;}
-            goto running_exit;
+            goto exit_path;
           }
         }
         i0 = ResumePhase(ctx);
@@ -4361,7 +4343,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i1 = l7;
           i2 = 68u;
           i0 = CopyBytes(ctx, i0, i1, i2);
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -4392,10 +4374,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           l7 = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l7;
@@ -4403,7 +4385,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = i0 == i1;
           l5 = i0;
           if (i0) {goto block_311;}
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -4434,10 +4416,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           l7 = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l7;
@@ -4451,7 +4433,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i1 = l9;
           i2 = 66u;
           i0 = CopyBytes(ctx, i0, i1, i2);
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -4479,10 +4461,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -4505,7 +4487,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -4517,10 +4499,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = i2 ? i0 : i1;
           if (i0) {
             i0 = 857u;
-            i1 = kF3196MsgPx;
-            i2 = kF3196MsgBoostBoostSmartPtr;
+            i1 = kMsgPx;
+            i2 = kMsgSmartPtrPath;
             i3 = 734u;
-            i4 = kF3196MsgOperator;
+            i4 = kMsgOperator;
             HostFailAssertion(ctx, i0, i1, i2, i3, i4);
             i0 = 53u;
             i1 = ResumePhase(ctx);
@@ -4531,10 +4513,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -4542,13 +4524,13 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             i0 = i0 != i1;
             a = i0;
             if (i0) {goto block_5;}
-            goto running_exit;
+            goto exit_path;
           }
         }
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -4579,10 +4561,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           l5 = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l5;
@@ -4599,7 +4581,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = l6;
           i1 = 3232u;
           StoreU32(ctx, i0 + 48u, i1);
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -4639,10 +4621,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           l7 = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l7;
@@ -4650,7 +4632,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = i0 == i1;
           l5 = i0;
           if (i0) {goto block_310;}
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -4686,10 +4668,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           l5 = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l5;
@@ -4707,7 +4689,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 424u);
           l5 = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -4741,10 +4723,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -4775,14 +4757,14 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             i0 = l5;
             if (i0) {goto block_349;}
             i0 = c;
-            i1 = kF3196ConstFFFFFFFE;
+            i1 = kDataFFFFFFFE;
             i0 &= i1;
             i0 = LoadU32(ctx, i0);
             c = i0;
             i0 = !(i0);
             l5 = i0;
             if (i0) {goto block_349;}
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -4807,17 +4789,17 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i0 = LoadU32(ctx, i0);
             c = i0;
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = c;
             i1 = 1u;
             i0 = i0 == i1;
             c = i0;
-            if (i0) {goto running_exit;}
+            if (i0) {goto exit_path;}
           }
           block_349:;
           i0 = ResumePhase(ctx);
@@ -4854,14 +4836,14 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             i0 = l5;
             if (i0) {goto block_357;}
             i0 = c;
-            i1 = kF3196ConstFFFFFFFE;
+            i1 = kDataFFFFFFFE;
             i0 &= i1;
             i0 = LoadU32(ctx, i0);
             c = i0;
             i0 = !(i0);
             l5 = i0;
             if (i0) {goto block_357;}
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -4886,17 +4868,17 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i0 = LoadU32(ctx, i0);
             c = i0;
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = c;
             i1 = 1u;
             i0 = i0 == i1;
             c = i0;
-            if (i0) {goto running_exit;}
+            if (i0) {goto exit_path;}
           }
           block_357:;
           i0 = ResumePhase(ctx);
@@ -4933,14 +4915,14 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             i0 = l5;
             if (i0) {goto block_365;}
             i0 = c;
-            i1 = kF3196ConstFFFFFFFE;
+            i1 = kDataFFFFFFFE;
             i0 &= i1;
             i0 = LoadU32(ctx, i0);
             c = i0;
             i0 = !(i0);
             l5 = i0;
             if (i0) {goto block_365;}
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -4965,17 +4947,17 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i0 = LoadU32(ctx, i0);
             c = i0;
-            i0 = kF3196ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = c;
             i1 = 1u;
             i0 = i0 == i1;
             c = i0;
-            if (i0) {goto running_exit;}
+            if (i0) {goto exit_path;}
           }
           block_365:;
           i0 = ResumePhase(ctx);
@@ -4990,11 +4972,11 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = !(i0);
         if (i0) {
           i0 = l6;
-          i1 = kF3196ConstB5F40;
+          i1 = kDataB5F40;
           StoreU32(ctx, i0 + 116u, i1);
           i0 = l6;
           i0 = LoadS8(ctx, i0 + 155u);
-          i1 = kF3196ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l6;
@@ -5007,7 +4989,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           ReleaseNodeTree(ctx, i0, i1);
           i0 = l6;
           i0 = LoadS8(ctx, i0 + 131u);
-          i1 = kF3196ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l6;
@@ -5015,11 +4997,11 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
             DeallocateRawBlock(ctx, i0);
           }
           i0 = l6;
-          i1 = kF3196ConstB5F40;
+          i1 = kDataB5F40;
           StoreU32(ctx, i0 + 56u, i1);
           i0 = l6;
           i0 = LoadS8(ctx, i0 + 95u);
-          i1 = kF3196ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l6;
@@ -5032,7 +5014,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           ReleaseNodeTree(ctx, i0, i1);
           i0 = l6;
           i0 = LoadS8(ctx, i0 + 71u);
-          i1 = kF3196ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l6;
@@ -5041,7 +5023,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           }
           i0 = l6;
           i0 = LoadS8(ctx, i0 + 311u);
-          i1 = kF3196ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l6;
@@ -5050,7 +5032,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           }
           i0 = l6;
           i0 = LoadS8(ctx, i0 + 299u);
-          i1 = kF3196ConstFFFFFFFF;
+          i1 = kDataFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           c = i0;
           if (i0) {goto block_37;}
@@ -5120,14 +5102,14 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = b;
           if (i0) {goto block_381;}
           i0 = a;
-          i1 = kF3196ConstFFFFFFFE;
+          i1 = kDataFFFFFFFE;
           i0 &= i1;
           i0 = LoadU32(ctx, i0);
           a = i0;
           i0 = !(i0);
           b = i0;
           if (i0) {goto block_381;}
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -5152,17 +5134,17 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
           i1 = 1u;
           i0 = i0 == i1;
           a = i0;
-          if (i0) {goto running_exit;}
+          if (i0) {goto exit_path;}
         }
         block_381:;
         i0 = ResumePhase(ctx);
@@ -5199,14 +5181,14 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
           i0 = b;
           if (i0) {goto block_389;}
           i0 = a;
-          i1 = kF3196ConstFFFFFFFE;
+          i1 = kDataFFFFFFFE;
           i0 &= i1;
           i0 = LoadU32(ctx, i0);
           a = i0;
           i0 = !(i0);
           b = i0;
           if (i0) {goto block_389;}
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -5231,10 +5213,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kF3196ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -5272,14 +5254,14 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = b;
         if (i0) {goto block_396;}
         i0 = a;
-        i1 = kF3196ConstFFFFFFFE;
+        i1 = kDataFFFFFFFE;
         i0 &= i1;
         i0 = LoadU32(ctx, i0);
         a = i0;
         i0 = !(i0);
         b = i0;
         if (i0) {goto block_396;}
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5304,10 +5286,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -5328,7 +5310,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       block_395:;
       i0 = ResumePhase(ctx);
       i0 = !(i0);
-      if (i0) {goto running_exit;}
+      if (i0) {goto exit_path;}
       block_308:;
       i0 = ResumePhase(ctx);
       i0 = !(i0);
@@ -5343,11 +5325,11 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = !(i0);
       if (i0) {
         i0 = l6;
-        i1 = kF3196ConstB5F40;
+        i1 = kDataB5F40;
         StoreU32(ctx, i0 + 116u, i1);
         i0 = l6;
         i0 = LoadS8(ctx, i0 + 155u);
-        i1 = kF3196ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l6;
@@ -5360,7 +5342,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l6;
         i0 = LoadS8(ctx, i0 + 131u);
-        i1 = kF3196ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         a = i0;
         if (i0) {goto block_306;}
@@ -5374,11 +5356,11 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = !(i0);
       if (i0) {
         i0 = l6;
-        i1 = kF3196ConstB5F40;
+        i1 = kDataB5F40;
         StoreU32(ctx, i0 + 56u, i1);
         i0 = l6;
         i0 = LoadS8(ctx, i0 + 95u);
-        i1 = kF3196ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l6;
@@ -5391,7 +5373,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l6;
         i0 = LoadS8(ctx, i0 + 71u);
-        i1 = kF3196ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         a = i0;
         if (i0) {goto block_305;}
@@ -5406,7 +5388,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       if (i0) {
         i0 = l6;
         i0 = LoadS8(ctx, i0 + 311u);
-        i1 = kF3196ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l6;
@@ -5415,7 +5397,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         }
         i0 = l6;
         i0 = LoadS8(ctx, i0 + 299u);
-        i1 = kF3196ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         a = i0;
         if (i0) {goto block_304;}
@@ -5437,11 +5419,11 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto running_exit;}
+    if (i0) {goto exit_path;}
     block_291:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto running_exit;}
+    if (i0) {goto exit_path;}
     block_288:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -5461,7 +5443,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = i0 != i1;
       c = i0;
       if (i0) {goto block_37;}
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -5475,8 +5457,8 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = 1354u;
       i1 = l10;
       i2 = 0u;
-      i3 = kF3196ConstFFFFFFFF;
-      i4 = kF3196MsgVoiceX;
+      i3 = kDataFFFFFFFF;
+      i4 = kMsgVoiceX;
       i5 = 6u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -5491,10 +5473,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l7 = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l7;
@@ -5519,7 +5501,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5531,10 +5513,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kF3196MsgPx;
-        i2 = kF3196MsgBoostBoostSmartPtr;
+        i1 = kMsgPx;
+        i2 = kMsgSmartPtrPath;
         i3 = 734u;
-        i4 = kF3196MsgOperator;
+        i4 = kMsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 65u;
         i1 = ResumePhase(ctx);
@@ -5545,10 +5527,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -5556,7 +5538,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_5;}
-        goto running_exit;
+        goto exit_path;
       }
     }
     i0 = ResumePhase(ctx);
@@ -5567,7 +5549,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       l5 = i0;
       i0 = LoadU32(ctx, i0 + 432u);
       l7 = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -5590,10 +5572,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       c = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = c;
@@ -5748,7 +5730,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5760,10 +5742,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kF3196MsgPx;
-        i2 = kF3196MsgBoostBoostSmartPtr;
+        i1 = kMsgPx;
+        i2 = kMsgSmartPtrPath;
         i3 = 734u;
-        i4 = kF3196MsgOperator;
+        i4 = kMsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 68u;
         i1 = ResumePhase(ctx);
@@ -5774,10 +5756,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kF3196ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -5785,7 +5767,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_5;}
-        goto running_exit;
+        goto exit_path;
       }
     }
     i0 = ResumePhase(ctx);
@@ -5815,7 +5797,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i1 += i2;
       i2 = 68u;
       i0 = CopyBytes(ctx, i0, i1, i2);
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l7;
@@ -5850,10 +5832,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -5861,7 +5843,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = i0 == i1;
       l5 = i0;
       if (i0) {goto block_33;}
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l7;
@@ -5896,10 +5878,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -5936,7 +5918,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     block_35:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto running_exit;}
+  if (i0) {goto exit_path;}
   block_33:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -5970,7 +5952,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -5982,10 +5964,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kF3196MsgPx;
-      i2 = kF3196MsgBoostBoostSmartPtr;
+      i1 = kMsgPx;
+      i2 = kMsgSmartPtrPath;
       i3 = 734u;
-      i4 = kF3196MsgOperator;
+      i4 = kMsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 71u;
       i1 = ResumePhase(ctx);
@@ -5996,10 +5978,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kF3196ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -6007,7 +5989,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
       i0 = i0 != i1;
       a = i0;
       if (i0) {goto block_5;}
-      goto running_exit;
+      goto exit_path;
     }
   }
   i0 = ResumePhase(ctx);
@@ -6017,7 +5999,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 388u);
     b = i0;
-    i0 = kF3196ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -6040,10 +6022,10 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3196ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kF3196ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -6072,7 +6054,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   if (i0) {
     i0 = l6;
     i0 = LoadS8(ctx, i0 + 411u);
-    i1 = kF3196ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l6;
@@ -6081,7 +6063,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     }
     i0 = l6;
     i0 = LoadS8(ctx, i0 + 427u);
-    i1 = kF3196ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l6;
@@ -6314,7 +6296,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 -= i2;
     i2 = 2u;
     i1 >>= (i2 & 31);
-    i2 = kF3196ConstFFFFFFFF;
+    i2 = kDataFFFFFFFF;
     i1 ^= i2;
     i2 = 2u;
     i1 <<= (i2 & 31);
@@ -6347,7 +6329,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   if (i0) {
     i0 = c;
     i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kF3196ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l6;
@@ -6356,7 +6338,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     }
     i0 = l6;
     i0 = LoadS8(ctx, i0 + 427u);
-    i1 = kF3196ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l6;
@@ -6587,7 +6569,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
     i1 -= i2;
     i2 = 2u;
     i1 >>= (i2 & 31);
-    i2 = kF3196ConstFFFFFFFF;
+    i2 = kDataFFFFFFFF;
     i1 ^= i2;
     i2 = 2u;
     i1 <<= (i2 & 31);
@@ -6612,7 +6594,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   if (i0) {
     TrapUnreachable();
   }
-  running_exit:;
+  exit_path:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
@@ -6651,7 +6633,7 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kF3196ResumeWordBytes;
+  i2 = kResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
@@ -6756,4 +6738,4 @@ void TextFxDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint
   LeaveFrame();
 }
 }
-}
+}  // namespace artc

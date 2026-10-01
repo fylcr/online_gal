@@ -1,327 +1,147 @@
-// initialize_table_array.cpp -- sizes a table array for a constructor, raising the overflow error when the hash depth the size implies cannot fit the table..
-//
-// InitializeTableArray -- sizes a table array for a constructor, raising the overflow error when the hash depth the size implies cannot fit the table.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 795160-795459 (f1709); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Defined in other products.
 uint32_t BucketLog2(EngineContext* ctx, uint32_t value);
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
-uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t a);
-void RaiseScriptError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t state);
+void RaiseScriptError(EngineContext* ctx, uint32_t state, uint32_t message, uint32_t argument);
 
 namespace {
 
-constexpr uint32_t kF1709Const2BBD0 = 0x2BBD0u;  // 
-constexpr uint32_t kF1709MsgTableOverflow = 0x2BBF0u;  // table overflow
-constexpr uint32_t kF1709SaveFrameBytes = 20u;
-constexpr uint32_t kF1709ResumeWordBytes = 4u;
+constexpr uint32_t kInitializeTableArrayDefaultSize = 0x2BBD0u;  // the array size a table starts out with
+constexpr uint32_t kInitializeTableArrayOverflowMessage = 0x2BBF0u;  // table overflow
+constexpr uint32_t kInitializeTableArraySaveFrameBytes = 20u;  // func_state, table, size, log2 size, slot count
+constexpr uint32_t kInitializeTableArrayResumeWordBytes = 4u;
+constexpr uint32_t kInitializeTableArrayOverflowCall = 0u;  // the overflow raise was in flight
+constexpr uint32_t kInitializeTableArrayReallocCall = 1u;  // the array allocation was in flight
+constexpr uint32_t kInitializeTableArrayBlockTooBigCall = 2u;  // the too-big raise was in flight
 
 }  // namespace
 
+// Sizes the array part of a table a constructor is building: derives the slot
+// count from the requested size, allocates the array block, and clears the
+// slack slots. A size that cannot fit the table raises the overflow error, and a
+// size past the 31-bit limit is raised as a block-too-big error. The step
+// suspends around its three calls; each gate replays the one its resume code
+// names.
 void InitializeTableArray(EngineContext* ctx, uint32_t func_state, uint32_t table, uint32_t size) {
   EnterFrame();
-  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1709SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0);
-    func_state = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 4u);
-    table = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 8u);
-    size = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l5 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l4 = i0;
+  uint32_t frame = 0u;
+  uint32_t size_is_zero = 0u;
+  uint32_t call_result = 0u;
+  uint32_t slot = 0u;
+  uint32_t resume_code = 0u;
+  uint32_t array_pointer = 0u;
+  uint32_t slot_count = 0u;
+  uint32_t log2_size = 0u;
+  uint32_t resume_word = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kInitializeTableArraySaveFrameBytes);
+    frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    func_state = LoadU32(ctx, frame);
+    table = LoadU32(ctx, frame + 4u);
+    size = LoadU32(ctx, frame + 8u);
+    log2_size = LoadU32(ctx, frame + 12u);
+    slot_count = LoadU32(ctx, frame + 16u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1709ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l6 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kInitializeTableArrayResumeWordBytes);
+    resume_word = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = l3;
-  i1 = size;
-  i1 = !(i1);
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  l3 = i0;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    if (i0) {
-      i0 = kF1709Const2BBD0;
-      size = i0;
-      i0 = table;
-      i1 = kF1709Const2BBD0;
-      StoreU32(ctx, i0 + 16u, i1);
-      goto block_3;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    size_is_zero = static_cast<uint32_t>(size == 0u);
+    if (size_is_zero != 0u) {
+      // No size asked for: the table takes its default array.
+      size = kInitializeTableArrayDefaultSize;
+      StoreU32(ctx, table + 16u, kInitializeTableArrayDefaultSize);
+      goto settled;
     }
-    i0 = size;
-    i1 = 1u;
-    i0 -= i1;
-    i0 = BucketLog2(ctx, i0);
-    size = i0;
-    i1 = 1u;
-    i0 += i1;
-    l5 = i0;
-    i0 = size;
-    i1 = 26u;
-    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-    size = i0;
+    // Two to the power of the size's log2 is the slot count; past 26 the size
+    // cannot be represented and the caller's error case takes over.
+    size = BucketLog2(ctx, size - 1u);
+    log2_size = size + 1u;
+    size = static_cast<uint32_t>((int32_t)size >= (int32_t)26u);
   }
-  i0 = size;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l6;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = func_state;
-      i1 = kF1709MsgTableOverflow;
-      i2 = 0u;
-      RaiseScriptError(ctx, i0, i1, i2);
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+  if (size != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_word == kInitializeTableArrayOverflowCall) {
+      RaiseScriptError(ctx, func_state, kInitializeTableArrayOverflowMessage, 0u);
+      resume_code = kInitializeTableArrayOverflowCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {goto suspend_point;}
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = 1u;
-    i1 = l5;
-    i0 <<= (i1 & 31);
-    l4 = i0;
-    i0 = l5;
-    i1 = 26u;
-    i0 = i0 <= i1;
-    size = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    slot_count = 1u << (log2_size & 31u);
+    size = static_cast<uint32_t>(log2_size <= 26u);
   }
-  i0 = size;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = size;
-    i1 = l4;
-    i2 = 5u;
-    i1 <<= (i2 & 31);
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    size = i0;
-    i0 = l6;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = func_state;
-      i1 = 0u;
-      i2 = 0u;
-      i3 = size;
-      i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
-      l3 = i0;
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l3;
-      size = i0;
+  if (size != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      size = slot_count << 5;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = table;
-      i1 = size;
-      StoreU32(ctx, i0 + 16u, i1);
-      i0 = table;
-      i1 = 16u;
-      i0 += i1;
-      goto block_8;
+    if (ResumePhase(ctx) == kResumeRunning || resume_word == kInitializeTableArrayReallocCall) {
+      call_result = ReallocateBlock(ctx, func_state, 0u, 0u, size);
+      resume_code = kInitializeTableArrayReallocCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {goto suspend_point;}
+      size = call_result;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, table + 16u, size);
+      array_pointer = table + 16u;
+      goto array_ready;
     }
   }
-  i0 = l6;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = func_state;
-    i0 = RaiseBlockTooBig(ctx, i0);
-    l3 = i0;
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    size = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_word == kInitializeTableArrayBlockTooBigCall) {
+    call_result = RaiseBlockTooBig(ctx, func_state);
+    resume_code = kInitializeTableArrayBlockTooBigCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {goto suspend_point;}
+    size = call_result;
   }
-  i0 = ResumePhase(ctx);
-  if (i0) {
-    i0 = func_state;
+  if (ResumePhase(ctx) != kResumeRunning) {
+    array_pointer = func_state;
   } else {
-    i0 = table;
-    i1 = size;
-    StoreU32(ctx, i0 + 16u, i1);
-    i0 = l5;
-    i1 = 31u;
-    i0 = i0 == i1;
-    if (i0) {goto block_3;}
-    i0 = table;
-    i1 = 16u;
-    i0 += i1;
+    StoreU32(ctx, table + 16u, size);
+    if (log2_size == 31u) {goto settled;}
+    array_pointer = table + 16u;
   }
-  block_8:;
-  func_state = i0;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = size;
-    i1 = 0u;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = size;
-    j1 = 0ull;
-    StoreU64(ctx, i0 + 24u, j1);
-    i0 = l4;
-    i1 = 2u;
-    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-    if (i0) {goto block_17;}
-    i0 = l5;
-    i0 = !(i0);
-    if (i0) {goto block_17;}
-    i0 = 1u;
-    size = i0;
-    loop_18: 
-      i0 = func_state;
-      i0 = LoadU32(ctx, i0);
-      i1 = size;
-      i2 = 5u;
-      i1 <<= (i2 & 31);
-      i0 += i1;
-      l3 = i0;
-      i1 = 0u;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = l3;
-      j1 = 0ull;
-      StoreU64(ctx, i0 + 24u, j1);
-      i0 = l4;
-      i1 = size;
-      i2 = 1u;
-      i1 += i2;
-      size = i1;
-      i0 = i0 != i1;
-      if (i0) {goto loop_18;}
-    block_17:;
-    i0 = func_state;
-    i0 = LoadU32(ctx, i0);
-    size = i0;
+  array_ready:;
+  func_state = array_pointer;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Clear the array head, then the remaining slots when it has more than one.
+    StoreU32(ctx, size + 8u, 0u);
+    StoreU64(ctx, size + 24u, 0ull);
+    if ((int32_t)slot_count >= (int32_t)2u && log2_size != 0u) {
+      size = 1u;
+      do {
+        slot = LoadU32(ctx, func_state) + (size << 5);
+        StoreU32(ctx, slot + 8u, 0u);
+        StoreU64(ctx, slot + 24u, 0ull);
+        size = size + 1u;
+      } while (slot_count != size);
+    }
+    size = LoadU32(ctx, func_state);
   }
-  block_3:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = table;
-    i1 = l5;
-    StoreU8(ctx, i0 + 7u, i1);
-    i0 = table;
-    i1 = size;
-    i2 = l4;
-    i3 = 5u;
-    i2 <<= (i3 & 31);
-    i1 += i2;
-    StoreU32(ctx, i0 + 20u, i1);
+  settled:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The table records the log2 of its array and the byte end of the array.
+    StoreU8(ctx, table + 7u, log2_size);
+    StoreU32(ctx, table + 20u, size + (slot_count << 5));
   }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1709ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = func_state;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = table;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = size;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l3;
-  i1 = l5;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l3;
-  i1 = l4;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 20u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  // The running pass is done; the frame write below belongs to a suspend only.
+  goto exit_path;
+  // Suspend here: the resume word naming the call in flight goes first, then the
+  // five saved words, and the caller's frame pointer is left above both.
+  suspend_point:;
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kInitializeTableArrayResumeWordBytes);
+  frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, frame, func_state);
+  StoreU32(ctx, frame + 4u, table);
+  StoreU32(ctx, frame + 8u, size);
+  StoreU32(ctx, frame + 12u, log2_size);
+  StoreU32(ctx, frame + 16u, slot_count);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kInitializeTableArraySaveFrameBytes);
+  exit_path:;
   LeaveFrame();
 }
-}
+}  // namespace artc

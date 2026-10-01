@@ -1,896 +1,387 @@
-// format_traceback_frame.cpp -- resolves one traceback frame, walking the locals and the name table for the description..
-//
-// FormatTracebackFrame -- resolves one traceback frame, walking the locals and the name table for the description.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 206850-206850 (f519); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of the callees below.
 void GrowValueStack(EngineContext* ctx, uint32_t a, uint32_t b);
 uint32_t FindPoolEntryByTagByte(EngineContext* ctx, uint32_t pool, uint32_t key);
 void FormatSourceId(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t AllocateTable(EngineContext* ctx, uint32_t state, uint32_t entries, uint32_t array);
 uint32_t GetTableFieldByNumber(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-uint32_t ResolveVariableKind(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3);
+uint32_t ResolveVariableKind(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2,
+                             uint32_t a3);
 
 namespace {
 
-constexpr uint32_t kF519Const2A7C6 = 0x2A7C6u;  // 
-constexpr uint32_t kF519MsgTail = 0x2A7C7u;  // tail
-constexpr uint32_t kF519MsgTailCall = 0x2A7CCu;  // =(tail call)
-constexpr uint32_t kF519MsgC = 0x2A7D9u;  // =[C]
-constexpr uint32_t kF519Const2A7DE = 0x2A7DEu;  // 
-constexpr uint32_t kF519MsgMain = 0x2A7E0u;  // main
-constexpr uint32_t kF519Const2A7E5 = 0x2A7E5u;  // 
-constexpr uint32_t kF519ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF519SaveFrameBytes = 36u;
-constexpr uint32_t kF519ResumeWordBytes = 4u;
+constexpr uint32_t kTracebackEmptyString = 0x2A7C6u;  // the empty name string
+constexpr uint32_t kTracebackTail = 0x2A7C7u;  // "tail"
+constexpr uint32_t kTracebackTailCall = 0x2A7CCu;  // "=(tail call)"
+constexpr uint32_t kTracebackC = 0x2A7D9u;  // "=[C]"
+constexpr uint32_t kTracebackUnknownSource = 0x2A7DEu;  // "?"
+constexpr uint32_t kTracebackMain = 0x2A7E0u;  // "main"
+constexpr uint32_t kTracebackUnknownFunc = 0x2A7E5u;  // "?"
+constexpr uint32_t kTracebackMinusOne = 0xFFFFFFFFu;  // -1 as a raw word
+constexpr uint32_t kTracebackTagBias = 76u;  // 'L'; tag letters are biased by it
+constexpr uint32_t kTracebackSaveFrameBytes = 36u;  // live state bytes pushed on suspend
+constexpr uint32_t kTracebackResumeWordBytes = 4u;  // the resume word above the frame
 
 }  // namespace
 
+// Formats one frame of a traceback: looks the function up in the debug pool,
+// walks the sections that ride along with its name, and fills the frame's
+// source, line and name fields.
+//
+// Live words across a suspend: the engine state, the name buffer, the output
+// frame, the section cursor, the current tag, the descriptor, the scan cursor,
+// the found flag and the pending stack-grow flag, plus the frame base.
 uint32_t FormatTracebackFrame(EngineContext* ctx, uint32_t state, uint32_t name, uint32_t out) {
   EnterFrame();
-  uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l14 = 0u; uint32_t l15 = 0u; uint32_t l16 = 0u; uint32_t l17 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
-  uint64_t j2 = 0;
-      l11 = 0, l12 = 0, l13 = 0, l14 = 0, l15 = 0, l16 = 0, l17 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF519SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l6 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 8u);
-    out = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l7 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l8 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l9 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l12 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 4u);
-    name = i0;
+  uint32_t line = 0u;
+  uint32_t resume_point = 0u;
+  uint32_t need_grow = 0u;
+  uint32_t line_slot = 0u;
+  uint32_t upvalue_table = 0u;
+  uint32_t source_out = 0u;
+  uint32_t local_slot = 0u;
+  uint32_t kind_out = 0u;
+  uint32_t cursor = 0u;
+  uint32_t entry = 0u;
+  uint32_t tag = 0u;
+  uint32_t frame = 0u;
+  uint32_t offset = 0u;
+  uint32_t descriptor = 0u;
+  uint32_t scan = 0u;
+  uint32_t found = 0u;
+  uint32_t result = 0u;
+  uint32_t value = 0u;
+  // Rewind: drop the 36-byte frame, then the resume word above it.
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kTracebackSaveFrameBytes);
+    frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    out = LoadU32(ctx, frame + 8u);
+    cursor = LoadU32(ctx, frame + 12u);
+    tag = LoadU32(ctx, frame + 16u);
+    descriptor = LoadU32(ctx, frame + 20u);
+    scan = LoadU32(ctx, frame + 24u);
+    found = LoadU32(ctx, frame + 28u);
+    need_grow = LoadU32(ctx, frame + 32u);
+    name = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF519ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l11 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kTracebackResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = name;
-    i0 = LoadU8(ctx, i0);
-    i1 = 62u;
-    i0 = i0 == i1;
-    l3 = i0;
+  // A leading '>' marks a synthetic frame whose descriptor is on the stack.
+  if (ResumePhase(ctx) == kResumeRunning) {
+    cursor = (LoadU8(ctx, name) == 62u);
   }
-  i0 = l10;
-  i1 = ResumePhase(ctx);
-  i1 = !(i1);
-  if (i1) {
-    i1 = l3;
-    if (i1) {
-      i1 = state;
-      i1 = LoadU32(ctx, i1 + 8u);
-      i2 = 16u;
-      i1 -= i2;
-      l3 = i1;
-      i1 = LoadU32(ctx, i1);
-      l7 = i1;
-      i1 = state;
-      i2 = l3;
-      StoreU32(ctx, i1 + 8u, i2);
-      i1 = name;
-      i2 = 1u;
-      i1 += i2;
-      name = i1;
-      goto block_15;
+  result = line;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (cursor != 0u) {
+      cursor = LoadU32(ctx, state + 8u) - 16u;
+      descriptor = LoadU32(ctx, cursor);
+      StoreU32(ctx, state + 8u, cursor);
+      name = name + 1u;
+      goto lookup_entry;
     }
-    i1 = out;
-    i1 = LoadU32(ctx, i1 + 96u);
-    l3 = i1;
-    i1 = !(i1);
-    if (i1) {goto block_14;}
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 40u);
-    i2 = l3;
-    i3 = 24u;
-    i2 *= i3;
-    i1 += i2;
-    l4 = i1;
-    i1 = LoadU32(ctx, i1 + 4u);
-    i1 = LoadU32(ctx, i1);
-    l7 = i1;
-    block_15:;
-    i1 = l7;
-    i1 = !(i1);
-    if (i1) {goto block_14;}
-    i1 = name;
-    i1 = LoadU8(ctx, i1);
-    l5 = i1;
-    i1 = !(i1);
-    l3 = i1;
-    if (i1) {
-      i1 = 1u;
-      l9 = i1;
-      goto block_17;
+    cursor = LoadU32(ctx, out + 96u);
+    if (cursor == 0u) goto tail_call_frame;
+    entry = LoadU32(ctx, state + 40u) + (cursor * 24u);
+    descriptor = LoadU32(ctx, LoadU32(ctx, entry + 4u));
+    // The frame points either at the stack entry or at the debug entry.
+    lookup_entry:;
+    if (descriptor == 0u) goto tail_call_frame;
+    tag = LoadU8(ctx, name);
+    cursor = (tag == 0u);
+    if (cursor != 0u) {
+      found = 1u;
+      goto name_scan_done;
     }
-    i1 = out;
-    i2 = 36u;
-    i1 += i2;
-    l15 = i1;
-    i1 = l4;
-    i2 = 12u;
-    i1 -= i2;
-    l13 = i1;
-    i1 = l4;
-    i2 = 20u;
-    i1 -= i2;
-    l16 = i1;
-    i1 = l4;
-    i2 = 24u;
-    i1 -= i2;
-    l14 = i1;
-    i1 = out;
-    i2 = kF519ResumeWordBytes;
-    i1 += i2;
-    l17 = i1;
-    i1 = 1u;
-    l9 = i1;
-    i1 = name;
-    l3 = i1;
-    loop_19: 
-      i1 = l3;
-      l8 = i1;
-      i1 = l5;
-      i2 = 24u;
-      i1 <<= (i2 & 31);
-      i2 = 24u;
-      i1 = (uint32_t)((int32_t)i1 >> (i2 & 31));
-      i2 = 76u;
-      i1 -= i2;
-      switch (i1) {
-        case 0: goto block_20;
-        case 1: goto block_21;
-        case 2: goto block_21;
-        case 3: goto block_21;
-        case 4: goto block_21;
-        case 5: goto block_21;
-        case 6: goto block_21;
-        case 7: goto block_25;
-        case 8: goto block_21;
-        case 9: goto block_21;
-        case 10: goto block_21;
-        case 11: goto block_21;
-        case 12: goto block_21;
-        case 13: goto block_21;
-        case 14: goto block_21;
-        case 15: goto block_21;
-        case 16: goto block_21;
-        case 17: goto block_21;
-        case 18: goto block_21;
-        case 19: goto block_21;
-        case 20: goto block_21;
-        case 21: goto block_21;
-        case 22: goto block_21;
-        case 23: goto block_21;
-        case 24: goto block_21;
-        case 25: goto block_21;
-        case 26: goto block_20;
-        case 27: goto block_21;
-        case 28: goto block_21;
-        case 29: goto block_21;
-        case 30: goto block_21;
-        case 31: goto block_21;
-        case 32: goto block_24;
-        case 33: goto block_21;
-        case 34: goto block_22;
-        case 35: goto block_21;
-        case 36: goto block_21;
-        case 37: goto block_21;
-        case 38: goto block_21;
-        case 39: goto block_21;
-        case 40: goto block_21;
-        case 41: goto block_23;
-        default: goto block_21;
-      }
-      block_25:;
-      i1 = l7;
-      i1 = LoadU8(ctx, i1 + 6u);
-      if (i1) {
-        i1 = out;
-        i2 = kF519ConstFFFFFFFF;
-        StoreU32(ctx, i1 + 28u, i2);
-        i1 = kF519MsgC;
-        l3 = i1;
-        i1 = out;
-        i2 = kF519MsgC;
-        StoreU32(ctx, i1 + 16u, i2);
-        i1 = kF519Const2A7DE;
-        l6 = i1;
-        i1 = kF519ConstFFFFFFFF;
-        goto block_26;
-      }
-      i1 = out;
-      i2 = l7;
-      i2 = LoadU32(ctx, i2 + 16u);
-      i2 = LoadU32(ctx, i2 + 32u);
-      i3 = 16u;
-      i2 += i3;
-      l3 = i2;
-      StoreU32(ctx, i1 + 16u, i2);
-      i1 = out;
-      i2 = l7;
-      i2 = LoadU32(ctx, i2 + 16u);
-      i2 = LoadU32(ctx, i2 + 60u);
-      l5 = i2;
-      StoreU32(ctx, i1 + 28u, i2);
-      i1 = kF519Const2A7E5;
-      i2 = kF519MsgMain;
-      i3 = l5;
-      i1 = i3 ? i1 : i2;
-      l6 = i1;
-      i1 = l7;
-      i1 = LoadU32(ctx, i1 + 16u);
-      i1 = LoadU32(ctx, i1 + 64u);
-      block_26:;
-      l5 = i1;
-      i1 = out;
-      i2 = l6;
-      StoreU32(ctx, i1 + 12u, i2);
-      i1 = out;
-      i2 = l5;
-      StoreU32(ctx, i1 + 32u, i2);
-      i1 = l15;
-      i2 = l3;
-      i3 = 60u;
-      FormatSourceId(ctx, i1, i2, i3);
-      goto block_20;
-      block_24:;
-      i1 = kF519ConstFFFFFFFF;
-      l5 = i1;
-      i1 = l4;
-      i1 = !(i1);
-      if (i1) {goto block_28;}
-      i1 = l4;
-      i1 = LoadU32(ctx, i1 + 4u);
-      l3 = i1;
-      i1 = LoadU32(ctx, i1 + 8u);
-      i2 = 6u;
-      i1 = i1 != i2;
-      if (i1) {goto block_28;}
-      i1 = l3;
-      i1 = LoadU32(ctx, i1);
-      l6 = i1;
-      i1 = LoadU8(ctx, i1 + 6u);
-      if (i1) {goto block_28;}
-      i1 = l4;
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 20u);
-      i1 = i1 != i2;
-      if (i1) {
-        i1 = l4;
-        i1 = LoadU32(ctx, i1 + 12u);
-        l10 = i1;
-        goto block_29;
-      }
-      i1 = l4;
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 24u);
-      l10 = i2;
-      StoreU32(ctx, i1 + 12u, i2);
-      i1 = l3;
-      i1 = LoadU32(ctx, i1);
-      l6 = i1;
-      block_29:;
-      i1 = l10;
-      i2 = l6;
-      i2 = LoadU32(ctx, i2 + 16u);
-      l3 = i2;
-      i2 = LoadU32(ctx, i2 + 12u);
-      i1 -= i2;
-      l6 = i1;
-      i2 = 4u;
-      i1 = (uint32_t)((int32_t)i1 < (int32_t)i2);
-      if (i1) {goto block_28;}
-      i1 = l3;
-      i1 = LoadU32(ctx, i1 + 20u);
-      l3 = i1;
-      i1 = !(i1);
-      if (i1) {
-        i1 = out;
-        i2 = 0u;
-        StoreU32(ctx, i1 + 20u, i2);
-        goto block_20;
-      }
-      i1 = l6;
-      i2 = 2u;
-      i1 = (uint32_t)((int32_t)i1 >> (i2 & 31));
-      i2 = 1u;
-      i1 -= i2;
-      i2 = 2u;
-      i1 <<= (i2 & 31);
-      i2 = l3;
-      i1 += i2;
-      i1 = LoadU32(ctx, i1);
-      l5 = i1;
-      block_28:;
-      i1 = out;
-      i2 = l5;
-      StoreU32(ctx, i1 + 20u, i2);
-      goto block_20;
-      block_23:;
-      i1 = out;
-      i2 = l7;
-      i2 = LoadU8(ctx, i2 + 7u);
-      StoreU32(ctx, i1 + 24u, i2);
-      goto block_20;
-      block_22:;
-      i1 = l4;
-      i1 = !(i1);
-      if (i1) {goto block_32;}
-      i1 = l4;
-      i1 = LoadU32(ctx, i1 + 4u);
-      l3 = i1;
-      i1 = LoadU32(ctx, i1 + 8u);
-      i2 = 6u;
-      i1 = i1 != i2;
-      if (i1) {goto block_33;}
-      i1 = l3;
-      i1 = LoadU32(ctx, i1);
-      i1 = LoadU8(ctx, i1 + 6u);
-      if (i1) {goto block_33;}
-      i1 = l4;
-      i1 = LoadU32(ctx, i1 + 20u);
-      i2 = 0u;
-      i1 = (uint32_t)((int32_t)i1 > (int32_t)i2);
-      if (i1) {goto block_32;}
-      block_33:;
-      i1 = l16;
-      i1 = LoadU32(ctx, i1);
-      l5 = i1;
-      i1 = LoadU32(ctx, i1 + 8u);
-      i2 = 6u;
-      i1 = i1 != i2;
-      if (i1) {goto block_32;}
-      i1 = l5;
-      i1 = LoadU32(ctx, i1);
-      l3 = i1;
-      i1 = LoadU8(ctx, i1 + 6u);
-      if (i1) {goto block_32;}
-      i1 = l3;
-      i1 = LoadU32(ctx, i1 + 16u);
-      i1 = LoadU32(ctx, i1 + 12u);
-      l6 = i1;
-      i1 = l14;
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 20u);
-      i1 = i1 != i2;
-      if (i1) {
-        i1 = l13;
-        i1 = LoadU32(ctx, i1);
-        l10 = i1;
-        goto block_34;
-      }
-      i1 = l13;
-      i2 = state;
-      i2 = LoadU32(ctx, i2 + 24u);
-      l10 = i2;
-      StoreU32(ctx, i1, i2);
-      i1 = l5;
-      i1 = LoadU32(ctx, i1);
-      l3 = i1;
-      block_34:;
-      i1 = l6;
-      i2 = l10;
-      i3 = l3;
-      i3 = LoadU32(ctx, i3 + 16u);
-      i3 = LoadU32(ctx, i3 + 12u);
-      i2 -= i3;
-      i1 += i2;
-      i2 = 4u;
-      i1 -= i2;
-      i1 = LoadU32(ctx, i1);
-      l3 = i1;
-      i2 = 63u;
-      i1 &= i2;
-      i2 = 28u;
-      i1 -= i2;
-      l5 = i1;
-      i2 = 5u;
-      i1 = i1 > i2;
-      if (i1) {goto block_32;}
-      i1 = 1u;
-      i2 = l5;
-      i1 <<= (i2 & 31);
-      i2 = 35u;
-      i1 &= i2;
-      i1 = !(i1);
-      if (i1) {goto block_32;}
-      i1 = out;
-      i2 = state;
-      i3 = l14;
-      i4 = l3;
-      i5 = 6u;
-      i4 >>= (i5 & 31);
-      i5 = 255u;
-      i4 &= i5;
-      i5 = l17;
-      i2 = ResolveVariableKind(ctx, i2, i3, i4, i5);
-      l3 = i2;
-      StoreU32(ctx, i1 + 8u, i2);
-      i1 = l3;
-      if (i1) {goto block_20;}
-      block_32:;
-      i1 = out;
-      i2 = 0u;
-      StoreU32(ctx, i1 + 4u, i2);
-      i1 = out;
-      i2 = kF519Const2A7C6;
-      StoreU32(ctx, i1 + 8u, i2);
-      goto block_20;
-      block_21:;
-      i1 = 0u;
-      l9 = i1;
-      block_20:;
-      i1 = l8;
-      i2 = 1u;
-      i1 += i2;
-      l3 = i1;
-      i1 = l8;
-      i1 = LoadU8(ctx, i1 + 1u);
-      l5 = i1;
-      if (i1) {goto loop_19;}
-    block_17:;
-    i1 = name;
-    i2 = 102u;
-    i1 = FindPoolEntryByTagByte(ctx, i1, i2);
-    i1 = !(i1);
-    out = i1;
-    if (i1) {goto block_9;}
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 8u);
-    out = i1;
-    i2 = 6u;
-    StoreU32(ctx, i1 + 8u, i2);
-    i1 = out;
-    i2 = l7;
-    StoreU32(ctx, i1, i2);
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 8u);
-    out = i1;
-    i1 = 0u;
-    goto block_13;
-    block_14:;
-    i1 = out;
-    j2 = 18446744073709551615ull;
-    StoreU64(ctx, i1 + 28u, j2);
-    i1 = out;
-    i2 = kF519ConstFFFFFFFF;
-    StoreU32(ctx, i1 + 20u, i2);
-    i1 = out;
-    i2 = kF519MsgTail;
-    StoreU32(ctx, i1 + 12u, i2);
-    i1 = out;
-    i2 = kF519Const2A7C6;
-    StoreU32(ctx, i1 + 4u, i2);
-    i1 = out;
-    i2 = kF519Const2A7C6;
-    StoreU32(ctx, i1 + 8u, i2);
-    i1 = out;
-    i2 = kF519MsgTailCall;
-    StoreU32(ctx, i1 + 16u, i2);
-    i1 = out;
-    i2 = 36u;
-    i1 += i2;
-    l3 = i1;
-    i2 = kF519MsgTailCall;
-    i3 = 60u;
-    FormatSourceId(ctx, i1, i2, i3);
-    i1 = 0u;
-    l7 = i1;
-    i1 = out;
-    i2 = 0u;
-    StoreU32(ctx, i1 + 24u, i2);
-    i1 = name;
-    i2 = 102u;
-    i1 = FindPoolEntryByTagByte(ctx, i1, i2);
-    i1 = !(i1);
-    out = i1;
-    if (i1) {
-      i1 = 1u;
-      l9 = i1;
-      i1 = 1u;
-      l5 = i1;
-      goto block_10;
+    source_out = out + 36u;
+    line_slot = entry - 12u;
+    local_slot = entry - 20u;
+    upvalue_table = entry - 24u;
+    kind_out = out + 4u;
+    found = 1u;
+    cursor = name;
+    scan_sections:;
+    scan = cursor;
+    // The byte after the name says which debug section it starts: 'L' and
+    // 'f' carry nothing further, 'S' the source, 'l' the locals, 'n' the name
+    // and 'u' the upvalues.
+    tag = static_cast<uint32_t>(static_cast<int32_t>(tag << (24u & 31)) >> (24u & 31));
+    switch (tag - kTracebackTagBias) {
+      case 0:
+      case 26: goto tag_handled;
+      case 7: goto source_section;
+      case 32: goto local_section;
+      case 34: goto name_section;
+      case 41: goto upvalue_section;
+      default: goto unknown_tag;
     }
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 8u);
-    out = i1;
-    i2 = 0u;
-    StoreU32(ctx, i1 + 8u, i2);
-    i1 = 1u;
-    l9 = i1;
-    i1 = 1u;
-    block_13:;
-    l5 = i1;
-    i1 = state;
-    l3 = i1;
-    i1 = LoadU32(ctx, i1 + 28u);
-    i2 = out;
-    i1 -= i2;
-    i2 = 16u;
-    i1 = (uint32_t)((int32_t)i1 <= (int32_t)i2);
-    l8 = i1;
+    // 'S': the source name and its chunk id.
+    source_section:;
+    if (LoadU8(ctx, descriptor + 6u) != 0u) {
+      StoreU32(ctx, out + 28u, kTracebackMinusOne);
+      cursor = kTracebackC;
+      StoreU32(ctx, out + 16u, kTracebackC);
+      offset = kTracebackUnknownSource;
+      value = kTracebackMinusOne;
+      goto line_stored;
+    }
+    cursor = LoadU32(ctx, LoadU32(ctx, descriptor + 16u) + 32u) + 16u;
+    StoreU32(ctx, out + 16u, cursor);
+    tag = LoadU32(ctx, LoadU32(ctx, descriptor + 16u) + 60u);
+    StoreU32(ctx, out + 28u, tag);
+    offset = tag ? kTracebackUnknownFunc : kTracebackMain;
+    value = LoadU32(ctx, LoadU32(ctx, descriptor + 16u) + 64u);
+    line_stored:;
+    tag = value;
+    StoreU32(ctx, out + 12u, offset);
+    StoreU32(ctx, out + 32u, tag);
+    FormatSourceId(ctx, source_out, cursor, 60u);
+    goto tag_handled;
+    local_section:;
+    tag = kTracebackMinusOne;
+    if (entry == 0u) goto line_info_done;
+    cursor = LoadU32(ctx, entry + 4u);
+    if (LoadU32(ctx, cursor + 8u) != 6u) goto line_info_done;
+    offset = LoadU32(ctx, cursor);
+    if (LoadU8(ctx, offset + 6u) != 0u) goto line_info_done;
+    if (entry != LoadU32(ctx, state + 20u)) {
+      line = LoadU32(ctx, entry + 12u);
+      goto scan_line_info;
+    }
+    line = LoadU32(ctx, state + 24u);
+    StoreU32(ctx, entry + 12u, line);
+    offset = LoadU32(ctx, cursor);
+    scan_line_info:;
+    cursor = LoadU32(ctx, offset + 16u);
+    offset = line - LoadU32(ctx, cursor + 12u);
+    if (static_cast<int32_t>(offset) < 4) goto line_info_done;
+    cursor = LoadU32(ctx, cursor + 20u);
+    if (cursor == 0u) {
+      StoreU32(ctx, out + 20u, 0u);
+      goto tag_handled;
+    }
+    tag = LoadU32(ctx,
+                  ((static_cast<uint32_t>(static_cast<int32_t>(offset) >> (2u & 31)) - 1u)
+                   << (2u & 31)) + cursor);
+    line_info_done:;
+    StoreU32(ctx, out + 20u, tag);
+    goto tag_handled;
+    upvalue_section:;
+    StoreU32(ctx, out + 24u, LoadU8(ctx, descriptor + 7u));
+    goto tag_handled;
+    // 'n': the variable the frame is running in, if the debug info names it.
+    name_section:;
+    if (entry == 0u) goto no_name_info;
+    cursor = LoadU32(ctx, entry + 4u);
+    if (LoadU32(ctx, cursor + 8u) != 6u) goto check_local_entry;
+    if (LoadU8(ctx, LoadU32(ctx, cursor) + 6u) != 0u) goto check_local_entry;
+    if (static_cast<int32_t>(LoadU32(ctx, entry + 20u)) > 0) goto no_name_info;
+    check_local_entry:;
+    tag = LoadU32(ctx, local_slot);
+    if (LoadU32(ctx, tag + 8u) != 6u) goto no_name_info;
+    cursor = LoadU32(ctx, tag);
+    if (LoadU8(ctx, cursor + 6u) != 0u) goto no_name_info;
+    offset = LoadU32(ctx, LoadU32(ctx, cursor + 16u) + 12u);
+    if (upvalue_table != LoadU32(ctx, state + 20u)) {
+      line = LoadU32(ctx, line_slot);
+      goto local_line_ready;
+    }
+    line = LoadU32(ctx, state + 24u);
+    StoreU32(ctx, line_slot, line);
+    cursor = LoadU32(ctx, tag);
+    local_line_ready:;
+    cursor = LoadU32(ctx, (offset + (line - LoadU32(ctx, LoadU32(ctx, cursor + 16u) + 12u))) - 4u);
+    tag = (cursor & 63u) - 28u;
+    if (tag > 5u) goto no_name_info;
+    if (((1u << (tag & 31)) & 35u) == 0u) goto no_name_info;
+    cursor = ResolveVariableKind(ctx, state, upvalue_table, ((cursor >> (6u & 31)) & 255u),
+                                 kind_out);
+    StoreU32(ctx, out + 8u, cursor);
+    if (cursor != 0u) goto tag_handled;
+    no_name_info:;
+    StoreU32(ctx, out + 4u, 0u);
+    StoreU32(ctx, out + 8u, kTracebackEmptyString);
+    goto tag_handled;
+    unknown_tag:;
+    found = 0u;
+    tag_handled:;
+    cursor = scan + 1u;
+    tag = LoadU8(ctx, scan + 1u);
+    if (tag != 0u) goto scan_sections;
+    name_scan_done:;
+    out = (FindPoolEntryByTagByte(ctx, name, 102u) == 0u);
+    if (out != 0u) goto check_c_call;
+    out = LoadU32(ctx, state + 8u);
+    StoreU32(ctx, out + 8u, 6u);
+    StoreU32(ctx, out, descriptor);
+    out = LoadU32(ctx, state + 8u);
+    value = 0u;
+    goto value_ready;
+    // No debug entry: the frame is a tail call, or a function with no name.
+  tail_call_frame:;
+    StoreU64(ctx, out + 28u, 18446744073709551615ull);
+    StoreU32(ctx, out + 20u, kTracebackMinusOne);
+    StoreU32(ctx, out + 12u, kTracebackTail);
+    StoreU32(ctx, out + 4u, kTracebackEmptyString);
+    StoreU32(ctx, out + 8u, kTracebackEmptyString);
+    StoreU32(ctx, out + 16u, kTracebackTailCall);
+    cursor = out + 36u;
+    FormatSourceId(ctx, cursor, kTracebackTailCall, 60u);
+    descriptor = 0u;
+    StoreU32(ctx, out + 24u, 0u);
+    out = (FindPoolEntryByTagByte(ctx, name, 102u) == 0u);
+    if (out != 0u) {
+      found = 1u;
+      tag = 1u;
+      goto check_function_kind;
+    }
+    out = LoadU32(ctx, state + 8u);
+    StoreU32(ctx, out + 8u, 0u);
+    found = 1u;
+    value = 1u;
+    value_ready:;
+    tag = value;
+    cursor = state;
+    scan = (static_cast<int32_t>((LoadU32(ctx, cursor + 28u) - out)) <= 16);
   }
-  i1 = l8;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l11;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = 1u;
-      GrowValueStack(ctx, i0, i1);
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+  result = ResumePhase(ctx) ? result : scan;
+  if (result != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+      GrowValueStack(ctx, state, 1u);
+      resume_point = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
     }
-    i0 = ResumePhase(ctx);
-    if (i0) {
-      i0 = out;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      result = LoadU32(ctx, state + 8u);
     } else {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 8u);
+      // Rewinding: the restored frame offset is reused as it stands.
+      result = out;
     }
-    out = i0;
+    out = result;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    i1 = out;
-    i2 = 16u;
-    i1 += i2;
-    out = i1;
-    StoreU32(ctx, i0 + 8u, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    out = out + 16u;
+    StoreU32(ctx, cursor + 8u, out);
   }
-  block_10:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = name;
-    i1 = 76u;
-    i0 = FindPoolEntryByTagByte(ctx, i0, i1);
-    i0 = !(i0);
-    name = i0;
-    if (i0) {goto running_exit;}
-    i0 = l5;
-    if (i0) {goto block_7;}
-    goto block_8;
+  check_function_kind:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    name = (FindPoolEntryByTagByte(ctx, name, 76u) == 0u);
+    if (name != 0u) goto finished;
+    if (tag != 0u) goto function_frame;
+    goto check_upvalues;
   }
-  block_9:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = name;
-    i1 = 76u;
-    i0 = FindPoolEntryByTagByte(ctx, i0, i1);
-    i0 = !(i0);
-    name = i0;
-    if (i0) {goto running_exit;}
+  check_c_call:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    name = (FindPoolEntryByTagByte(ctx, name, 76u) == 0u);
+    if (name != 0u) goto finished;
   }
-  block_8:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l7;
-    i0 = LoadU8(ctx, i0 + 6u);
-    i0 = !(i0);
-    name = i0;
-    if (i0) {goto block_6;}
+  check_upvalues:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    name = (LoadU8(ctx, descriptor + 6u) == 0u);
+    if (name != 0u) goto copy_upvalues;
   }
-  block_7:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 8u);
-    out = i0;
-    i1 = 0u;
-    StoreU32(ctx, i0 + 8u, i1);
-    goto block_5;
+  function_frame:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    out = LoadU32(ctx, state + 8u);
+    StoreU32(ctx, out + 8u, 0u);
+    goto upvalues_done;
   }
-  block_6:;
-  i0 = out;
-  i1 = 0u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  out = i0;
-  i0 = l11;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = 0u;
-    i2 = 0u;
-    i0 = AllocateTable(ctx, i0, i1, i2);
-    l4 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    name = i0;
+  // The function has upvalues: copy their names into a fresh table.
+  copy_upvalues:;
+  out = ResumePhase(ctx) ? out : 0u;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+    entry = AllocateTable(ctx, state, 0u, 0u);
+    resume_point = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    name = entry;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l7;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0 + 48u);
-    i1 = 1u;
-    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    cursor = LoadU32(ctx, descriptor + 16u);
+    tag = (static_cast<int32_t>(LoadU32(ctx, cursor + 48u)) >= 1);
   }
-  i0 = l5;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      i0 = LoadU32(ctx, i0 + 20u);
-      l3 = i0;
+  if (tag != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      cursor = LoadU32(ctx, cursor + 20u);
     }
-    loop_50: 
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = out;
-        i1 = 2u;
-        i0 <<= (i1 & 31);
-        i1 = l3;
-        i0 += i1;
-        i0 = LoadU32(ctx, i0);
-        l5 = i0;
-      }
-      i0 = l11;
-      i1 = 2u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = state;
-        i1 = name;
-        i2 = l5;
-        i0 = GetTableFieldByNumber(ctx, i0, i1, i2);
-        l4 = i0;
-        i0 = 2u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-        i0 = l4;
-        l8 = i0;
-      }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = l8;
-        i1 = 1u;
-        StoreU32(ctx, i0 + 8u, i1);
-        i0 = l8;
-        i1 = 1u;
-        StoreU32(ctx, i0, i1);
-        i0 = out;
-        i1 = 1u;
-        i0 += i1;
-        out = i0;
-        i1 = l7;
-        i1 = LoadU32(ctx, i1 + 16u);
-        i1 = LoadU32(ctx, i1 + 48u);
-        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-        l5 = i0;
-        if (i0) {goto loop_50;}
-      }
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 8u);
-    out = i0;
-    i1 = 5u;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = out;
-    i1 = name;
-    StoreU32(ctx, i0, i1);
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 8u);
-    out = i0;
-  }
-  block_5:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 28u);
-    i1 = out;
-    i0 -= i1;
-    i1 = 16u;
-    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-    l3 = i0;
-    i0 = state;
-    name = i0;
-  }
-  i0 = l12;
-  i1 = l3;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  l12 = i0;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l11;
-    i1 = 3u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = 1u;
-      GrowValueStack(ctx, i0, i1);
-      i0 = 3u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    copy_upvalue_entries:;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      tag = LoadU32(ctx, (out << (2u & 31)) + cursor);
     }
-    i0 = ResumePhase(ctx);
-    if (i0) {
-      i0 = out;
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+      entry = GetTableFieldByNumber(ctx, state, name, tag);
+      resume_point = 2u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+      scan = entry;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, scan + 8u, 1u);
+      StoreU32(ctx, scan, 1u);
+      out = out + 1u;
+      tag = (static_cast<int32_t>(out) <
+             static_cast<int32_t>(LoadU32(ctx, LoadU32(ctx, descriptor + 16u) + 48u)));
+      if (tag != 0u) goto copy_upvalue_entries;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    out = LoadU32(ctx, state + 8u);
+    StoreU32(ctx, out + 8u, 5u);
+    StoreU32(ctx, out, name);
+    out = LoadU32(ctx, state + 8u);
+  }
+  upvalues_done:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    cursor = (static_cast<int32_t>((LoadU32(ctx, state + 28u) - out)) <= 16);
+    name = state;
+  }
+  // Grow the value stack if the frame no longer fits in it.
+  need_grow = ResumePhase(ctx) ? need_grow : cursor;
+  if (need_grow != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+      GrowValueStack(ctx, state, 1u);
+      resume_point = 3u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      result = LoadU32(ctx, state + 8u);
     } else {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 8u);
+      // Rewinding: the restored frame offset is reused as it stands.
+      result = out;
     }
-    out = i0;
+    out = result;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = name;
-    i1 = out;
-    i2 = 16u;
-    i1 += i2;
-    StoreU32(ctx, i0 + 8u, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, name + 8u, out + 16u);
   }
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l9;
-    goto func_exit;
+  finished:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    result = found;
+    goto exit_path;
   }
   TrapUnreachable();
-  spill_frame:;
-  l4 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l4;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF519ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l4 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l4;
-  i1 = name;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l4;
-  i1 = out;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l4;
-  i1 = l3;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l4;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l4;
-  i1 = l7;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l4;
-  i1 = l8;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = l4;
-  i1 = l9;
-  StoreU32(ctx, i0 + 28u, i1);
-  i0 = l4;
-  i1 = l12;
-  StoreU32(ctx, i0 + 32u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 36u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+  suspend_point:;
+  // Suspend: push the resume point, then the 36-byte frame with the live state.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kTracebackResumeWordBytes);
+  frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, frame, state);
+  StoreU32(ctx, frame + 4u, name);
+  StoreU32(ctx, frame + 8u, out);
+  StoreU32(ctx, frame + 12u, cursor);
+  StoreU32(ctx, frame + 16u, tag);
+  StoreU32(ctx, frame + 20u, descriptor);
+  StoreU32(ctx, frame + 24u, scan);
+  StoreU32(ctx, frame + 28u, found);
+  StoreU32(ctx, frame + 32u, need_grow);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kTracebackSaveFrameBytes);
+  result = 0u;
+  exit_path:;
   LeaveFrame();
-  return i0;
+  return result;
 }
-}
+
+}  // namespace artc

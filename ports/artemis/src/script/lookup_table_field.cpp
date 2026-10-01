@@ -1,48 +1,19 @@
-// lookup_table_field.cpp — table field lookup by a general value key.
-//
-// LookupTableField returns the 16-byte value record a script table holds for a
-// key, or the shared nil record when the table has no such field. It is the
-// general entry point: the key's value-type tag picks a main position among the
-// table's 32-byte hash nodes, and the chain hanging off that node is walked with
-// the comparison that fits the key family. The tag space is 0 nil, 1 boolean,
-// 2 light userdata, 3 number, 4 string; a nil key names no field at all, a
-// string key is interned so its node compares by object identity against the
-// key word itself, and the remaining families hash their key word.
-//
-// Number keys probe the flat array part first — one 16-byte record per
-// consecutive index below the declared array size — and only then fall back to
-// the node chain, whose walk compares the stored key number directly. Numbers
-// that are not integer-valued（or that sit outside the signed 32-bit range, in
-// which case the fold below parks a sentinel that can never compare equal
-// again）hash their f64 bit pattern instead, and every non-number family
-// compares whole key records through the shared raw-equality product.
-//
-// Node layout: the value record at +0, the key payload at +16, the key's type
-// tag at +24, the next node at +28. Table layout: the bucket shift at +7, the
-// array part base at +12, the hash node base at +16, the array part size at
-// +28. A bucket is either the power-of-two mask of that shift or the same mask
-// forced odd and used as a modulo divisor, so the divisor is never zero even
-// for an empty table.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
 #include "util/engine_context.h"
 #include <cmath>
 
 namespace artc {
 
-// Forward declaration — defined in script/raw_value_equal.cpp.
-// PROVISIONAL: the generated f603 body is not registered in rewrite-names.tsv
-// yet, so this callee name and its presumed product file are both provisional.
+// Forward declaration -- defined in script/raw_value_equal.cpp.
 uint32_t RawValueEqual(EngineContext* ctx, uint32_t lhs, uint32_t rhs);
 
+// Looks a general value key up in a table: the key's type tag picks a bucket
+// among the table's 32-byte hash nodes and that node's chain is walked with the
+// comparison the key family calls for. Answers the 16-byte value record the
+// table holds for the key, or the shared nil record when it holds none.
 uint32_t LookupTableField(EngineContext* ctx, uint32_t table, uint32_t key) {
   EnterFrame();
-  // The first magnitude a signed 32-bit fold cannot represent, and the sentinel
-  // parked for such a key: a value whose back-conversion can never equal the key
-  // again, so the key is left to the float path.
+  // The first magnitude a signed 32-bit fold cannot represent; such a key keeps
+  // this sentinel, whose back-conversion can never compare equal to it again.
   double const kFoldLimit = 2147483648.0;
   uint32_t const kUnfoldableKey = 0x80000000u;
   uint32_t node = 0u;
@@ -53,11 +24,9 @@ uint32_t LookupTableField(EngineContext* ctx, uint32_t table, uint32_t key) {
   double key_number_as_int = 0.0;
   switch (LoadU32(ctx, key + 8u)) {
     case 0u:
-      // A nil key names no field.
       LeaveFrame();
       return kNilValueAddr;
     case 1u: {
-      // Boolean-shaped keys mask their key word down to a node index.
       uint32_t const bool_node_base = LoadU32(ctx, table + 16u);
       uint32_t const bool_key_word = LoadU32(ctx, key);
       uint32_t const bool_shift = LoadU8(ctx, table + 7u);
@@ -66,7 +35,7 @@ uint32_t LookupTableField(EngineContext* ctx, uint32_t table, uint32_t key) {
       break;
     }
     case 2u: {
-      // Light-userdata-shaped keys whose key word is a modulo hash.
+      // The mask is forced odd so that it can divide, and is never zero.
       uint32_t const light_node_base = LoadU32(ctx, table + 16u);
       uint32_t const light_key_word = LoadU32(ctx, key);
       uint32_t const light_shift = LoadU8(ctx, table + 7u);
@@ -75,10 +44,9 @@ uint32_t LookupTableField(EngineContext* ctx, uint32_t table, uint32_t key) {
       break;
     }
     case 3u: {
-      // Number key. The fold below mirrors the VM's own test for "this number
-      // can index the array part": a magnitude at or past 2^31 keeps the
-      // unfoldable sentinel, whose back-conversion can never equal the key
-      // again, so such a key is routed as the float it is.
+      // The fold mirrors the VM's own test for "this number can index the array
+      // part": a magnitude at or past 2^31 keeps the unfoldable sentinel and the
+      // key is routed as the float it is.
       key_number = LoadF64(ctx, key);
       key_fold = std::fabs(key_number) < kFoldLimit
                      ? static_cast<uint32_t>(static_cast<int32_t>(key_number))
@@ -87,7 +55,7 @@ uint32_t LookupTableField(EngineContext* ctx, uint32_t table, uint32_t key) {
       if (key_number_as_int == key_number) {
         uint32_t const array_index = key_fold - 1u;
         if (array_index < LoadU32(ctx, table + 28u)) {
-          // Array part: one 16-byte record per consecutive index.
+          // The array part holds one 16-byte record per consecutive index.
           LeaveFrame();
           return LoadU32(ctx, table + 12u) + (array_index << 4);
         }
@@ -103,8 +71,8 @@ uint32_t LookupTableField(EngineContext* ctx, uint32_t table, uint32_t key) {
           uint32_t const num_divisor = ((0xFFFFFFFFu << (num_shift & 31u)) ^ 0xFFFFFFFFu) | 1u;
           node = num_node_base + ((num_mixed % num_divisor) << 5);
         }
-        // The numeric family's chain compares the stored key number directly,
-        // and an integer-valued key never reaches the general comparison.
+        // This chain compares the stored key number itself, never the raw key
+        // record the general chain below would read.
         for (;;) {
           if (LoadU32(ctx, node + 24u) == 3u &&
               key_number_as_int == LoadF64(ctx, node + 16u)) {
@@ -120,8 +88,7 @@ uint32_t LookupTableField(EngineContext* ctx, uint32_t table, uint32_t key) {
         LeaveFrame();
         return kNilValueAddr;
       }
-      // Not integer-valued: hash the f64 bit pattern（number zero keeps the
-      // head of the node array）and take the general chain below.
+      // Not integer-valued, so the f64 bit pattern is hashed instead.
       if (key_number == 0.0) {
         node = LoadU32(ctx, table + 16u);
       } else {
@@ -136,8 +103,8 @@ uint32_t LookupTableField(EngineContext* ctx, uint32_t table, uint32_t key) {
       break;
     }
     case 4u: {
-      // String key: the string carries its own cached hash and is interned, so
-      // the node compares the key word by identity.
+      // A string carries its own cached hash, so the chain below compares the
+      // key word by identity.
       uint32_t const str_node_base = LoadU32(ctx, table + 16u);
       uint32_t const str_key = LoadU32(ctx, key);
       uint32_t const str_key_hash = LoadU32(ctx, str_key + 8u);
@@ -159,9 +126,6 @@ uint32_t LookupTableField(EngineContext* ctx, uint32_t table, uint32_t key) {
       return kNilValueAddr;
     }
     default: {
-      // Tables, functions, userdata and threads hash their key word the same
-      // modulo way. The source dispatches this family separately from the
-      // light-userdata one above, so it stays its own arm.
       uint32_t const ptr_node_base = LoadU32(ctx, table + 16u);
       uint32_t const ptr_key_word = LoadU32(ctx, key);
       uint32_t const ptr_shift = LoadU8(ctx, table + 7u);
@@ -170,9 +134,7 @@ uint32_t LookupTableField(EngineContext* ctx, uint32_t table, uint32_t key) {
       break;
     }
   }
-  // General chain: each node's key record is compared against the key through
-  // the shared raw-equality product, and the walk ends on the shared nil
-  // record.
+  // The walk compares each node's key record and ends on the shared nil record.
   for (;;) {
     if (RawValueEqual(ctx, node + 16u, key)) {
       LeaveFrame();

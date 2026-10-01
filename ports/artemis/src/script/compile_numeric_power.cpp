@@ -1,441 +1,182 @@
-// compile_numeric_power.cpp -- compiles a numeric power: the exponent form is folded through the constant path..
-//
-// CompileNumericPower -- compiles a numeric power: the exponent form is folded through the constant path.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 221453-221453 (f550); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of the callees below.
 uint32_t EmitInstruction(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t ExpressionToRegister(EngineContext* ctx, uint32_t func_state, uint32_t expr);
 double ComputeNumericPower(EngineContext* ctx, double base, double exponent);
 
 namespace {
 
-constexpr uint32_t kF550ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF550SaveFrameBytes = 24u;
-constexpr uint32_t kF550ResumeWordBytes = 4u;
+constexpr uint32_t kCompileNumericPowerNoChild = 0xFFFFFFFFu;  // an absent child operand
+constexpr uint32_t kCompileNumericPowerNumberTag = 5u;  // tag of a numeric constant node
+constexpr uint32_t kCompileNumericPowerResultTag = 11u;  // tag of the folded numeric result
+constexpr uint32_t kCompileNumericPowerAddOp = 12u;  // tag of '+', the first operator we fold
+constexpr uint32_t kCompileNumericPowerNegOp = 18u;  // tag of unary '-', the first operator kept
+constexpr uint32_t kCompileNumericPowerRegisterTag = 12u;  // tag of a register reference
+constexpr uint32_t kCompileNumericPowerConstBit = 256u;  // set while a register holds a constant
+constexpr uint32_t kCompileNumericPowerSaveFrameBytes = 24u;  // saved words below the resume code
+constexpr uint32_t kCompileNumericPowerResumeWordBytes = 4u;  // resume code slot
 
 }  // namespace
 
+// Compiles a numeric power: when both operands are numeric constants the
+// operator is folded here, otherwise the operands are compiled into
+// registers and the instruction is emitted.  The register allocations and
+// the emit are suspendable, so the operands and the two register numbers
+// are kept in the frame.
 void CompileNumericPower(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
   EnterFrame();
-  double l10 = 0; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; double l8 = 0; double l9 = 0;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  double d0 = 0; double d1 = 0; double d2 = 0; double d3 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF550SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 8u);
-    c = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 12u);
-    d = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l6 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
+  uint32_t called = 0u;      // the result of the last call
+  uint32_t skip_fold = 0u;   // set when the left operand is not a number
+  uint32_t reg_left = 0u;    // the register the left operand compiles into
+  uint32_t reg_right = 0u;   // the register the right operand compiles into
+  uint32_t reg_index = 0u;   // register index taken out of an operand node
+  double left_value = 0;     // the left operand's numeric value
+  double right_value = 0;    // the right operand's numeric value
+  double folded = 0;         // the folded result, written back into the left operand
+  uint32_t resume_point = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 24-byte frame the suspend path saved.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+        LoadU32(ctx, ReturnFrameSp(ctx)) - kCompileNumericPowerSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    a = LoadU32(ctx, frame);
+    c = LoadU32(ctx, frame + 8u);
+    d = LoadU32(ctx, frame + 12u);
+    reg_left = LoadU32(ctx, frame + 16u);
+    reg_right = LoadU32(ctx, frame + 20u);
+    b = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF550ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l7 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 4-byte frame that saves the resume code.
+    StoreU32(ctx, ReturnFrameSp(ctx),
+        LoadU32(ctx, ReturnFrameSp(ctx)) - kCompileNumericPowerResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = c;
-    i0 = LoadU32(ctx, i0);
-    i1 = 5u;
-    i0 = i0 != i1;
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    skip_fold = LoadU32(ctx, c) != kCompileNumericPowerNumberTag;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l5;
-    if (i0) {goto block_7;}
-    i0 = c;
-    i0 = LoadU32(ctx, i0 + 16u);
-    i1 = kF550ConstFFFFFFFF;
-    i0 = i0 != i1;
-    if (i0) {goto block_7;}
-    i0 = c;
-    i0 = LoadU32(ctx, i0 + 20u);
-    i1 = kF550ConstFFFFFFFF;
-    i0 = i0 != i1;
-    if (i0) {goto block_7;}
-    i0 = d;
-    i0 = LoadU32(ctx, i0);
-    i1 = 5u;
-    i0 = i0 != i1;
-    if (i0) {goto block_7;}
-    i0 = d;
-    i0 = LoadU32(ctx, i0 + 16u);
-    i1 = kF550ConstFFFFFFFF;
-    i0 = i0 != i1;
-    if (i0) {goto block_7;}
-    i0 = d;
-    i0 = LoadU32(ctx, i0 + 20u);
-    i1 = kF550ConstFFFFFFFF;
-    i0 = i0 != i1;
-    if (i0) {goto block_7;}
-    i0 = d;
-    d0 = LoadF64(ctx, i0 + 8u);
-    l8 = d0;
-    i0 = c;
-    d0 = LoadF64(ctx, i0 + 8u);
-    l9 = d0;
-    i0 = b;
-    i1 = 12u;
-    i0 -= i1;
-    l5 = i0;
-    switch (i0) {
-      case 0: goto block_16;
-      case 1: goto block_15;
-      case 2: goto block_14;
-      case 3: goto block_13;
-      case 4: goto block_12;
-      case 5: goto block_11;
-      case 6: goto block_10;
-      case 7: goto block_8;
-      case 8: goto running_exit;
-      default: goto block_8;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Fold only when both operands are plain numeric constants.
+    if (skip_fold != 0u) { goto general_path; }
+    if (LoadU32(ctx, c + 16u) != kCompileNumericPowerNoChild) { goto general_path; }
+    if (LoadU32(ctx, c + 20u) != kCompileNumericPowerNoChild) { goto general_path; }
+    if (LoadU32(ctx, d) != kCompileNumericPowerNumberTag) { goto general_path; }
+    if (LoadU32(ctx, d + 16u) != kCompileNumericPowerNoChild) { goto general_path; }
+    if (LoadU32(ctx, d + 20u) != kCompileNumericPowerNoChild) { goto general_path; }
+    right_value = LoadF64(ctx, d + 8u);
+    left_value = LoadF64(ctx, c + 8u);
+    switch (b - kCompileNumericPowerAddOp) {
+      case 0: folded = left_value + right_value; break;
+      case 1: folded = left_value - right_value; break;
+      case 2: folded = left_value * right_value; break;
+      case 3:
+        if (right_value == 0.0) { goto emit_path; }
+        folded = left_value / right_value;
+        break;
+      case 4:
+        if (right_value == 0.0) { goto emit_path; }
+        folded = left_value - right_value * wasm_floor(left_value / right_value);
+        break;
+      case 5: folded = ComputeNumericPower(ctx, left_value, right_value); break;
+      case 6: folded = -left_value; break;
+      case 7: goto store_result;
+      case 8: goto finished;
+      default: goto store_result;
     }
-    block_16:;
-    d0 = l9;
-    d1 = l8;
-    d0 += d1;
-    goto block_9;
-    block_15:;
-    d0 = l9;
-    d1 = l8;
-    d0 -= d1;
-    goto block_9;
-    block_14:;
-    d0 = l9;
-    d1 = l8;
-    d0 *= d1;
-    goto block_9;
-    block_13:;
-    d0 = l8;
-    d1 = 0.0;
-    i0 = d0 == d1;
-    l5 = i0;
-    if (i0) {goto block_6;}
-    d0 = l9;
-    d1 = l8;
-    d0 /= d1;
-    goto block_9;
-    block_12:;
-    d0 = l8;
-    d1 = 0.0;
-    i0 = d0 == d1;
-    l5 = i0;
-    if (i0) {goto block_6;}
-    d0 = l9;
-    d1 = l8;
-    d2 = l9;
-    d3 = l8;
-    d2 /= d3;
-    d2 = wasm_floor(d2);
-    d1 *= d2;
-    d0 -= d1;
-    goto block_9;
-    block_11:;
-    d0 = l9;
-    d1 = l8;
-    d0 = ComputeNumericPower(ctx, d0, d1);
-    goto block_9;
-    block_10:;
-    d0 = l9;
-    d0 = -(d0);
-    block_9:;
-    l10 = d0;
-    d1 = l10;
-    i0 = d0 != d1;
-    if (i0) {goto block_7;}
-    block_8:;
-    i0 = c;
-    d1 = l10;
-    StoreF64(ctx, i0 + 8u, d1);
-    goto func_exit;
-    block_7:;
-    i0 = b;
-    i1 = 18u;
-    i0 -= i1;
-    l5 = i0;
-    switch (i0) {
-      case 0: goto running_exit;
-      case 1: goto block_6;
-      case 2: goto running_exit;
-      default: goto block_6;
+    // A NaN result is never folded.
+    if (folded != folded) { goto general_path; }
+store_result:
+    StoreF64(ctx, c + 8u, folded);
+    goto exit_path;
+general_path:
+    // The operators from -18 up are not folded here.
+    switch (b - kCompileNumericPowerNegOp) {
+      case 0: goto finished;
+      case 2: goto finished;
+      default: break;
     }
-    block_6:;
+emit_path:;
   }
-  i0 = l7;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = d;
-    i0 = ExpressionToRegister(ctx, i0, i1);
-    l4 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    l6 = i0;
+  // The emit path: the right operand's register is allocated first, so the
+  // left operand can still be released while it is used.
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+    called = ExpressionToRegister(ctx, a, d);
+    resume_point = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    reg_right = called;
   }
-  running_exit:;
-  i0 = l7;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = c;
-    i0 = ExpressionToRegister(ctx, i0, i1);
-    l4 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    l5 = i0;
+finished:
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+    called = ExpressionToRegister(ctx, a, c);
+    resume_point = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    reg_left = called;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l5;
-    i1 = l6;
-    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-    if (i0) {
-      i0 = c;
-      i0 = LoadU32(ctx, i0);
-      i1 = 12u;
-      i0 = i0 != i1;
-      if (i0) {goto block_22;}
-      i0 = c;
-      i0 = LoadU32(ctx, i0 + 8u);
-      l4 = i0;
-      i1 = 256u;
-      i0 &= i1;
-      if (i0) {goto block_22;}
-      i0 = a;
-      i0 = LoadU8(ctx, i0 + 50u);
-      i1 = l4;
-      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-      if (i0) {goto block_22;}
-      i0 = a;
-      i1 = a;
-      i1 = LoadU32(ctx, i1 + 36u);
-      i2 = 1u;
-      i1 -= i2;
-      StoreU32(ctx, i0 + 36u, i1);
-      block_22:;
-      i0 = d;
-      i0 = LoadU32(ctx, i0);
-      i1 = 12u;
-      i0 = i0 != i1;
-      if (i0) {goto block_20;}
-      i0 = d;
-      i0 = LoadU32(ctx, i0 + 8u);
-      d = i0;
-      i1 = 256u;
-      i0 &= i1;
-      if (i0) {goto block_20;}
-      i0 = a;
-      i0 = LoadU8(ctx, i0 + 50u);
-      i1 = d;
-      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-      if (i0) {goto block_20;}
-      i0 = a;
-      i1 = a;
-      i1 = LoadU32(ctx, i1 + 36u);
-      i2 = 1u;
-      i1 -= i2;
-      StoreU32(ctx, i0 + 36u, i1);
-      goto block_20;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Release the operand registers that only held this operator's operands.
+    if ((int32_t)reg_left > (int32_t)reg_right) {
+      if (LoadU32(ctx, c) != kCompileNumericPowerRegisterTag) { goto c_slot_kept; }
+      reg_index = LoadU32(ctx, c + 8u);
+      if ((reg_index & kCompileNumericPowerConstBit) != 0u) { goto c_slot_kept; }
+      if ((int32_t)LoadU8(ctx, a + 50u) > (int32_t)reg_index) { goto c_slot_kept; }
+      StoreU32(ctx, a + 36u, LoadU32(ctx, a + 36u) - 1u);
+c_slot_kept:
+      if (LoadU32(ctx, d) != kCompileNumericPowerRegisterTag) { goto build_instruction; }
+      reg_index = LoadU32(ctx, d + 8u);
+      if ((reg_index & kCompileNumericPowerConstBit) != 0u) { goto build_instruction; }
+      if ((int32_t)LoadU8(ctx, a + 50u) > (int32_t)reg_index) { goto build_instruction; }
+      StoreU32(ctx, a + 36u, LoadU32(ctx, a + 36u) - 1u);
+      goto build_instruction;
     }
-    i0 = d;
-    i0 = LoadU32(ctx, i0);
-    i1 = 12u;
-    i0 = i0 != i1;
-    if (i0) {goto block_23;}
-    i0 = d;
-    i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
-    i1 = 256u;
-    i0 &= i1;
-    if (i0) {goto block_23;}
-    i0 = a;
-    i0 = LoadU8(ctx, i0 + 50u);
-    i1 = d;
-    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-    if (i0) {goto block_23;}
-    i0 = a;
-    i1 = a;
-    i1 = LoadU32(ctx, i1 + 36u);
-    i2 = 1u;
-    i1 -= i2;
-    StoreU32(ctx, i0 + 36u, i1);
-    block_23:;
-    i0 = c;
-    i0 = LoadU32(ctx, i0);
-    i1 = 12u;
-    i0 = i0 != i1;
-    if (i0) {goto block_20;}
-    i0 = c;
-    i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
-    i1 = 256u;
-    i0 &= i1;
-    if (i0) {goto block_20;}
-    i0 = a;
-    i0 = LoadU8(ctx, i0 + 50u);
-    i1 = d;
-    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-    if (i0) {goto block_20;}
-    i0 = a;
-    i1 = a;
-    i1 = LoadU32(ctx, i1 + 36u);
-    i2 = 1u;
-    i1 -= i2;
-    StoreU32(ctx, i0 + 36u, i1);
-    block_20:;
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 12u);
-    i0 = LoadU32(ctx, i0 + 8u);
-    d = i0;
-    i0 = l6;
-    i1 = 14u;
-    i0 <<= (i1 & 31);
-    i1 = b;
-    i0 |= i1;
-    i1 = l5;
-    i2 = 23u;
-    i1 <<= (i2 & 31);
-    i0 |= i1;
-    b = i0;
+    if (LoadU32(ctx, d) != kCompileNumericPowerRegisterTag) { goto d_slot_kept; }
+    reg_index = LoadU32(ctx, d + 8u);
+    if ((reg_index & kCompileNumericPowerConstBit) != 0u) { goto d_slot_kept; }
+    if ((int32_t)LoadU8(ctx, a + 50u) > (int32_t)reg_index) { goto d_slot_kept; }
+    StoreU32(ctx, a + 36u, LoadU32(ctx, a + 36u) - 1u);
+d_slot_kept:
+    if (LoadU32(ctx, c) != kCompileNumericPowerRegisterTag) { goto build_instruction; }
+    reg_index = LoadU32(ctx, c + 8u);
+    if ((reg_index & kCompileNumericPowerConstBit) != 0u) { goto build_instruction; }
+    if ((int32_t)LoadU8(ctx, a + 50u) > (int32_t)reg_index) { goto build_instruction; }
+    StoreU32(ctx, a + 36u, LoadU32(ctx, a + 36u) - 1u);
+build_instruction:
+    // Pack both register numbers into the instruction word.
+    d = LoadU32(ctx, LoadU32(ctx, a + 12u) + 8u);
+    b = (reg_right << 14u) | b | (reg_left << 23u);
   }
-  i0 = l7;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = b;
-    i2 = d;
-    i0 = EmitInstruction(ctx, i0, i1, i2);
-    l4 = i0;
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    a = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+    called = EmitInstruction(ctx, a, b, d);
+    resume_point = 2u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    a = called;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = c;
-    i1 = 11u;
-    StoreU32(ctx, i0, i1);
-    i0 = c;
-    i1 = a;
-    StoreU32(ctx, i0 + 8u, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The left operand becomes the folded result.
+    StoreU32(ctx, c, kCompileNumericPowerResultTag);
+    StoreU32(ctx, c + 8u, a);
   }
-  goto func_exit;
-  spill_frame:;
-  l4 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l4;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF550ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l4 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l4;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l4;
-  i1 = c;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l4;
-  i1 = d;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l4;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l4;
-  i1 = l6;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 24u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto exit_path;
+suspend_point:
+  // Suspend: write the resume code, then push the frame with the live state.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+      LoadU32(ctx, ReturnFrameSp(ctx)) + kCompileNumericPowerResumeWordBytes);
+  {
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, a);
+    StoreU32(ctx, frame + 4u, b);
+    StoreU32(ctx, frame + 8u, c);
+    StoreU32(ctx, frame + 12u, d);
+    StoreU32(ctx, frame + 16u, reg_left);
+    StoreU32(ctx, frame + 20u, reg_right);
+  }
+  StoreU32(ctx, ReturnFrameSp(ctx),
+      LoadU32(ctx, ReturnFrameSp(ctx)) + kCompileNumericPowerSaveFrameBytes);
+exit_path:
   LeaveFrame();
 }
-}
+
+}  // namespace artc

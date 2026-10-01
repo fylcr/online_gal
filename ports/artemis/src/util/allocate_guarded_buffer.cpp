@@ -1,394 +1,304 @@
-// allocate_guarded_buffer.cpp -- allocates one buffer under the allocator guard: the limit raise and the assert path sit behind the raw allocation..
-//
-// AllocateGuardedBuffer -- allocates one buffer under the allocator guard: the limit raise and the assert path sit behind the raw allocation.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 2512105-2512105 (f4579); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Releases a raw block back to the allocator.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
+// Hands back a fresh buffer of the requested size.
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);
+// Raises the error an arena that cannot grow any further ends in.
 void RaiseAllocLimitError(EngineContext* ctx, uint32_t a0);
+// Fails the assertion that guards the allocator's own bookkeeping.
 void RaiseAllocatorAssert(EngineContext* ctx, uint32_t a0);
 
 namespace {
-
-constexpr uint32_t kF4579MsgAllocatorTAllocateSize = 0x8B974u;  // allocator<T>::allocate(size_t n) 'n' exceeds maximum supported size
-constexpr uint32_t kF4579ConstAAAAAAA = 0xAAAAAAAu;  // 
-constexpr uint32_t kF4579Const15555555 = 0x15555555u;  // 
-constexpr uint32_t kF4579Const15555556 = 0x15555556u;  // 
-constexpr uint32_t kF4579ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF4579SaveFrameBytes = 24u;
-constexpr uint32_t kF4579ResumeWordBytes = 4u;
-
+// The text of the "exceeds maximum supported size" error, and the limits the
+// arena sizing is held against.
+constexpr uint32_t kAllocateGuardedBufferTooBigText = 0x8B974u;
+constexpr uint32_t kAllocateGuardedBufferMaxCount = 0xAAAAAAAu;
+constexpr uint32_t kAllocateGuardedBufferMaxCapacity = 0x15555555u;
+constexpr uint32_t kAllocateGuardedBufferMaxEntries = 0x15555556u;
+// The all-bits word a signed byte compare is held against, the words a save
+// frame costs, and the word that names the call in flight.
+constexpr uint32_t kAllocateGuardedBufferAllBits = 0xFFFFFFFFu;
+constexpr uint32_t kAllocateGuardedBufferSaveFrameBytes = 24u;
+constexpr uint32_t kAllocateGuardedBufferResumeWordBytes = 4u;
 }  // namespace
 
+// Grows an arena so one more entry fits: a fresh block is allocated, the live
+// entries are moved to the end of it, the entry at size is written in, and the
+// old storage is released. The allocator's limit check runs only once the raw
+// allocation has happened.
 void AllocateGuardedBuffer(EngineContext* ctx, uint32_t state, uint32_t size) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF4579SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 4u);
-    size = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l2 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l4 = i0;
+  uint32_t top = 0u;
+  uint32_t arg = 0u;
+  uint32_t third = 0u;
+  uint32_t fourth = 0u;
+  // The save frame's own word: the byte size asked of the allocator, and later
+  // the region that comes back.
+  uint32_t hold = 0u;
+  // The arena's base, and while sizing it carries the entry capacity.
+  uint32_t base = 0u;
+  // The number of live entries, and later the end of the moved region.
+  uint32_t count = 0u;
+  // The room the arena is grown to, then the destination the entries are
+  // walked down to, and at the end the new base.
+  uint32_t room = 0u;
+  // Scratch that carries the doubled capacity, the raw allocation and, in the
+  // spill, the base of the save frame.
+  uint32_t scratch = 0u;
+  // The step of the walk that releases the entries the move left behind.
+  uint32_t walk = 0u;
+  // The call a rewinding pass replays, and the word a suspending pass pushes.
+  uint32_t resume_index = 0u;
+  uint32_t resume_code = 0u;
+  uint64_t word = 0;
+
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the save frame and read its words back.
+    top = ReturnFrameSp(ctx);
+    arg = ReturnFrameSp(ctx);
+    arg = LoadU32(ctx, arg) - kAllocateGuardedBufferSaveFrameBytes;
+    StoreU32(ctx, top, arg);
+    count = ReturnFrameSp(ctx);
+    count = LoadU32(ctx, count);
+    state = LoadU32(ctx, count);
+    size = LoadU32(ctx, count + 4u);
+    base = LoadU32(ctx, count + 8u);
+    hold = LoadU32(ctx, count + 12u);
+    room = LoadU32(ctx, count + 16u);
+    count = LoadU32(ctx, count + 20u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF4579ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l7 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word, which names the call in flight.
+    top = ReturnFrameSp(ctx);
+    arg = ReturnFrameSp(ctx);
+    arg = LoadU32(ctx, arg) - kAllocateGuardedBufferResumeWordBytes;
+    StoreU32(ctx, top, arg);
+    top = ReturnFrameSp(ctx);
+    top = LoadU32(ctx, top);
+    resume_index = LoadU32(ctx, top);
   }
-  i0 = ResumePhase(ctx);
-  if (i0) {
-    i0 = l6;
+  top = ResumePhase(ctx);
+  if (top != 0u) {
+    top = scratch;
   } else {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 4u);
-    i1 = state;
-    i1 = LoadU32(ctx, i1);
-    l3 = i1;
-    i0 -= i1;
-    i1 = 12u;
-    i0 = I32_DIV_S(i0, i1);
-    l4 = i0;
-    i1 = 1u;
-    i0 += i1;
-    l5 = i0;
-    i1 = kF4579Const15555556;
-    i0 = i0 < i1;
+    // Count the live entries and test whether one more still fits.
+    top = LoadU32(ctx, state + 4u);
+    arg = LoadU32(ctx, state);
+    base = arg;
+    top = top - arg;
+    arg = 12u;
+    top = I32_DIV_S(top, arg);
+    count = top;
+    arg = 1u;
+    top = top + arg;
+    room = top;
+    arg = kAllocateGuardedBufferMaxEntries;
+    top = top < arg;
   }
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l5;
-      i1 = state;
-      i1 = LoadU32(ctx, i1 + 8u);
-      i2 = l3;
-      i1 -= i2;
-      i2 = 12u;
-      i1 = I32_DIV_S(i1, i2);
-      l3 = i1;
-      i2 = 1u;
-      i1 <<= (i2 & 31);
-      l6 = i1;
-      i2 = l5;
-      i3 = l6;
-      i2 = i2 > i3;
-      i0 = i2 ? i0 : i1;
-      l5 = i0;
-      i1 = kF4579Const15555555;
-      i2 = l3;
-      i3 = kF4579ConstAAAAAAA;
-      i2 = i2 < i3;
-      i0 = i2 ? i0 : i1;
-      l3 = i0;
+  arg = ResumePhase(ctx) == kResumeRewinding;
+  top = top | arg;
+  if (top != 0u) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Grow the capacity to at least twice what the entries need.
+      top = room;
+      arg = LoadU32(ctx, state + 8u);
+      third = base;
+      arg = arg - third;
+      third = 12u;
+      arg = I32_DIV_S(arg, third);
+      base = arg;
+      third = 1u;
+      arg = arg << (third & 31);
+      scratch = arg;
+      third = room;
+      fourth = scratch;
+      third = third > fourth;
+      top = third ? top : arg;
+      room = top;
+      arg = kAllocateGuardedBufferMaxCapacity;
+      third = base;
+      fourth = kAllocateGuardedBufferMaxCount;
+      third = third < fourth;
+      top = third ? top : arg;
+      base = top;
     }
-    i0 = l3;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = l3;
-        i1 = kF4579Const15555556;
-        i0 = i0 >= i1;
-        l2 = i0;
-        if (i0) {goto block_5;}
-        i0 = l3;
-        i1 = 12u;
-        i0 *= i1;
-        l2 = i0;
-      }
-      i0 = l7;
-      i0 = !(i0);
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = l2;
-        i0 = AllocateStringBuffer(ctx, i0);
-        l6 = i0;
-        i0 = 0u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-        i0 = l6;
-      } else {
-        i0 = l2;
-      }
-      l2 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l2;
-      i1 = l4;
-      i2 = 12u;
-      i1 *= i2;
-      i0 += i1;
-      l5 = i0;
-      i1 = size;
-      j1 = LoadU64(ctx, i1);
-      StoreU64(ctx, i0, j1);
-      i0 = l5;
-      i1 = size;
-      i1 = LoadU32(ctx, i1 + 8u);
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = size;
-      j1 = 0ull;
-      StoreU64(ctx, i0, j1);
-      i0 = size;
-      i1 = 0u;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = l2;
-      i1 = l3;
-      i2 = 12u;
-      i1 *= i2;
-      i0 += i1;
-      l2 = i0;
-      i0 = l5;
-      i1 = 12u;
-      i0 += i1;
-      l4 = i0;
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 4u);
-      size = i0;
-      i1 = state;
-      i1 = LoadU32(ctx, i1);
-      l3 = i1;
-      i0 = i0 == i1;
-      if (i0) {goto running_exit;}
-      loop_14: 
-        i0 = l5;
-        i1 = 12u;
-        i0 -= i1;
-        l5 = i0;
-        i1 = size;
-        i2 = 12u;
-        i1 -= i2;
-        size = i1;
-        j1 = LoadU64(ctx, i1);
-        StoreU64(ctx, i0, j1);
-        i0 = l5;
-        i1 = size;
-        i1 = LoadU32(ctx, i1 + 8u);
-        StoreU32(ctx, i0 + 8u, i1);
-        i0 = size;
-        j1 = 0ull;
-        StoreU64(ctx, i0, j1);
-        i0 = size;
-        i1 = 0u;
-        StoreU32(ctx, i0 + 8u, i1);
-        i0 = size;
-        i1 = l3;
-        i0 = i0 != i1;
-        if (i0) {goto loop_14;}
-      i0 = state;
-      i1 = l2;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 4u);
-      l2 = i0;
-      i0 = state;
-      i1 = l4;
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = state;
-      i0 = LoadU32(ctx, i0);
-      l3 = i0;
-      i0 = state;
-      i1 = l5;
-      StoreU32(ctx, i0, i1);
-      i0 = l2;
-      i1 = l3;
-      i0 = i0 == i1;
-      if (i0) {goto block_3;}
-      loop_15: 
-        i0 = l2;
-        i1 = 12u;
-        i0 -= i1;
-        state = i0;
-        i0 = l2;
-        i1 = 1u;
-        i0 -= i1;
-        i0 = LoadS8(ctx, i0);
-        i1 = kF4579ConstFFFFFFFF;
-        i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-        if (i0) {
-          i0 = state;
-          i0 = LoadU32(ctx, i0);
-          DeallocateRawBlock(ctx, i0);
+    top = base;
+    arg = ResumePhase(ctx) == kResumeRewinding;
+    top = top | arg;
+    if (top != 0u) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // A capacity past the last safe entry count takes the error path.
+        top = base;
+        arg = kAllocateGuardedBufferMaxEntries;
+        top = top >= arg;
+        hold = top;
+        if (top != 0u) {
+          goto limit_raise;
         }
-        i0 = state;
-        l2 = i0;
-        i0 = state;
-        i1 = l3;
-        i0 = i0 != i1;
-        if (i0) {goto loop_15;}
-      goto block_3;
+        top = base;
+        arg = 12u;
+        top = top * arg;
+        hold = top;
+      }
+      if (ResumePhase(ctx) == kResumeRunning || resume_index == 0u) {
+        // The raw allocation is the call that can suspend.
+        top = hold;
+        top = AllocateStringBuffer(ctx, top);
+        scratch = top;
+        resume_code = 0u;
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          goto save_frame;
+        }
+        top = scratch;
+      } else {
+        top = hold;
+      }
+      hold = top;
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // Write the new entry past the last live one, then move the live
+        // entries down into the tail of the new block.
+        top = hold;
+        arg = count;
+        third = 12u;
+        arg = arg * third;
+        top = top + arg;
+        room = top;
+        arg = size;
+        word = LoadU64(ctx, arg);
+        StoreU64(ctx, top, word);
+        top = room;
+        arg = LoadU32(ctx, size + 8u);
+        StoreU32(ctx, top + 8u, arg);
+        word = 0ull;
+        StoreU64(ctx, size, word);
+        StoreU32(ctx, size + 8u, 0u);
+        top = hold;
+        arg = base;
+        third = 12u;
+        arg = arg * third;
+        top = top + arg;
+        hold = top;
+        top = room;
+        arg = 12u;
+        top = top + arg;
+        count = top;
+        top = LoadU32(ctx, state + 4u);
+        size = top;
+        arg = LoadU32(ctx, state);
+        base = arg;
+        top = top == arg;
+        if (top != 0u) {
+          goto guard_exit;
+        }
+        do {
+          room = room - 12u;
+          size = size - 12u;
+          word = LoadU64(ctx, size);
+          StoreU64(ctx, room, word);
+          top = LoadU32(ctx, size + 8u);
+          StoreU32(ctx, room + 8u, top);
+          word = 0ull;
+          StoreU64(ctx, size, word);
+          StoreU32(ctx, size + 8u, 0u);
+          top = size != base;
+        } while (top != 0u);
+        StoreU32(ctx, state + 8u, hold);
+        top = LoadU32(ctx, state + 4u);
+        hold = top;
+        StoreU32(ctx, state + 4u, count);
+        top = LoadU32(ctx, state);
+        base = top;
+        StoreU32(ctx, state, room);
+        top = hold;
+        arg = base;
+        top = top == arg;
+        if (top != 0u) {
+          goto release_done;
+        }
+        // Release the entries the move left behind.
+        do {
+          walk = hold - 12u;
+          top = hold - 1u;
+          top = LoadS8(ctx, top);
+          arg = kAllocateGuardedBufferAllBits;
+          top = (uint32_t)((int32_t)top <= (int32_t)arg);
+          if (top != 0u) {
+            top = LoadU32(ctx, walk);
+            DeallocateRawBlock(ctx, top);
+          }
+          hold = walk;
+          top = walk != base;
+        } while (top != 0u);
+        goto release_done;
+      }
     }
   }
-  i0 = l7;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    RaiseAllocatorAssert(ctx, i0);
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    TrapUnreachable();
-  }
-  block_5:;
-  i0 = l7;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = kF4579MsgAllocatorTAllocateSize;
-    RaiseAllocLimitError(ctx, i0);
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    TrapUnreachable();
-  }
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i1 = l2;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = state;
-    i1 = l4;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = state;
-    i1 = l5;
-    StoreU32(ctx, i0, i1);
-  }
-  block_3:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    if (i0) {
-      i0 = l3;
-      DeallocateRawBlock(ctx, i0);
+  if (ResumePhase(ctx) == kResumeRunning || resume_index == 1u) {
+    // The allocator's bookkeeping assertion.
+    RaiseAllocatorAssert(ctx, state);
+    resume_code = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto save_frame;
     }
   }
-  goto func_exit;
-  spill_frame:;
-  l6 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l6;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF4579ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l6 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l6;
-  i1 = size;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l6;
-  i1 = l3;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l6;
-  i1 = l2;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l6;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l6;
-  i1 = l4;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 24u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    TrapUnreachable();
+  }
+limit_raise:;
+  if (ResumePhase(ctx) == kResumeRunning || resume_index == 2u) {
+    // The size the allocator was asked for exceeds what it supports.
+    top = kAllocateGuardedBufferTooBigText;
+    RaiseAllocLimitError(ctx, top);
+    resume_code = 2u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto save_frame;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    TrapUnreachable();
+  }
+guard_exit:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Publish the new base, end and capacity limit.
+    StoreU32(ctx, state + 8u, hold);
+    StoreU32(ctx, state + 4u, count);
+    StoreU32(ctx, state, room);
+  }
+release_done:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (base != 0u) {
+      DeallocateRawBlock(ctx, base);
+    }
+  }
+  LeaveFrame();
+  return;
+save_frame:;
+  // Push the word naming the call in flight, then the save frame; a rewind
+  // reads them back in that order.
+  scratch = resume_code;
+  top = ReturnFrameSp(ctx);
+  top = LoadU32(ctx, top);
+  StoreU32(ctx, top, scratch);
+  top = ReturnFrameSp(ctx);
+  arg = ReturnFrameSp(ctx);
+  arg = LoadU32(ctx, arg) + kAllocateGuardedBufferResumeWordBytes;
+  StoreU32(ctx, top, arg);
+  scratch = ReturnFrameSp(ctx);
+  scratch = LoadU32(ctx, scratch);
+  StoreU32(ctx, scratch, state);
+  StoreU32(ctx, scratch + 4u, size);
+  StoreU32(ctx, scratch + 8u, base);
+  StoreU32(ctx, scratch + 12u, hold);
+  StoreU32(ctx, scratch + 16u, room);
+  StoreU32(ctx, scratch + 20u, count);
+  top = ReturnFrameSp(ctx);
+  arg = ReturnFrameSp(ctx);
+  arg = LoadU32(ctx, arg) + kAllocateGuardedBufferSaveFrameBytes;
+  StoreU32(ctx, top, arg);
   LeaveFrame();
 }
-}
+
+}  // namespace artc

@@ -1,58 +1,10 @@
-// discharge_expression.cpp — resolve a storage-kind expression descriptor to a
-// register value, emitting the load it needs.
-//
-// DischargeExpression is the parser's "make this expression readable" step. An
-// expression descriptor carries a kind word at +0, then the union at +8 （the
-// source register or constant index at +8, the auxiliary operand at +12）, then
-// the true/false jump-list words. Discharging resolves the kinds that still name
-// storage into a concrete value. An upvalue, a global or an indexed field gets
-// its load bytecode （OP_GETUPVAL, OP_GETGLOBAL, OP_GETTABLE） packed into one
-// instruction word and handed to the code generator, which appends the word and
-// records the source line it belongs to; the descriptor is then parked as
-// relocatable with the new instruction's pc in its info word. Two kinds emit
-// nothing and are closed in place instead: a local already sits in its own
-// register, so the descriptor merely stops being a variable reference, and an
-// open call or vararg result is resolved against the instruction that produced
-// it — the register is read out of that instruction's A field, or the vararg
-// window is closed by forcing its B field to 2. Every other kind （constants, and
-// values already in a register or parked on an uninspected jump） is left exactly
-// as it came in.
-//
-// Appending an instruction can grow the code and line arrays, and that growth is
-// where the guest may suspend, so the body is laid out as the generated driver
-// runs it rather than as a plain switch. The three emission sites are its only
-// guest calls, and each is gated on the resume point the rewind popped: a
-// running pass takes every site, a rewind re-issues only the site that
-// suspended. The blocks stay apart in driver order — the frame pop, the resume
-// point pop, the running dispatch, the three sites with the ladder between them,
-// and the two exits, one that parks the descriptor and one that unwinds with a
-// fresh suspend frame holding the function state, the descriptor, the packed
-// word and the line. That save point writes its four words in the order 0, 4, 8,
-// 12 while the rewind reads them 0, 8, 12, 4, and the frame pointer is replaced
-// only after every other word is in hand; merging a ladder guard or folding a
-// site's select into a short-circuit test would change that order rather than
-// merely read nicer.
-//
-// The two free-register tests around the indexed load are the parser's own
-// register allocator: an operand that is not a constant and sits at or above the
-// active-local count releases one register. They stay separate and in source
-// order because the second one re-reads the operand word after it has released.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declaration — defined in script/emit_instruction.cpp.
-// Provisional: that is the generated f340 body — the suspendable instruction
-// emitter these sites call （it appends the word to the function's code array,
-// records the line, fixes up the pending jump list and answers with the new pc）
-// — and is not yet registered in rewrite-names.tsv. The declaration is written
-// to match the assembler's cross-product prototype block exactly, so this
-// product also checks on its own.
+// The parser's instruction emitter (script/emit_instruction.cpp): appends one
+// word to the function's code array, records its line, discharges the pending
+// jump list, and answers with the pc the word took.
 uint32_t EmitInstruction(EngineContext* ctx, uint32_t func_state, uint32_t instruction, uint32_t line);
 
 void DischargeExpression(EngineContext* ctx, uint32_t func_state, uint32_t expr) {
@@ -102,8 +54,8 @@ void DischargeExpression(EngineContext* ctx, uint32_t func_state, uint32_t expr)
   uint32_t code_base = 0u;
   if (ResumePhase(ctx) == kResumeRewinding) {
     // Rewinding: lower the frame pointer by the 16-byte frame the suspend path
-    // saved and read that frame. The words come out in the generated pop's order
-    // — function state, packed word, line, and only then the descriptor.
+    // saved and read that frame. The words come out in the pop's own order —
+    // function state, packed word, line, and only then the descriptor.
     StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 16u);
     frame = LoadU32(ctx, ReturnFrameSp(ctx));
     func_state = LoadU32(ctx, frame);
@@ -187,9 +139,8 @@ indexed_load:;
   if (ResumePhase(ctx) == kResumeRunning) {
     // An indexed field: the two operands that are not constants release their
     // registers before the load is packed, auxiliary first, and the word ends up
-    // with the table register in B and the key register in C. The generated
-    // order is kept, including the re-read of the operand word after the second
-    // release.
+    // with the table register in B and the key register in C. One operand word
+    // is re-read after the second release, and that order is kept.
     packed = LoadU32(ctx, expr + 12u);
     if ((packed & kConstantOperand) != 0u) {
       goto aux_released;
@@ -237,8 +188,7 @@ call_result:;
     // array.
     StoreU32(ctx, expr, kNonRelocatable);
     // The prototype pointer, then its code array, then the pc; the two word
-    // reads are pulled apart because the generated body takes them in that
-    // order and a single expression would leave it unspecified.
+    // reads are pulled apart because that is the order they are taken in.
     code_base = LoadU32(ctx, LoadU32(ctx, func_state) + 12u);
     packed = LoadU32(ctx, code_base + (LoadU32(ctx, expr + 8u) << 2));
     StoreU32(ctx, expr + 8u, (packed >> 6) & 255u);
@@ -247,8 +197,8 @@ call_result:;
 vararg_close:;
   if (ResumePhase(ctx) == kResumeRunning) {
     // An open vararg: point at the instruction that opened it — the function
-    // state word is reused as that address, as the generated body reuses it, and
-    // nothing below reads it as a state again — then close the window by keeping
+    // state word is reused as that address, and nothing below reads it as a
+    // state again — then close the window by keeping
     // everything below the B field and writing B = 2. The two reads that build
     // the address are pulled apart for the same reason as the site above.
     code_base = LoadU32(ctx, LoadU32(ctx, func_state) + 12u);

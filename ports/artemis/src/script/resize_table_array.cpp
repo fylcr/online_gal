@@ -1,319 +1,143 @@
-// resize_table_array.cpp -- resizes a table array: the array part is reallocated and the entries are moved..
-//
-// ResizeTableArray -- resizes a table array: the array part is reallocated and the entries are moved.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 481175-481175 (f1114); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Callees defined in other files.
 uint32_t FillBytes(EngineContext* ctx, uint32_t dst, uint32_t value, uint32_t length);
-uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
+uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size,
+                         uint32_t new_size);
 uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t a);
 
 namespace {
 
-constexpr uint32_t kF1114Const3FFFFFFF = 0x3FFFFFFFu;  // 
-constexpr uint32_t kF1114SaveFrameBytes = 28u;
-constexpr uint32_t kF1114ResumeWordBytes = 4u;
+// Most entries a table's array part may hold.
+constexpr uint32_t kMaxTableArrayEntries = 0x3FFFFFFFu;
 
 }  // namespace
 
-void ResizeTableArray(EngineContext* ctx, uint32_t a, uint32_t b) {
+// Grows the array part of a table to `count` entries: allocates a block for the
+// new array, relinks the nodes the old array held into it, then updates the
+// table's array pointer and array size. Suspendable -- the block allocator and
+// the "array part too big" report can suspend.
+void ResizeTableArray(EngineContext* ctx, uint32_t table, uint32_t count) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1114SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l5 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l4 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l6 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l7 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
+  constexpr uint32_t kSaveFrameBytes = 28u;
+  constexpr uint32_t kResumeWordBytes = 4u;
+  uint32_t resume_point = 0u;
+  // The resume word the suspend path publishes.
+  uint32_t resume_at = 0u;
+  // Byte size of the array part being built; a rewind reads it back.
+  uint32_t array_bytes = 0u;
+  uint32_t array_base = 0u;
+  uint32_t resizable = 0u;
+  uint32_t room = 0u;
+  uint32_t buckets = 0u;
+  uint32_t node_base = 0u;
+  uint32_t node_bytes = 0u;
+  uint32_t node_count = 0u;
+  uint32_t bucket_index = 0u;
+  uint32_t bucket_node = 0u;
+  uint32_t next_node = 0u;
+  uint32_t hash_mask = 0u;
+  uint32_t slot = 0u;
+  uint32_t result = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the frame the suspend path pushed.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    table = LoadU32(ctx, frame);
+    array_bytes = LoadU32(ctx, frame + 8u);
+    node_base = LoadU32(ctx, frame + 12u);
+    node_bytes = LoadU32(ctx, frame + 16u);
+    buckets = LoadU32(ctx, frame + 20u);
+    bucket_index = LoadU32(ctx, frame + 24u);
+    count = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1114ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l8 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word pushed with that frame.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 16u);
-    i0 = LoadU8(ctx, i0 + 21u);
-    i1 = 2u;
-    i0 = i0 != i1;
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    resizable = LoadU8(ctx, LoadU32(ctx, table + 16u) + 21u) != 2u;
   }
-  i0 = l3;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l3;
-    i1 = b;
-    i2 = 1u;
-    i1 += i2;
-    i2 = kF1114Const3FFFFFFF;
-    i1 = i1 <= i2;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l3 = i0;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = l3;
-      i1 = b;
-      i2 = 2u;
-      i1 <<= (i2 & 31);
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      l3 = i0;
-      i0 = l8;
-      i0 = !(i0);
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = a;
-        i1 = 0u;
-        i2 = 0u;
-        i3 = l3;
-        i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
-        l2 = i0;
-        i0 = 0u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-        i0 = l2;
-        l3 = i0;
+  if (resizable || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      room = (count + 1u) <= kMaxTableArrayEntries;
+    }
+    if (room || ResumePhase(ctx) == kResumeRewinding) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        array_bytes = count << 2;
       }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {goto block_6;}
-    }
-    i0 = l8;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i0 = RaiseBlockTooBig(ctx, i0);
-      l2 = i0;
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l2;
-      l3 = i0;
-    }
-    block_6:;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 16u);
-      l6 = i0;
-      i0 = b;
-      i1 = 1u;
-      i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-      if (i0) {
-        i0 = l3;
-        i1 = 0u;
-        i2 = b;
-        i3 = 2u;
-        i2 <<= (i3 & 31);
-        i0 = FillBytes(ctx, i0, i1, i2);
+      // A rewind replays only the allocation its resume word names; a running
+      // pass makes it.
+      if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+        result = ReallocateBlock(ctx, table, 0u, 0u, array_bytes);
+        resume_at = 0u;
+        if (ResumePhase(ctx) == kResumeSuspended) { goto suspend; }
+        array_base = result;
       }
-      i0 = l6;
-      i0 = LoadU32(ctx, i0 + 8u);
-      l4 = i0;
-      i1 = 1u;
-      i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-      if (i0) {
-        i0 = b;
-        i1 = 1u;
-        i0 -= i1;
-        l9 = i0;
-        loop_13: 
-          i0 = l6;
-          i0 = LoadU32(ctx, i0);
-          i1 = l7;
-          i2 = 2u;
-          i1 <<= (i2 & 31);
-          i0 += i1;
-          i0 = LoadU32(ctx, i0);
-          l5 = i0;
-          if (i0) {
-            loop_15: 
-              i0 = l5;
-              i0 = LoadU32(ctx, i0);
-              l4 = i0;
-              i0 = l5;
-              i1 = l9;
-              i2 = l5;
-              i2 = LoadU32(ctx, i2 + 8u);
-              i1 &= i2;
-              i2 = 2u;
-              i1 <<= (i2 & 31);
-              i2 = l3;
-              i1 += i2;
-              l2 = i1;
-              i1 = LoadU32(ctx, i1);
-              StoreU32(ctx, i0, i1);
-              i0 = l2;
-              i1 = l5;
-              StoreU32(ctx, i0, i1);
-              i0 = l4;
-              l5 = i0;
-              if (i0) {goto loop_15;}
-            i0 = l6;
-            i0 = LoadU32(ctx, i0 + 8u);
-            l4 = i0;
-          }
-          i0 = l7;
-          i1 = 1u;
-          i0 += i1;
-          l7 = i0;
-          i1 = l4;
-          i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-          if (i0) {goto loop_13;}
+      // A running pass never reports the array as too big: only the pass that
+      // is replaying that report resumes here.
+      if (ResumePhase(ctx) != kResumeRunning && resume_point == 1u) {
+        result = RaiseBlockTooBig(ctx, table);
+        resume_at = 1u;
+        if (ResumePhase(ctx) == kResumeSuspended) { goto suspend; }
+        array_base = result;
       }
-      i0 = l6;
-      i0 = LoadU32(ctx, i0);
-      l5 = i0;
-      i0 = l4;
-      i1 = 2u;
-      i0 <<= (i1 & 31);
-      l4 = i0;
-    }
-    i0 = l8;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = l5;
-      i2 = l4;
-      i3 = 0u;
-      i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l6;
-      i1 = l3;
-      StoreU32(ctx, i0, i1);
-      i0 = l6;
-      i1 = b;
-      StoreU32(ctx, i0 + 8u, i1);
+      if (ResumePhase(ctx) == kResumeRunning) {
+        buckets = LoadU32(ctx, table + 16u);
+        if (static_cast<int32_t>(count) >= 1) {
+          FillBytes(ctx, array_base, 0u, count << 2);
+        }
+        node_count = LoadU32(ctx, buckets + 8u);
+        if (static_cast<int32_t>(node_count) >= 1) {
+          hash_mask = count - 1u;
+          do {
+            bucket_node = LoadU32(ctx, LoadU32(ctx, buckets) + (bucket_index << 2));
+            while (bucket_node != 0u) {
+              next_node = LoadU32(ctx, bucket_node);
+              slot = array_base + ((hash_mask & LoadU32(ctx, bucket_node + 8u)) << 2);
+              StoreU32(ctx, bucket_node, LoadU32(ctx, slot));
+              StoreU32(ctx, slot, bucket_node);
+              bucket_node = next_node;
+            }
+            node_count = LoadU32(ctx, buckets + 8u);
+            bucket_index += 1u;
+          } while (static_cast<int32_t>(bucket_index) < static_cast<int32_t>(node_count));
+        }
+        node_base = LoadU32(ctx, buckets);
+        node_bytes = node_count << 2;
+      }
+      if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+        ReallocateBlock(ctx, table, node_base, node_bytes, 0u);
+        resume_at = 2u;
+        if (ResumePhase(ctx) == kResumeSuspended) { goto suspend; }
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        StoreU32(ctx, buckets, array_base);
+        StoreU32(ctx, buckets + 8u, count);
+      }
     }
   }
-  goto func_exit;
-  spill_frame:;
-  l2 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1114ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l2 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l2;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l2;
-  i1 = l3;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l2;
-  i1 = l5;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l2;
-  i1 = l4;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l2;
-  i1 = l6;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l2;
-  i1 = l7;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 28u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
   LeaveFrame();
+  return;
+suspend:;
+  // Suspend: publish the resume word, then push the frame holding the locals the
+  // resumed pass reads back.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_at);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
+  uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, saved_frame, table);
+  StoreU32(ctx, saved_frame + 4u, count);
+  StoreU32(ctx, saved_frame + 8u, array_bytes);
+  StoreU32(ctx, saved_frame + 12u, node_base);
+  StoreU32(ctx, saved_frame + 16u, node_bytes);
+  StoreU32(ctx, saved_frame + 20u, buckets);
+  StoreU32(ctx, saved_frame + 24u, bucket_index);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
+  LeaveFrame();
+  return;
 }
-}
+
+}  // namespace artc

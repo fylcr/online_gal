@@ -1,23 +1,8 @@
-// unordered_insert.cpp -- inserts one key/value pair into the unordered map: find, prepare the slot, and grow when the pair is new..
-//
-// UnorderedInsert -- inserts one key/value pair into the unordered map: find, prepare the slot, and grow when the pair is new.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 2135876-2135876 (f3784); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of callees defined elsewhere in the tree.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 uint32_t UnorderedPrepareSlot(EngineContext* ctx, uint32_t map, uint32_t key, uint32_t hash);
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);
@@ -25,307 +10,219 @@ uint32_t UnorderedFindEntry(EngineContext* ctx, uint32_t map, uint32_t hash, uin
 
 namespace {
 
-constexpr uint32_t kF3784ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF3784Const61C88647 = 0x61C88647u;  // 
-constexpr uint32_t kF3784SaveFrameBytes = 28u;
-constexpr uint32_t kF3784ResumeWordBytes = 4u;
+constexpr uint32_t kUnorderedInsertLastException = 0xD015Cu;
+constexpr uint32_t kUnorderedInsertHashSeed = 0x61C88647u;
+constexpr uint32_t kUnorderedInsertSaveFrameBytes = 28u;
+constexpr uint32_t kUnorderedInsertResumeWordBytes = 4u;
 
 }  // namespace
 
+// Inserts one key/value pair into the unordered map: finds the entry of the
+// key, builds the slot for a new key, and falls back to allocating a string
+// buffer when the map has none yet.  Suspendable at every host call.
 void UnorderedInsert(EngineContext* ctx, uint32_t map, uint32_t key, uint32_t value) {
+  uint32_t frame = 0u;         // frame a suspension saved its registers in
+  uint32_t entry = 0u;         // found or freshly built hash-table entry
+  uint32_t end = 0u;           // hash walk bound, later a host call operand
+  uint32_t hash = 0u;          // hash accumulated for the key
+  uint32_t changed = 0u;       // the map's bucket count was rebuilt
+  uint32_t resume_code = 0u;   // code of the suspension being resumed
+  uint32_t need_insert = 0u;   // the key is not in the map yet
+  uint32_t buffer = 0u;        // string buffer allocated for a fresh entry
+  uint32_t slot = 0u;          // slot returned by the prepare step
+  uint32_t suspend_code = 0u;  // code stored when this call suspends
+  uint32_t tmp = 0u;
+  uint32_t tmp2 = 0u;
+  uint32_t tmp3 = 0u;
+  uint32_t tmp4 = 0u;
+  uint64_t zero64 = 0;
   EnterFrame();
-  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF3784SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
-    i0 = LoadU32(ctx, i0);
-    map = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 4u);
-    key = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 8u);
-    value = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l6 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l7 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    tmp = ReturnFrameSp(ctx);
+    tmp2 = ReturnFrameSp(ctx);
+    tmp2 = LoadU32(ctx, tmp2);
+    tmp2 -= kUnorderedInsertSaveFrameBytes;
+    StoreU32(ctx, tmp, tmp2);
+    tmp = ReturnFrameSp(ctx);
+    tmp = LoadU32(ctx, tmp);
+    frame = tmp;
+    map = LoadU32(ctx, frame);
+    tmp = LoadU32(ctx, frame + 4u);
+    key = tmp;
+    tmp = LoadU32(ctx, frame + 8u);
+    value = tmp;
+    tmp = LoadU32(ctx, frame + 12u);
+    entry = tmp;
+    tmp = LoadU32(ctx, frame + 16u);
+    end = tmp;
+    tmp = LoadU32(ctx, frame + 20u);
+    hash = tmp;
+    tmp = LoadU32(ctx, frame + 24u);
+    changed = tmp;
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF3784ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l8 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    tmp = ReturnFrameSp(ctx);
+    tmp2 = ReturnFrameSp(ctx);
+    tmp2 = LoadU32(ctx, tmp2);
+    tmp2 -= kUnorderedInsertResumeWordBytes;
+    StoreU32(ctx, tmp, tmp2);
+    tmp = ReturnFrameSp(ctx);
+    tmp = LoadU32(ctx, tmp);
+    resume_code = LoadU32(ctx, tmp);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = value;
-    i0 = LoadU32(ctx, i0 + 4u);
-    i1 = value;
-    i1 = LoadU8(ctx, i1 + 11u);
-    l3 = i1;
-    i2 = l3;
-    i3 = 24u;
-    i2 <<= (i3 & 31);
-    i3 = 24u;
-    i2 = (uint32_t)((int32_t)i2 >> (i3 & 31));
-    i3 = 0u;
-    i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
-    l3 = i2;
-    i0 = i2 ? i0 : i1;
-    l6 = i0;
-    if (i0) {
-      i0 = l6;
-      i1 = value;
-      i1 = LoadU32(ctx, i1);
-      i2 = value;
-      i3 = l3;
-      i1 = i3 ? i1 : i2;
-      l3 = i1;
-      i0 += i1;
-      l6 = i0;
-      loop_5: 
-        i0 = l7;
-        i1 = l3;
-        i1 = LoadS8(ctx, i1);
-        i2 = l7;
-        i3 = 6u;
-        i2 <<= (i3 & 31);
-        i3 = l7;
-        i4 = 2u;
-        i3 >>= (i4 & 31);
-        i2 += i3;
-        i1 += i2;
-        i2 = kF3784Const61C88647;
-        i1 -= i2;
-        i0 ^= i1;
-        l7 = i0;
-        i0 = l6;
-        i1 = l3;
-        i2 = 1u;
-        i1 += i2;
-        l3 = i1;
-        i0 = i0 != i1;
-        if (i0) {goto loop_5;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    tmp = value;
+    tmp = LoadU32(ctx, tmp + 4u);
+    tmp2 = value;
+    tmp2 = LoadU8(ctx, tmp2 + 11u);
+    entry = tmp2;
+    tmp3 = entry;
+    tmp3 = tmp3 << (24u & 31u);
+    tmp4 = 24u;
+    tmp3 = (uint32_t)((int32_t)tmp3 >> (tmp4 & 31u));
+    tmp4 = 0u;
+    tmp3 = (uint32_t)((int32_t)tmp3 < (int32_t)tmp4);
+    entry = tmp3;
+    tmp = (tmp3 != 0u) ? tmp : tmp2;
+    end = tmp;
+    if (tmp != 0u) {
+      tmp2 = end;
+      tmp3 = value;
+      tmp3 = LoadU32(ctx, tmp3);
+      tmp4 = value;
+      tmp2 = (entry != 0u) ? tmp3 : tmp4;
+      entry = tmp2;
+      tmp += tmp2;
+      end = tmp;
+      for (;;) {
+        tmp = hash;
+        tmp2 = LoadS8(ctx, entry);
+        tmp3 = hash;
+        tmp3 = tmp3 << (6u & 31u);
+        tmp4 = hash;
+        tmp4 = tmp4 >> (2u & 31u);
+        tmp3 += tmp4;
+        tmp2 += tmp3;
+        tmp4 = kUnorderedInsertHashSeed;
+        tmp2 -= tmp4;
+        tmp ^= tmp2;
+        hash = tmp;
+        tmp = end;
+        entry += 1u;
+        tmp2 = (end != entry);
+        if (tmp2 != 0u) {
+          continue;
+        }
+        break;
+      }
     }
-    i0 = key;
-    i1 = l7;
-    i2 = value;
-    i3 = key;
-    i3 = LoadU8(ctx, i3);
-    i4 = key;
-    i3 += i4;
-    i4 = 1u;
-    i3 += i4;
-    i0 = UnorderedFindEntry(ctx, i0, i1, i2, i3);
-    l3 = i0;
-    i0 = !(i0);
-    l4 = i0;
+    tmp4 = key;
+    tmp4 = LoadU8(ctx, tmp4);
+    tmp4 += key;
+    tmp4 += 1u;
+    entry = UnorderedFindEntry(ctx, key, hash, value, tmp4);
+    tmp = (entry == 0u);
+    need_insert = tmp;
   }
-  i0 = l4;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l8;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 32u;
-      i0 = AllocateStringBuffer(ctx, i0);
-      l4 = i0;
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l4;
-      l3 = i0;
+  if ((need_insert | (ResumePhase(ctx) == kResumeRewinding)) != 0u) {
+    tmp = (resume_code == 0u);
+    tmp = (ResumePhase(ctx) != 0u) ? tmp : 1u;
+    if (tmp != 0u) {
+      buffer = AllocateStringBuffer(ctx, 32u);
+      suspend_code = 0u;
+      tmp = ResumePhase(ctx);
+      if (tmp == kResumeSuspended) {
+        goto save_suspend_frame;
+      }
+      entry = buffer;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      j1 = 0ull;
-      StoreU64(ctx, i0, j1);
-      i0 = l3;
-      j1 = 0ull;
-      StoreU64(ctx, i0 + 24u, j1);
-      i0 = l3;
-      j1 = 0ull;
-      StoreU64(ctx, i0 + 16u, j1);
-      i0 = l3;
-      i1 = 8u;
-      i0 += i1;
-      l6 = i0;
-      j1 = 0ull;
-      StoreU64(ctx, i0, j1);
-      i0 = kF3784ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
+    if (ResumePhase(ctx) == kResumeRunning) {
+      zero64 = 0ull;
+      StoreU64(ctx, entry, zero64);
+      StoreU64(ctx, entry + 24u, zero64);
+      StoreU64(ctx, entry + 16u, zero64);
+      tmp = entry + 8u;
+      end = tmp;
+      StoreU64(ctx, tmp, zero64);
+      StoreU32(ctx, kUnorderedInsertLastException, 0u);
     }
-    i0 = l8;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 873u;
-      i1 = l6;
-      i2 = value;
-      i0 = HostOsQuery(ctx, i0, i1, i2);
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    tmp = (resume_code == kResumeSuspended);
+    tmp = (ResumePhase(ctx) != 0u) ? tmp : 1u;
+    if (tmp != 0u) {
+      HostOsQuery(ctx, 873u, end, value);
+      suspend_code = 1u;
+      tmp = ResumePhase(ctx);
+      if (tmp == kResumeSuspended) {
+        goto save_suspend_frame;
+      }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF3784ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      value = i0;
-      i0 = kF3784ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = value;
-      i1 = 1u;
-      i0 = i0 == i1;
-      if (i0) {goto block_6;}
-      i0 = l3;
-      j1 = 0ull;
-      StoreU64(ctx, i0 + 20u, j1);
-      i0 = l3;
-      i1 = 0u;
-      StoreU32(ctx, i0 + 28u, i1);
-      i0 = 1u;
-      l5 = i0;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      value = LoadU32(ctx, kUnorderedInsertLastException);
+      StoreU32(ctx, kUnorderedInsertLastException, 0u);
+      if (value == kResumeSuspended) {
+        goto unhandled_exception;
+      }
+      zero64 = 0ull;
+      StoreU64(ctx, entry + 20u, zero64);
+      StoreU32(ctx, entry + 28u, 0u);
+      changed = 1u;
     }
-    i0 = l8;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = key;
-      i1 = l3;
-      i2 = l7;
-      i0 = UnorderedPrepareSlot(ctx, i0, i1, i2);
-      l4 = i0;
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l4;
+    tmp = (resume_code == kResumeRewinding);
+    tmp = (ResumePhase(ctx) != 0u) ? tmp : 1u;
+    if (tmp != 0u) {
+      slot = UnorderedPrepareSlot(ctx, key, entry, hash);
+      suspend_code = 2u;
+      tmp = ResumePhase(ctx);
+      if (tmp == kResumeSuspended) {
+        goto save_suspend_frame;
+      }
+      tmp = slot;
     } else {
-      i0 = l3;
+      tmp = entry;
     }
-    l3 = i0;
+    entry = tmp;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = map;
-    i1 = l5;
-    StoreU8(ctx, i0 + 4u, i1);
-    i0 = map;
-    i1 = l3;
-    StoreU32(ctx, i0, i1);
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU8(ctx, map + 4u, changed);
+    StoreU32(ctx, map, entry);
+    goto frame_stored;
   }
-  block_6:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = HostRet0(ctx);
-    map = i0;
-    i0 = HostTempRet0(ctx);
-    i0 = l3;
-    DeallocateRawBlock(ctx, i0);
-    i0 = map;
-    HostOsRelease(ctx, i0);
+unhandled_exception:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    tmp = HostRet0(ctx);
+    map = tmp;
+    HostTempRet0(ctx);
+    DeallocateRawBlock(ctx, entry);
+    HostOsRelease(ctx, map);
     TrapUnreachable();
   }
-  goto func_exit;
-  spill_frame:;
-  l4 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l4;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF3784ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l4 = i0;
-  i1 = map;
-  StoreU32(ctx, i0, i1);
-  i0 = l4;
-  i1 = key;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l4;
-  i1 = value;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l4;
-  i1 = l3;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l4;
-  i1 = l6;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l4;
-  i1 = l7;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l4;
-  i1 = l5;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 28u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto frame_stored;
+save_suspend_frame:;
+  tmp = suspend_code;
+  tmp2 = ReturnFrameSp(ctx);
+  tmp2 = LoadU32(ctx, tmp2);
+  StoreU32(ctx, tmp2, tmp);
+  tmp = ReturnFrameSp(ctx);
+  tmp2 = ReturnFrameSp(ctx);
+  tmp2 = LoadU32(ctx, tmp2);
+  tmp2 += kUnorderedInsertResumeWordBytes;
+  StoreU32(ctx, tmp, tmp2);
+  tmp = ReturnFrameSp(ctx);
+  tmp = LoadU32(ctx, tmp);
+  frame = tmp;
+  StoreU32(ctx, frame, map);
+  StoreU32(ctx, frame + 4u, key);
+  StoreU32(ctx, frame + 8u, value);
+  StoreU32(ctx, frame + 12u, entry);
+  StoreU32(ctx, frame + 16u, end);
+  StoreU32(ctx, frame + 20u, hash);
+  StoreU32(ctx, frame + 24u, changed);
+  tmp = ReturnFrameSp(ctx);
+  tmp2 = ReturnFrameSp(ctx);
+  tmp2 = LoadU32(ctx, tmp2);
+  tmp2 += kUnorderedInsertSaveFrameBytes;
+  StoreU32(ctx, tmp, tmp2);
+frame_stored:;
   LeaveFrame();
 }
-}
+}  // namespace artc

@@ -1,364 +1,208 @@
-// resolve_branch_offset.cpp -- emits a branch and folds its jump offset, raising when the control structure outgrows the offset field..
-//
-// ResolveBranchOffset -- emits a branch and folds its jump offset, raising when the control structure outgrows the offset field.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 207719-207719 (f520); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations -- the emitter and the syntax-error reporter.
 void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b);
 uint32_t EmitInstruction(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 
 namespace {
 
-constexpr uint32_t kF520Const1FFFF = 0x1FFFFu;  // 
-constexpr uint32_t kF520Const20000 = 0x20000u;  // 
-constexpr uint32_t kF520MsgControlStructureTooLong = 0x2A394u;  // control structure too long
-constexpr uint32_t kF520Const7FFF8016 = 0x7FFF8016u;  // 
-constexpr uint32_t kF520Const7FFFC000 = 0x7FFFC000u;  // 
-constexpr uint32_t kF520ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF520SaveFrameBytes = 36u;
-constexpr uint32_t kF520ResumeWordBytes = 4u;
+// The bias the encoded entry offset is stored relative to, and the largest
+// offset that still fits its field.
+constexpr uint32_t kResolveBranchOffsetOffsetBias = 0x1FFFFu;
+constexpr uint32_t kResolveBranchOffsetOffsetLimit = 0x20000u;
+constexpr uint32_t kResolveBranchOffsetTooLongMessage = 0x2A394u;
+constexpr uint32_t kResolveBranchOffsetPatchOpcode = 0x7FFF8016u;
+constexpr uint32_t kResolveBranchOffsetEntryTag = 0x7FFFC000u;
+constexpr uint32_t kResolveBranchOffsetNoOffset = 0xFFFFFFFFu;
+constexpr uint32_t kResolveBranchOffsetSaveFrameBytes = 36u;
+constexpr uint32_t kResolveBranchOffsetResumeWordBytes = 4u;
 
 }  // namespace
 
+// Emits the branch instruction for one control structure, then folds the jump
+// offset of the enclosing block into the branch table entry it points at.
+// Raises when the offset no longer fits the field the entry stores it in.
 uint32_t ResolveBranchOffset(EngineContext* ctx, uint32_t state, uint32_t opcode, uint32_t operands, uint32_t extra, uint32_t target) {
+  uint32_t resume_code = 0u;   // which emitter call a rewinding pass replays
+  uint32_t saved_offset = 0u;  // offset stashed by the previous resolve
+  uint32_t entry_ptr = 0u;     // branch table entry being patched
+  uint32_t entry_addr = 0u;    // its address in guest memory
+  uint32_t offset_flag = 0u;   // computed jump offset, and the patch gate
+  uint32_t frame_base = 0u;    // where a suspended call left its frame
+  uint32_t call_result = 0u;   // what a resumable call returned
+  uint32_t suspend_code = 0u;  // resume word pushed when a call suspends
+  uint32_t result = 0u;
+  uint32_t tmp = 0u;
+  uint32_t tmp2 = 0u;
+  uint32_t tmp3 = 0u;
+  uint32_t tmp4 = 0u;
   EnterFrame();
-  uint32_t l10 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF520SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 8u);
-    operands = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 12u);
-    extra = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 16u);
-    target = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l6 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l7 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l8 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l10 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 4u);
-    opcode = i0;
+  // Rewinding: pop this step's saved frame and restore the live words.
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    tmp = ReturnFrameSp(ctx);
+    tmp2 = ReturnFrameSp(ctx);
+    tmp2 = LoadU32(ctx, tmp2);
+    tmp3 = kResolveBranchOffsetSaveFrameBytes;
+    tmp2 -= tmp3;
+    StoreU32(ctx, tmp, tmp2);
+    frame_base = ReturnFrameSp(ctx);
+    frame_base = LoadU32(ctx, frame_base);
+    state = LoadU32(ctx, frame_base);
+    operands = LoadU32(ctx, frame_base + 8u);
+    extra = LoadU32(ctx, frame_base + 12u);
+    target = LoadU32(ctx, frame_base + 16u);
+    saved_offset = LoadU32(ctx, frame_base + 20u);
+    entry_ptr = LoadU32(ctx, frame_base + 24u);
+    entry_addr = LoadU32(ctx, frame_base + 28u);
+    offset_flag = LoadU32(ctx, frame_base + 32u);
+    opcode = LoadU32(ctx, frame_base + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF520ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l9 = i0;
+  // Rewinding: drop the pushed resume word and reload the resume code.
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    tmp = ReturnFrameSp(ctx);
+    tmp2 = ReturnFrameSp(ctx);
+    tmp2 = LoadU32(ctx, tmp2);
+    tmp3 = kResolveBranchOffsetResumeWordBytes;
+    tmp2 -= tmp3;
+    StoreU32(ctx, tmp, tmp2);
+    tmp = ReturnFrameSp(ctx);
+    tmp = LoadU32(ctx, tmp);
+    tmp = LoadU32(ctx, tmp);
+    resume_code = tmp;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = operands;
-    i1 = 6u;
-    i0 <<= (i1 & 31);
-    i1 = opcode;
-    i0 |= i1;
-    i1 = extra;
-    i2 = 23u;
-    i1 <<= (i2 & 31);
-    i0 |= i1;
-    i1 = target;
-    i2 = 14u;
-    i1 <<= (i2 & 31);
-    i0 |= i1;
-    opcode = i0;
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 12u);
-    i0 = LoadU32(ctx, i0 + 8u);
-    operands = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Pack the short form of the instruction out of its four operand fields.
+    opcode = (operands << (6u & 31u)) | opcode;
+    opcode |= (extra << (23u & 31u));
+    opcode |= (target << (14u & 31u));
+    tmp = LoadU32(ctx, state + 12u);
+    operands = LoadU32(ctx, tmp + 8u);
   }
-  i0 = l9;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = opcode;
-    i2 = operands;
-    i0 = EmitInstruction(ctx, i0, i1, i2);
-    l5 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l5;
-    opcode = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l6 = i0;
-    i0 = state;
-    i1 = kF520ConstFFFFFFFF;
-    StoreU32(ctx, i0 + 32u, i1);
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 12u);
-    i0 = LoadU32(ctx, i0 + 8u);
-    opcode = i0;
-  }
-  i0 = l9;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = kF520Const7FFF8016;
-    i2 = opcode;
-    i0 = EmitInstruction(ctx, i0, i1, i2);
-    l5 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l5;
-    opcode = i0;
-  }
-  i0 = operands;
-  i1 = l6;
-  i2 = kF520ConstFFFFFFFF;
-  i1 = i1 != i2;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  operands = i0;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l10;
-    i1 = ResumePhase(ctx);
-    i1 = !(i1);
-    if (i1) {
-      i1 = opcode;
-      i2 = kF520ConstFFFFFFFF;
-      i1 = i1 == i2;
-      if (i1) {
-        i1 = l6;
-        i0 = i1; goto func_exit;
-      }
-      i1 = state;
-      i1 = LoadU32(ctx, i1);
-      i1 = LoadU32(ctx, i1 + 12u);
-      l7 = i1;
-      i1 = opcode;
-      target = i1;
-      loop_11: 
-        i1 = l7;
-        i2 = target;
-        operands = i2;
-        i3 = 2u;
-        i2 <<= (i3 & 31);
-        i1 += i2;
-        l8 = i1;
-        i1 = LoadU32(ctx, i1);
-        extra = i1;
-        i2 = 14u;
-        i1 >>= (i2 & 31);
-        i2 = kF520Const1FFFF;
-        i1 -= i2;
-        target = i1;
-        i1 = kF520ConstFFFFFFFF;
-        i2 = operands;
-        i3 = target;
-        i2 += i3;
-        i3 = 1u;
-        i2 += i3;
-        i3 = target;
-        i4 = kF520ConstFFFFFFFF;
-        i3 = i3 == i4;
-        i1 = i3 ? i1 : i2;
-        target = i1;
-        i2 = kF520ConstFFFFFFFF;
-        i1 = i1 != i2;
-        if (i1) {goto loop_11;}
-      i1 = l8;
-      l7 = i1;
-      i1 = l6;
-      i2 = operands;
-      i3 = kF520ConstFFFFFFFF;
-      i2 ^= i3;
-      i1 += i2;
-      operands = i1;
-      i2 = 31u;
-      i1 = (uint32_t)((int32_t)i1 >> (i2 & 31));
-      target = i1;
-      i2 = operands;
-      i3 = target;
-      i2 += i3;
-      i1 ^= i2;
-      i2 = kF520Const20000;
-      i1 = (uint32_t)((int32_t)i1 >= (int32_t)i2);
-      target = i1;
+  if ((resume_code == 0u) | (ResumePhase(ctx) == kResumeRunning)) {
+    call_result = EmitInstruction(ctx, state, opcode, operands);
+    suspend_code = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto save_suspend_frame;
     }
-    i1 = target;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l10 = i0;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = state;
-        i0 = LoadU32(ctx, i0 + 12u);
-        state = i0;
-      }
-      i0 = l9;
-      i1 = 2u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = state;
-        i1 = kF520MsgControlStructureTooLong;
-        RaiseSyntaxError(ctx, i0, i1);
-        i0 = 2u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      if (i0) {
-        i0 = extra;
-      } else {
-        i0 = l8;
-        i0 = LoadU32(ctx, i0);
-      }
-      extra = i0;
+    opcode = call_result;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Take the offset the previous resolve stashed and clear the slot.
+    saved_offset = LoadU32(ctx, state + 32u);
+    tmp3 = kResolveBranchOffsetNoOffset;
+    StoreU32(ctx, state + 32u, tmp3);
+    tmp = LoadU32(ctx, state + 12u);
+    opcode = LoadU32(ctx, tmp + 8u);
+  }
+  if ((resume_code == 1u) | (ResumePhase(ctx) == kResumeRunning)) {
+    call_result = EmitInstruction(ctx, state, kResolveBranchOffsetPatchOpcode, opcode);
+    suspend_code = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto save_suspend_frame;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l7;
-      i1 = extra;
-      i2 = 16383u;
-      i1 &= i2;
-      i2 = operands;
-      i3 = 14u;
-      i2 <<= (i3 & 31);
-      i1 |= i2;
-      i2 = kF520Const7FFFC000;
-      i1 += i2;
-      StoreU32(ctx, i0, i1);
+    opcode = call_result;
+  }
+  // A running pass works out whether this branch carries an offset at all; a
+  // rewinding pass keeps the packed operands it restored and carries on.
+  operands = (ResumePhase(ctx) != 0u) ? operands : (saved_offset != kResolveBranchOffsetNoOffset);
+  if ((operands != 0u) | (ResumePhase(ctx) == kResumeRewinding)) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      if (opcode == kResolveBranchOffsetNoOffset) {
+        result = saved_offset;
+        goto frame_stored;
+      }
+      tmp = LoadU32(ctx, state);
+      entry_ptr = LoadU32(ctx, tmp + 12u);
+      target = opcode;
+      // Walk the branch table chain the target names until it runs out.
+      for (;;) {
+        tmp4 = target;
+        operands = tmp4;
+        entry_addr = entry_ptr + (tmp4 << (2u & 31u));
+        extra = LoadU32(ctx, entry_addr);
+        target = (extra >> (14u & 31u)) - kResolveBranchOffsetOffsetBias;
+        tmp = kResolveBranchOffsetNoOffset;
+        tmp2 = operands + target + 1u;
+        tmp3 = (target == kResolveBranchOffsetNoOffset);
+        target = tmp3 ? tmp : tmp2;
+        if (target != kResolveBranchOffsetNoOffset) {
+          continue;
+        }
+        break;
+      }
+      entry_ptr = entry_addr;
+      // Fold the distance to the branch into the entry's offset field.
+      operands = saved_offset + (operands ^ kResolveBranchOffsetNoOffset);
+      target = (uint32_t)((int32_t)operands >> (31u & 31u));
+      tmp = operands + target;
+      target = target ^ tmp;
+      target = (uint32_t)((int32_t)target >= (int32_t)kResolveBranchOffsetOffsetLimit);
+    }
+    offset_flag = (ResumePhase(ctx) != 0u) ? offset_flag : target;
+    if ((offset_flag != 0u) | (ResumePhase(ctx) == kResumeRewinding)) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        state = LoadU32(ctx, state + 12u);
+      }
+      if ((resume_code == 2u) | (ResumePhase(ctx) == kResumeRunning)) {
+        RaiseSyntaxError(ctx, state, kResolveBranchOffsetTooLongMessage);
+        suspend_code = 2u;
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          goto save_suspend_frame;
+        }
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        extra = LoadU32(ctx, entry_addr);
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        tmp = extra & 16383u;
+        tmp |= operands << (14u & 31u);
+        tmp2 = kResolveBranchOffsetEntryTag;
+        tmp += tmp2;
+        StoreU32(ctx, entry_ptr, tmp);
+      }
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = opcode;
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    result = opcode;
+    goto frame_stored;
   }
   TrapUnreachable();
-  spill_frame:;
-  l5 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l5;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF520ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l5 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l5;
-  i1 = opcode;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l5;
-  i1 = operands;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l5;
-  i1 = extra;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l5;
-  i1 = target;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l5;
-  i1 = l6;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l5;
-  i1 = l7;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = l5;
-  i1 = l8;
-  StoreU32(ctx, i0 + 28u, i1);
-  i0 = l5;
-  i1 = l10;
-  StoreU32(ctx, i0 + 32u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 36u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+save_suspend_frame:;
+  // A call suspended: store the resume word, push it, then hand the live
+  // words to the frame above the stack pointer.
+  tmp = ReturnFrameSp(ctx);
+  tmp = LoadU32(ctx, tmp);
+  StoreU32(ctx, tmp, suspend_code);
+  tmp = ReturnFrameSp(ctx);
+  tmp2 = ReturnFrameSp(ctx);
+  tmp2 = LoadU32(ctx, tmp2);
+  tmp3 = kResolveBranchOffsetResumeWordBytes;
+  tmp2 += tmp3;
+  StoreU32(ctx, tmp, tmp2);
+  tmp = ReturnFrameSp(ctx);
+  tmp = LoadU32(ctx, tmp);
+  frame_base = tmp;
+  tmp2 = state;
+  StoreU32(ctx, frame_base, tmp2);
+  StoreU32(ctx, frame_base + 4u, opcode);
+  StoreU32(ctx, frame_base + 8u, operands);
+  StoreU32(ctx, frame_base + 12u, extra);
+  StoreU32(ctx, frame_base + 16u, target);
+  StoreU32(ctx, frame_base + 20u, saved_offset);
+  StoreU32(ctx, frame_base + 24u, entry_ptr);
+  StoreU32(ctx, frame_base + 28u, entry_addr);
+  StoreU32(ctx, frame_base + 32u, offset_flag);
+  tmp = ReturnFrameSp(ctx);
+  tmp2 = ReturnFrameSp(ctx);
+  tmp2 = LoadU32(ctx, tmp2);
+  tmp3 = kResolveBranchOffsetSaveFrameBytes;
+  tmp2 += tmp3;
+  StoreU32(ctx, tmp, tmp2);
+  result = 0u;
+frame_stored:;
   LeaveFrame();
-  return i0;
+  return result;
 }
-}
+}  // namespace artc

@@ -1,297 +1,223 @@
-// coerce_to_number.cpp -- turns a value into a number for arithmetic, falling back through the string path and the metamethod path..
-//
-// CoerceToNumber -- turns a value into a number for arithmetic, falling back through the string path and the metamethod path.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 166453-166453 (f371); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Reads the numeric field of a string as a double.
 double ReadNumericFieldAsDouble(EngineContext* ctx, uint32_t a0, uint32_t a1);
+// Reads a packed integer out of a string.
 uint32_t ReadPackedI64Value(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 
 namespace {
-
-constexpr uint32_t kF371SaveFrameBytes = 36u;
-constexpr uint32_t kF371ResumeWordBytes = 4u;
-
+// The bytes a saved frame occupies.
+constexpr uint32_t kCoerceToNumberSaveFrameBytes = 36u;
+// The width of one resume word.
+constexpr uint32_t kCoerceToNumberResumeWordBytes = 4u;
 }  // namespace
 
+// Turns a value into the number arithmetic needs. It reads the value either as
+// a numeric string field or as a packed integer, stores the number back into
+// the value, and answers whether the text it consumed made up a number.
 uint32_t CoerceToNumber(EngineContext* ctx, uint32_t state, uint32_t value) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; double l8 = 0; double l9 = 0;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  double d0 = 0; double d1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF371SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 4u);
-    value = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l5 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l6 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l7 = i0;
-    i0 = l4;
-    d0 = LoadF64(ctx, i0 + 24u);
-    l8 = d0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l4 = i0;
+  uint32_t top = 0u;
+  uint32_t arg = 0u;
+  uint32_t third = 0u;
+  // A word the frame bookkeeping carries: a resumed await code, a call result,
+  // and finally the address the spill writes through.
+  uint32_t carry = 0u;
+  // The text being read, advancing as characters are consumed.
+  uint32_t text = 0u;
+  // The frame this step saves its state in.
+  uint32_t frame = 0u;
+  // The character under consideration, or a flag.
+  uint32_t ch = 0u;
+  // The guest stack pointer this frame owns.
+  uint32_t stack = 0u;
+  // The answer handed back to the caller.
+  uint32_t result = 0u;
+  // The double being read or stored.
+  double dval = 0;
+  // The value held across a suspend point.
+  double pending = 0;
+  // The double kept in the frame.
+  double stored = 0;
+  // The double written out to the value.
+  double out = 0;
+
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Pop the saved frame and restore the words it holds.
+    top = ReturnFrameSp(ctx);
+    arg = ReturnFrameSp(ctx);
+    arg = LoadU32(ctx, arg);
+    arg = arg - kCoerceToNumberSaveFrameBytes;
+    StoreU32(ctx, top, arg);
+    top = ReturnFrameSp(ctx);
+    top = LoadU32(ctx, top);
+    frame = top;
+    top = LoadU32(ctx, frame);
+    state = top;
+    value = LoadU32(ctx, frame + 4u);
+    text = LoadU32(ctx, frame + 8u);
+    ch = LoadU32(ctx, frame + 12u);
+    stack = LoadU32(ctx, frame + 16u);
+    result = LoadU32(ctx, frame + 20u);
+    dval = LoadF64(ctx, frame + 24u);
+    stored = dval;
+    frame = LoadU32(ctx, frame + 32u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF371ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Drop the resume word this frame left behind.
+    top = ReturnFrameSp(ctx);
+    arg = ReturnFrameSp(ctx);
+    arg = LoadU32(ctx, arg);
+    arg = arg - kCoerceToNumberResumeWordBytes;
+    StoreU32(ctx, top, arg);
+    top = ReturnFrameSp(ctx);
+    top = LoadU32(ctx, top);
+    carry = LoadU32(ctx, top);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 16u;
-    i0 -= i1;
-    l6 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = l6;
-    i1 = 12u;
-    i0 += i1;
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Reserve a sixteen byte scratch area and point the text at it.
+    top = GuestStackSp(ctx);
+    top = top - 16u;
+    stack = top;
+    GuestStackSp(ctx) = top;
+    text = stack + 12u;
   }
-  i0 = l2;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i1 = l3;
-    d0 = ReadNumericFieldAsDouble(ctx, i0, i1);
-    l9 = d0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    d0 = l9;
-    l8 = d0;
+  if (carry == 0u || ResumePhase(ctx) == kResumeRunning) {
+    arg = state;
+    third = text;
+    dval = ReadNumericFieldAsDouble(ctx, arg, third);
+    pending = dval;
+    top = 0u;
+    arg = ResumePhase(ctx);
+    arg = arg == kResumeSuspended;
+    if (arg != 0u) {
+      goto save_frame;
+    }
+    dval = pending;
+    stored = dval;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = value;
-    d1 = l8;
-    StoreF64(ctx, i0, d1);
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
-    i1 = state;
-    i0 = i0 == i1;
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Store the double back into the value and take the next character.
+    out = stored;
+    StoreF64(ctx, value, out);
+    text = LoadU32(ctx, stack + 12u);
+    ch = text == state;
   }
-  i0 = ResumePhase(ctx);
-  if (i0) {
-    i0 = l4;
+  if (ResumePhase(ctx)) {
+    top = frame;
   } else {
-    i0 = l5;
-    if (i0) {goto block_6;}
-    i0 = l3;
-    i0 = LoadU8(ctx, i0);
-    l5 = i0;
-    i1 = 32u;
-    i0 |= i1;
-    i1 = 120u;
-    i0 = i0 == i1;
-  }
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l3;
-    i1 = l6;
-    i2 = 12u;
-    i1 += i2;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l3 = i0;
-    i0 = l2;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = l3;
-      i2 = 16u;
-      i0 = ReadPackedI64Value(ctx, i0, i1, i2);
-      l2 = i0;
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l2;
-      state = i0;
+    if (ch) {
+      goto not_a_number;
     }
-    i0 = ResumePhase(ctx);
-    if (i0) {
-      i0 = l5;
+    ch = LoadU8(ctx, text);
+    top = ch | 32u;
+    top = top == 120u;
+  }
+  arg = ResumePhase(ctx);
+  arg = arg == kResumeRewinding;
+  top = top | arg;
+  if (top) {
+    // The text did not name a number, so read a packed integer instead.
+    top = text;
+    arg = stack + 12u;
+    third = ResumePhase(ctx);
+    top = third ? top : arg;
+    text = top;
+    if (carry == 1u || ResumePhase(ctx) == kResumeRunning) {
+      arg = state;
+      third = text;
+      top = ReadPackedI64Value(ctx, arg, third, 16u);
+      carry = top;
+      top = 1u;
+      arg = ResumePhase(ctx);
+      arg = arg == kResumeSuspended;
+      if (arg != 0u) {
+        goto save_frame;
+      }
+      state = carry;
+    }
+    if (ResumePhase(ctx)) {
+      top = ch;
     } else {
-      i0 = value;
-      i1 = state;
-      d1 = (double)(i1);
-      StoreF64(ctx, i0, d1);
-      i0 = l6;
-      i0 = LoadU32(ctx, i0 + 12u);
-      l3 = i0;
-      i0 = LoadU8(ctx, i0);
+      out = (double)(state);
+      StoreF64(ctx, value, out);
+      text = LoadU32(ctx, stack + 12u);
+      top = LoadU8(ctx, text);
     }
-    l5 = i0;
+    ch = top;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l5;
-    i0 = !(i0);
-    if (i0) {
-      i0 = 1u;
-      l7 = i0;
-      goto block_6;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (ch == 0u) {
+      result = 1u;
+      goto not_a_number;
     }
-    i0 = l5;
-    i1 = 32u;
-    i0 = i0 == i1;
-    i1 = l5;
-    i2 = 9u;
-    i1 -= i2;
-    i2 = 5u;
-    i1 = i1 < i2;
-    i0 |= i1;
-    i0 = !(i0);
-    if (i0) {goto block_6;}
-    loop_13: 
-      i0 = l3;
-      i0 = LoadU8(ctx, i0 + 1u);
-      state = i0;
-      i0 = l3;
-      i1 = 1u;
-      i0 += i1;
-      l3 = i0;
-      i0 = state;
-      i1 = 32u;
-      i0 = i0 == i1;
-      i1 = state;
-      i2 = 9u;
-      i1 -= i2;
-      i2 = 5u;
-      i1 = i1 < i2;
-      i0 |= i1;
-      if (i0) {goto loop_13;}
-    i0 = state;
-    i0 = !(i0);
-    l7 = i0;
+    // A number is made of digits, or of the letters of a number word.
+    top = ch;
+    arg = 32u;
+    top = top == arg;
+    arg = ch - 9u;
+    third = 5u;
+    arg = arg < third;
+    top = top | arg;
+    if (top == 0u) {
+      goto not_a_number;
+    }
+    do {
+      state = LoadU8(ctx, text + 1u);
+      text = text + 1u;
+      top = state;
+      arg = 32u;
+      top = top == arg;
+      arg = state;
+      third = 9u;
+      arg = arg - third;
+      third = 5u;
+      arg = arg < third;
+      top = top | arg;
+    } while (top);
+    result = state == 0u;
   }
-  block_6:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l6;
-    i1 = 16u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    i0 = l7;
-    goto func_exit;
+not_a_number:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    GuestStackSp(ctx) = stack + 16u;
+    top = result;
+    LeaveFrame();
+    return top;
   }
   TrapUnreachable();
-  spill_frame:;
-  l2 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF371ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l2 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l2;
-  i1 = value;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l2;
-  i1 = l3;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l2;
-  i1 = l5;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l2;
-  i1 = l6;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l2;
-  i1 = l7;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l2;
-  d1 = l8;
-  StoreF64(ctx, i0 + 24u, d1);
-  i0 = l2;
-  i1 = l4;
-  StoreU32(ctx, i0 + 32u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 36u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+save_frame:;
+  carry = top;
+  top = ReturnFrameSp(ctx);
+  top = LoadU32(ctx, top);
+  StoreU32(ctx, top, carry);
+  top = ReturnFrameSp(ctx);
+  arg = ReturnFrameSp(ctx);
+  arg = LoadU32(ctx, arg);
+  arg = arg + kCoerceToNumberResumeWordBytes;
+  StoreU32(ctx, top, arg);
+  top = ReturnFrameSp(ctx);
+  top = LoadU32(ctx, top);
+  carry = top;
+  arg = state;
+  StoreU32(ctx, top, arg);
+  StoreU32(ctx, carry + 4u, value);
+  StoreU32(ctx, carry + 8u, text);
+  StoreU32(ctx, carry + 12u, ch);
+  StoreU32(ctx, carry + 16u, stack);
+  StoreU32(ctx, carry + 20u, result);
+  out = stored;
+  StoreF64(ctx, carry + 24u, out);
+  StoreU32(ctx, carry + 32u, frame);
+  top = ReturnFrameSp(ctx);
+  arg = ReturnFrameSp(ctx);
+  arg = LoadU32(ctx, arg);
+  arg = arg + kCoerceToNumberSaveFrameBytes;
+  StoreU32(ctx, top, arg);
+  top = 0u;
   LeaveFrame();
-  return i0;
+  return top;
 }
-}
+
+}  // namespace artc

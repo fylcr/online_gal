@@ -1,43 +1,25 @@
-// apply_event_record_table.cpp -- walks the queued twenty byte event records of the engine object, resolves each one through the tagged tree and applies it, releasing the replaced node subtrees..
-//
-// ApplyEventRecordTable -- walks the queued twenty byte event records of the engine object, resolves each one through the tagged tree and applies it, releasing the replaced node subtrees.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 226405-226405 (f579); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations for the callees this step calls.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 void FindTaggedTreeEntry(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5);
 
-namespace {
-
-constexpr uint32_t kF579ConstB5E30 = 0xB5E30u;  // 
-constexpr uint32_t kF579MsgPx = 0xB5E31u;  // px != 0
-constexpr uint32_t kF579MsgBoostBoostSmartPtr = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
-constexpr uint32_t kF579MsgOperator = 0xB5E71u;  // operator->
-constexpr uint32_t kF579ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF579ConstFFFFFFC0 = 0xFFFFFFC0u;  // 
-constexpr uint32_t kF579ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF579SaveFrameBytes = 32u;
-constexpr uint32_t kF579ResumeWordBytes = 4u;
-
-}  // namespace
+// ApplyEventRecordTable -- walks the queued twenty byte event records of the
+// engine object, resolves each one through the tagged tree and applies it.
 
 void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   EnterFrame();
+  constexpr uint32_t kDataB5E30 = 0xB5E30u;
+  constexpr uint32_t kMsgPx = 0xB5E31u;  // px != 0
+  constexpr uint32_t kMsgSmartPtrPath = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
+  constexpr uint32_t kMsgOperator = 0xB5E71u;  // operator->
+  constexpr uint32_t kDataFFFFFFC0 = 0xFFFFFFC0u;
+  constexpr uint32_t kDataFFFFFFFF = 0xFFFFFFFFu;
+  constexpr uint32_t kSaveFrameBytes = 32u;
+  constexpr uint32_t kResumeWordBytes = 4u;
   uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
   uint64_t j1 = 0;
@@ -48,7 +30,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kF579SaveFrameBytes;
+    i2 = kSaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -85,7 +67,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kF579ResumeWordBytes;
+    i2 = kResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -97,7 +79,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   i0 = !(i0);
   if (i0) {
     i0 = GuestStackSp(ctx);
-    i1 = kF579ConstFFFFFFC0;
+    i1 = kDataFFFFFFC0;
     i0 += i1;
     l3 = i0;
     GuestStackSp(ctx) = i0;
@@ -106,19 +88,19 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 += i1;
     i0 = LoadS8(ctx, i0);
     l1 = i0;
-    i1 = kF579ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = a;
       i1 = 13692u;
       i0 += i1;
       i0 = LoadU32(ctx, i0);
-      goto running_exit;
+      goto exit_path;
     }
     i0 = l1;
     i1 = 255u;
     i0 &= i1;
-    running_exit:;
+    exit_path:;
     i0 = !(i0);
     l2 = i0;
   }
@@ -163,7 +145,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = l2;
     i1 = l6;
     i2 = l1;
-    i3 = kF579ConstB5E30;
+    i3 = kDataB5E30;
     i4 = l8;
     i5 = l7;
     FindTaggedTreeEntry(ctx, i0, i1, i2, i3, i4, i5);
@@ -206,7 +188,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -218,10 +200,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kF579MsgPx;
-        i2 = kF579MsgBoostBoostSmartPtr;
+        i1 = kMsgPx;
+        i2 = kMsgSmartPtrPath;
         i3 = 734u;
-        i4 = kF579MsgOperator;
+        i4 = kMsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 1u;
         i1 = ResumePhase(ctx);
@@ -232,10 +214,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -264,7 +246,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -276,10 +258,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kF579MsgPx;
-        i2 = kF579MsgBoostBoostSmartPtr;
+        i1 = kMsgPx;
+        i2 = kMsgSmartPtrPath;
         i3 = 734u;
-        i4 = kF579MsgOperator;
+        i4 = kMsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 2u;
         i1 = ResumePhase(ctx);
@@ -290,10 +272,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -374,7 +356,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 124u);
       l6 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -398,10 +380,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -431,7 +413,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       l2 = i0;
       i0 = LoadU32(ctx, i0 + 8u);
       l3 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -454,10 +436,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -490,7 +472,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
         l2 = i0;
         i0 = LoadU32(ctx, i0 + 12u);
         l3 = i0;
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -513,10 +495,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l3 = i0;
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -552,7 +534,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -575,10 +557,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -611,7 +593,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         l2 = i0;
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -634,10 +616,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l1 = i0;
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l1;
@@ -669,7 +651,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -681,10 +663,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kF579MsgPx;
-      i2 = kF579MsgBoostBoostSmartPtr;
+      i1 = kMsgPx;
+      i2 = kMsgSmartPtrPath;
       i3 = 734u;
-      i4 = kF579MsgOperator;
+      i4 = kMsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 9u;
       i1 = ResumePhase(ctx);
@@ -695,10 +677,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -722,7 +704,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 304u);
     l2 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -755,10 +737,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l1 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l1;
@@ -777,7 +759,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 43u);
-      i1 = kF579ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -793,7 +775,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 124u);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -817,10 +799,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l1 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l1;
@@ -839,7 +821,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 43u);
-    i1 = kF579ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     if (i0) {goto block_7;}
     i0 = l3;
@@ -868,7 +850,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -880,10 +862,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kF579MsgPx;
-      i2 = kF579MsgBoostBoostSmartPtr;
+      i1 = kMsgPx;
+      i2 = kMsgSmartPtrPath;
       i3 = 734u;
-      i4 = kF579MsgOperator;
+      i4 = kMsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 12u;
       i1 = ResumePhase(ctx);
@@ -894,10 +876,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -924,7 +906,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 324u);
     l2 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -957,10 +939,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l1 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l1;
@@ -1005,7 +987,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1028,10 +1010,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1055,7 +1037,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1078,10 +1060,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l1 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l1;
@@ -1096,7 +1078,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 43u);
-      i1 = kF579ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -1118,7 +1100,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1130,10 +1112,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kF579MsgPx;
-        i2 = kF579MsgBoostBoostSmartPtr;
+        i1 = kMsgPx;
+        i2 = kMsgSmartPtrPath;
         i3 = 734u;
-        i4 = kF579MsgOperator;
+        i4 = kMsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 16u;
         i1 = ResumePhase(ctx);
@@ -1144,10 +1126,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -1165,7 +1147,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 348u);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1188,10 +1170,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l1 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l1;
@@ -1213,7 +1195,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1225,10 +1207,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kF579MsgPx;
-        i2 = kF579MsgBoostBoostSmartPtr;
+        i1 = kMsgPx;
+        i2 = kMsgSmartPtrPath;
         i3 = 734u;
-        i4 = kF579MsgOperator;
+        i4 = kMsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 18u;
         i1 = ResumePhase(ctx);
@@ -1239,10 +1221,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -1271,7 +1253,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1283,10 +1265,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kF579MsgPx;
-        i2 = kF579MsgBoostBoostSmartPtr;
+        i1 = kMsgPx;
+        i2 = kMsgSmartPtrPath;
         i3 = 734u;
-        i4 = kF579MsgOperator;
+        i4 = kMsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 19u;
         i1 = ResumePhase(ctx);
@@ -1297,10 +1279,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -1321,7 +1303,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 368u);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -1349,10 +1331,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l1 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l1;
@@ -1388,7 +1370,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1411,10 +1393,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1438,7 +1420,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1461,10 +1443,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l1 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l1;
@@ -1492,7 +1474,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1504,10 +1486,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kF579MsgPx;
-        i2 = kF579MsgBoostBoostSmartPtr;
+        i1 = kMsgPx;
+        i2 = kMsgSmartPtrPath;
         i3 = 734u;
-        i4 = kF579MsgOperator;
+        i4 = kMsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 23u;
         i1 = ResumePhase(ctx);
@@ -1518,10 +1500,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -1550,7 +1532,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1562,10 +1544,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kF579MsgPx;
-        i2 = kF579MsgBoostBoostSmartPtr;
+        i1 = kMsgPx;
+        i2 = kMsgSmartPtrPath;
         i3 = 734u;
-        i4 = kF579MsgOperator;
+        i4 = kMsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 24u;
         i1 = ResumePhase(ctx);
@@ -1576,10 +1558,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -1615,7 +1597,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 324u);
       l1 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -1644,10 +1626,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l1 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l1;
@@ -1681,7 +1663,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1704,10 +1686,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1730,7 +1712,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1753,10 +1735,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l1 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l1;
@@ -1789,7 +1771,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1812,10 +1794,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1847,7 +1829,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         l2 = i0;
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1870,10 +1852,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l1 = i0;
-        i0 = kF579ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l1;
@@ -1921,7 +1903,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     l2 = i0;
     i0 = LoadU32(ctx, i0 + 8u);
     l5 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -1944,10 +1926,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -1971,7 +1953,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     l2 = i0;
     i0 = LoadU32(ctx, i0 + 12u);
     l5 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -1994,10 +1976,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l1 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l1;
@@ -2012,7 +1994,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   if (i0) {
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 43u);
-    i1 = kF579ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     if (i0) {goto block_8;}
     i0 = l3;
@@ -2048,7 +2030,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     l2 = i0;
     i0 = LoadU32(ctx, i0 + 8u);
     l5 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2072,10 +2054,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   if (i0) {
     i0 = l2;
   } else {
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -2105,7 +2087,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       l5 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -2128,10 +2110,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l1 = i0;
-      i0 = kF579ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l1;
@@ -2170,7 +2152,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     l5 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2193,10 +2175,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -2218,7 +2200,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 12u);
     l5 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2241,10 +2223,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l1 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l1;
@@ -2259,7 +2241,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   if (i0) {
     i0 = l5;
     i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kF579ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = a;
@@ -2306,7 +2288,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     l1 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2329,10 +2311,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l1 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l1;
@@ -2354,7 +2336,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 12u);
     l1 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2377,10 +2359,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -2394,7 +2376,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   i0 = !(i0);
   if (i0) {
     i0 = l3;
-    i1 = kF579ConstFFFFFFC0;
+    i1 = kDataFFFFFFC0;
     i0 -= i1;
     GuestStackSp(ctx) = i0;
     goto func_exit;
@@ -2437,7 +2419,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     l1 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2460,10 +2442,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l1 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l1;
@@ -2485,7 +2467,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 12u);
     l1 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2508,10 +2490,10 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kF579ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -2566,7 +2548,7 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kF579ResumeWordBytes;
+  i2 = kResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
@@ -2604,4 +2586,4 @@ void ApplyEventRecordTable(EngineContext* ctx, uint32_t a) {
   func_exit:;
   LeaveFrame();
 }
-}
+}  // namespace artc

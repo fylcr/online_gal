@@ -1,46 +1,3 @@
-// refill_record_state.cpp -- the token reader the record steps refill.
-//
-// RefillRecordState runs one lexer step: it takes the lexer state and the
-// semantic slot the caller wants the token payload in, reads the next token
-// out of the input stream and answers with its token code. Whitespace and
-// comments are skipped inside the step, numbers and names are collected
-// through their own readers, and every lexical error is raised here as a
-// syntax error carrying the source position. The caller (the record resume
-// step, script/step_record_resume.cpp) keeps the token block beside the state
-// and takes the answer back as one of its own outcomes.
-//
-// The step is suspendable -- every reader call below it can suspend the
-// worker -- so the body carries the engine's asyncify state machine laid out
-// exactly as the generated driver runs it. Phase rewinding pops the 44-byte
-// frame the suspend path saved (both parameters and nine live words, in that
-// order) and then pops the four-byte code naming the call that was in flight,
-// because each of the 87 call sites keeps its own gate and a rewinding pass
-// replays exactly the one the code names. Phase suspended pushes that code,
-// then the frame, and answers zero. The two rewinding pops stay two blocks:
-// the code word sits above the saved frame, so folding them would read the
-// wrong words. The 288-byte scratch frame the body grows and hands back on
-// every running exit is guest stack -- it drives unwind and rewind like any
-// other frame.
-//
-// Judgment order: untouched. The goto graph is the generated driver's own
-// flattening, kept as it stands (renamed labels only) so every compare runs
-// in its original order; the dispatch at the top switches on the current
-// character and each case body falls back into the read loop. Restructuring
-// this into loops and switches is R2 work and needs the double anchor (frame
-// hash and profile counts both green before and after).
-//
-// Node text: the seven diagnostics and formats live in the guest data segment
-// at fixed addresses and the trap texts depend on those exact values, so they
-// are named constants here, never retyped.
-//
-// src: artemis.wasm2c.c 806233-811597 (f1727), via code/f1727.cpp (R0
-// transcription); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
@@ -65,141 +22,138 @@ uint32_t GetTableFieldByString(EngineContext* ctx, uint32_t state, uint32_t tabl
 uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t state);
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
 
-namespace {
-
-// Token codes as the engine numbers them. Single-character tokens answer
-// with their own character; these are the compound ones.
-constexpr uint32_t kTokenConcat = 278u;
-constexpr uint32_t kTokenDots = 279u;
-constexpr uint32_t kTokenEq = 280u;
-constexpr uint32_t kTokenGe = 281u;
-constexpr uint32_t kTokenLe = 282u;
-constexpr uint32_t kTokenNe = 283u;
-constexpr uint32_t kTokenNumber = 284u;
-constexpr uint32_t kTokenName = 285u;
-constexpr uint32_t kTokenString = 286u;
-constexpr uint32_t kTokenEos = 287u;
-
-// Frame shapes: the 44-byte saved frame (eleven words), the four-byte resume
-// code word stacked above it, the 288-byte scratch frame on the guest stack,
-// and the source-id buffer the error paths format the chunk name into.
-constexpr uint32_t kF1727SaveFrameBytes = 44u;
-constexpr uint32_t kF1727ResumeWordBytes = 4u;
-constexpr uint32_t kLocalFrameBytes = 288u;
-constexpr uint32_t kSourceIdBytes = 80u;
-// The element ceiling: a lexical element past this cannot be addressed.
-constexpr uint32_t kMaxBufferSize = 0x7FFFFFFEu;
-
-// The seven node texts in the guest data segment. The trap texts depend on
-// these exact addresses; they are copied, never retyped into call sites.
-constexpr uint32_t kMsgEof = 0x2AC22u;
-constexpr uint32_t kMsgAddInfoFmt = 0x2ACBCu;
-constexpr uint32_t kMsgNearFmt = 0x2ACC6u;
-constexpr uint32_t kMsgElementTooLong = 0x2ACD3u;
-constexpr uint32_t kMsgBadLongDelim = 0x2ACECu;
-constexpr uint32_t kMsgUnfinishedString = 0x2AD73u;
-constexpr uint32_t kMsgEscapeTooLarge = 0x2AD85u;
-
-// Folded negative constants the generated body stages as u32 words.
-constexpr uint32_t kU32MinusOne = 0xFFFFFFFFu;
-constexpr uint32_t kU32MinusTwo = 0xFFFFFFFEu;
-constexpr uint32_t kU32MinusSixtyFour = 0xFFFFFFC0u;
-
-// The resume codes a suspension spills: zero is the main-loop tail call; each
-// of the 87 call sites keeps its own code, and a rewinding pass replays
-// exactly the call its code names.
-constexpr uint32_t kResumeCall00 = 0u;
-constexpr uint32_t kResumeNextChar01 = 1u;
-constexpr uint32_t kResumeNextChar02 = 2u;
-constexpr uint32_t kResumeSkipSep03 = 3u;
-constexpr uint32_t kResumeNextChar04 = 4u;
-constexpr uint32_t kResumeSkipSep05 = 5u;
-constexpr uint32_t kResumeReadLongString06 = 6u;
-constexpr uint32_t kResumeLexError07 = 7u;
-constexpr uint32_t kResumeNextChar08 = 8u;
-constexpr uint32_t kResumeNextChar09 = 9u;
-constexpr uint32_t kResumeNextChar10 = 10u;
-constexpr uint32_t kResumeNextChar11 = 11u;
-constexpr uint32_t kResumeNextChar12 = 12u;
-constexpr uint32_t kResumeNextChar13 = 13u;
-constexpr uint32_t kResumeFormatMessage14 = 14u;
-constexpr uint32_t kResumeThrowSyntax15 = 15u;
-constexpr uint32_t kResumeReallocateBuffer16 = 16u;
-constexpr uint32_t kResumeBlockTooBig17 = 17u;
-constexpr uint32_t kResumeNextChar18 = 18u;
-constexpr uint32_t kResumeFormatMessage19 = 19u;
-constexpr uint32_t kResumeFormatMessage20 = 20u;
-constexpr uint32_t kResumeThrowSyntax21 = 21u;
-constexpr uint32_t kResumeLexError22 = 22u;
-constexpr uint32_t kResumeFormatMessage23 = 23u;
-constexpr uint32_t kResumeThrowSyntax24 = 24u;
-constexpr uint32_t kResumeReallocateBuffer25 = 25u;
-constexpr uint32_t kResumeBlockTooBig26 = 26u;
-constexpr uint32_t kResumeNextChar27 = 27u;
-constexpr uint32_t kResumeNextChar28 = 28u;
-constexpr uint32_t kResumeFormatMessage29 = 29u;
-constexpr uint32_t kResumeThrowSyntax30 = 30u;
-constexpr uint32_t kResumeReallocateBuffer31 = 31u;
-constexpr uint32_t kResumeBlockTooBig32 = 32u;
-constexpr uint32_t kResumeInclineNumber33 = 33u;
-constexpr uint32_t kResumeNextChar34 = 34u;
-constexpr uint32_t kResumeLexError35 = 35u;
-constexpr uint32_t kResumeFormatMessage36 = 36u;
-constexpr uint32_t kResumeThrowSyntax37 = 37u;
-constexpr uint32_t kResumeReallocateBuffer38 = 38u;
-constexpr uint32_t kResumeBlockTooBig39 = 39u;
-constexpr uint32_t kResumeFormatMessage40 = 40u;
-constexpr uint32_t kResumeThrowSyntax41 = 41u;
-constexpr uint32_t kResumeReallocateBuffer42 = 42u;
-constexpr uint32_t kResumeBlockTooBig43 = 43u;
-constexpr uint32_t kResumeNextChar44 = 44u;
-constexpr uint32_t kResumeFormatMessage45 = 45u;
-constexpr uint32_t kResumeThrowSyntax46 = 46u;
-constexpr uint32_t kResumeReallocateBuffer47 = 47u;
-constexpr uint32_t kResumeBlockTooBig48 = 48u;
-constexpr uint32_t kResumeNextChar49 = 49u;
-constexpr uint32_t kResumeFormatMessage50 = 50u;
-constexpr uint32_t kResumeThrowSyntax51 = 51u;
-constexpr uint32_t kResumeReallocateBuffer52 = 52u;
-constexpr uint32_t kResumeBlockTooBig53 = 53u;
-constexpr uint32_t kResumeNextChar54 = 54u;
-constexpr uint32_t kResumeInternString55 = 55u;
-constexpr uint32_t kResumeLookupKeyword56 = 56u;
-constexpr uint32_t kResumeGrowTableSlot57 = 57u;
-constexpr uint32_t kResumeReadLongString58 = 58u;
-constexpr uint32_t kResumeNextChar59 = 59u;
-constexpr uint32_t kResumeFormatMessage60 = 60u;
-constexpr uint32_t kResumeThrowSyntax61 = 61u;
-constexpr uint32_t kResumeReallocateBuffer62 = 62u;
-constexpr uint32_t kResumeBlockTooBig63 = 63u;
-constexpr uint32_t kResumeNextChar64 = 64u;
-constexpr uint32_t kResumeInternString65 = 65u;
-constexpr uint32_t kResumeLookupKeyword66 = 66u;
-constexpr uint32_t kResumeGrowTableSlot67 = 67u;
-constexpr uint32_t kResumeNextChar68 = 68u;
-constexpr uint32_t kResumeFormatMessage69 = 69u;
-constexpr uint32_t kResumeThrowSyntax70 = 70u;
-constexpr uint32_t kResumeReallocateBuffer71 = 71u;
-constexpr uint32_t kResumeBlockTooBig72 = 72u;
-constexpr uint32_t kResumeNextChar73 = 73u;
-constexpr uint32_t kResumeFormatMessage74 = 74u;
-constexpr uint32_t kResumeThrowSyntax75 = 75u;
-constexpr uint32_t kResumeReallocateBuffer76 = 76u;
-constexpr uint32_t kResumeBlockTooBig77 = 77u;
-constexpr uint32_t kResumeNextChar78 = 78u;
-constexpr uint32_t kResumeFormatMessage79 = 79u;
-constexpr uint32_t kResumeThrowSyntax80 = 80u;
-constexpr uint32_t kResumeReallocateBuffer81 = 81u;
-constexpr uint32_t kResumeBlockTooBig82 = 82u;
-constexpr uint32_t kResumeNextChar83 = 83u;
-constexpr uint32_t kResumeReadNumeral84 = 84u;
-constexpr uint32_t kResumeNextChar85 = 85u;
-constexpr uint32_t kResumeNextChar86 = 86u;
-
-}  // namespace
+// RefillRecordState runs one lexer step: it takes the lexer state and the
+// semantic slot the caller wants the token payload in, reads the next token out
+// of the input stream and answers with its token code. Whitespace and comments
+// are skipped here; lexical errors are raised as syntax errors carrying the
+// source position. Suspendable.
 
 uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t seminfo) {
   EnterFrame();
+  // Token codes as the engine numbers them. Single-character tokens answer
+  // with their own character; these are the compound ones.
+  constexpr uint32_t kTokenConcat = 278u;
+  constexpr uint32_t kTokenDots = 279u;
+  constexpr uint32_t kTokenEq = 280u;
+  constexpr uint32_t kTokenGe = 281u;
+  constexpr uint32_t kTokenLe = 282u;
+  constexpr uint32_t kTokenNe = 283u;
+  constexpr uint32_t kTokenNumber = 284u;
+  constexpr uint32_t kTokenName = 285u;
+  constexpr uint32_t kTokenString = 286u;
+  constexpr uint32_t kTokenEos = 287u;
+  // Frame shapes: the 44-byte saved frame (eleven words), the four-byte resume
+  // code word stacked above it, the 288-byte scratch frame on the guest stack,
+  // and the source-id buffer the error paths format the chunk name into.
+  constexpr uint32_t kSaveFrameBytes = 44u;
+  constexpr uint32_t kResumeWordBytes = 4u;
+  constexpr uint32_t kLocalFrameBytes = 288u;
+  constexpr uint32_t kSourceIdBytes = 80u;
+  // The element ceiling: a lexical element past this cannot be addressed.
+  constexpr uint32_t kMaxBufferSize = 0x7FFFFFFEu;
+  // The seven node texts in the guest data segment. The trap texts depend on
+  // these exact addresses; they are copied, never retyped into call sites.
+  constexpr uint32_t kMsgEof = 0x2AC22u;
+  constexpr uint32_t kMsgAddInfoFmt = 0x2ACBCu;
+  constexpr uint32_t kMsgNearFmt = 0x2ACC6u;
+  constexpr uint32_t kMsgElementTooLong = 0x2ACD3u;
+  constexpr uint32_t kMsgBadLongDelim = 0x2ACECu;
+  constexpr uint32_t kMsgUnfinishedString = 0x2AD73u;
+  constexpr uint32_t kMsgEscapeTooLarge = 0x2AD85u;
+  // Folded negative constants the generated body stages as u32 words.
+  constexpr uint32_t kU32MinusOne = 0xFFFFFFFFu;
+  constexpr uint32_t kU32MinusTwo = 0xFFFFFFFEu;
+  constexpr uint32_t kU32MinusSixtyFour = 0xFFFFFFC0u;
+  // The resume codes a suspension spills: zero is the main-loop tail call; each
+  // of the 87 call sites keeps its own code, and a rewinding pass replays
+  // exactly the call its code names.
+  constexpr uint32_t kResumeStepCall0 = 0u;
+  constexpr uint32_t kResumeStepNextChar1 = 1u;
+  constexpr uint32_t kResumeStepNextChar2 = 2u;
+  constexpr uint32_t kResumeStepSkipSep3 = 3u;
+  constexpr uint32_t kResumeStepNextChar4 = 4u;
+  constexpr uint32_t kResumeStepSkipSep5 = 5u;
+  constexpr uint32_t kResumeStepReadLongString6 = 6u;
+  constexpr uint32_t kResumeStepLexError7 = 7u;
+  constexpr uint32_t kResumeStepNextChar8 = 8u;
+  constexpr uint32_t kResumeStepNextChar9 = 9u;
+  constexpr uint32_t kResumeStepNextChar10 = 10u;
+  constexpr uint32_t kResumeStepNextChar11 = 11u;
+  constexpr uint32_t kResumeStepNextChar12 = 12u;
+  constexpr uint32_t kResumeStepNextChar13 = 13u;
+  constexpr uint32_t kResumeStepFormatMessage14 = 14u;
+  constexpr uint32_t kResumeStepThrowSyntax15 = 15u;
+  constexpr uint32_t kResumeStepReallocateBuffer16 = 16u;
+  constexpr uint32_t kResumeStepBlockTooBig17 = 17u;
+  constexpr uint32_t kResumeStepNextChar18 = 18u;
+  constexpr uint32_t kResumeStepFormatMessage19 = 19u;
+  constexpr uint32_t kResumeStepFormatMessage20 = 20u;
+  constexpr uint32_t kResumeStepThrowSyntax21 = 21u;
+  constexpr uint32_t kResumeStepLexError22 = 22u;
+  constexpr uint32_t kResumeStepFormatMessage23 = 23u;
+  constexpr uint32_t kResumeStepThrowSyntax24 = 24u;
+  constexpr uint32_t kResumeStepReallocateBuffer25 = 25u;
+  constexpr uint32_t kResumeStepBlockTooBig26 = 26u;
+  constexpr uint32_t kResumeStepNextChar27 = 27u;
+  constexpr uint32_t kResumeStepNextChar28 = 28u;
+  constexpr uint32_t kResumeStepFormatMessage29 = 29u;
+  constexpr uint32_t kResumeStepThrowSyntax30 = 30u;
+  constexpr uint32_t kResumeStepReallocateBuffer31 = 31u;
+  constexpr uint32_t kResumeStepBlockTooBig32 = 32u;
+  constexpr uint32_t kResumeStepInclineNumber33 = 33u;
+  constexpr uint32_t kResumeStepNextChar34 = 34u;
+  constexpr uint32_t kResumeStepLexError35 = 35u;
+  constexpr uint32_t kResumeStepFormatMessage36 = 36u;
+  constexpr uint32_t kResumeStepThrowSyntax37 = 37u;
+  constexpr uint32_t kResumeStepReallocateBuffer38 = 38u;
+  constexpr uint32_t kResumeStepBlockTooBig39 = 39u;
+  constexpr uint32_t kResumeStepFormatMessage40 = 40u;
+  constexpr uint32_t kResumeStepThrowSyntax41 = 41u;
+  constexpr uint32_t kResumeStepReallocateBuffer42 = 42u;
+  constexpr uint32_t kResumeStepBlockTooBig43 = 43u;
+  constexpr uint32_t kResumeStepNextChar44 = 44u;
+  constexpr uint32_t kResumeStepFormatMessage45 = 45u;
+  constexpr uint32_t kResumeStepThrowSyntax46 = 46u;
+  constexpr uint32_t kResumeStepReallocateBuffer47 = 47u;
+  constexpr uint32_t kResumeStepBlockTooBig48 = 48u;
+  constexpr uint32_t kResumeStepNextChar49 = 49u;
+  constexpr uint32_t kResumeStepFormatMessage50 = 50u;
+  constexpr uint32_t kResumeStepThrowSyntax51 = 51u;
+  constexpr uint32_t kResumeStepReallocateBuffer52 = 52u;
+  constexpr uint32_t kResumeStepBlockTooBig53 = 53u;
+  constexpr uint32_t kResumeStepNextChar54 = 54u;
+  constexpr uint32_t kResumeStepInternString55 = 55u;
+  constexpr uint32_t kResumeStepLookupKeyword56 = 56u;
+  constexpr uint32_t kResumeStepGrowTableSlot57 = 57u;
+  constexpr uint32_t kResumeStepReadLongString58 = 58u;
+  constexpr uint32_t kResumeStepNextChar59 = 59u;
+  constexpr uint32_t kResumeStepFormatMessage60 = 60u;
+  constexpr uint32_t kResumeStepThrowSyntax61 = 61u;
+  constexpr uint32_t kResumeStepReallocateBuffer62 = 62u;
+  constexpr uint32_t kResumeStepBlockTooBig63 = 63u;
+  constexpr uint32_t kResumeStepNextChar64 = 64u;
+  constexpr uint32_t kResumeStepInternString65 = 65u;
+  constexpr uint32_t kResumeStepLookupKeyword66 = 66u;
+  constexpr uint32_t kResumeStepGrowTableSlot67 = 67u;
+  constexpr uint32_t kResumeStepNextChar68 = 68u;
+  constexpr uint32_t kResumeStepFormatMessage69 = 69u;
+  constexpr uint32_t kResumeStepThrowSyntax70 = 70u;
+  constexpr uint32_t kResumeStepReallocateBuffer71 = 71u;
+  constexpr uint32_t kResumeStepBlockTooBig72 = 72u;
+  constexpr uint32_t kResumeStepNextChar73 = 73u;
+  constexpr uint32_t kResumeStepFormatMessage74 = 74u;
+  constexpr uint32_t kResumeStepThrowSyntax75 = 75u;
+  constexpr uint32_t kResumeStepReallocateBuffer76 = 76u;
+  constexpr uint32_t kResumeStepBlockTooBig77 = 77u;
+  constexpr uint32_t kResumeStepNextChar78 = 78u;
+  constexpr uint32_t kResumeStepFormatMessage79 = 79u;
+  constexpr uint32_t kResumeStepThrowSyntax80 = 80u;
+  constexpr uint32_t kResumeStepReallocateBuffer81 = 81u;
+  constexpr uint32_t kResumeStepBlockTooBig82 = 82u;
+  constexpr uint32_t kResumeStepNextChar83 = 83u;
+  constexpr uint32_t kResumeStepReadNumeral84 = 84u;
+  constexpr uint32_t kResumeStepNextChar85 = 85u;
+  constexpr uint32_t kResumeStepNextChar86 = 86u;
   // The eleven words that ride the saved frame: both parameters and nine
   // live words -- +0 lex_state, +4 seminfo, +8 token, +12 selector,
   // +16 word_a, +20 word_b, +24 word_c, +28 word_d, +32 frame_base,
@@ -226,7 +180,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kF1727SaveFrameBytes;
+    i2 = kSaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -272,7 +226,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kF1727ResumeWordBytes;
+    i2 = kResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -294,7 +248,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i1 = 0u;
     StoreU32(ctx, i0 + 4u, i1);
   }
-// merge point dispatch_loop (wasm2c flattening boundary)
+// Merge point dispatch_loop.
   dispatch_loop: 
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -313,7 +267,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     if (i0) {
       i0 = selector;
       switch (i0) {
-        case 0: goto running_exit;
+        case 0: goto exit_path;
         case 1: goto block_10;
         case 2: goto block_10;
         case 3: goto block_10;
@@ -408,7 +362,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         case 92: goto block_17;
         default: goto block_11;
       }
-// merge point block_20 (wasm2c flattening boundary)
+// Merge point block_20.
       block_20:;
     }
     i0 = resume_code;
@@ -419,7 +373,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     if (i0) {
       i0 = lex_state;
       InclineNumber(ctx, i0);
-      i0 = kResumeCall00;
+      i0 = kResumeStepCall0;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -428,7 +382,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {goto dispatch_loop;}
-// merge point block_18 (wasm2c flattening boundary)
+// Merge point block_18.
     block_18:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -466,7 +420,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       }
     }
     i0 = resume_code;
-    i1 = kResumeNextChar01;
+    i1 = kResumeStepNextChar1;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -475,7 +429,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = token;
       i0 = NextCharSlow(ctx, i0);
       call_result = i0;
-      i0 = kResumeNextChar01;
+      i0 = kResumeStepNextChar1;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -484,7 +438,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     } else {
       i0 = word_b;
     }
-// merge point block_23 (wasm2c flattening boundary)
+// Merge point block_23.
     block_23:;
     word_b = i0;
     i0 = ResumePhase(ctx);
@@ -498,7 +452,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = word_b;
       i1 = 45u;
       i0 = i0 != i1;
-      if (i0) {goto running_exit;}
+      if (i0) {goto exit_path;}
       i0 = lex_state;
       i0 = LoadU32(ctx, i0 + 56u);
       token = i0;
@@ -532,7 +486,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       }
     }
     i0 = resume_code;
-    i1 = kResumeNextChar02;
+    i1 = kResumeStepNextChar2;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -541,7 +495,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = token;
       i0 = NextCharSlow(ctx, i0);
       call_result = i0;
-      i0 = kResumeNextChar02;
+      i0 = kResumeStepNextChar2;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -550,7 +504,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     } else {
       i0 = word_b;
     }
-// merge point block_28 (wasm2c flattening boundary)
+// Merge point block_28.
     block_28:;
     word_b = i0;
     i0 = ResumePhase(ctx);
@@ -571,7 +525,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 |= i1;
     if (i0) {
       i0 = resume_code;
-      i1 = kResumeSkipSep03;
+      i1 = kResumeStepSkipSep3;
       i0 = i0 == i1;
       i1 = 1u;
       i2 = ResumePhase(ctx);
@@ -580,7 +534,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i0 = lex_state;
         i0 = SkipSep(ctx, i0);
         call_result = i0;
-        i0 = kResumeSkipSep03;
+        i0 = kResumeStepSkipSep3;
         i1 = ResumePhase(ctx);
         i2 = 1u;
         i1 = i1 == i2;
@@ -606,7 +560,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       }
       word_b = i0;
     }
-// merge point loop_37 (wasm2c flattening boundary)
+// Merge point loop_37.
     loop_37: 
       i0 = ResumePhase(ctx);
       i0 = !(i0);
@@ -675,7 +629,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 |= i1;
       if (i0) {
         i0 = resume_code;
-        i1 = kResumeNextChar04;
+        i1 = kResumeStepNextChar4;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -684,7 +638,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = token;
           i0 = NextCharSlow(ctx, i0);
           call_result = i0;
-          i0 = kResumeNextChar04;
+          i0 = kResumeStepNextChar4;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -703,11 +657,11 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {goto loop_37;}
-// merge point block_17 (wasm2c flattening boundary)
+// Merge point block_17.
     block_17:;
     i0 = word_b;
     i1 = resume_code;
-    i2 = kResumeSkipSep05;
+    i2 = kResumeStepSkipSep5;
     i1 = i1 == i2;
     i2 = 1u;
     i3 = ResumePhase(ctx);
@@ -716,7 +670,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i1 = lex_state;
       i1 = SkipSep(ctx, i1);
       call_result = i1;
-      i1 = kResumeSkipSep05;
+      i1 = kResumeStepSkipSep5;
       i2 = ResumePhase(ctx);
       i3 = 1u;
       i2 = i2 == i3;
@@ -736,7 +690,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 |= i1;
     if (i0) {
       i0 = resume_code;
-      i1 = kResumeReadLongString06;
+      i1 = kResumeStepReadLongString6;
       i0 = i0 == i1;
       i1 = 1u;
       i2 = ResumePhase(ctx);
@@ -746,7 +700,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i1 = seminfo;
         i2 = token;
         ReadLongString(ctx, i0, i1, i2);
-        i0 = kResumeReadLongString06;
+        i0 = kResumeStepReadLongString6;
         i1 = ResumePhase(ctx);
         i2 = 1u;
         i1 = i1 == i2;
@@ -757,7 +711,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       if (i0) {
         i0 = kTokenString;
         token = i0;
-        goto running_exit;
+        goto exit_path;
       }
     }
     i0 = ResumePhase(ctx);
@@ -770,11 +724,11 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       if (i0) {
         i0 = 91u;
         token = i0;
-        goto running_exit;
+        goto exit_path;
       }
     }
     i0 = resume_code;
-    i1 = kResumeLexError07;
+    i1 = kResumeStepLexError7;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -785,13 +739,13 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i1 = kMsgBadLongDelim;
       i2 = kTokenString;
       LexError(ctx, i0, i1, i2);
-      i0 = kResumeLexError07;
+      i0 = kResumeStepLexError7;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
     }
-// merge point block_16 (wasm2c flattening boundary)
+// Merge point block_16.
     block_16:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -831,7 +785,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       }
     }
     i0 = resume_code;
-    i1 = kResumeNextChar08;
+    i1 = kResumeStepNextChar8;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -840,7 +794,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = seminfo;
       i0 = NextCharSlow(ctx, i0);
       call_result = i0;
-      i0 = kResumeNextChar08;
+      i0 = kResumeStepNextChar8;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -849,7 +803,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     } else {
       i0 = seminfo;
     }
-// merge point block_53 (wasm2c flattening boundary)
+// Merge point block_53.
     block_53:;
     seminfo = i0;
     i0 = ResumePhase(ctx);
@@ -863,7 +817,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = seminfo;
       i1 = 61u;
       i0 = i0 != i1;
-      if (i0) {goto running_exit;}
+      if (i0) {goto exit_path;}
       i0 = lex_state;
       i0 = LoadU32(ctx, i0 + 56u);
       seminfo = i0;
@@ -897,7 +851,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       }
     }
     i0 = resume_code;
-    i1 = kResumeNextChar09;
+    i1 = kResumeStepNextChar9;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -906,7 +860,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = seminfo;
       i0 = NextCharSlow(ctx, i0);
       call_result = i0;
-      i0 = kResumeNextChar09;
+      i0 = kResumeStepNextChar9;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -915,7 +869,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     } else {
       i0 = lex_state;
     }
-// merge point block_58 (wasm2c flattening boundary)
+// Merge point block_58.
     block_58:;
     lex_state = i0;
     i0 = ResumePhase(ctx);
@@ -926,9 +880,9 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       StoreU32(ctx, i0, i1);
       i0 = kTokenEq;
       token = i0;
-      goto running_exit;
+      goto exit_path;
     }
-// merge point block_15 (wasm2c flattening boundary)
+// Merge point block_15.
     block_15:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -968,7 +922,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       }
     }
     i0 = resume_code;
-    i1 = kResumeNextChar10;
+    i1 = kResumeStepNextChar10;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -977,7 +931,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = seminfo;
       i0 = NextCharSlow(ctx, i0);
       call_result = i0;
-      i0 = kResumeNextChar10;
+      i0 = kResumeStepNextChar10;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -986,7 +940,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     } else {
       i0 = seminfo;
     }
-// merge point block_64 (wasm2c flattening boundary)
+// Merge point block_64.
     block_64:;
     seminfo = i0;
     i0 = ResumePhase(ctx);
@@ -1000,7 +954,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = seminfo;
       i1 = 61u;
       i0 = i0 != i1;
-      if (i0) {goto running_exit;}
+      if (i0) {goto exit_path;}
       i0 = lex_state;
       i0 = LoadU32(ctx, i0 + 56u);
       seminfo = i0;
@@ -1034,7 +988,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       }
     }
     i0 = resume_code;
-    i1 = kResumeNextChar11;
+    i1 = kResumeStepNextChar11;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -1043,7 +997,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = seminfo;
       i0 = NextCharSlow(ctx, i0);
       call_result = i0;
-      i0 = kResumeNextChar11;
+      i0 = kResumeStepNextChar11;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -1052,7 +1006,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     } else {
       i0 = lex_state;
     }
-// merge point block_69 (wasm2c flattening boundary)
+// Merge point block_69.
     block_69:;
     lex_state = i0;
     i0 = ResumePhase(ctx);
@@ -1063,9 +1017,9 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       StoreU32(ctx, i0, i1);
       i0 = kTokenLe;
       token = i0;
-      goto running_exit;
+      goto exit_path;
     }
-// merge point block_14 (wasm2c flattening boundary)
+// Merge point block_14.
     block_14:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -1105,7 +1059,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       }
     }
     i0 = resume_code;
-    i1 = kResumeNextChar12;
+    i1 = kResumeStepNextChar12;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -1114,7 +1068,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = seminfo;
       i0 = NextCharSlow(ctx, i0);
       call_result = i0;
-      i0 = kResumeNextChar12;
+      i0 = kResumeStepNextChar12;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -1123,7 +1077,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     } else {
       i0 = seminfo;
     }
-// merge point block_75 (wasm2c flattening boundary)
+// Merge point block_75.
     block_75:;
     seminfo = i0;
     i0 = ResumePhase(ctx);
@@ -1137,7 +1091,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = seminfo;
       i1 = 61u;
       i0 = i0 != i1;
-      if (i0) {goto running_exit;}
+      if (i0) {goto exit_path;}
       i0 = lex_state;
       i0 = LoadU32(ctx, i0 + 56u);
       seminfo = i0;
@@ -1171,7 +1125,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       }
     }
     i0 = resume_code;
-    i1 = kResumeNextChar13;
+    i1 = kResumeStepNextChar13;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -1180,7 +1134,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = seminfo;
       i0 = NextCharSlow(ctx, i0);
       call_result = i0;
-      i0 = kResumeNextChar13;
+      i0 = kResumeStepNextChar13;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -1189,7 +1143,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     } else {
       i0 = lex_state;
     }
-// merge point block_80 (wasm2c flattening boundary)
+// Merge point block_80.
     block_80:;
     lex_state = i0;
     i0 = ResumePhase(ctx);
@@ -1200,9 +1154,9 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       StoreU32(ctx, i0, i1);
       i0 = kTokenGe;
       token = i0;
-      goto running_exit;
+      goto exit_path;
     }
-// merge point block_13 (wasm2c flattening boundary)
+// Merge point block_13.
     block_13:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -1278,7 +1232,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         word_a = i0;
       }
       i0 = resume_code;
-      i1 = kResumeFormatMessage14;
+      i1 = kResumeStepFormatMessage14;
       i0 = i0 == i1;
       i1 = 1u;
       i2 = ResumePhase(ctx);
@@ -1290,7 +1244,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i2 = word_a;
         i0 = FormatPushString(ctx, i0, i1, i2);
         call_result = i0;
-        i0 = kResumeFormatMessage14;
+        i0 = kResumeStepFormatMessage14;
         i1 = ResumePhase(ctx);
         i2 = 1u;
         i1 = i1 == i2;
@@ -1306,7 +1260,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         selector = i0;
       }
       i0 = resume_code;
-      i1 = kResumeThrowSyntax15;
+      i1 = kResumeStepThrowSyntax15;
       i0 = i0 == i1;
       i1 = 1u;
       i2 = ResumePhase(ctx);
@@ -1315,7 +1269,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i0 = selector;
         i1 = 3u;
         ThrowScriptError(ctx, i0, i1);
-        i0 = kResumeThrowSyntax15;
+        i0 = kResumeStepThrowSyntax15;
         i1 = ResumePhase(ctx);
         i2 = 1u;
         i1 = i1 == i2;
@@ -1358,7 +1312,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         word_c = i0;
       }
       i0 = resume_code;
-      i1 = kResumeReallocateBuffer16;
+      i1 = kResumeStepReallocateBuffer16;
       i0 = i0 == i1;
       i1 = 1u;
       i2 = ResumePhase(ctx);
@@ -1370,7 +1324,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i3 = word_d;
         i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
         call_result = i0;
-        i0 = kResumeReallocateBuffer16;
+        i0 = kResumeStepReallocateBuffer16;
         i1 = ResumePhase(ctx);
         i2 = 1u;
         i1 = i1 == i2;
@@ -1383,7 +1337,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       if (i0) {goto block_97;}
     }
     i0 = resume_code;
-    i1 = kResumeBlockTooBig17;
+    i1 = kResumeStepBlockTooBig17;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -1392,7 +1346,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = selector;
       i0 = RaiseBlockTooBig(ctx, i0);
       call_result = i0;
-      i0 = kResumeBlockTooBig17;
+      i0 = kResumeStepBlockTooBig17;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -1400,7 +1354,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = call_result;
       word_a = i0;
     }
-// merge point block_97 (wasm2c flattening boundary)
+// Merge point block_97.
     block_97:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -1418,7 +1372,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 += i1;
       selector = i0;
     }
-// merge point block_86 (wasm2c flattening boundary)
+// Merge point block_86.
     block_86:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -1465,7 +1419,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       }
     }
     i0 = resume_code;
-    i1 = kResumeNextChar18;
+    i1 = kResumeStepNextChar18;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -1474,7 +1428,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = token;
       i0 = NextCharSlow(ctx, i0);
       call_result = i0;
-      i0 = kResumeNextChar18;
+      i0 = kResumeStepNextChar18;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -1483,7 +1437,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     } else {
       i0 = token;
     }
-// merge point block_104 (wasm2c flattening boundary)
+// Merge point block_104.
     block_104:;
     token = i0;
     i0 = ResumePhase(ctx);
@@ -1503,7 +1457,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i1 = i1 == i2;
     i0 |= i1;
     if (i0) {
-// merge point loop_111 (wasm2c flattening boundary)
+// Merge point loop_111.
       loop_111: 
         i0 = selector;
         i1 = token;
@@ -1534,7 +1488,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             case 14: goto block_116;
             default: goto block_115;
           }
-// merge point block_118 (wasm2c flattening boundary)
+// Merge point block_118.
           block_118:;
           i0 = frame_base;
           i1 = 208u;
@@ -1569,7 +1523,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           selector = i0;
         }
         i0 = resume_code;
-        i1 = kResumeFormatMessage19;
+        i1 = kResumeStepFormatMessage19;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -1581,7 +1535,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i2 = selector;
           i0 = FormatPushString(ctx, i0, i1, i2);
           call_result = i0;
-          i0 = kResumeFormatMessage19;
+          i0 = kResumeStepFormatMessage19;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -1608,7 +1562,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           token = i0;
         }
         i0 = resume_code;
-        i1 = kResumeFormatMessage20;
+        i1 = kResumeStepFormatMessage20;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -1620,7 +1574,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i2 = token;
           i0 = FormatPushString(ctx, i0, i1, i2);
           call_result = i0;
-          i0 = kResumeFormatMessage20;
+          i0 = kResumeStepFormatMessage20;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -1636,7 +1590,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           token = i0;
         }
         i0 = resume_code;
-        i1 = kResumeThrowSyntax21;
+        i1 = kResumeStepThrowSyntax21;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -1645,7 +1599,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = token;
           i1 = 3u;
           ThrowScriptError(ctx, i0, i1);
-          i0 = kResumeThrowSyntax21;
+          i0 = kResumeStepThrowSyntax21;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -1659,10 +1613,10 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           token = i0;
           goto block_112;
         }
-// merge point block_116 (wasm2c flattening boundary)
+// Merge point block_116.
         block_116:;
         i0 = resume_code;
-        i1 = kResumeLexError22;
+        i1 = kResumeStepLexError22;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -1673,7 +1627,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i1 = kMsgUnfinishedString;
           i2 = kTokenString;
           LexError(ctx, i0, i1, i2);
-          i0 = kResumeLexError22;
+          i0 = kResumeStepLexError22;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -1687,7 +1641,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           token = i0;
           goto block_112;
         }
-// merge point block_115 (wasm2c flattening boundary)
+// Merge point block_115.
         block_115:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -1698,7 +1652,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           selector = i0;
           if (i0) {goto block_113;}
         }
-// merge point block_114 (wasm2c flattening boundary)
+// Merge point block_114.
         block_114:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -1774,7 +1728,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             word_c = i0;
           }
           i0 = resume_code;
-          i1 = kResumeFormatMessage23;
+          i1 = kResumeStepFormatMessage23;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -1786,7 +1740,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i2 = word_c;
             i0 = FormatPushString(ctx, i0, i1, i2);
             call_result = i0;
-            i0 = kResumeFormatMessage23;
+            i0 = kResumeStepFormatMessage23;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -1802,7 +1756,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             selector = i0;
           }
           i0 = resume_code;
-          i1 = kResumeThrowSyntax24;
+          i1 = kResumeStepThrowSyntax24;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -1811,7 +1765,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i0 = selector;
             i1 = 3u;
             ThrowScriptError(ctx, i0, i1);
-            i0 = kResumeThrowSyntax24;
+            i0 = kResumeStepThrowSyntax24;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -1854,7 +1808,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             word_e = i0;
           }
           i0 = resume_code;
-          i1 = kResumeReallocateBuffer25;
+          i1 = kResumeStepReallocateBuffer25;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -1866,7 +1820,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i3 = word_d;
             i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
             call_result = i0;
-            i0 = kResumeReallocateBuffer25;
+            i0 = kResumeStepReallocateBuffer25;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -1879,7 +1833,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           if (i0) {goto block_140;}
         }
         i0 = resume_code;
-        i1 = kResumeBlockTooBig26;
+        i1 = kResumeStepBlockTooBig26;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -1888,7 +1842,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = selector;
           i0 = RaiseBlockTooBig(ctx, i0);
           call_result = i0;
-          i0 = kResumeBlockTooBig26;
+          i0 = kResumeStepBlockTooBig26;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -1896,7 +1850,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = call_result;
           word_c = i0;
         }
-// merge point block_140 (wasm2c flattening boundary)
+// Merge point block_140.
         block_140:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -1914,7 +1868,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 += i1;
           selector = i0;
         }
-// merge point block_129 (wasm2c flattening boundary)
+// Merge point block_129.
         block_129:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -1961,7 +1915,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           }
         }
         i0 = resume_code;
-        i1 = kResumeNextChar27;
+        i1 = kResumeStepNextChar27;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -1970,7 +1924,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = token;
           i0 = NextCharSlow(ctx, i0);
           call_result = i0;
-          i0 = kResumeNextChar27;
+          i0 = kResumeStepNextChar27;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -1979,7 +1933,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         } else {
           i0 = token;
         }
-// merge point block_147 (wasm2c flattening boundary)
+// Merge point block_147.
         block_147:;
         token = i0;
         i0 = ResumePhase(ctx);
@@ -1990,7 +1944,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           StoreU32(ctx, i0, i1);
           goto block_112;
         }
-// merge point block_113 (wasm2c flattening boundary)
+// Merge point block_113.
         block_113:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -2029,7 +1983,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           }
         }
         i0 = resume_code;
-        i1 = kResumeNextChar28;
+        i1 = kResumeStepNextChar28;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -2038,7 +1992,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = token;
           i0 = NextCharSlow(ctx, i0);
           call_result = i0;
-          i0 = kResumeNextChar28;
+          i0 = kResumeStepNextChar28;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -2047,7 +2001,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         } else {
           i0 = token;
         }
-// merge point block_153 (wasm2c flattening boundary)
+// Merge point block_153.
         block_153:;
         token = i0;
         i0 = ResumePhase(ctx);
@@ -2092,7 +2046,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             case 21: goto block_165;
             default: goto block_170;
           }
-// merge point block_170 (wasm2c flattening boundary)
+// Merge point block_170.
           block_170:;
           i0 = token;
           i1 = 1u;
@@ -2116,32 +2070,32 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             case 14: goto block_164;
             default: goto block_161;
           }
-// merge point block_169 (wasm2c flattening boundary)
+// Merge point block_169.
           block_169:;
           i0 = 12u;
           word_a = i0;
           goto block_159;
-// merge point block_168 (wasm2c flattening boundary)
+// Merge point block_168.
           block_168:;
           i0 = 10u;
           word_a = i0;
           goto block_159;
-// merge point block_167 (wasm2c flattening boundary)
+// Merge point block_167.
           block_167:;
           i0 = 13u;
           word_a = i0;
           goto block_159;
-// merge point block_166 (wasm2c flattening boundary)
+// Merge point block_166.
           block_166:;
           i0 = 9u;
           word_a = i0;
           goto block_159;
-// merge point block_165 (wasm2c flattening boundary)
+// Merge point block_165.
           block_165:;
           i0 = 11u;
           word_a = i0;
           goto block_159;
-// merge point block_164 (wasm2c flattening boundary)
+// Merge point block_164.
           block_164:;
           i0 = lex_state;
           i0 = LoadU32(ctx, i0 + 60u);
@@ -2215,7 +2169,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             word_a = i0;
           }
           i0 = resume_code;
-          i1 = kResumeFormatMessage29;
+          i1 = kResumeStepFormatMessage29;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -2227,7 +2181,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i2 = word_a;
             i0 = FormatPushString(ctx, i0, i1, i2);
             call_result = i0;
-            i0 = kResumeFormatMessage29;
+            i0 = kResumeStepFormatMessage29;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -2243,7 +2197,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             selector = i0;
           }
           i0 = resume_code;
-          i1 = kResumeThrowSyntax30;
+          i1 = kResumeStepThrowSyntax30;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -2252,7 +2206,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i0 = selector;
             i1 = 3u;
             ThrowScriptError(ctx, i0, i1);
-            i0 = kResumeThrowSyntax30;
+            i0 = kResumeStepThrowSyntax30;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -2295,7 +2249,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             word_c = i0;
           }
           i0 = resume_code;
-          i1 = kResumeReallocateBuffer31;
+          i1 = kResumeStepReallocateBuffer31;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -2307,7 +2261,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i3 = word_d;
             i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
             call_result = i0;
-            i0 = kResumeReallocateBuffer31;
+            i0 = kResumeStepReallocateBuffer31;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -2320,7 +2274,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           if (i0) {goto block_182;}
         }
         i0 = resume_code;
-        i1 = kResumeBlockTooBig32;
+        i1 = kResumeStepBlockTooBig32;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -2329,7 +2283,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = word_a;
           i0 = RaiseBlockTooBig(ctx, i0);
           call_result = i0;
-          i0 = kResumeBlockTooBig32;
+          i0 = kResumeStepBlockTooBig32;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -2337,7 +2291,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = call_result;
           selector = i0;
         }
-// merge point block_182 (wasm2c flattening boundary)
+// Merge point block_182.
         block_182:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -2355,7 +2309,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 += i1;
           word_d = i0;
         }
-// merge point block_171 (wasm2c flattening boundary)
+// Merge point block_171.
         block_171:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -2371,7 +2325,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           StoreU8(ctx, i0, i1);
         }
         i0 = resume_code;
-        i1 = kResumeInclineNumber33;
+        i1 = kResumeStepInclineNumber33;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -2379,13 +2333,13 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         if (i0) {
           i0 = lex_state;
           InclineNumber(ctx, i0);
-          i0 = kResumeInclineNumber33;
+          i0 = kResumeStepInclineNumber33;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
           if (i1) {goto spill_frame;}
         }
-// merge point block_162 (wasm2c flattening boundary)
+// Merge point block_162.
         block_162:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -2395,7 +2349,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           token = i0;
           goto block_112;
         }
-// merge point block_161 (wasm2c flattening boundary)
+// Merge point block_161.
         block_161:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -2412,7 +2366,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = 0u;
           word_d = i0;
         }
-// merge point loop_192 (wasm2c flattening boundary)
+// Merge point loop_192.
         loop_192: 
           i0 = ResumePhase(ctx);
           i0 = !(i0);
@@ -2459,7 +2413,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             }
           }
           i0 = resume_code;
-          i1 = kResumeNextChar34;
+          i1 = kResumeStepNextChar34;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -2468,7 +2422,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i0 = word_a;
             i0 = NextCharSlow(ctx, i0);
             call_result = i0;
-            i0 = kResumeNextChar34;
+            i0 = kResumeStepNextChar34;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -2477,7 +2431,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           } else {
             i0 = token;
           }
-// merge point block_194 (wasm2c flattening boundary)
+// Merge point block_194.
           block_194:;
           token = i0;
           i0 = ResumePhase(ctx);
@@ -2517,7 +2471,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i0 |= i1;
         if (i0) {
           i0 = resume_code;
-          i1 = kResumeLexError35;
+          i1 = kResumeStepLexError35;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -2528,7 +2482,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i1 = kMsgEscapeTooLarge;
             i2 = kTokenString;
             LexError(ctx, i0, i1, i2);
-            i0 = kResumeLexError35;
+            i0 = kResumeStepLexError35;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -2610,7 +2564,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             word_c = i0;
           }
           i0 = resume_code;
-          i1 = kResumeFormatMessage36;
+          i1 = kResumeStepFormatMessage36;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -2622,7 +2576,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i2 = word_c;
             i0 = FormatPushString(ctx, i0, i1, i2);
             call_result = i0;
-            i0 = kResumeFormatMessage36;
+            i0 = kResumeStepFormatMessage36;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -2638,7 +2592,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             word_a = i0;
           }
           i0 = resume_code;
-          i1 = kResumeThrowSyntax37;
+          i1 = kResumeStepThrowSyntax37;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -2647,7 +2601,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i0 = word_a;
             i1 = 3u;
             ThrowScriptError(ctx, i0, i1);
-            i0 = kResumeThrowSyntax37;
+            i0 = kResumeStepThrowSyntax37;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -2690,7 +2644,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             word_e = i0;
           }
           i0 = resume_code;
-          i1 = kResumeReallocateBuffer38;
+          i1 = kResumeStepReallocateBuffer38;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -2702,7 +2656,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i3 = word_c;
             i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
             call_result = i0;
-            i0 = kResumeReallocateBuffer38;
+            i0 = kResumeStepReallocateBuffer38;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -2715,7 +2669,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           if (i0) {goto block_213;}
         }
         i0 = resume_code;
-        i1 = kResumeBlockTooBig39;
+        i1 = kResumeStepBlockTooBig39;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -2724,7 +2678,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = word_d;
           i0 = RaiseBlockTooBig(ctx, i0);
           call_result = i0;
-          i0 = kResumeBlockTooBig39;
+          i0 = kResumeStepBlockTooBig39;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -2732,7 +2686,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = call_result;
           word_a = i0;
         }
-// merge point block_213 (wasm2c flattening boundary)
+// Merge point block_213.
         block_213:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -2750,7 +2704,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 += i1;
           word_c = i0;
         }
-// merge point block_203 (wasm2c flattening boundary)
+// Merge point block_203.
         block_203:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -2768,14 +2722,14 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           token = i0;
           goto block_112;
         }
-// merge point block_160 (wasm2c flattening boundary)
+// Merge point block_160.
         block_160:;
         i0 = word_a;
         i1 = 8u;
         i2 = ResumePhase(ctx);
         i0 = i2 ? i0 : i1;
         word_a = i0;
-// merge point block_159 (wasm2c flattening boundary)
+// Merge point block_159.
         block_159:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -2851,7 +2805,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             word_c = i0;
           }
           i0 = resume_code;
-          i1 = kResumeFormatMessage40;
+          i1 = kResumeStepFormatMessage40;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -2863,7 +2817,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i2 = word_c;
             i0 = FormatPushString(ctx, i0, i1, i2);
             call_result = i0;
-            i0 = kResumeFormatMessage40;
+            i0 = kResumeStepFormatMessage40;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -2879,7 +2833,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             selector = i0;
           }
           i0 = resume_code;
-          i1 = kResumeThrowSyntax41;
+          i1 = kResumeStepThrowSyntax41;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -2888,7 +2842,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i0 = selector;
             i1 = 3u;
             ThrowScriptError(ctx, i0, i1);
-            i0 = kResumeThrowSyntax41;
+            i0 = kResumeStepThrowSyntax41;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -2931,7 +2885,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             word_e = i0;
           }
           i0 = resume_code;
-          i1 = kResumeReallocateBuffer42;
+          i1 = kResumeStepReallocateBuffer42;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -2943,7 +2897,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i3 = word_d;
             i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
             call_result = i0;
-            i0 = kResumeReallocateBuffer42;
+            i0 = kResumeStepReallocateBuffer42;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -2956,7 +2910,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           if (i0) {goto block_234;}
         }
         i0 = resume_code;
-        i1 = kResumeBlockTooBig43;
+        i1 = kResumeStepBlockTooBig43;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -2965,7 +2919,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = selector;
           i0 = RaiseBlockTooBig(ctx, i0);
           call_result = i0;
-          i0 = kResumeBlockTooBig43;
+          i0 = kResumeStepBlockTooBig43;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -2973,7 +2927,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = call_result;
           word_c = i0;
         }
-// merge point block_234 (wasm2c flattening boundary)
+// Merge point block_234.
         block_234:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -2991,7 +2945,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 += i1;
           selector = i0;
         }
-// merge point block_223 (wasm2c flattening boundary)
+// Merge point block_223.
         block_223:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -3037,7 +2991,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           }
         }
         i0 = resume_code;
-        i1 = kResumeNextChar44;
+        i1 = kResumeStepNextChar44;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -3046,7 +3000,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = token;
           i0 = NextCharSlow(ctx, i0);
           call_result = i0;
-          i0 = kResumeNextChar44;
+          i0 = kResumeStepNextChar44;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -3065,7 +3019,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           token = i0;
           goto block_112;
         }
-// merge point block_158 (wasm2c flattening boundary)
+// Merge point block_158.
         block_158:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -3141,7 +3095,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             word_c = i0;
           }
           i0 = resume_code;
-          i1 = kResumeFormatMessage45;
+          i1 = kResumeStepFormatMessage45;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -3153,7 +3107,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i2 = word_c;
             i0 = FormatPushString(ctx, i0, i1, i2);
             call_result = i0;
-            i0 = kResumeFormatMessage45;
+            i0 = kResumeStepFormatMessage45;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -3169,7 +3123,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             selector = i0;
           }
           i0 = resume_code;
-          i1 = kResumeThrowSyntax46;
+          i1 = kResumeStepThrowSyntax46;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -3178,7 +3132,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i0 = selector;
             i1 = 3u;
             ThrowScriptError(ctx, i0, i1);
-            i0 = kResumeThrowSyntax46;
+            i0 = kResumeStepThrowSyntax46;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -3221,7 +3175,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             word_e = i0;
           }
           i0 = resume_code;
-          i1 = kResumeReallocateBuffer47;
+          i1 = kResumeStepReallocateBuffer47;
           i0 = i0 == i1;
           i1 = 1u;
           i2 = ResumePhase(ctx);
@@ -3233,7 +3187,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
             i3 = word_d;
             i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
             call_result = i0;
-            i0 = kResumeReallocateBuffer47;
+            i0 = kResumeStepReallocateBuffer47;
             i1 = ResumePhase(ctx);
             i2 = 1u;
             i1 = i1 == i2;
@@ -3246,7 +3200,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           if (i0) {goto block_256;}
         }
         i0 = resume_code;
-        i1 = kResumeBlockTooBig48;
+        i1 = kResumeStepBlockTooBig48;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -3255,7 +3209,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = selector;
           i0 = RaiseBlockTooBig(ctx, i0);
           call_result = i0;
-          i0 = kResumeBlockTooBig48;
+          i0 = kResumeStepBlockTooBig48;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -3263,7 +3217,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = call_result;
           word_c = i0;
         }
-// merge point block_256 (wasm2c flattening boundary)
+// Merge point block_256.
         block_256:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -3281,7 +3235,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 += i1;
           selector = i0;
         }
-// merge point block_245 (wasm2c flattening boundary)
+// Merge point block_245.
         block_245:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -3327,7 +3281,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           }
         }
         i0 = resume_code;
-        i1 = kResumeNextChar49;
+        i1 = kResumeStepNextChar49;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -3336,7 +3290,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = token;
           i0 = NextCharSlow(ctx, i0);
           call_result = i0;
-          i0 = kResumeNextChar49;
+          i0 = kResumeStepNextChar49;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -3354,7 +3308,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = LoadU32(ctx, i0);
           token = i0;
         }
-// merge point block_112 (wasm2c flattening boundary)
+// Merge point block_112.
         block_112:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -3440,7 +3394,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         word_a = i0;
       }
       i0 = resume_code;
-      i1 = kResumeFormatMessage50;
+      i1 = kResumeStepFormatMessage50;
       i0 = i0 == i1;
       i1 = 1u;
       i2 = ResumePhase(ctx);
@@ -3452,7 +3406,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i2 = word_a;
         i0 = FormatPushString(ctx, i0, i1, i2);
         call_result = i0;
-        i0 = kResumeFormatMessage50;
+        i0 = kResumeStepFormatMessage50;
         i1 = ResumePhase(ctx);
         i2 = 1u;
         i1 = i1 == i2;
@@ -3468,7 +3422,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         selector = i0;
       }
       i0 = resume_code;
-      i1 = kResumeThrowSyntax51;
+      i1 = kResumeStepThrowSyntax51;
       i0 = i0 == i1;
       i1 = 1u;
       i2 = ResumePhase(ctx);
@@ -3477,7 +3431,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i0 = selector;
         i1 = 3u;
         ThrowScriptError(ctx, i0, i1);
-        i0 = kResumeThrowSyntax51;
+        i0 = kResumeStepThrowSyntax51;
         i1 = ResumePhase(ctx);
         i2 = 1u;
         i1 = i1 == i2;
@@ -3520,7 +3474,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         word_c = i0;
       }
       i0 = resume_code;
-      i1 = kResumeReallocateBuffer52;
+      i1 = kResumeStepReallocateBuffer52;
       i0 = i0 == i1;
       i1 = 1u;
       i2 = ResumePhase(ctx);
@@ -3532,7 +3486,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i3 = word_d;
         i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
         call_result = i0;
-        i0 = kResumeReallocateBuffer52;
+        i0 = kResumeStepReallocateBuffer52;
         i1 = ResumePhase(ctx);
         i2 = 1u;
         i1 = i1 == i2;
@@ -3545,7 +3499,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       if (i0) {goto block_279;}
     }
     i0 = resume_code;
-    i1 = kResumeBlockTooBig53;
+    i1 = kResumeStepBlockTooBig53;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -3554,7 +3508,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = selector;
       i0 = RaiseBlockTooBig(ctx, i0);
       call_result = i0;
-      i0 = kResumeBlockTooBig53;
+      i0 = kResumeStepBlockTooBig53;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -3562,7 +3516,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = call_result;
       word_a = i0;
     }
-// merge point block_279 (wasm2c flattening boundary)
+// Merge point block_279.
     block_279:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -3580,7 +3534,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 += i1;
       selector = i0;
     }
-// merge point block_268 (wasm2c flattening boundary)
+// Merge point block_268.
     block_268:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -3627,7 +3581,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       }
     }
     i0 = resume_code;
-    i1 = kResumeNextChar54;
+    i1 = kResumeStepNextChar54;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -3636,7 +3590,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = token;
       i0 = NextCharSlow(ctx, i0);
       call_result = i0;
-      i0 = kResumeNextChar54;
+      i0 = kResumeStepNextChar54;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -3645,7 +3599,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     } else {
       i0 = token;
     }
-// merge point block_286 (wasm2c flattening boundary)
+// Merge point block_286.
     block_286:;
     token = i0;
     i0 = ResumePhase(ctx);
@@ -3671,7 +3625,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       token = i0;
     }
     i0 = resume_code;
-    i1 = kResumeInternString55;
+    i1 = kResumeStepInternString55;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -3682,7 +3636,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i2 = word_b;
       i0 = InternString(ctx, i0, i1, i2);
       call_result = i0;
-      i0 = kResumeInternString55;
+      i0 = kResumeStepInternString55;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -3699,7 +3653,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       lex_state = i0;
     }
     i0 = resume_code;
-    i1 = kResumeLookupKeyword56;
+    i1 = kResumeStepLookupKeyword56;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -3710,7 +3664,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i2 = word_b;
       i0 = GetTableFieldByString(ctx, i0, i1, i2);
       call_result = i0;
-      i0 = kResumeLookupKeyword56;
+      i0 = kResumeStepLookupKeyword56;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -3749,7 +3703,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       if (i0) {goto block_295;}
     }
     i0 = resume_code;
-    i1 = kResumeGrowTableSlot57;
+    i1 = kResumeStepGrowTableSlot57;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -3757,13 +3711,13 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     if (i0) {
       i0 = token;
       GrowTableSlot(ctx, i0);
-      i0 = kResumeGrowTableSlot57;
+      i0 = kResumeStepGrowTableSlot57;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
     }
-// merge point block_295 (wasm2c flattening boundary)
+// Merge point block_295.
     block_295:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -3773,12 +3727,12 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       StoreU32(ctx, i0, i1);
       i0 = kTokenString;
       token = i0;
-      goto running_exit;
+      goto exit_path;
     }
-// merge point block_12 (wasm2c flattening boundary)
+// Merge point block_12.
     block_12:;
     i0 = resume_code;
-    i1 = kResumeReadLongString58;
+    i1 = kResumeStepReadLongString58;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -3788,7 +3742,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i1 = 0u;
       i2 = token;
       ReadLongString(ctx, i0, i1, i2);
-      i0 = kResumeReadLongString58;
+      i0 = kResumeStepReadLongString58;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -3804,7 +3758,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       StoreU32(ctx, i0 + 4u, i1);
       goto dispatch_loop;
     }
-// merge point block_11 (wasm2c flattening boundary)
+// Merge point block_11.
     block_11:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -3815,7 +3769,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       token = i0;
       if (i0) {goto block_5;}
     }
-// merge point block_10 (wasm2c flattening boundary)
+// Merge point block_10.
     block_10:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -3872,7 +3826,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         }
       }
       i0 = resume_code;
-      i1 = kResumeNextChar59;
+      i1 = kResumeStepNextChar59;
       i0 = i0 == i1;
       i1 = 1u;
       i2 = ResumePhase(ctx);
@@ -3881,7 +3835,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i0 = token;
         i0 = NextCharSlow(ctx, i0);
         call_result = i0;
-        i0 = kResumeNextChar59;
+        i0 = kResumeStepNextChar59;
         i1 = ResumePhase(ctx);
         i2 = 1u;
         i1 = i1 == i2;
@@ -3930,7 +3884,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
   i1 = i1 == i2;
   i0 |= i1;
   if (i0) {
-// merge point loop_312 (wasm2c flattening boundary)
+// Merge point loop_312.
     loop_312: 
       i0 = ResumePhase(ctx);
       i0 = !(i0);
@@ -4004,7 +3958,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           StoreU32(ctx, i0, i1);
         }
         i0 = resume_code;
-        i1 = kResumeFormatMessage60;
+        i1 = kResumeStepFormatMessage60;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -4016,7 +3970,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i2 = frame_base;
           i0 = FormatPushString(ctx, i0, i1, i2);
           call_result = i0;
-          i0 = kResumeFormatMessage60;
+          i0 = kResumeStepFormatMessage60;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -4032,7 +3986,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           selector = i0;
         }
         i0 = resume_code;
-        i1 = kResumeThrowSyntax61;
+        i1 = kResumeStepThrowSyntax61;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -4041,7 +3995,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i0 = selector;
           i1 = 3u;
           ThrowScriptError(ctx, i0, i1);
-          i0 = kResumeThrowSyntax61;
+          i0 = kResumeStepThrowSyntax61;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -4084,7 +4038,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           word_c = i0;
         }
         i0 = resume_code;
-        i1 = kResumeReallocateBuffer62;
+        i1 = kResumeStepReallocateBuffer62;
         i0 = i0 == i1;
         i1 = 1u;
         i2 = ResumePhase(ctx);
@@ -4096,7 +4050,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
           i3 = word_d;
           i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
           call_result = i0;
-          i0 = kResumeReallocateBuffer62;
+          i0 = kResumeStepReallocateBuffer62;
           i1 = ResumePhase(ctx);
           i2 = 1u;
           i1 = i1 == i2;
@@ -4109,7 +4063,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         if (i0) {goto block_325;}
       }
       i0 = resume_code;
-      i1 = kResumeBlockTooBig63;
+      i1 = kResumeStepBlockTooBig63;
       i0 = i0 == i1;
       i1 = 1u;
       i2 = ResumePhase(ctx);
@@ -4118,7 +4072,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i0 = word_a;
         i0 = RaiseBlockTooBig(ctx, i0);
         call_result = i0;
-        i0 = kResumeBlockTooBig63;
+        i0 = kResumeStepBlockTooBig63;
         i1 = ResumePhase(ctx);
         i2 = 1u;
         i1 = i1 == i2;
@@ -4126,7 +4080,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i0 = call_result;
         selector = i0;
       }
-// merge point block_325 (wasm2c flattening boundary)
+// Merge point block_325.
       block_325:;
       i0 = ResumePhase(ctx);
       i0 = !(i0);
@@ -4144,7 +4098,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i0 += i1;
         word_d = i0;
       }
-// merge point block_314 (wasm2c flattening boundary)
+// Merge point block_314.
       block_314:;
       i0 = ResumePhase(ctx);
       i0 = !(i0);
@@ -4190,7 +4144,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         }
       }
       i0 = resume_code;
-      i1 = kResumeNextChar64;
+      i1 = kResumeStepNextChar64;
       i0 = i0 == i1;
       i1 = 1u;
       i2 = ResumePhase(ctx);
@@ -4199,7 +4153,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i0 = token;
         i0 = NextCharSlow(ctx, i0);
         call_result = i0;
-        i0 = kResumeNextChar64;
+        i0 = kResumeStepNextChar64;
         i1 = ResumePhase(ctx);
         i2 = 1u;
         i1 = i1 == i2;
@@ -4208,7 +4162,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       } else {
         i0 = word_b;
       }
-// merge point block_332 (wasm2c flattening boundary)
+// Merge point block_332.
       block_332:;
       word_b = i0;
       i0 = ResumePhase(ctx);
@@ -4256,7 +4210,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       token = i0;
     }
     i0 = resume_code;
-    i1 = kResumeInternString65;
+    i1 = kResumeStepInternString65;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -4267,7 +4221,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i2 = word_b;
       i0 = InternString(ctx, i0, i1, i2);
       call_result = i0;
-      i0 = kResumeInternString65;
+      i0 = kResumeStepInternString65;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -4284,7 +4238,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       lex_state = i0;
     }
     i0 = resume_code;
-    i1 = kResumeLookupKeyword66;
+    i1 = kResumeStepLookupKeyword66;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -4295,7 +4249,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i2 = word_b;
       i0 = GetTableFieldByString(ctx, i0, i1, i2);
       call_result = i0;
-      i0 = kResumeLookupKeyword66;
+      i0 = kResumeStepLookupKeyword66;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -4334,7 +4288,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       if (i0) {goto block_342;}
     }
     i0 = resume_code;
-    i1 = kResumeGrowTableSlot67;
+    i1 = kResumeStepGrowTableSlot67;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -4342,13 +4296,13 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     if (i0) {
       i0 = token;
       GrowTableSlot(ctx, i0);
-      i0 = kResumeGrowTableSlot67;
+      i0 = kResumeStepGrowTableSlot67;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
     }
-// merge point block_342 (wasm2c flattening boundary)
+// Merge point block_342.
     block_342:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -4361,14 +4315,14 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
         i1 = 256u;
         i0 |= i1;
         token = i0;
-        goto running_exit;
+        goto exit_path;
       }
       i0 = seminfo;
       i1 = word_b;
       StoreU32(ctx, i0, i1);
       i0 = kTokenName;
       token = i0;
-      goto running_exit;
+      goto exit_path;
     }
   }
   i0 = ResumePhase(ctx);
@@ -4403,11 +4357,11 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       StoreU32(ctx, i0, i1);
       i0 = word_b;
       token = i0;
-      goto running_exit;
+      goto exit_path;
     }
   }
   i0 = resume_code;
-  i1 = kResumeNextChar68;
+  i1 = kResumeStepNextChar68;
   i0 = i0 == i1;
   i1 = 1u;
   i2 = ResumePhase(ctx);
@@ -4416,7 +4370,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = seminfo;
     i0 = NextCharSlow(ctx, i0);
     call_result = i0;
-    i0 = kResumeNextChar68;
+    i0 = kResumeStepNextChar68;
     i1 = ResumePhase(ctx);
     i2 = 1u;
     i1 = i1 == i2;
@@ -4432,9 +4386,9 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     StoreU32(ctx, i0, i1);
     i0 = word_b;
     token = i0;
-    goto running_exit;
+    goto exit_path;
   }
-// merge point block_7 (wasm2c flattening boundary)
+// Merge point block_7.
   block_7:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -4510,7 +4464,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       selector = i0;
     }
     i0 = resume_code;
-    i1 = kResumeFormatMessage69;
+    i1 = kResumeStepFormatMessage69;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -4522,7 +4476,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i2 = selector;
       i0 = FormatPushString(ctx, i0, i1, i2);
       call_result = i0;
-      i0 = kResumeFormatMessage69;
+      i0 = kResumeStepFormatMessage69;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -4538,7 +4492,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       token = i0;
     }
     i0 = resume_code;
-    i1 = kResumeThrowSyntax70;
+    i1 = kResumeStepThrowSyntax70;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -4547,7 +4501,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = token;
       i1 = 3u;
       ThrowScriptError(ctx, i0, i1);
-      i0 = kResumeThrowSyntax70;
+      i0 = kResumeStepThrowSyntax70;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -4590,7 +4544,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       word_a = i0;
     }
     i0 = resume_code;
-    i1 = kResumeReallocateBuffer71;
+    i1 = kResumeStepReallocateBuffer71;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -4602,7 +4556,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i3 = selector;
       i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
       call_result = i0;
-      i0 = kResumeReallocateBuffer71;
+      i0 = kResumeStepReallocateBuffer71;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -4615,7 +4569,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     if (i0) {goto block_363;}
   }
   i0 = resume_code;
-  i1 = kResumeBlockTooBig72;
+  i1 = kResumeStepBlockTooBig72;
   i0 = i0 == i1;
   i1 = 1u;
   i2 = ResumePhase(ctx);
@@ -4624,7 +4578,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = token;
     i0 = RaiseBlockTooBig(ctx, i0);
     call_result = i0;
-    i0 = kResumeBlockTooBig72;
+    i0 = kResumeStepBlockTooBig72;
     i1 = ResumePhase(ctx);
     i2 = 1u;
     i1 = i1 == i2;
@@ -4632,7 +4586,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = call_result;
     word_d = i0;
   }
-// merge point block_363 (wasm2c flattening boundary)
+// Merge point block_363.
   block_363:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -4650,7 +4604,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 += i1;
     word_a = i0;
   }
-// merge point block_352 (wasm2c flattening boundary)
+// Merge point block_352.
   block_352:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -4696,7 +4650,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     }
   }
   i0 = resume_code;
-  i1 = kResumeNextChar73;
+  i1 = kResumeStepNextChar73;
   i0 = i0 == i1;
   i1 = 1u;
   i2 = ResumePhase(ctx);
@@ -4705,7 +4659,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = token;
     i0 = NextCharSlow(ctx, i0);
     call_result = i0;
-    i0 = kResumeNextChar73;
+    i0 = kResumeStepNextChar73;
     i1 = ResumePhase(ctx);
     i2 = 1u;
     i1 = i1 == i2;
@@ -4714,7 +4668,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
   } else {
     i0 = word_b;
   }
-// merge point block_370 (wasm2c flattening boundary)
+// Merge point block_370.
   block_370:;
   word_b = i0;
   i0 = ResumePhase(ctx);
@@ -4817,7 +4771,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       selector = i0;
     }
     i0 = resume_code;
-    i1 = kResumeFormatMessage74;
+    i1 = kResumeStepFormatMessage74;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -4829,7 +4783,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i2 = selector;
       i0 = FormatPushString(ctx, i0, i1, i2);
       call_result = i0;
-      i0 = kResumeFormatMessage74;
+      i0 = kResumeStepFormatMessage74;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -4845,7 +4799,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       token = i0;
     }
     i0 = resume_code;
-    i1 = kResumeThrowSyntax75;
+    i1 = kResumeStepThrowSyntax75;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -4854,7 +4808,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = token;
       i1 = 3u;
       ThrowScriptError(ctx, i0, i1);
-      i0 = kResumeThrowSyntax75;
+      i0 = kResumeStepThrowSyntax75;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -4897,7 +4851,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       word_c = i0;
     }
     i0 = resume_code;
-    i1 = kResumeReallocateBuffer76;
+    i1 = kResumeStepReallocateBuffer76;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -4909,7 +4863,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i3 = word_a;
       i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
       call_result = i0;
-      i0 = kResumeReallocateBuffer76;
+      i0 = kResumeStepReallocateBuffer76;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -4922,7 +4876,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     if (i0) {goto block_388;}
   }
   i0 = resume_code;
-  i1 = kResumeBlockTooBig77;
+  i1 = kResumeStepBlockTooBig77;
   i0 = i0 == i1;
   i1 = 1u;
   i2 = ResumePhase(ctx);
@@ -4931,7 +4885,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = token;
     i0 = RaiseBlockTooBig(ctx, i0);
     call_result = i0;
-    i0 = kResumeBlockTooBig77;
+    i0 = kResumeStepBlockTooBig77;
     i1 = ResumePhase(ctx);
     i2 = 1u;
     i1 = i1 == i2;
@@ -4939,7 +4893,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = call_result;
     selector = i0;
   }
-// merge point block_388 (wasm2c flattening boundary)
+// Merge point block_388.
   block_388:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -4957,7 +4911,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 += i1;
     word_d = i0;
   }
-// merge point block_377 (wasm2c flattening boundary)
+// Merge point block_377.
   block_377:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -5005,7 +4959,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     }
   }
   i0 = resume_code;
-  i1 = kResumeNextChar78;
+  i1 = kResumeStepNextChar78;
   i0 = i0 == i1;
   i1 = 1u;
   i2 = ResumePhase(ctx);
@@ -5014,7 +4968,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = seminfo;
     i0 = NextCharSlow(ctx, i0);
     call_result = i0;
-    i0 = kResumeNextChar78;
+    i0 = kResumeStepNextChar78;
     i1 = ResumePhase(ctx);
     i2 = 1u;
     i1 = i1 == i2;
@@ -5023,7 +4977,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
   } else {
     i0 = word_b;
   }
-// merge point block_395 (wasm2c flattening boundary)
+// Merge point block_395.
   block_395:;
   word_b = i0;
   i0 = ResumePhase(ctx);
@@ -5040,7 +4994,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     seminfo = i0;
     i1 = 63u;
     i0 = i0 > i1;
-    if (i0) {goto running_exit;}
+    if (i0) {goto exit_path;}
     j0 = 1ull;
     i1 = seminfo;
     j1 = (uint64_t)(i1);
@@ -5048,7 +5002,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     j1 = 70368744177665ull;
     j0 &= j1;
     i0 = !(j0);
-    if (i0) {goto running_exit;}
+    if (i0) {goto exit_path;}
     i0 = lex_state;
     i0 = LoadU32(ctx, i0 + 60u);
     seminfo = i0;
@@ -5121,7 +5075,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       selector = i0;
     }
     i0 = resume_code;
-    i1 = kResumeFormatMessage79;
+    i1 = kResumeStepFormatMessage79;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -5133,7 +5087,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i2 = selector;
       i0 = FormatPushString(ctx, i0, i1, i2);
       call_result = i0;
-      i0 = kResumeFormatMessage79;
+      i0 = kResumeStepFormatMessage79;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -5149,7 +5103,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       token = i0;
     }
     i0 = resume_code;
-    i1 = kResumeThrowSyntax80;
+    i1 = kResumeStepThrowSyntax80;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -5158,7 +5112,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i0 = token;
       i1 = 3u;
       ThrowScriptError(ctx, i0, i1);
-      i0 = kResumeThrowSyntax80;
+      i0 = kResumeStepThrowSyntax80;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -5201,7 +5155,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       word_c = i0;
     }
     i0 = resume_code;
-    i1 = kResumeReallocateBuffer81;
+    i1 = kResumeStepReallocateBuffer81;
     i0 = i0 == i1;
     i1 = 1u;
     i2 = ResumePhase(ctx);
@@ -5213,7 +5167,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
       i3 = word_a;
       i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
       call_result = i0;
-      i0 = kResumeReallocateBuffer81;
+      i0 = kResumeStepReallocateBuffer81;
       i1 = ResumePhase(ctx);
       i2 = 1u;
       i1 = i1 == i2;
@@ -5226,7 +5180,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     if (i0) {goto block_411;}
   }
   i0 = resume_code;
-  i1 = kResumeBlockTooBig82;
+  i1 = kResumeStepBlockTooBig82;
   i0 = i0 == i1;
   i1 = 1u;
   i2 = ResumePhase(ctx);
@@ -5235,7 +5189,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = token;
     i0 = RaiseBlockTooBig(ctx, i0);
     call_result = i0;
-    i0 = kResumeBlockTooBig82;
+    i0 = kResumeStepBlockTooBig82;
     i1 = ResumePhase(ctx);
     i2 = 1u;
     i1 = i1 == i2;
@@ -5243,7 +5197,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = call_result;
     selector = i0;
   }
-// merge point block_411 (wasm2c flattening boundary)
+// Merge point block_411.
   block_411:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -5261,7 +5215,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 += i1;
     word_d = i0;
   }
-// merge point block_400 (wasm2c flattening boundary)
+// Merge point block_400.
   block_400:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -5307,7 +5261,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     }
   }
   i0 = resume_code;
-  i1 = kResumeNextChar83;
+  i1 = kResumeStepNextChar83;
   i0 = i0 == i1;
   i1 = 1u;
   i2 = ResumePhase(ctx);
@@ -5316,7 +5270,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = seminfo;
     i0 = NextCharSlow(ctx, i0);
     call_result = i0;
-    i0 = kResumeNextChar83;
+    i0 = kResumeStepNextChar83;
     i1 = ResumePhase(ctx);
     i2 = 1u;
     i1 = i1 == i2;
@@ -5325,7 +5279,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
   } else {
     i0 = lex_state;
   }
-// merge point block_418 (wasm2c flattening boundary)
+// Merge point block_418.
   block_418:;
   lex_state = i0;
   i0 = ResumePhase(ctx);
@@ -5336,9 +5290,9 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     StoreU32(ctx, i0, i1);
     i0 = kTokenDots;
     token = i0;
-    goto running_exit;
+    goto exit_path;
   }
-// merge point block_375 (wasm2c flattening boundary)
+// Merge point block_375.
   block_375:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -5351,12 +5305,12 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i1 = 9u;
     i0 = i0 > i1;
     word_b = i0;
-    if (i0) {goto running_exit;}
+    if (i0) {goto exit_path;}
   }
-// merge point block_6 (wasm2c flattening boundary)
+// Merge point block_6.
   block_6:;
   i0 = resume_code;
-  i1 = kResumeReadNumeral84;
+  i1 = kResumeStepReadNumeral84;
   i0 = i0 == i1;
   i1 = 1u;
   i2 = ResumePhase(ctx);
@@ -5365,7 +5319,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = lex_state;
     i1 = seminfo;
     ReadNumeral(ctx, i0, i1);
-    i0 = kResumeReadNumeral84;
+    i0 = kResumeStepReadNumeral84;
     i1 = ResumePhase(ctx);
     i2 = 1u;
     i1 = i1 == i2;
@@ -5376,9 +5330,9 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
   if (i0) {
     i0 = kTokenNumber;
     token = i0;
-    goto running_exit;
+    goto exit_path;
   }
-// merge point block_5 (wasm2c flattening boundary)
+// Merge point block_5.
   block_5:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -5418,7 +5372,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     }
   }
   i0 = resume_code;
-  i1 = kResumeNextChar85;
+  i1 = kResumeStepNextChar85;
   i0 = i0 == i1;
   i1 = 1u;
   i2 = ResumePhase(ctx);
@@ -5427,7 +5381,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = seminfo;
     i0 = NextCharSlow(ctx, i0);
     call_result = i0;
-    i0 = kResumeNextChar85;
+    i0 = kResumeStepNextChar85;
     i1 = ResumePhase(ctx);
     i2 = 1u;
     i1 = i1 == i2;
@@ -5436,7 +5390,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
   } else {
     i0 = seminfo;
   }
-// merge point block_427 (wasm2c flattening boundary)
+// Merge point block_427.
   block_427:;
   seminfo = i0;
   i0 = ResumePhase(ctx);
@@ -5450,7 +5404,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = seminfo;
     i1 = 61u;
     i0 = i0 != i1;
-    if (i0) {goto running_exit;}
+    if (i0) {goto exit_path;}
     i0 = lex_state;
     i0 = LoadU32(ctx, i0 + 56u);
     seminfo = i0;
@@ -5484,7 +5438,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     }
   }
   i0 = resume_code;
-  i1 = kResumeNextChar86;
+  i1 = kResumeStepNextChar86;
   i0 = i0 == i1;
   i1 = 1u;
   i2 = ResumePhase(ctx);
@@ -5493,7 +5447,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = seminfo;
     i0 = NextCharSlow(ctx, i0);
     call_result = i0;
-    i0 = kResumeNextChar86;
+    i0 = kResumeStepNextChar86;
     i1 = ResumePhase(ctx);
     i2 = 1u;
     i1 = i1 == i2;
@@ -5502,7 +5456,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
   } else {
     i0 = lex_state;
   }
-// merge point block_432 (wasm2c flattening boundary)
+// Merge point block_432.
   block_432:;
   lex_state = i0;
   i0 = ResumePhase(ctx);
@@ -5514,8 +5468,8 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     i0 = kTokenNe;
     token = i0;
   }
-// merge point running_exit (wasm2c flattening boundary)
-  running_exit:;
+// Merge point exit_path.
+  exit_path:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
@@ -5527,7 +5481,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
     goto func_exit;
   }
   TrapUnreachable();
-// merge point spill_frame (wasm2c flattening boundary)
+// Merge point spill_frame.
   spill_frame:;
   call_result = i0;
   i0 = ReturnFrameSp(ctx);
@@ -5537,7 +5491,7 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kF1727ResumeWordBytes;
+  i2 = kResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
@@ -5578,13 +5532,13 @@ uint32_t RefillRecordState(EngineContext* ctx, uint32_t lex_state, uint32_t semi
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kF1727SaveFrameBytes;
+  i2 = kSaveFrameBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = 0u;
   func_exit:;
   LeaveFrame();
   return i0;
-}
+}  // namespace artc
 
 }  // namespace artc

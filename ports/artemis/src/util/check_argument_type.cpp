@@ -1,223 +1,150 @@
-// check_argument_type.cpp -- validates one argument type and answers false as soon as the tag disagrees..
-//
-// CheckArgumentType -- validates one argument type and answers false as soon as the tag disagrees.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 134532-134532 (f298); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Reads the type of one value and answers with it; the type is named by a small
+// integer, with all-bits-set standing for "no type at all".
 uint32_t QueryValueType(EngineContext* ctx, uint32_t a0, uint32_t a1);
+// Writes one of the parser's diagnostic texts, returning early when the output
+// room runs out.
 uint32_t FlushOutputRoomIfFull(EngineContext* ctx, uint32_t state, uint32_t limit, uint32_t chunk);
+// Reports one argument whose type did not match what the callee wanted.
 uint32_t FormatArgumentError(EngineContext* ctx, uint32_t state, uint32_t index, uint32_t actual);
 
 namespace {
-
-constexpr uint32_t kF298MsgNoValue = 0x29CF7u;  // no value
-constexpr uint32_t kF298MsgSExpectedGotS = 0x29D60u;  // %s expected, got %s
-constexpr uint32_t kF298Const2BD80 = 0x2BD80u;  // 
-constexpr uint32_t kF298ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF298SaveFrameBytes = 16u;
-constexpr uint32_t kF298ResumeWordBytes = 4u;
-
+// The two texts this body reports with, and the text that stands in for a type
+// that is not there at all.
+constexpr uint32_t kCheckArgumentTypeNoValueText = 0x29CF7u;  // no value
+constexpr uint32_t kCheckArgumentTypeExpectedGotText = 0x29D60u;  // %s expected, got %s
+// The table of type-name pointers, indexed by the type number; the type number
+// with every bit set means "no type".
+constexpr uint32_t kCheckArgumentTypeTypeNameTable = 0x2BD80u;
+constexpr uint32_t kCheckArgumentTypeNoType = 0xFFFFFFFFu;
+// The save frame this body pops on a rewind, and the resume word pushed with it.
+constexpr uint32_t kCheckArgumentTypeSaveFrameBytes = 16u;
+constexpr uint32_t kCheckArgumentTypeResumeWordBytes = 4u;
 }  // namespace
 
+// Checks that the value of `value` has the type `expected` says, and reports
+// through the parser's own texts when it does not. The two texts are built into
+// a sixteen-byte argument record on the guest stack, so that a text may name
+// both the wanted and the found type.
 void CheckArgumentType(EngineContext* ctx, uint32_t value, uint32_t expected, uint32_t index) {
   EnterFrame();
-  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF298SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    value = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 8u);
-    index = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    expected = i0;
+  // The base of the save frame, the stack pointer it comes off, and the value
+  // found at that pointer.
+  uint32_t frame = 0u;
+  uint32_t sp = 0u;
+  uint32_t top = 0u;
+  // The address of the type-name table, and the name looked up out of it.
+  uint32_t name = 0u;
+  // Whether the two types disagreed, and the text that stands for the type that
+  // was found.
+  uint32_t mismatch = 0u;
+  uint32_t actual_text = 0u;
+  // The sixteen-byte argument record the texts are built from.
+  uint32_t arg_record = 0u;
+  // What the text builder answered with.
+  uint32_t text = 0u;
+  // The call a rewinding pass re-issues, and the word a suspending pass pushes.
+  uint32_t resume_point = 0u;
+  uint32_t resume_code = 0u;
+
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the save frame and read its words back in the order they
+    // were written.
+    sp = ReturnFrameSp(ctx);
+    top = ReturnFrameSp(ctx);
+    top = LoadU32(ctx, top) - kCheckArgumentTypeSaveFrameBytes;
+    StoreU32(ctx, sp, top);
+    sp = ReturnFrameSp(ctx);
+    frame = LoadU32(ctx, sp);
+    value = LoadU32(ctx, frame);
+    index = LoadU32(ctx, frame + 8u);
+    arg_record = LoadU32(ctx, frame + 12u);
+    expected = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF298ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l6 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word pushed with that frame. It names the call
+    // that was in flight, so only that call is issued again.
+    sp = ReturnFrameSp(ctx);
+    top = ReturnFrameSp(ctx);
+    top = LoadU32(ctx, top) - kCheckArgumentTypeResumeWordBytes;
+    StoreU32(ctx, sp, top);
+    sp = ReturnFrameSp(ctx);
+    top = LoadU32(ctx, sp);
+    resume_point = LoadU32(ctx, top);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 16u;
-    i0 -= i1;
-    l4 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = value;
-    i1 = expected;
-    i0 = QueryValueType(ctx, i0, i1);
-    i1 = index;
-    i0 = i0 != i1;
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The argument record lives on the guest stack, and the type query says
+    // whether the wanted type and the value's own type disagree.
+    arg_record = GuestStackSp(ctx) - 16u;
+    GuestStackSp(ctx) = arg_record;
+    mismatch = QueryValueType(ctx, value, expected) != index;
   }
-  i0 = l5;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = index;
-      i1 = kF298ConstFFFFFFFF;
-      i0 = i0 == i1;
-      if (i0) {
-        i0 = kF298MsgNoValue;
+  if (mismatch != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The text for the wanted type, then the one for the type actually found;
+      // a type that is not there at all stands in as the text "no value".
+      if (index == kCheckArgumentTypeNoType) {
+        index = kCheckArgumentTypeNoValueText;
       } else {
-        i0 = index;
-        i1 = 2u;
-        i0 <<= (i1 & 31);
-        i1 = kF298Const2BD80;
-        i0 += i1;
-        i0 = LoadU32(ctx, i0);
+        name = LoadU32(ctx, (index << (2u & 31)) + kCheckArgumentTypeTypeNameTable);
+        index = name;
       }
-      index = i0;
-      i0 = kF298MsgNoValue;
-      l5 = i0;
-      i0 = l4;
-      i1 = value;
-      i2 = expected;
-      i1 = QueryValueType(ctx, i1, i2);
-      l3 = i1;
-      i2 = kF298ConstFFFFFFFF;
-      i1 = i1 != i2;
-      if (i1) {
-        i1 = l3;
-        i2 = 2u;
-        i1 <<= (i2 & 31);
-        i2 = kF298Const2BD80;
-        i1 += i2;
-        i1 = LoadU32(ctx, i1);
-      } else {
-        i1 = l5;
+      actual_text = kCheckArgumentTypeNoValueText;
+      name = QueryValueType(ctx, value, expected);
+      if (name != kCheckArgumentTypeNoType) {
+        actual_text = LoadU32(ctx, (name << (2u & 31)) + kCheckArgumentTypeTypeNameTable);
       }
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = l4;
-      i1 = index;
-      StoreU32(ctx, i0, i1);
+      StoreU32(ctx, arg_record + 4u, actual_text);
+      StoreU32(ctx, arg_record, index);
     }
-    i0 = l6;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = value;
-      i1 = kF298MsgSExpectedGotS;
-      i2 = l4;
-      i0 = FlushOutputRoomIfFull(ctx, i0, i1, i2);
-      l3 = i0;
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l3;
-      index = i0;
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+      // The first text: "%s expected, got %s". Its answer becomes the index of
+      // the second call.
+      text = FlushOutputRoomIfFull(ctx, value, kCheckArgumentTypeExpectedGotText, arg_record);
+      resume_code = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto save_frame;
+      }
+      index = text;
     }
-    i0 = l6;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = value;
-      i1 = expected;
-      i2 = index;
-      i0 = FormatArgumentError(ctx, i0, i1, i2);
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+      // The second text: the error that names the offending argument.
+      FormatArgumentError(ctx, value, expected, index);
+      resume_code = 1u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto save_frame;
+      }
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i1 = 16u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    GuestStackSp(ctx) = arg_record + 16u;
   }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF298ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = value;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = expected;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = index;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l3;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 16u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  LeaveFrame();
+  return;
+save_frame:;
+  // Push the word naming the call in flight, then the save frame itself; the
+  // words go out in the order a rewind reads them back.
+  frame = ReturnFrameSp(ctx);
+  top = LoadU32(ctx, frame);
+  StoreU32(ctx, top, resume_code);
+  sp = ReturnFrameSp(ctx);
+  top = ReturnFrameSp(ctx);
+  top = LoadU32(ctx, top) + kCheckArgumentTypeResumeWordBytes;
+  StoreU32(ctx, sp, top);
+  sp = ReturnFrameSp(ctx);
+  frame = LoadU32(ctx, sp);
+  StoreU32(ctx, frame, value);
+  StoreU32(ctx, frame + 4u, expected);
+  StoreU32(ctx, frame + 8u, index);
+  StoreU32(ctx, frame + 12u, arg_record);
+  sp = ReturnFrameSp(ctx);
+  top = ReturnFrameSp(ctx);
+  top = LoadU32(ctx, top) + kCheckArgumentTypeSaveFrameBytes;
+  StoreU32(ctx, sp, top);
   LeaveFrame();
 }
-}
+
+}  // namespace artc

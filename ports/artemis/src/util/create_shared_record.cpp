@@ -1,661 +1,274 @@
-// create_shared_record.cpp -- builds a shared user record for a value and links it into the shared owner list..
-//
-// CreateSharedRecord -- builds a shared user record for a value and links it into the shared owner list.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 345454-345454 (f885); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of the callees below.
 void Panic(EngineContext* ctx, uint32_t a0);
 uint32_t FillBytes(EngineContext* ctx, uint32_t dst, uint32_t value, uint32_t length);
 
 namespace {
 
-constexpr uint32_t kF885Const8AF98 = 0x8AF98u;  // 
-constexpr uint32_t kF885Const8B050 = 0x8B050u;  // 
-constexpr uint32_t kF885Const8B07C = 0x8B07Cu;  // 
-constexpr uint32_t kF885ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF885ConstFFFFFFFC = 0xFFFFFFFCu;  // 
-constexpr uint32_t kF885SaveFrameBytes = 20u;
-constexpr uint32_t kF885ResumeWordBytes = 4u;
+constexpr uint32_t kCreateRecordVtable = 0x8AF98u;  // the record's dispatch table
+constexpr uint32_t kCreateRecordValueVtable = 0x8B050u;  // the value slot's table
+constexpr uint32_t kCreateRecordDataVtable = 0x8B07Cu;  // the payload area's table
+constexpr uint32_t kCreateRecordPendingFlag = 0xD015Cu;  // the pending-call flag word
+constexpr uint32_t kCreateRecordSizeMask = 0xFFFFFFFCu;  // rounds a payload size down to a word
+constexpr uint32_t kCreateRecordSaveFrameBytes = 20u;  // bytes the suspend path pushes
+constexpr uint32_t kCreateRecordResumeWordBytes = 4u;  // bytes of the resume word
 
 }  // namespace
 
+// Builds a shared record for the value and links it into the shared owner's
+// list, laying out the record and its payload area through the layout helper
+// and releasing both again when a pending-throw check fails.
+//
+// Suspendable: every call below can suspend, so each site carries a resume
+// point, and state, value, record, scratch and data are the live words pushed
+// before the step returns; the two rewind gates at the top restore them.
 void CreateSharedRecord(EngineContext* ctx, uint32_t state, uint32_t value) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF885SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l6 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    value = i0;
+  uint32_t record = 0u;
+  uint32_t frame = 0u;
+  uint32_t scratch = 0u;
+  uint32_t resume_point = 0u;
+  uint32_t data = 0u;
+  uint32_t pending = 0u;
+  // Rewind: drop the 20-byte frame, then the resume word above it.
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kCreateRecordSaveFrameBytes);
+    frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    record = LoadU32(ctx, frame + 8u);
+    scratch = LoadU32(ctx, frame + 12u);
+    data = LoadU32(ctx, frame + 16u);
+    value = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF885ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kCreateRecordResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF885ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, kCreateRecordPendingFlag, 0u);
   }
-  i0 = l5;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 1032u;
-    i1 = 40u;
-    i0 = HostFoldLayoutOffset(ctx, i0, i1);
-    l3 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+    frame = HostFoldLayoutOffset(ctx, 1032u, 40u);
+    resume_point = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    record = frame;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF885ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = kF885ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l4;
-    i1 = 1u;
-    i0 = i0 == i1;
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    scratch = LoadU32(ctx, kCreateRecordPendingFlag);
+    StoreU32(ctx, kCreateRecordPendingFlag, 0u);
+    scratch = scratch == 1u;
   }
-  i0 = l4;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = 0u;
-      i0 = FindMatchingCatch(ctx, i0);
-      state = i0;
-      i0 = HostTempRet0(ctx);
-      value = i0;
-      i0 = state;
-      i0 = HostRestorePendingThrow(ctx, i0);
-      state = i0;
-      i0 = kF885ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
+  if (scratch != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      state = FindMatchingCatch(ctx, 0u);
+      value = HostTempRet0(ctx);
+      state = HostRestorePendingThrow(ctx, state);
+      StoreU32(ctx, kCreateRecordPendingFlag, 0u);
     }
-    i0 = l5;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 1019u;
-      HostMarkRegionSeen(ctx, i0);
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+      HostMarkRegionSeen(ctx, 1019u);
+      resume_point = 1u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF885ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      state = i0;
-      i0 = kF885ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = state;
-      i1 = 1u;
-      i0 = i0 == i1;
-      state = i0;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      state = LoadU32(ctx, kCreateRecordPendingFlag);
+      StoreU32(ctx, kCreateRecordPendingFlag, 0u);
+      state = state == 1u;
     }
-    i0 = state;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = HostRet0(ctx);
-        state = i0;
-        i0 = HostTempRet0(ctx);
-        value = i0;
-        i0 = kF885ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
+    if (state != 0u || ResumePhase(ctx) == kResumeRewinding) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        state = HostRet0(ctx);
+        value = HostTempRet0(ctx);
+        StoreU32(ctx, kCreateRecordPendingFlag, 0u);
       }
-      i0 = l5;
-      i1 = 2u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = 1021u;
-        HostMarkRegionSeen(ctx, i0);
-        i0 = 2u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
+      if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+        HostMarkRegionSeen(ctx, 1021u);
+        resume_point = 2u;
+        if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
       }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF885ConstD015C;
-        i0 = LoadU32(ctx, i0);
-        value = i0;
-        i0 = kF885ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-        i0 = value;
-        i1 = 1u;
-        i0 = i0 != i1;
-        if (i0) {goto block_6;}
-        i0 = 0u;
-        i0 = FindMatchingCatch(ctx, i0);
-        state = i0;
-        i0 = HostTempRet0(ctx);
-        value = i0;
+      if (ResumePhase(ctx) == kResumeRunning) {
+        value = LoadU32(ctx, kCreateRecordPendingFlag);
+        StoreU32(ctx, kCreateRecordPendingFlag, 0u);
+        if (value != 1u) goto release_pending_and_trap;
+        state = FindMatchingCatch(ctx, 0u);
+        value = HostTempRet0(ctx);
       }
-      i0 = l5;
-      i1 = 3u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = state;
-        Panic(ctx, i0);
-        i0 = 3u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
+      if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+        Panic(ctx, state);
+        resume_point = 3u;
+        if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
       }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
+    if (ResumePhase(ctx) == kResumeRunning) {
       TrapUnreachable();
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l2;
-    j1 = 4294967297ull;
-    StoreU64(ctx, i0 + 4u, j1);
-    i0 = l2;
-    i1 = 0u;
-    StoreU8(ctx, i0 + 16u, i1);
-    i0 = l2;
-    i1 = 0u;
-    StoreU32(ctx, i0 + 12u, i1);
-    i0 = l2;
-    i1 = kF885Const8AF98;
-    StoreU32(ctx, i0, i1);
-    i0 = value;
-    i0 = LoadU32(ctx, i0);
-    value = i0;
-    i0 = l2;
-    i1 = kF885Const8B050;
-    StoreU32(ctx, i0 + 20u, i1);
-    i0 = kF885ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = value;
-    i1 = 23u;
-    i0 += i1;
-    i1 = kF885ConstFFFFFFFC;
-    i0 &= i1;
-    l4 = i0;
+  // Lay out the record header: refcounts, flags and the value slot table.
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU64(ctx, record + 4u, 4294967297ull);
+    StoreU8(ctx, record + 16u, 0u);
+    StoreU32(ctx, record + 12u, 0u);
+    StoreU32(ctx, record, kCreateRecordVtable);
+    value = LoadU32(ctx, value);
+    StoreU32(ctx, record + 20u, kCreateRecordValueVtable);
+    StoreU32(ctx, kCreateRecordPendingFlag, 0u);
+    scratch = (value + 23u) & kCreateRecordSizeMask;
   }
-  i0 = l5;
-  i1 = 4u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 1032u;
-    i1 = l4;
-    i0 = HostFoldLayoutOffset(ctx, i0, i1);
-    l3 = i0;
-    i0 = 4u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
+    frame = HostFoldLayoutOffset(ctx, 1032u, scratch);
+    resume_point = 4u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    scratch = frame;
   }
-  i0 = ResumePhase(ctx);
-  if (i0) {
-    i0 = l6;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    data = LoadU32(ctx, kCreateRecordPendingFlag);
+    StoreU32(ctx, kCreateRecordPendingFlag, 0u);
+    pending = data != 1u;
   } else {
-    i0 = kF885ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    l6 = i0;
-    i0 = kF885ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l6;
-    i1 = 1u;
-    i0 = i0 != i1;
+    // Rewinding: reuse the flag word restored from the frame.
+    pending = data;
   }
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l4;
-      j1 = 4294967297ull;
-      StoreU64(ctx, i0 + 4u, j1);
-      i0 = l4;
-      i1 = value;
-      StoreU32(ctx, i0 + 16u, i1);
-      i0 = l4;
-      i1 = kF885Const8B07C;
-      StoreU32(ctx, i0, i1);
-      i0 = l4;
-      i1 = 20u;
-      i0 += i1;
-      l6 = i0;
-      i0 = value;
-      if (i0) {
-        i0 = l6;
-        i1 = 0u;
-        i2 = value;
-        i0 = FillBytes(ctx, i0, i1, i2);
+  // The layout call left a throw pending: release the record and rethrow.
+  if (pending != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU64(ctx, scratch + 4u, 4294967297ull);
+      StoreU32(ctx, scratch + 16u, value);
+      StoreU32(ctx, scratch, kCreateRecordDataVtable);
+      data = scratch + 20u;
+      if (value != 0u) {
+        FillBytes(ctx, data, 0u, value);
       }
-      i0 = l2;
-      i1 = value;
-      StoreU32(ctx, i0 + 36u, i1);
-      i0 = l2;
-      i1 = 0u;
-      StoreU32(ctx, i0 + 32u, i1);
-      i0 = l2;
-      i1 = l4;
-      StoreU32(ctx, i0 + 28u, i1);
-      i0 = l2;
-      i1 = l6;
-      StoreU32(ctx, i0 + 24u, i1);
-      i0 = l2;
-      i1 = 1u;
-      StoreU8(ctx, i0 + 16u, i1);
-      i0 = state;
-      i1 = l2;
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = state;
-      i1 = l2;
-      i2 = 20u;
-      i1 += i2;
-      value = i1;
-      StoreU32(ctx, i0, i1);
-      i0 = l2;
-      i0 = LoadU32(ctx, i0 + 4u);
-      state = i0;
+      StoreU32(ctx, record + 36u, value);
+      StoreU32(ctx, record + 32u, 0u);
+      StoreU32(ctx, record + 28u, scratch);
+      StoreU32(ctx, record + 24u, data);
+      StoreU8(ctx, record + 16u, 1u);
+      StoreU32(ctx, state + 4u, record);
+      value = record + 20u;
+      StoreU32(ctx, state, value);
+      state = LoadU32(ctx, record + 4u);
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      if (i0) {goto block_26;}
-      i0 = l2;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 8u);
-      state = i0;
-      i0 = kF885ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
+    if (ResumePhase(ctx) == kResumeRunning) {
+      if (state != 0u) goto attach_done;
+      state = LoadU32(ctx, LoadU32(ctx, record) + 8u);
+      StoreU32(ctx, kCreateRecordPendingFlag, 0u);
     }
-    i0 = l5;
-    i1 = 5u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = l2;
-      HostReleaseSlotPair(ctx, i0, i1);
-      i0 = 5u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
+      HostReleaseSlotPair(ctx, state, record);
+      resume_point = 5u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF885ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      state = i0;
-      i0 = kF885ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = state;
-      i1 = 1u;
-      i0 = i0 == i1;
-      state = i0;
-      if (i0) {goto block_5;}
-      i0 = l2;
-      i1 = l2;
-      i1 = LoadU32(ctx, i1 + 8u);
-      state = i1;
-      i2 = 1u;
-      i1 -= i2;
-      value = i1;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = state;
-      i1 = 1u;
-      i0 = i0 != i1;
-      state = i0;
-      if (i0) {goto block_26;}
-      i0 = l2;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 12u);
-      state = i0;
-      i0 = kF885ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
+    if (ResumePhase(ctx) == kResumeRunning) {
+      state = LoadU32(ctx, kCreateRecordPendingFlag);
+      StoreU32(ctx, kCreateRecordPendingFlag, 0u);
+      state = state == 1u;
+      if (state != 0u) goto rethrow_pending;
+      state = LoadU32(ctx, record + 8u);
+      value = state - 1u;
+      StoreU32(ctx, record + 8u, value);
+      state = state != 1u;
+      if (state != 0u) goto attach_done;
+      state = LoadU32(ctx, LoadU32(ctx, record) + 12u);
+      StoreU32(ctx, kCreateRecordPendingFlag, 0u);
     }
-    i0 = l5;
-    i1 = 6u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = l2;
-      HostReleaseSlotPair(ctx, i0, i1);
-      i0 = 6u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
+      HostReleaseSlotPair(ctx, state, record);
+      resume_point = 6u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF885ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      state = i0;
-      i0 = kF885ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = state;
-      i1 = 1u;
-      i0 = i0 == i1;
-      state = i0;
-      if (i0) {goto block_5;}
+    if (ResumePhase(ctx) == kResumeRunning) {
+      state = LoadU32(ctx, kCreateRecordPendingFlag);
+      StoreU32(ctx, kCreateRecordPendingFlag, 0u);
+      state = state == 1u;
+      if (state != 0u) goto rethrow_pending;
     }
-    block_26:;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      goto func_exit;
+    attach_done:;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      goto exit_path;
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = HostRet0(ctx);
-    state = i0;
-    i0 = HostTempRet0(ctx);
-    i0 = l2;
-    i1 = l2;
-    i1 = LoadU32(ctx, i1 + 4u);
-    value = i1;
-    i2 = 1u;
-    i1 -= i2;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = value;
-    i1 = 1u;
-    i0 = i0 != i1;
-    value = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    state = HostRet0(ctx);
+    HostTempRet0(ctx);
+    value = LoadU32(ctx, record + 4u);
+    StoreU32(ctx, record + 4u, value - 1u);
+    value = value != 1u;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = value;
-    if (i0) {goto block_34;}
-    i0 = l2;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0 + 8u);
-    value = i0;
-    i0 = kF885ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (value != 0u) goto release_record_and_trap;
+    value = LoadU32(ctx, LoadU32(ctx, record) + 8u);
+    StoreU32(ctx, kCreateRecordPendingFlag, 0u);
   }
-  i0 = l5;
-  i1 = 7u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = value;
-    i1 = l2;
-    HostReleaseSlotPair(ctx, i0, i1);
-    i0 = 7u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 7u) {
+    HostReleaseSlotPair(ctx, value, record);
+    resume_point = 7u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF885ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    value = i0;
-    i0 = kF885ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = value;
-    i1 = 1u;
-    i0 = i0 == i1;
-    if (i0) {goto block_5;}
-    i0 = l2;
-    i1 = l2;
-    i1 = LoadU32(ctx, i1 + 8u);
-    value = i1;
-    i2 = 1u;
-    i1 -= i2;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = value;
-    i1 = 1u;
-    i0 = i0 != i1;
-    if (i0) {goto block_34;}
-    i0 = l2;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0 + 12u);
-    value = i0;
-    i0 = kF885ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = LoadU32(ctx, kCreateRecordPendingFlag);
+    StoreU32(ctx, kCreateRecordPendingFlag, 0u);
+    if (value == 1u) goto rethrow_pending;
+    value = LoadU32(ctx, record + 8u);
+    StoreU32(ctx, record + 8u, value - 1u);
+    if (value != 1u) goto release_record_and_trap;
+    value = LoadU32(ctx, LoadU32(ctx, record) + 12u);
+    StoreU32(ctx, kCreateRecordPendingFlag, 0u);
   }
-  i0 = l5;
-  i1 = 8u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = value;
-    i1 = l2;
-    HostReleaseSlotPair(ctx, i0, i1);
-    i0 = 8u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 8u) {
+    HostReleaseSlotPair(ctx, value, record);
+    resume_point = 8u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF885ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    value = i0;
-    i0 = kF885ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = value;
-    i1 = 1u;
-    i0 = i0 == i1;
-    if (i0) {goto block_5;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = LoadU32(ctx, kCreateRecordPendingFlag);
+    StoreU32(ctx, kCreateRecordPendingFlag, 0u);
+    if (value == 1u) goto rethrow_pending;
   }
-  block_34:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    HostOsRelease(ctx, i0);
+  // Failure paths: release the record slot, then trap out of the step.
+  release_record_and_trap:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    HostOsRelease(ctx, state);
     TrapUnreachable();
   }
-  block_6:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    HostOsRelease(ctx, i0);
+  release_pending_and_trap:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    HostOsRelease(ctx, state);
     TrapUnreachable();
   }
-  block_5:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = 0u;
-    i0 = FindMatchingCatch(ctx, i0);
-    state = i0;
-    i0 = HostTempRet0(ctx);
+  // Rethrow the throw object the failed layout left pending.
+  rethrow_pending:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    state = FindMatchingCatch(ctx, 0u);
+    HostTempRet0(ctx);
   }
-  i0 = l5;
-  i1 = 9u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    Panic(ctx, i0);
-    i0 = 9u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 9u) {
+    Panic(ctx, state);
+    resume_point = 9u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
+  if (ResumePhase(ctx) == kResumeRunning) {
     TrapUnreachable();
   }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF885ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = value;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l3;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l3;
-  i1 = l6;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 20u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto exit_path;
+  suspend_point:;
+  // Suspend: push the resume point, then the 20-byte frame with the live state.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kCreateRecordResumeWordBytes);
+  frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, frame, state);
+  StoreU32(ctx, frame + 4u, value);
+  StoreU32(ctx, frame + 8u, record);
+  StoreU32(ctx, frame + 12u, scratch);
+  StoreU32(ctx, frame + 16u, data);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kCreateRecordSaveFrameBytes);
+  exit_path:;
   LeaveFrame();
 }
-}
+
+}  // namespace artc

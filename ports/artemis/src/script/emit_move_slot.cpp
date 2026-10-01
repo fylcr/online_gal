@@ -1,132 +1,63 @@
-// emit_move_slot.cpp -- emits a move: one register is copied into another..
-//
-// EmitMoveSlot -- emits a move: one register is copied into another.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 821368-821368 (f1745); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
 uint32_t ExpressionToRegister(EngineContext* ctx, uint32_t func_state, uint32_t expr);
 
-namespace {
-
-constexpr uint32_t kF1745SaveFrameBytes = 12u;
-constexpr uint32_t kF1745ResumeWordBytes = 4u;
-
-}  // namespace
-
-void EmitMoveSlot(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
+// Emits a move: puts the expression into a register and records the move of that
+// register into the destination slot. Returns nothing. Suspendable -- the
+// expression conversion can suspend.
+void EmitMoveSlot(EngineContext* ctx, uint32_t func_state, uint32_t dst_slot, uint32_t expression) {
   EnterFrame();
-  uint32_t l3 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1745SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    c = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = c;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
-    i0 = c;
-    i0 = LoadU32(ctx, i0 + 8u);
-    c = i0;
+  uint32_t resume_point = 0u;
+  // The word the suspend path saves (below).
+  uint32_t resume_at = 0u;
+  // The register the expression landed in, on the running pass.
+  uint32_t reg = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 12-byte frame the suspend path saved.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 12u);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    func_state = LoadU32(ctx, frame);
+    dst_slot = LoadU32(ctx, frame + 4u);
+    expression = LoadU32(ctx, frame + 8u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1745ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-  } else {
-    i0 = l3;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume point pushed with that frame.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = c;
-    i0 = ExpressionToRegister(ctx, i0, i1);
-    l3 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    a = i0;
+  // The conversion is issued on every pass except a rewind that already passed it.
+  uint32_t issue_move = 1u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    issue_move = static_cast<uint32_t>(!resume_point);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = b;
-    i1 = 9u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = a;
-    StoreU32(ctx, i0 + 12u, i1);
+  if (issue_move) {
+    reg = ExpressionToRegister(ctx, func_state, expression);
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      resume_at = 0u;
+      goto spill_point;
+    }
   }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1745ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = c;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 12u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The move's own opcode, then the register it copies from.
+    StoreU32(ctx, dst_slot, 9u);
+    StoreU32(ctx, dst_slot + 12u, reg);
+  }
   LeaveFrame();
+  return;
+spill_point:;
+  // Suspend: push the resume point, then the 12-byte frame holding the state, the
+  // destination slot and the expression.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_at);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
+  uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, saved_frame, func_state);
+  StoreU32(ctx, saved_frame + 4u, dst_slot);
+  StoreU32(ctx, saved_frame + 8u, expression);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 12u);
+  LeaveFrame();
+  return;
 }
-}
+
+}  // namespace artc

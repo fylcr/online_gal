@@ -1,275 +1,177 @@
-// pop_format_arg.cpp -- the argument-slot reader of the formatter (musl pop_arg): the type code selects one of ten widths (the 32, 16 and 8 bit signed and unsigned values widened into the 64 bit slot, plus the aligned 64 bit and floating cases) whose value is read out of the argument cursor and stored into the result slot..
-//
-// PopVarArg -- the argument-slot reader of the formatter (musl pop_arg): the type code selects one of ten widths (the 32, 16 and 8 bit signed and unsigned values widened into the 64 bit slot, plus the aligned 64 bit and floating cases) whose value is read out of the argument cursor and stored into the result slot.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 551300-551300 (f1343); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-
 namespace {
 
-constexpr uint32_t kF1343ConstFFFFFFF8 = 0xFFFFFFF8u;  // 
-constexpr uint32_t kF1343SaveFrameBytes = 12u;
-constexpr uint32_t kF1343ResumeWordBytes = 4u;
+constexpr uint32_t kPopVarArgConstFFFFFFF8 = 0xFFFFFFF8u;
+constexpr uint32_t kPopVarArgSaveFrameBytes = 12u;
+constexpr uint32_t kPopVarArgResumeWordBytes = 4u;
 
 }  // namespace
 
-void PopVarArg(EngineContext* ctx, uint32_t out, uint32_t type_code, uint32_t ap, uint32_t scratch) {
+// Pops one formatter argument off the cursor at `ap` into the result slot at
+// `out`: the type code picks the width read, its signedness and how the value
+// widens into the 64-bit slot. Answers nothing.
+void PopVarArg(EngineContext* ctx, uint32_t out, uint32_t type_code, uint32_t ap,
+               uint32_t scratch) {
   EnterFrame();
-  uint32_t l4 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  uint64_t j1 = 0;
-  double d1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1343SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    scratch = i0;
-    i0 = LoadU32(ctx, i0);
-    out = i0;
-    i0 = scratch;
-    i0 = LoadU32(ctx, i0 + 4u);
-    ap = i0;
-    i0 = scratch;
-    i0 = LoadU32(ctx, i0 + 8u);
-    scratch = i0;
+  uint32_t resume_code = 0u;
+
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the saved frame and read its words back in the saved order.
+    uint32_t sp = ReturnFrameSp(ctx);
+    uint32_t frame_top = ReturnFrameSp(ctx);
+    frame_top = LoadU32(ctx, frame_top) - kPopVarArgSaveFrameBytes;
+    StoreU32(ctx, sp, frame_top);
+    uint32_t frame = ReturnFrameSp(ctx);
+    frame = LoadU32(ctx, frame);
+    out = LoadU32(ctx, frame);
+    ap = LoadU32(ctx, frame + 4u);
+    scratch = LoadU32(ctx, frame + 8u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1343ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word that names the call that was in flight.
+    uint32_t sp = ReturnFrameSp(ctx);
+    uint32_t word_top = ReturnFrameSp(ctx);
+    word_top = LoadU32(ctx, word_top) - kPopVarArgResumeWordBytes;
+    StoreU32(ctx, sp, word_top);
+    uint32_t word = ReturnFrameSp(ctx);
+    word = LoadU32(ctx, word);
+    resume_code = LoadU32(ctx, word);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = type_code;
-    i1 = 20u;
-    i0 = i0 > i1;
-    if (i0) {goto block_3;}
-    i0 = type_code;
-    i1 = 9u;
-    i0 -= i1;
-    switch (i0) {
-      case 0: goto block_14;
-      case 1: goto block_13;
-      case 2: goto block_12;
-      case 3: goto block_11;
-      case 4: goto block_10;
-      case 5: goto block_9;
-      case 6: goto block_8;
-      case 7: goto block_7;
-      case 8: goto block_6;
-      case 9: goto block_5;
-      default: goto block_3;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (type_code > 20u) {
+      // Past the widest arm: nothing to pop and no call to replay.
+      goto pop_done;
     }
-    block_14:;
-    i0 = ap;
-    i1 = ap;
-    i1 = LoadU32(ctx, i1);
-    type_code = i1;
-    i2 = 4u;
-    i1 += i2;
-    StoreU32(ctx, i0, i1);
-    i0 = out;
-    i1 = type_code;
-    i1 = LoadU32(ctx, i1);
-    StoreU32(ctx, i0, i1);
-    goto func_exit;
-    block_13:;
-    i0 = ap;
-    i1 = ap;
-    i1 = LoadU32(ctx, i1);
-    type_code = i1;
-    i2 = 4u;
-    i1 += i2;
-    StoreU32(ctx, i0, i1);
-    i0 = out;
-    i1 = type_code;
-    j1 = (uint64_t)(int64_t)(int32_t)LoadU32(ctx, i1);
-    StoreU64(ctx, i0, j1);
-    goto func_exit;
-    block_12:;
-    i0 = ap;
-    i1 = ap;
-    i1 = LoadU32(ctx, i1);
-    type_code = i1;
-    i2 = 4u;
-    i1 += i2;
-    StoreU32(ctx, i0, i1);
-    i0 = out;
-    i1 = type_code;
-    j1 = (uint64_t)LoadU32(ctx, i1);
-    StoreU64(ctx, i0, j1);
-    goto func_exit;
-    block_11:;
-    i0 = ap;
-    i1 = ap;
-    i1 = LoadU32(ctx, i1);
-    i2 = 7u;
-    i1 += i2;
-    i2 = kF1343ConstFFFFFFF8;
-    i1 &= i2;
-    type_code = i1;
-    i2 = 8u;
-    i1 += i2;
-    StoreU32(ctx, i0, i1);
-    i0 = out;
-    i1 = type_code;
-    j1 = LoadU64(ctx, i1);
-    StoreU64(ctx, i0, j1);
-    goto func_exit;
-    block_10:;
-    i0 = ap;
-    i1 = ap;
-    i1 = LoadU32(ctx, i1);
-    type_code = i1;
-    i2 = 4u;
-    i1 += i2;
-    StoreU32(ctx, i0, i1);
-    i0 = out;
-    i1 = type_code;
-    j1 = (uint64_t)(int64_t)LoadS16(ctx, i1);
-    StoreU64(ctx, i0, j1);
-    goto func_exit;
-    block_9:;
-    i0 = ap;
-    i1 = ap;
-    i1 = LoadU32(ctx, i1);
-    type_code = i1;
-    i2 = 4u;
-    i1 += i2;
-    StoreU32(ctx, i0, i1);
-    i0 = out;
-    i1 = type_code;
-    j1 = (uint64_t)LoadU16(ctx, i1);
-    StoreU64(ctx, i0, j1);
-    goto func_exit;
-    block_8:;
-    i0 = ap;
-    i1 = ap;
-    i1 = LoadU32(ctx, i1);
-    type_code = i1;
-    i2 = 4u;
-    i1 += i2;
-    StoreU32(ctx, i0, i1);
-    i0 = out;
-    i1 = type_code;
-    j1 = (uint64_t)(int64_t)LoadS8(ctx, i1);
-    StoreU64(ctx, i0, j1);
-    goto func_exit;
-    block_7:;
-    i0 = ap;
-    i1 = ap;
-    i1 = LoadU32(ctx, i1);
-    type_code = i1;
-    i2 = 4u;
-    i1 += i2;
-    StoreU32(ctx, i0, i1);
-    i0 = out;
-    i1 = type_code;
-    j1 = (uint64_t)LoadU8(ctx, i1);
-    StoreU64(ctx, i0, j1);
-    goto func_exit;
-    block_6:;
-    i0 = ap;
-    i1 = ap;
-    i1 = LoadU32(ctx, i1);
-    i2 = 7u;
-    i1 += i2;
-    i2 = kF1343ConstFFFFFFF8;
-    i1 &= i2;
-    type_code = i1;
-    i2 = 8u;
-    i1 += i2;
-    StoreU32(ctx, i0, i1);
-    i0 = out;
-    i1 = type_code;
-    d1 = LoadF64(ctx, i1);
-    StoreF64(ctx, i0, d1);
-    goto func_exit;
-    block_5:;
+    switch (type_code - 9u) {
+      case 0: goto pop_word;
+      case 1: goto pop_signed_word;
+      case 2: goto pop_unsigned_word;
+      case 3: goto pop_aligned_word;
+      case 4: goto pop_signed_half;
+      case 5: goto pop_unsigned_half;
+      case 6: goto pop_signed_byte;
+      case 7: goto pop_unsigned_byte;
+      case 8: goto pop_aligned_double;
+      case 9: goto pop_replay;
+      default: goto pop_done;
+    }
+    // One arm per width: the cursor word is the value's address, and it steps
+    // past the bytes it just handed over.
+    pop_word:;
+    {
+      uint32_t slot = LoadU32(ctx, ap);
+      StoreU32(ctx, ap, slot + 4u);
+      uint32_t value = LoadU32(ctx, slot);
+      StoreU32(ctx, out, value);
+      goto pop_done;
+    }
+    pop_signed_word:;
+    {
+      uint32_t slot = LoadU32(ctx, ap);
+      StoreU32(ctx, ap, slot + 4u);
+      uint64_t value = static_cast<uint64_t>(
+          static_cast<int64_t>(static_cast<int32_t>(LoadU32(ctx, slot))));
+      StoreU64(ctx, out, value);
+      goto pop_done;
+    }
+    pop_unsigned_word:;
+    {
+      uint32_t slot = LoadU32(ctx, ap);
+      StoreU32(ctx, ap, slot + 4u);
+      uint64_t value = static_cast<uint64_t>(LoadU32(ctx, slot));
+      StoreU64(ctx, out, value);
+      goto pop_done;
+    }
+    pop_aligned_word:;
+    {
+      // The 64-bit slot is aligned up to eight bytes before it is read.
+      uint32_t slot = (LoadU32(ctx, ap) + 7u) & kPopVarArgConstFFFFFFF8;
+      StoreU32(ctx, ap, slot + 8u);
+      uint64_t value = LoadU64(ctx, slot);
+      StoreU64(ctx, out, value);
+      goto pop_done;
+    }
+    pop_signed_half:;
+    {
+      uint32_t slot = LoadU32(ctx, ap);
+      StoreU32(ctx, ap, slot + 4u);
+      uint64_t value = static_cast<uint64_t>(static_cast<int64_t>(LoadS16(ctx, slot)));
+      StoreU64(ctx, out, value);
+      goto pop_done;
+    }
+    pop_unsigned_half:;
+    {
+      uint32_t slot = LoadU32(ctx, ap);
+      StoreU32(ctx, ap, slot + 4u);
+      uint64_t value = static_cast<uint64_t>(LoadU16(ctx, slot));
+      StoreU64(ctx, out, value);
+      goto pop_done;
+    }
+    pop_signed_byte:;
+    {
+      uint32_t slot = LoadU32(ctx, ap);
+      StoreU32(ctx, ap, slot + 4u);
+      uint64_t value = static_cast<uint64_t>(static_cast<int64_t>(LoadS8(ctx, slot)));
+      StoreU64(ctx, out, value);
+      goto pop_done;
+    }
+    pop_unsigned_byte:;
+    {
+      uint32_t slot = LoadU32(ctx, ap);
+      StoreU32(ctx, ap, slot + 4u);
+      uint64_t value = static_cast<uint64_t>(LoadU8(ctx, slot));
+      StoreU64(ctx, out, value);
+      goto pop_done;
+    }
+    pop_aligned_double:;
+    {
+      // As above, the double slot is aligned up to eight bytes first.
+      uint32_t slot = (LoadU32(ctx, ap) + 7u) & kPopVarArgConstFFFFFFF8;
+      StoreU32(ctx, ap, slot + 8u);
+      double value = LoadF64(ctx, slot);
+      StoreF64(ctx, out, value);
+      goto pop_done;
+    }
+    // This width has no arm of its own: it falls out of the gate to the replay.
+    pop_replay:;
   }
-  i0 = l4;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = out;
-    i1 = ap;
-    i2 = scratch;
-    CallTableT0(ctx, i2, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning || resume_code == 0u) {
+    // The unmatched width is handed to the table slot the formatter dispatches.
+    CallTableT0(ctx, scratch, out, ap);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+    resume_code = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
+    }
   }
-  block_3:;
-  goto func_exit;
-  spill_frame:;
-  type_code = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = type_code;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1343ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  type_code = i0;
-  i1 = out;
-  StoreU32(ctx, i0, i1);
-  i0 = type_code;
-  i1 = ap;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = type_code;
-  i1 = scratch;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 12u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  pop_done:;
+  LeaveFrame();
+  return;
+suspend_here:;
+  // Push the resume word naming the call in flight, then the frame the rewind
+  // pops; the words go in the order the pop reads them back.
+  uint32_t slot = ReturnFrameSp(ctx);
+  slot = LoadU32(ctx, slot);
+  StoreU32(ctx, slot, resume_code);
+  uint32_t sp = ReturnFrameSp(ctx);
+  uint32_t word_top = ReturnFrameSp(ctx);
+  word_top = LoadU32(ctx, word_top) + kPopVarArgResumeWordBytes;
+  StoreU32(ctx, sp, word_top);
+  uint32_t base = ReturnFrameSp(ctx);
+  base = LoadU32(ctx, base);
+  StoreU32(ctx, base, out);
+  StoreU32(ctx, base + 4u, ap);
+  StoreU32(ctx, base + 8u, scratch);
+  sp = ReturnFrameSp(ctx);
+  word_top = ReturnFrameSp(ctx);
+  word_top = LoadU32(ctx, word_top) + kPopVarArgSaveFrameBytes;
+  StoreU32(ctx, sp, word_top);
   LeaveFrame();
 }
-}
+
+}  // namespace artc

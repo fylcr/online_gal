@@ -1,716 +1,407 @@
-// release_shared_object_holder.cpp -- releases a shared object holder: the holder's reference is dropped and the object is freed when it was the last owner..
-//
-// ReleaseSharedObjectHolder -- releases a shared object holder: the holder's reference is dropped and the object is freed when it was the last owner.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 318349-318349 (f839); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declaration -- the failure handoff.
 void Panic(EngineContext* ctx, uint32_t a0);
 
 namespace {
 
-constexpr uint32_t kF839MsgPx = 0xBCA76u;  // px != 0
-constexpr uint32_t kF839MsgBoostBoostSmartPtr = 0xBCA7Eu;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
-constexpr uint32_t kF839MsgOperator = 0xBCAB6u;  // operator->
-constexpr uint32_t kF839ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF839ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF839SaveFrameBytes = 20u;
-constexpr uint32_t kF839ResumeWordBytes = 4u;
+// The boost precondition the failure bridge reports out of
+// shared_ptr::operator->: the leading word, the "px != 0" expression, its source
+// file, the line, and the enclosing function.
+constexpr uint32_t kReleaseHolderAssertLead = 857u;
+constexpr uint32_t kReleaseHolderNullCheckAddr = 0xBCA76u;
+constexpr uint32_t kReleaseHolderSharedPtrPathAddr = 0xBCA7Eu;
+constexpr uint32_t kReleaseHolderAssertLine = 734u;
+constexpr uint32_t kReleaseHolderAssertFuncAddr = 0xBCAB6u;
+// The engine's pending-throw latch, cleared before every bridge call that can
+// raise and read back once it returns.
+constexpr uint32_t kReleaseHolderThrowLatch = 0xD015Cu;
+// The all-ones word the object disposer is handed when the call unwinds the whole
+// frame.
+constexpr uint32_t kReleaseHolderDispatchSentinel = 0xFFFFFFFFu;
 
 }  // namespace
 
-void ReleaseSharedObjectHolder(EngineContext* ctx, uint32_t a) {
+// Drops one reference to a shared object holder and disposes the object behind it
+// once the last owner is gone. The body is suspendable: every bridge it calls can
+// run guest code, so a rewinding pass restores the slots below from a saved frame
+// and replays exactly the one call its resume code names.
+void ReleaseSharedObjectHolder(EngineContext* ctx, uint32_t holder) {
   EnterFrame();
-  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF839SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l1 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
+  uint32_t const kSaveFrameBytes = 20u;
+  uint32_t const kResumeWordBytes = 4u;
+  // The codes the driver spills at the eleven await sites. The first is the null
+  // check the body opens with and is tested as a bare zero; every later site
+  // numbers itself.
+  uint32_t const kNullCheckCall = 0u;
+  uint32_t const kScheduleCall = 1u;
+  uint32_t const kFirstSlotRelease = 2u;
+  uint32_t const kSecondSlotRelease = 3u;
+  uint32_t const kCountedNullCheckCall = 4u;
+  uint32_t const kThirdSlotRelease = 5u;
+  uint32_t const kFourthSlotRelease = 6u;
+  uint32_t const kObjectDisposeCall = 7u;
+  uint32_t const kTailNullCheckCall = 8u;
+  uint32_t const kTailDisposeCall = 9u;
+  uint32_t const kPanicHandoff = 10u;
+  // The reused slots, all declared up here because a rewinding pass restores
+  // every one of them from the saved frame and because the labels below are
+  // jumped past their own assignment points: a pair of carriers that stand in
+  // turn for an owner pointer, a refcount or a vtable entry, the 16-byte pair
+  // this body parks on the guest stack and that pair's address, plus the code
+  // naming the call in flight.
+  uint32_t slot = 0u;
+  uint32_t entry = 0u;
+  uint32_t scratch = 0u;
+  uint32_t pair_addr = 0u;
+  uint32_t resume_code = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 20-byte frame the suspend path pushed and rebuild the
+    // holder and the four carriers from it, in the order they were written.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
+    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    holder = LoadU32(ctx, saved_frame);
+    slot = LoadU32(ctx, saved_frame + 4u);
+    entry = LoadU32(ctx, saved_frame + 8u);
+    scratch = LoadU32(ctx, saved_frame + 12u);
+    pair_addr = LoadU32(ctx, saved_frame + 16u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF839ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // The second pop names the call that was in flight. The two pops stay
+    // separate -- the driver keeps one region at a time.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
+    resume_code = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 16u;
-    i0 -= i1;
-    l3 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 48u);
-    i1 = 2u;
-    i0 = i0 == i1;
-    l1 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    scratch = GuestStackSp(ctx) - 16u;
+    GuestStackSp(ctx) = scratch;
+    // The holder's step count at +48 says whether there is an object to release
+    // at all; the flag is the latch the block below is gated on.
+    slot = static_cast<uint32_t>(LoadU32(ctx, holder + 48u) == 2u);
   }
-  i0 = l1;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 32u);
-      l1 = i0;
-      i0 = !(i0);
-      l2 = i0;
+  if (slot || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The holder's first owner pointer at +32; a null one is the latch the null
+      // check below is gated on.
+      slot = LoadU32(ctx, holder + 32u);
+      entry = static_cast<uint32_t>(slot == 0u);
     }
-    i0 = l2;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF839ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
+    if (entry || ResumePhase(ctx) == kResumeRewinding) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
       }
-      i0 = l4;
-      i0 = !(i0);
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = 857u;
-        i1 = kF839MsgPx;
-        i2 = kF839MsgBoostBoostSmartPtr;
-        i3 = 734u;
-        i4 = kF839MsgOperator;
-        HostFailAssertion(ctx, i0, i1, i2, i3, i4);
-        i0 = 0u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
+      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kNullCheckCall) : 1u) {
+        HostFailAssertion(ctx, kReleaseHolderAssertLead, kReleaseHolderNullCheckAddr,
+                          kReleaseHolderSharedPtrPathAddr, kReleaseHolderAssertLine,
+                          kReleaseHolderAssertFuncAddr);
+        resume_code = kNullCheckCall;
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          goto suspend_point;
+        }
       }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF839ConstD015C;
-        i0 = LoadU32(ctx, i0);
-        a = i0;
-        i0 = kF839ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-        i0 = a;
-        i1 = 1u;
-        i0 = i0 != i1;
-        a = i0;
-        if (i0) {goto running_exit;}
-        goto block_3;
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // A bridge that came back without raising is not a state this body
+        // continues from: the throw flag decides where the walk goes next.
+        holder = LoadU32(ctx, kReleaseHolderThrowLatch);
+        StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
+        holder = static_cast<uint32_t>(holder != 1u);
+        if (holder) {
+          goto no_throw_path;
+        }
+        goto catch_path;
       }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      j1 = 0ull;
-      StoreU64(ctx, i0 + 8u, j1);
-      i0 = l1;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 216u);
-      l2 = i0;
-      i0 = kF839ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = l3;
-      i1 = 8u;
-      i0 += i1;
-      l5 = i0;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Blank the pair the scheduler bridge is handed, read the object's vtable
+      // entry at +216 and clear the throw latch before the call.
+      StoreU64(ctx, scratch + 8u, 0ull);
+      entry = LoadU32(ctx, LoadU32(ctx, slot) + 216u);
+      StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
+      pair_addr = scratch + 8u;
     }
-    i0 = l4;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l2;
-      i1 = l1;
-      i2 = l5;
-      HostOsSchedule(ctx, i0, i1, i2);
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF839ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      l1 = i0;
-      i0 = kF839ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = l1;
-      i1 = 1u;
-      i0 = i0 != i1;
-      l1 = i0;
-    }
-    i0 = l1;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = l3;
-        i0 = LoadU32(ctx, i0 + 12u);
-        l1 = i0;
-        i0 = !(i0);
-        l2 = i0;
-      }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = l2;
-        if (i0) {goto block_21;}
-        i0 = l1;
-        i1 = l1;
-        i1 = LoadU32(ctx, i1 + 4u);
-        l2 = i1;
-        i2 = 1u;
-        i1 -= i2;
-        StoreU32(ctx, i0 + 4u, i1);
-        i0 = l2;
-        i1 = 1u;
-        i0 = i0 != i1;
-        l2 = i0;
-        if (i0) {goto block_21;}
-        i0 = l1;
-        i0 = LoadU32(ctx, i0);
-        i0 = LoadU32(ctx, i0 + 8u);
-        l2 = i0;
-        i0 = kF839ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-      }
-      i0 = l4;
-      i1 = 2u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = l2;
-        i1 = l1;
-        HostReleaseSlotPair(ctx, i0, i1);
-        i0 = 2u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF839ConstD015C;
-        i0 = LoadU32(ctx, i0);
-        l2 = i0;
-        i0 = kF839ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-        i0 = l2;
-        i1 = 1u;
-        i0 = i0 == i1;
-        if (i0) {goto block_3;}
-        i0 = l1;
-        i1 = l1;
-        i1 = LoadU32(ctx, i1 + 8u);
-        l2 = i1;
-        i2 = 1u;
-        i1 -= i2;
-        StoreU32(ctx, i0 + 8u, i1);
-        i0 = l2;
-        i1 = 1u;
-        i0 = i0 != i1;
-        l2 = i0;
-        if (i0) {goto block_21;}
-        i0 = l1;
-        i0 = LoadU32(ctx, i0);
-        i0 = LoadU32(ctx, i0 + 12u);
-        l2 = i0;
-        i0 = kF839ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-      }
-      i0 = l4;
-      i1 = 3u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = l2;
-        i1 = l1;
-        HostReleaseSlotPair(ctx, i0, i1);
-        i0 = 3u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF839ConstD015C;
-        i0 = LoadU32(ctx, i0);
-        l1 = i0;
-        i0 = kF839ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-        i0 = l1;
-        i1 = 1u;
-        i0 = i0 == i1;
-        l1 = i0;
-        if (i0) {goto block_3;}
-      }
-      block_21:;
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = a;
-        i0 = LoadU32(ctx, i0 + 32u);
-        l1 = i0;
-        if (i0) {goto block_16;}
-        i0 = kF839ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-      }
-      i0 = l4;
-      i1 = 4u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = 857u;
-        i1 = kF839MsgPx;
-        i2 = kF839MsgBoostBoostSmartPtr;
-        i3 = 734u;
-        i4 = kF839MsgOperator;
-        HostFailAssertion(ctx, i0, i1, i2, i3, i4);
-        i0 = 4u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF839ConstD015C;
-        i0 = LoadU32(ctx, i0);
-        a = i0;
-        i0 = kF839ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-        i0 = a;
-        i1 = 1u;
-        i0 = i0 != i1;
-        a = i0;
-        if (i0) {goto running_exit;}
-        goto block_3;
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kScheduleCall) : 1u) {
+      HostOsSchedule(ctx, entry, slot, pair_addr);
+      resume_code = kScheduleCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
       }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = HostRet0(ctx);
-      l1 = i0;
-      i0 = HostTempRet0(ctx);
-      i0 = l3;
-      i0 = LoadU32(ctx, i0 + 12u);
-      a = i0;
-      i0 = !(i0);
-      l3 = i0;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      slot = LoadU32(ctx, kReleaseHolderThrowLatch);
+      StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
+      slot = static_cast<uint32_t>(slot != 1u);
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      if (i0) {goto block_31;}
-      i0 = a;
-      i1 = a;
-      i1 = LoadU32(ctx, i1 + 4u);
-      l3 = i1;
-      i2 = 1u;
-      i1 -= i2;
-      l2 = i1;
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = l3;
-      i1 = 1u;
-      i0 = i0 != i1;
-      l3 = i0;
-      if (i0) {goto block_31;}
-      i0 = a;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 8u);
-      l3 = i0;
-      i0 = kF839ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
+    if (slot || ResumePhase(ctx) == kResumeRewinding) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // The second owner pointer, kept in the scratch pair at +12.
+        slot = LoadU32(ctx, scratch + 12u);
+        entry = static_cast<uint32_t>(slot == 0u);
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // A step down that leaves the count at one still has an owner, so the
+        // release call and the disposer read below are both skipped.
+        if (entry) {
+          goto slot_release_done;
+        }
+        entry = LoadU32(ctx, slot + 4u);
+        StoreU32(ctx, slot + 4u, entry - 1u);
+        entry = static_cast<uint32_t>(entry != 1u);
+        if (entry) {
+          goto slot_release_done;
+        }
+        entry = LoadU32(ctx, LoadU32(ctx, slot) + 8u);
+        StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
+      }
+      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstSlotRelease) : 1u) {
+        HostReleaseSlotPair(ctx, entry, slot);
+        resume_code = kFirstSlotRelease;
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          goto suspend_point;
+        }
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        entry = LoadU32(ctx, kReleaseHolderThrowLatch);
+        StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
+        if (entry == 1u) {
+          goto catch_path;
+        }
+        entry = LoadU32(ctx, slot + 8u);
+        StoreU32(ctx, slot + 8u, entry - 1u);
+        entry = static_cast<uint32_t>(entry != 1u);
+        if (entry) {
+          goto slot_release_done;
+        }
+        entry = LoadU32(ctx, LoadU32(ctx, slot) + 12u);
+        StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
+      }
+      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondSlotRelease) : 1u) {
+        HostReleaseSlotPair(ctx, entry, slot);
+        resume_code = kSecondSlotRelease;
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          goto suspend_point;
+        }
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        slot = LoadU32(ctx, kReleaseHolderThrowLatch);
+        StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
+        slot = static_cast<uint32_t>(slot == 1u);
+        if (slot) {
+          goto catch_path;
+        }
+      }
+    slot_release_done:;
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // The holder's own owner pointer at +32 again. When it is set the object
+        // is disposed straight away and the counted chain below is skipped.
+        slot = LoadU32(ctx, holder + 32u);
+        if (slot) {
+          goto dispose_holder;
+        }
+        StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
+      }
+      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kCountedNullCheckCall) : 1u) {
+        HostFailAssertion(ctx, kReleaseHolderAssertLead, kReleaseHolderNullCheckAddr,
+                          kReleaseHolderSharedPtrPathAddr, kReleaseHolderAssertLine,
+                          kReleaseHolderAssertFuncAddr);
+        resume_code = kCountedNullCheckCall;
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          goto suspend_point;
+        }
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        holder = LoadU32(ctx, kReleaseHolderThrowLatch);
+        StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
+        holder = static_cast<uint32_t>(holder != 1u);
+        if (holder) {
+          goto no_throw_path;
+        }
+        goto catch_path;
+      }
     }
-    i0 = l4;
-    i1 = 5u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l3;
-      i1 = a;
-      HostReleaseSlotPair(ctx, i0, i1);
-      i0 = 5u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The runner's return slot carries the object this walk ends on, and the
+      // pair at +12 names the object whose counted chain is stepped down next.
+      // The holder slot doubles as that carry word from here on.
+      slot = HostRet0(ctx);
+      (void)HostTempRet0(ctx);
+      holder = LoadU32(ctx, scratch + 12u);
+      scratch = static_cast<uint32_t>(holder == 0u);
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF839ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      l3 = i0;
-      i0 = kF839ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = l3;
-      i1 = 1u;
-      i0 = i0 == i1;
-      if (i0) {goto block_3;}
-      i0 = a;
-      i1 = a;
-      i1 = LoadU32(ctx, i1 + 8u);
-      l3 = i1;
-      i2 = 1u;
-      i1 -= i2;
-      l2 = i1;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = l3;
-      i1 = 1u;
-      i0 = i0 != i1;
-      l3 = i0;
-      if (i0) {goto block_31;}
-      i0 = a;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 12u);
-      l3 = i0;
-      i0 = kF839ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // A null carry word has no counted chain, so the walk goes straight to the
+      // disposer. Otherwise the pair at +4 is stepped down, and only a count that
+      // reaches one keeps the walk on this path.
+      if (scratch) {
+        goto pair_release_done;
+      }
+      entry = LoadU32(ctx, holder + 4u);
+      StoreU32(ctx, holder + 4u, entry - 1u);
+      scratch = static_cast<uint32_t>(entry != 1u);
+      if (scratch) {
+        goto pair_release_done;
+      }
+      scratch = LoadU32(ctx, LoadU32(ctx, holder) + 8u);
+      StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
     }
-    i0 = l4;
-    i1 = 6u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l3;
-      i1 = a;
-      HostReleaseSlotPair(ctx, i0, i1);
-      i0 = 6u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kThirdSlotRelease) : 1u) {
+      HostReleaseSlotPair(ctx, scratch, holder);
+      resume_code = kThirdSlotRelease;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF839ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      a = i0;
-      i0 = kF839ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = a;
-      i1 = 1u;
-      i0 = i0 == i1;
-      a = i0;
-      if (i0) {goto block_3;}
+    if (ResumePhase(ctx) == kResumeRunning) {
+      scratch = LoadU32(ctx, kReleaseHolderThrowLatch);
+      StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
+      if (scratch == 1u) {
+        goto catch_path;
+      }
+      entry = LoadU32(ctx, holder + 8u);
+      StoreU32(ctx, holder + 8u, entry - 1u);
+      scratch = static_cast<uint32_t>(entry != 1u);
+      if (scratch) {
+        goto pair_release_done;
+      }
+      scratch = LoadU32(ctx, LoadU32(ctx, holder) + 12u);
+      StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
     }
-    block_31:;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l1;
-      HostOsRelease(ctx, i0);
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFourthSlotRelease) : 1u) {
+      HostReleaseSlotPair(ctx, scratch, holder);
+      resume_code = kFourthSlotRelease;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      holder = LoadU32(ctx, kReleaseHolderThrowLatch);
+      StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
+      holder = static_cast<uint32_t>(holder == 1u);
+      if (holder) {
+        goto catch_path;
+      }
+    }
+  pair_release_done:;
+    // The counted chain had no last reference of its own: the object is handed to
+    // the OS release bridge and the walk is over.
+    if (ResumePhase(ctx) == kResumeRunning) {
+      HostOsRelease(ctx, slot);
       TrapUnreachable();
     }
-    block_16:;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l1;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 256u);
-      l2 = i0;
+  dispose_holder:;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The disposer sits at +256 of the object's vtable.
+      entry = LoadU32(ctx, LoadU32(ctx, slot) + 256u);
     }
-    i0 = l4;
-    i1 = 7u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l1;
-      i1 = kF839ConstFFFFFFFF;
-      i2 = 0u;
-      i3 = l2;
-      CallTableT5(ctx, i3, i0, i1, i2);
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kObjectDisposeCall) : 1u) {
+      CallTableT5(ctx, entry, slot, kReleaseHolderDispatchSentinel, 0u);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
       SyncMemoryBase(ctx);
 #endif
-      i0 = 7u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+      resume_code = kObjectDisposeCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i1 = 1u;
-    StoreU8(ctx, i0 + 60u, i1);
-    i0 = a;
-    i1 = 0u;
-    StoreU32(ctx, i0 + 48u, i1);
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l1 = i0;
-    i0 = !(i0);
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The holder's step byte is raised, its step counter cleared, and the owner
+    // pointer at +24 latched -- a null one is the latch below.
+    StoreU8(ctx, holder + 60u, 1u);
+    StoreU32(ctx, holder + 48u, 0u);
+    slot = LoadU32(ctx, holder + 24u);
+    entry = static_cast<uint32_t>(slot == 0u);
   }
-  i0 = l2;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF839ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
+  if (entry || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
     }
-    i0 = l4;
-    i1 = 8u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 857u;
-      i1 = kF839MsgPx;
-      i2 = kF839MsgBoostBoostSmartPtr;
-      i3 = 734u;
-      i4 = kF839MsgOperator;
-      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
-      i0 = 8u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kTailNullCheckCall) : 1u) {
+      HostFailAssertion(ctx, kReleaseHolderAssertLead, kReleaseHolderNullCheckAddr,
+                        kReleaseHolderSharedPtrPathAddr, kReleaseHolderAssertLine,
+                        kReleaseHolderAssertFuncAddr);
+      resume_code = kTailNullCheckCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF839ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      a = i0;
-      i0 = kF839ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = a;
-      i1 = 1u;
-      i0 = i0 != i1;
-      a = i0;
-      if (i0) {goto running_exit;}
-      goto block_3;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      holder = LoadU32(ctx, kReleaseHolderThrowLatch);
+      StoreU32(ctx, kReleaseHolderThrowLatch, 0u);
+      holder = static_cast<uint32_t>(holder != 1u);
+      if (holder) {
+        goto no_throw_path;
+      }
+      goto catch_path;
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l1;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0 + 348u);
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The tail disposer at +348 of the object's vtable.
+    entry = LoadU32(ctx, LoadU32(ctx, slot) + 348u);
   }
-  i0 = l4;
-  i1 = 9u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l1;
-    i1 = l2;
-    CallTableT1(ctx, i1, i0);
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kTailDisposeCall) : 1u) {
+    CallTableT1(ctx, entry, slot);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    i0 = 9u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 128u);
-    if (i0) {
-      i0 = a;
-      i1 = 2u;
-      StoreU32(ctx, i0 + 128u, i1);
+    resume_code = kTailDisposeCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
     }
-    i0 = l3;
-    i1 = 16u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    goto func_exit;
   }
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The object's flag at +128 is raised to 2 and the scratch pair handed back to
+    // the guest stack.
+    if (LoadU32(ctx, holder + 128u) != 0u) {
+      StoreU32(ctx, holder + 128u, 2u);
+    }
+    GuestStackSp(ctx) = scratch + 16u;
+    goto exit_path;
+  }
+no_throw_path:;
+  // Reached only when a bridge came back without raising, which the walk has no
+  // state to continue from.
+  if (ResumePhase(ctx) == kResumeRunning) {
     TrapUnreachable();
   }
-  block_3:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = 0u;
-    i0 = FindMatchingCatch(ctx, i0);
-    a = i0;
-    i0 = HostTempRet0(ctx);
+catch_path:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The exception is in flight. Ask the engine which catch it matches -- there
+    // is no type filter at this site, so the filter word is zero -- and let the
+    // bridge read the runner's return slot.
+    holder = FindMatchingCatch(ctx, 0u);
+    (void)HostTempRet0(ctx);
   }
-  i0 = l4;
-  i1 = 10u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    Panic(ctx, i0);
-    i0 = 10u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kPanicHandoff) : 1u) {
+    Panic(ctx, holder);
+    resume_code = kPanicHandoff;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
+  if (ResumePhase(ctx) == kResumeRunning) {
     TrapUnreachable();
   }
-  goto func_exit;
-  spill_frame:;
-  l4 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l4;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF839ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l4 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l4;
-  i1 = l1;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l4;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l4;
-  i1 = l3;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l4;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 20u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto exit_path;
+suspend_point:;
+  {
+    // Suspend: push the code naming the call in flight, step past it, then push
+    // the 20-byte frame a rewinding pass reads back -- the holder and the four
+    // carriers, in that order. The stack pointer lives in the word the frame
+    // pointer itself names, so every push is a read-modify-write of that word.
+    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
+    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, saved_frame, holder);
+    StoreU32(ctx, saved_frame + 4u, slot);
+    StoreU32(ctx, saved_frame + 8u, entry);
+    StoreU32(ctx, saved_frame + 12u, scratch);
+    StoreU32(ctx, saved_frame + 16u, pair_addr);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
+  }
+exit_path:;
   LeaveFrame();
 }
-}
+
+}  // namespace artc

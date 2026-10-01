@@ -1,517 +1,287 @@
-// release_layer_render_data.cpp -- releases a layer's render data: the render chain and the buffers hanging off it are freed..
-//
-// ReleaseLayerRenderData -- releases a layer's render data: the render chain and the buffers hanging off it are freed.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 594997-594997 (f1408); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declaration -- the failure handoff.
 void Panic(EngineContext* ctx, uint32_t a0);
 
-namespace {
-
-constexpr uint32_t kF1408ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF1408ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF1408SaveFrameBytes = 20u;
-constexpr uint32_t kF1408ResumeWordBytes = 4u;
-
-}  // namespace
-
-void ReleaseLayerRenderData(EngineContext* ctx, uint32_t a) {
+// Tears down the render data a layer still owns. The row walk visits the record
+// slots between the layer's index pair at +572..+576, selects each record out of
+// the block table at +492, and gives up the two reference halves of the object
+// the record points at (+52). The layer's own cursor slot at +584 is released the
+// same way afterwards. Every release goes through the engine's failure bridge, so
+// the body is suspendable and replays the call it was suspended in.
+void ReleaseLayerRenderData(EngineContext* ctx, uint32_t layer) {
   EnterFrame();
-  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1408SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l1 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l4 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
+  uint32_t const kSaveFrameBytes = 20u;  // the layer and the four slots below
+  uint32_t const kResumeWordBytes = 4u;
+  // The slot the failure bridge raises its pending-throw flag in.
+  uint32_t const kPendingThrowSlot = 0xD015Cu;
+  // The cursor value that marks the walk as cleared.
+  uint32_t const kInvalidIndex = 0xFFFFFFFFu;
+  // The codes the driver spills at the six await sites, naming the call that was
+  // in flight.
+  uint32_t const kFirstRefRelease = 0u;
+  uint32_t const kSecondRefRelease = 1u;
+  uint32_t const kCursorDisposeCall = 2u;
+  uint32_t const kObjectRefRelease = 3u;
+  uint32_t const kObjectSecondRelease = 4u;
+  uint32_t const kFailureHandoff = 5u;
+  // The walk reuses four slots: one that carries a layer field, the slot ordinal
+  // and the object read out of a record; a latch that carries a null or zero test
+  // and the row counter; a cursor that carries a record and the field read out of
+  // it; and a scratch pointer. All four are declared up here because the labels
+  // below jump past their assignment points and because a rewinding pass restores
+  // every one of them from the saved frame.
+  uint32_t slot = 0u;
+  uint32_t latch = 0u;
+  uint32_t cursor = 0u;
+  uint32_t scratch = 0u;
+  uint32_t frame = 0u;
+  uint32_t resume_code = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 20-byte frame the suspend path pushed and rebuild the
+    // layer, the slot, the cursor, the scratch and the latch from it.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
+    frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    layer = LoadU32(ctx, frame);
+    slot = LoadU32(ctx, frame + 4u);
+    cursor = LoadU32(ctx, frame + 12u);
+    scratch = LoadU32(ctx, frame + 16u);
+    latch = LoadU32(ctx, frame + 8u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1408ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l6 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: the second pop names the call that was in flight. The two pops
+    // stay separate — the driver keeps one region at a time.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
+    resume_code = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 584u);
-    l1 = i0;
-    i0 = !(i0);
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Running: the layer's cursor slot at +584 holds the object the tail releases,
+    // and a null there is the latch the whole walk is gated on.
+    slot = LoadU32(ctx, layer + 584u);
+    latch = static_cast<uint32_t>(slot == 0u);
   }
-  i0 = l2;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 572u);
-      l1 = i0;
-      i1 = a;
-      i1 = LoadU32(ctx, i1 + 576u);
-      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-      l2 = i0;
+  if (latch != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Running: the walk covers the index pair at +572..+576 and is entered only
+      // while the first index is not past the second.
+      slot = LoadU32(ctx, layer + 572u);
+      latch = static_cast<uint32_t>(static_cast<int32_t>(slot) <=
+                                    static_cast<int32_t>(LoadU32(ctx, layer + 576u)));
     }
-    i0 = l2;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      loop_10: 
-        i0 = ResumePhase(ctx);
-        i0 = !(i0);
-        if (i0) {
-          i0 = l1;
-          l2 = i0;
-          i0 = a;
-          i0 = LoadU32(ctx, i0 + 492u);
-          i1 = a;
-          i1 = LoadU32(ctx, i1 + 504u);
-          i2 = l1;
-          i1 += i2;
-          l1 = i1;
-          i2 = 68u;
-          i1 = DIV_U(i1, i2);
-          l3 = i1;
-          i2 = 2u;
-          i1 <<= (i2 & 31);
-          i0 += i1;
-          i0 = LoadU32(ctx, i0);
-          l4 = i0;
-          i0 = l4;
-          i1 = l1;
-          i2 = l3;
-          i3 = 68u;
-          i2 *= i3;
-          i1 -= i2;
-          i2 = 60u;
-          i1 *= i2;
-          i0 += i1;
-          l3 = i0;
-          i1 = 0u;
-          StoreU32(ctx, i0 + 48u, i1);
-          i0 = l3;
-          i0 = LoadU32(ctx, i0 + 52u);
-          l1 = i0;
-          i0 = l3;
-          i1 = 0u;
-          StoreU32(ctx, i0 + 52u, i1);
-          i0 = l1;
-          i0 = !(i0);
-          l4 = i0;
+    if (latch != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    row_walk:
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // Running: the slot ordinal is the layer's base ordinal at +504 plus the
+        // index being walked. A block pointer out of the table at +492 names the
+        // record: one 60-byte element of the 68 the block holds.
+        latch = slot;
+        const uint32_t blocks = LoadU32(ctx, layer + 492u);
+        slot = LoadU32(ctx, layer + 504u) + slot;
+        const uint32_t row = DIV_U(slot, 68u);
+        cursor = LoadU32(ctx, blocks + (row << 2u)) + (slot - row * 68u) * 60u;
+        // The record's object pointer at +52 is taken and cleared before it is
+        // looked at.
+        StoreU32(ctx, cursor + 48u, 0u);
+        slot = LoadU32(ctx, cursor + 52u);
+        StoreU32(ctx, cursor + 52u, 0u);
+        latch = static_cast<uint32_t>(slot == 0u);
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // Running: the object is given up only when the count at +4 was its last
+        // reference; the disposer is the entry the object's own first word names
+        // at +8.
+        if (latch) {
+          goto row_done;
         }
-        i0 = ResumePhase(ctx);
-        i0 = !(i0);
-        if (i0) {
-          i0 = l4;
-          if (i0) {goto block_12;}
-          i0 = l1;
-          i1 = l1;
-          i1 = LoadU32(ctx, i1 + 4u);
-          l3 = i1;
-          i2 = 1u;
-          i1 -= i2;
-          StoreU32(ctx, i0 + 4u, i1);
-          i0 = l3;
-          i1 = 1u;
-          i0 = i0 != i1;
-          l4 = i0;
-          if (i0) {goto block_12;}
-          i0 = l1;
-          i0 = LoadU32(ctx, i0);
-          l4 = i0;
-          i0 = LoadU32(ctx, i0 + 8u);
-          l3 = i0;
-          i0 = kF1408ConstD015C;
-          i1 = 0u;
-          StoreU32(ctx, i0, i1);
+        cursor = LoadU32(ctx, slot + 4u);
+        StoreU32(ctx, slot + 4u, cursor - 1u);
+        if (cursor != 1u) {
+          goto row_done;
         }
-        i0 = l6;
-        i0 = !(i0);
-        i1 = 1u;
-        i2 = ResumePhase(ctx);
-        i0 = i2 ? i0 : i1;
-        if (i0) {
-          i0 = l3;
-          i1 = l1;
-          HostReleaseSlotPair(ctx, i0, i1);
-          i0 = 0u;
-          i1 = ResumePhase(ctx);
-          i2 = 1u;
-          i1 = i1 == i2;
-          if (i1) {goto spill_frame;}
+        scratch = LoadU32(ctx, slot);
+        cursor = LoadU32(ctx, scratch + 8u);
+        StoreU32(ctx, kPendingThrowSlot, 0u);
+      }
+      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstRefRelease) : 1u) {
+        HostReleaseSlotPair(ctx, cursor, slot);
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          resume_code = kFirstRefRelease;
+          goto suspend_frame;
         }
-        i0 = ResumePhase(ctx);
-        i0 = !(i0);
-        if (i0) {
-          i0 = kF1408ConstD015C;
-          i0 = LoadU32(ctx, i0);
-          l3 = i0;
-          i0 = kF1408ConstD015C;
-          i1 = 0u;
-          StoreU32(ctx, i0, i1);
-          i0 = l3;
-          i1 = 1u;
-          i0 = i0 == i1;
-          if (i0) {goto block_3;}
-          i0 = l1;
-          i1 = l1;
-          i1 = LoadU32(ctx, i1 + 8u);
-          l3 = i1;
-          i2 = 1u;
-          i1 -= i2;
-          StoreU32(ctx, i0 + 8u, i1);
-          i0 = l3;
-          i1 = 1u;
-          i0 = i0 != i1;
-          l4 = i0;
-          if (i0) {goto block_12;}
-          i0 = l1;
-          i0 = LoadU32(ctx, i0);
-          l4 = i0;
-          i0 = LoadU32(ctx, i0 + 12u);
-          l3 = i0;
-          i0 = kF1408ConstD015C;
-          i1 = 0u;
-          StoreU32(ctx, i0, i1);
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // Running: a bridge that came back without raising is not a state the walk
+        // continues from; the pending-throw flag decides between the catch path and
+        // the object's second reference half.
+        cursor = LoadU32(ctx, kPendingThrowSlot);
+        StoreU32(ctx, kPendingThrowSlot, 0u);
+        if (cursor == 1u) {
+          goto catch_path;
         }
-        i0 = l6;
-        i1 = 1u;
-        i0 = i0 == i1;
-        i1 = 1u;
-        i2 = ResumePhase(ctx);
-        i0 = i2 ? i0 : i1;
-        if (i0) {
-          i0 = l3;
-          i1 = l1;
-          HostReleaseSlotPair(ctx, i0, i1);
-          i0 = 1u;
-          i1 = ResumePhase(ctx);
-          i2 = 1u;
-          i1 = i1 == i2;
-          if (i1) {goto spill_frame;}
+        cursor = LoadU32(ctx, slot + 8u);
+        StoreU32(ctx, slot + 8u, cursor - 1u);
+        if (cursor != 1u) {
+          goto row_done;
         }
-        i0 = ResumePhase(ctx);
-        i0 = !(i0);
-        if (i0) {
-          i0 = kF1408ConstD015C;
-          i0 = LoadU32(ctx, i0);
-          l1 = i0;
-          i0 = kF1408ConstD015C;
-          i1 = 0u;
-          StoreU32(ctx, i0, i1);
-          i0 = l1;
-          i1 = 1u;
-          i0 = i0 == i1;
-          l1 = i0;
-          if (i0) {goto block_3;}
+        scratch = LoadU32(ctx, slot);
+        cursor = LoadU32(ctx, scratch + 12u);
+        StoreU32(ctx, kPendingThrowSlot, 0u);
+      }
+      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondRefRelease) : 1u) {
+        HostReleaseSlotPair(ctx, cursor, slot);
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          resume_code = kSecondRefRelease;
+          goto suspend_frame;
         }
-        block_12:;
-        i0 = ResumePhase(ctx);
-        i0 = !(i0);
-        if (i0) {
-          i0 = l2;
-          i1 = 1u;
-          i0 += i1;
-          l1 = i0;
-          i0 = a;
-          i0 = LoadU32(ctx, i0 + 576u);
-          l4 = i0;
-          i1 = l2;
-          i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-          l2 = i0;
-          if (i0) {goto loop_10;}
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        slot = LoadU32(ctx, kPendingThrowSlot);
+        StoreU32(ctx, kPendingThrowSlot, 0u);
+        slot = static_cast<uint32_t>(slot == 1u);
+        if (slot) {
+          goto catch_path;
         }
+      }
+    row_done:
+      if (ResumePhase(ctx) == kResumeRunning) {
+        // Running: advance to the next slot ordinal and repeat while the layer's
+        // last index has not been passed.
+        slot = latch + 1u;
+        scratch = LoadU32(ctx, layer + 576u);
+        latch = static_cast<uint32_t>(static_cast<int32_t>(scratch) > static_cast<int32_t>(latch));
+        if (latch) {
+          goto row_walk;
+        }
+      }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = a;
-      i1 = 0u;
-      StoreU32(ctx, i0 + 580u, i1);
-      i0 = a;
-      j1 = 18446744073709551615ull;
-      StoreU64(ctx, i0 + 572u, j1);
-      goto func_exit;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Running: the walk is over. The index pair is given up with one 8-byte store
+      // of all ones, so neither the cursor at +572 nor the last index at +576
+      // survives it.
+      StoreU32(ctx, layer + 580u, 0u);
+      StoreU64(ctx, layer + 572u, 0xFFFFFFFFFFFFFFFFull);
+      goto exit_frame;
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i1 = 628u;
-    i0 += i1;
-    l4 = i0;
-    i0 = l1;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0 + 376u);
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Running: the object the cursor slot at +584 holds is released through the
+    // dispose entry its own first word names at +376, and the layer's own storage
+    // at +628 is the call's second argument.
+    scratch = layer + 628u;
+    latch = LoadU32(ctx, LoadU32(ctx, slot) + 376u);
   }
-  i0 = l6;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l1;
-    i1 = l4;
-    i2 = l2;
-    CallTableT0(ctx, i2, i0, i1);
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kCursorDisposeCall) : 1u) {
+    CallTableT0(ctx, latch, slot, scratch);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      resume_code = kCursorDisposeCall;
+      goto suspend_frame;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i1 = 0u;
-    StoreU32(ctx, i0 + 584u, i1);
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 588u);
-    l1 = i0;
-    i0 = a;
-    i1 = 0u;
-    StoreU32(ctx, i0 + 588u, i1);
-    i0 = l1;
-    i0 = !(i0);
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Running: clear the cursor slot, then take the object the layer's second
+    // cursor at +588 holds and clear that too.
+    StoreU32(ctx, layer + 584u, 0u);
+    slot = LoadU32(ctx, layer + 588u);
+    StoreU32(ctx, layer + 588u, 0u);
+    latch = static_cast<uint32_t>(slot == 0u);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l2;
-    if (i0) {goto block_23;}
-    i0 = l1;
-    i1 = l1;
-    i1 = LoadU32(ctx, i1 + 4u);
-    l2 = i1;
-    i2 = 1u;
-    i1 -= i2;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = l2;
-    i1 = 1u;
-    i0 = i0 != i1;
-    if (i0) {goto block_23;}
-    i0 = l1;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
-    i0 = kF1408ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Running: the same two reference halves, this time on the object the second
+    // cursor held.
+    if (latch) {
+      goto records_done;
+    }
+    cursor = LoadU32(ctx, slot + 4u);
+    StoreU32(ctx, slot + 4u, cursor - 1u);
+    if (cursor != 1u) {
+      goto records_done;
+    }
+    cursor = LoadU32(ctx, slot);
+    latch = LoadU32(ctx, cursor + 8u);
+    StoreU32(ctx, kPendingThrowSlot, 0u);
   }
-  i0 = l6;
-  i1 = 3u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l2;
-    i1 = l1;
-    HostReleaseSlotPair(ctx, i0, i1);
-    i0 = 3u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kObjectRefRelease) : 1u) {
+    HostReleaseSlotPair(ctx, latch, slot);
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      resume_code = kObjectRefRelease;
+      goto suspend_frame;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF1408ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = kF1408ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l2;
-    i1 = 1u;
-    i0 = i0 == i1;
-    if (i0) {goto block_3;}
-    i0 = l1;
-    i1 = l1;
-    i1 = LoadU32(ctx, i1 + 8u);
-    l2 = i1;
-    i2 = 1u;
-    i1 -= i2;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = l2;
-    i1 = 1u;
-    i0 = i0 != i1;
-    if (i0) {goto block_23;}
-    i0 = l1;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0 + 12u);
-    l2 = i0;
-    i0 = kF1408ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    latch = LoadU32(ctx, kPendingThrowSlot);
+    StoreU32(ctx, kPendingThrowSlot, 0u);
+    if (latch == 1u) {
+      goto catch_path;
+    }
+    cursor = LoadU32(ctx, slot + 8u);
+    StoreU32(ctx, slot + 8u, cursor - 1u);
+    if (cursor != 1u) {
+      goto records_done;
+    }
+    cursor = LoadU32(ctx, slot);
+    latch = LoadU32(ctx, cursor + 12u);
+    StoreU32(ctx, kPendingThrowSlot, 0u);
   }
-  i0 = l6;
-  i1 = 4u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l2;
-    i1 = l1;
-    HostReleaseSlotPair(ctx, i0, i1);
-    i0 = 4u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kObjectSecondRelease) : 1u) {
+    HostReleaseSlotPair(ctx, latch, slot);
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      resume_code = kObjectSecondRelease;
+      goto suspend_frame;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF1408ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    l1 = i0;
-    i0 = kF1408ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l1;
-    i1 = 1u;
-    i0 = i0 == i1;
-    if (i0) {goto block_3;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    slot = LoadU32(ctx, kPendingThrowSlot);
+    StoreU32(ctx, kPendingThrowSlot, 0u);
+    if (slot == 1u) {
+      goto catch_path;
+    }
   }
-  block_23:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i1 = kF1408ConstFFFFFFFF;
-    StoreU32(ctx, i0 + 572u, i1);
-    goto func_exit;
+records_done:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Running: the walk is cleared — the cursor at +572 is marked invalid.
+    StoreU32(ctx, layer + 572u, kInvalidIndex);
+    goto exit_frame;
   }
-  block_3:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = 0u;
-    i0 = FindMatchingCatch(ctx, i0);
-    a = i0;
-    i0 = HostTempRet0(ctx);
+catch_path:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Running: the failure is in flight. The engine is asked which catch it
+    // matches — there is no type filter at this site, so the filter word is zero
+    // — and the runner's return slot is read back.
+    layer = FindMatchingCatch(ctx, 0u);
+    (void)HostTempRet0(ctx);
   }
-  i0 = l6;
-  i1 = 5u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    Panic(ctx, i0);
-    i0 = 5u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFailureHandoff) : 1u) {
+    Panic(ctx, layer);
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      resume_code = kFailureHandoff;
+      goto suspend_frame;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
+  if (ResumePhase(ctx) == kResumeRunning) {
     TrapUnreachable();
   }
-  goto func_exit;
-  spill_frame:;
-  l5 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l5;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1408ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l5 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l5;
-  i1 = l1;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l5;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l5;
-  i1 = l3;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l5;
-  i1 = l4;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 20u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto exit_frame;
+suspend_frame:
+  // Suspended: park the code naming the call that was in flight above the frame,
+  // step past it, then write the 20-byte frame a rewinding pass reads back — the
+  // layer and the four slots.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
+  frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, frame, layer);
+  StoreU32(ctx, frame + 4u, slot);
+  StoreU32(ctx, frame + 8u, latch);
+  StoreU32(ctx, frame + 12u, cursor);
+  StoreU32(ctx, frame + 16u, scratch);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
+exit_frame:
+  // Every path leaves the frame here, the suspend path falling in from above.
   LeaveFrame();
 }
-}
+
+}  // namespace artc

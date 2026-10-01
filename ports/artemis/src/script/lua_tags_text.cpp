@@ -1,1284 +1,651 @@
-// lua_tags_text.cpp -- the print text queue step: one suspendable step that appends a text run to the message layer print queue..
-//
-// MessageLayer::QueuePrintText -- the print text queue step: one suspendable step that appends a text run to the message layer print queue.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 1461573-1461573 (f3219); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations for the callees this step calls.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);
 uint32_t CopyBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 
 namespace {
 
-constexpr uint32_t kF3219MsgPrint = 0xB94DDu;  // print
-constexpr uint32_t kF3219ConstB94E1 = 0xB94E1u;  // 
-constexpr uint32_t kF3219MsgAllocatorTAllocateSize = 0xB962Fu;  // allocator<T>::allocate(size_t n) 'n' exceeds maximum supported size
-constexpr uint32_t kF3219ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF3219Const1FFFFFFF = 0x1FFFFFFFu;  // 
-constexpr uint32_t kF3219Const3FFFFFFF = 0x3FFFFFFFu;  // 
-constexpr uint32_t kF3219Const40000000 = 0x40000000u;  // 
-constexpr uint32_t kF3219Const61746164 = 0x61746164u;  // 
-constexpr uint32_t kF3219ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF3219SaveFrameBytes = 48u;
-constexpr uint32_t kF3219ResumeWordBytes = 4u;
+// The `print` literal the step copies into the string header it builds.
+constexpr uint32_t kLuaTagsTextPrintTextAddr = 0xB94DDu;
+// The byte right after that literal, which ends the header run.
+constexpr uint32_t kLuaTagsTextPrintTailAddr = 0xB94E1u;
+// The allocator diagnostic reported when a copy would overflow its element count.
+constexpr uint32_t kLuaTagsTextAllocatorErrorAddr = 0xB962Fu;
+// The pending-exception latch the invoked calls report through.
+constexpr uint32_t kLuaTagsTextThrowLatchAddr = 0xD015Cu;
+// The `data` tag of the buffer the string header points at.
+constexpr uint32_t kLuaTagsTextDataTag = 0x61746164u;
+// The owner count of a released block.
+constexpr uint32_t kLuaTagsTextNoOwner = 0xFFFFFFFFu;
+// The element counts a copy may still hold: signed, unsigned, and the allocation ceiling.
+constexpr uint32_t kLuaTagsTextMaxSignedCount = 0x1FFFFFFFu;
+constexpr uint32_t kLuaTagsTextMaxUnsignedCount = 0x3FFFFFFFu;
+constexpr uint32_t kLuaTagsTextMaxAllocCount = 0x40000000u;
 
 }  // namespace
 
 namespace MessageLayer {
+
+// Appends a text run to the print queue of the message layer: it scans the run for the first
+// blank, builds the `print` string header on a 48-byte guest scratch frame, grows the layer's
+// string buffer when the run does not fit and copies the run into it. Every call that can run
+// guest code is a suspend gate: a rewinding pass restores the frame slots below and replays the
+// one call its resume code names. `a` is the message layer and `b` the text run -- that slot
+// also carries the write cursor and the other temporaries the flattened driver keeps in it.
 void QueuePrintText(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
-      l10 = 0, l11 = 0, l12 = 0, l13 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF3219SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l6 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l7 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l8 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l9 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 36u);
-    l10 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 40u);
-    l12 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 44u);
-    l13 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
+  uint32_t const kSaveFrameBytes = 48u;
+  uint32_t const kResumeWordBytes = 4u;
+  // The codes the calls below spill, in the order they run: the two buffer allocations, the
+  // three invokes, the slot releases of the two copy paths and the layout folds that shift the
+  // buffer offsets.
+  uint32_t const kAllocateBufferCall = 0u;
+  uint32_t const kInvokePrintCall = 1u;
+  uint32_t const kReleaseSlotCall = 2u;
+  uint32_t const kReleaseAllocatorSlotCall = 3u;
+  uint32_t const kFoldLayoutCall = 4u;
+  uint32_t const kAllocateCopyCall = 5u;
+  uint32_t const kInvokeCopyCall = 6u;
+  uint32_t const kInvokeSecondPrintCall = 7u;
+  uint32_t const kReleaseSecondSlotCall = 8u;
+  uint32_t const kReleaseSecondAllocatorCall = 9u;
+  uint32_t const kFoldSecondLayoutCall = 10u;
+  // The frame saves one word per slot below, so each slot keeps a single name across the whole
+  // step even where a later region reuses it: the general temporary, the scan index, the result
+  // of the call in flight, the 48-byte guest scratch frame, the flag the growth paths carry, the
+  // element count, the old size, the scan cursor, the freshly allocated string buffer, the
+  // resume code in flight, the buffer handle and the sign-extended length byte of the run.
+  uint32_t scratch = 0u;
+  uint32_t index = 0u;
+  uint32_t call_result = 0u;
+  uint32_t scratch_frame = 0u;
+  uint32_t flag = 0u;
+  uint32_t count = 0u;
+  uint32_t size = 0u;
+  uint32_t scan = 0u;
+  uint32_t buffer = 0u;
+  uint32_t resume_code = 0u;
+  uint32_t handle = 0u;
+  uint32_t byte_value = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 48-byte frame and restore every slot from it, in the order the
+    // suspend path saved them.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
+    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    a = LoadU32(ctx, saved_frame);
+    scratch = LoadU32(ctx, saved_frame + 8u);
+    index = LoadU32(ctx, saved_frame + 12u);
+    scratch_frame = LoadU32(ctx, saved_frame + 16u);
+    flag = LoadU32(ctx, saved_frame + 20u);
+    count = LoadU32(ctx, saved_frame + 24u);
+    size = LoadU32(ctx, saved_frame + 28u);
+    scan = LoadU32(ctx, saved_frame + 32u);
+    buffer = LoadU32(ctx, saved_frame + 36u);
+    handle = LoadU32(ctx, saved_frame + 40u);
+    byte_value = LoadU32(ctx, saved_frame + 44u);
+    b = LoadU32(ctx, saved_frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF3219ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l11 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // The second pop names the call that was in flight. The two pops stay separate -- the
+    // driver keeps one region at a time.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
+    resume_code = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 48u;
-    i0 -= i1;
-    l5 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = b;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l7 = i0;
-    i0 = b;
-    i0 = LoadU8(ctx, i0 + 11u);
-    l8 = i0;
-    i1 = 24u;
-    i0 <<= (i1 & 31);
-    i1 = 24u;
-    i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-    l13 = i0;
-    i1 = 0u;
-    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-    if (i0) {
-      i0 = l8;
-      l2 = i0;
-      i0 = l13;
-      i0 = !(i0);
-      l9 = i0;
-      if (i0) {goto running_exit;}
-      loop_6: 
-        i0 = b;
-        i1 = l3;
-        i0 += i1;
-        i0 = LoadU8(ctx, i0);
-        i1 = 32u;
-        i0 = i0 != i1;
-        l9 = i0;
-        if (i0) {
-          i0 = l3;
-          l2 = i0;
-          goto running_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Reserve the scratch frame, then read the run: its count, the byte at +11 and the first
+    // blank (or non-blank) position the caller has to copy from.
+    scratch_frame = GuestStackSp(ctx) - 48u;
+    GuestStackSp(ctx) = scratch_frame;
+    count = LoadU32(ctx, b + 4u);
+    size = LoadU8(ctx, b + 11u);
+    byte_value = static_cast<uint32_t>(static_cast<int32_t>(size << 24u) >> 24);
+    if (static_cast<int32_t>(byte_value) >= 0) {
+      scratch = size;
+      scan = static_cast<uint32_t>(byte_value == 0u);
+      if (scan != 0u) {
+        goto finished;
+      }
+      for (;;) {
+        scan = static_cast<uint32_t>(LoadU8(ctx, b + index) != 32u);
+        if (scan != 0u) {
+          scratch = index;
+          goto finished;
         }
-        i0 = l8;
-        i1 = l3;
-        i2 = 1u;
-        i1 += i2;
-        l3 = i1;
-        i0 = i0 != i1;
-        l9 = i0;
-        if (i0) {goto loop_6;}
-      goto running_exit;
-    }
-    i0 = l7;
-    l2 = i0;
-    i0 = !(i0);
-    l3 = i0;
-    if (i0) {goto running_exit;}
-    i0 = b;
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = 0u;
-    l2 = i0;
-    dispatch_loop: 
-      i0 = l2;
-      i1 = l3;
-      i0 += i1;
-      i0 = LoadU8(ctx, i0);
-      i1 = 32u;
-      i0 = i0 != i1;
-      l9 = i0;
-      if (i0) {goto running_exit;}
-      i0 = l7;
-      i1 = l2;
-      i2 = 1u;
-      i1 += i2;
-      l2 = i1;
-      i0 = i0 != i1;
-      l9 = i0;
-      if (i0) {goto dispatch_loop;}
-    i0 = l7;
-    l2 = i0;
-    running_exit:;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l2;
-    if (i0) {
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 196u);
-      l9 = i0;
-      i1 = a;
-      i1 = LoadU32(ctx, i1 + 8u);
-      l12 = i1;
-      i0 = i0 >= i1;
-      l3 = i0;
-      if (i0) {goto block_13;}
-      i0 = a;
-      i0 = LoadU8(ctx, i0 + 89u);
-      l10 = i0;
-      i0 = l9;
-      l3 = i0;
-      loop_16: 
-        i0 = l10;
-        i1 = l3;
-        i1 = LoadU8(ctx, i1);
-        l6 = i1;
-        i0 = i0 == i1;
-        if (i0) {
-          i0 = l3;
-          i0 = LoadU8(ctx, i0 + 1u);
-          i1 = 32u;
-          i0 = i0 != i1;
-          l6 = i0;
-          if (i0) {goto block_17;}
-          i0 = l3;
-          i1 = 1u;
-          i0 += i1;
-          i1 = l9;
-          i2 = kF3219ConstFFFFFFFF;
-          i1 ^= i2;
-          l3 = i1;
-          i0 += i1;
-          l2 = i0;
-          goto block_17;
+        index = index + 1u;
+        scan = static_cast<uint32_t>(size != index);
+        if (scan == 0u) {
+          break;
         }
-        i0 = l6;
-        i1 = 32u;
-        i0 = i0 != i1;
-        l6 = i0;
-        if (i0) {goto block_17;}
-        i0 = l12;
-        i1 = l3;
-        i2 = 1u;
-        i1 += i2;
-        l3 = i1;
-        i0 = i0 > i1;
-        l6 = i0;
-        if (i0) {goto loop_16;}
-        block_17:;
-      i0 = l2;
-      if (i0) {goto block_13;}
-    }
-  }
-  i0 = l11;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 44u;
-    i0 = AllocateStringBuffer(ctx, i0);
-    l4 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    l10 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l5;
-    i1 = 5u;
-    StoreU8(ctx, i0 + 43u, i1);
-    i0 = l5;
-    i1 = kF3219MsgPrint;
-    i1 = LoadU32(ctx, i1);
-    StoreU32(ctx, i0 + 32u, i1);
-    i0 = l5;
-    i1 = kF3219ConstB94E1;
-    i1 = LoadU8(ctx, i1);
-    StoreU8(ctx, i0 + 36u, i1);
-    i0 = l5;
-    i1 = 0u;
-    StoreU8(ctx, i0 + 37u, i1);
-    i0 = l5;
-    i1 = 0u;
-    StoreU8(ctx, i0 + 20u, i1);
-    i0 = l5;
-    i1 = kF3219Const61746164;
-    StoreU32(ctx, i0 + 16u, i1);
-    i0 = l5;
-    i1 = 4u;
-    StoreU8(ctx, i0 + 27u, i1);
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l2 = i0;
-    i0 = kF3219ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l5;
-    i1 = 16u;
-    i0 += i1;
-    l7 = i0;
-    i0 = l5;
-    i1 = 32u;
-    i0 += i1;
-    l3 = i0;
-  }
-  i0 = l11;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 3195u;
-    i1 = l10;
-    i2 = l3;
-    i3 = l7;
-    i4 = b;
-    i5 = l2;
-    i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
-    l4 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    b = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF3219ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF3219ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = 1u;
-    l6 = i0;
-    i0 = b;
-    i1 = 1u;
-    i0 = i0 == i1;
-    if (i0) {goto block_11;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 96u);
-    b = i0;
-    i1 = a;
-    i1 = LoadU32(ctx, i1 + 100u);
-    l2 = i1;
-    i0 = i0 < i1;
-    l3 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    if (i0) {
-      i0 = b;
-      i1 = l10;
-      StoreU32(ctx, i0, i1);
-      i0 = a;
-      i1 = b;
-      i2 = 4u;
-      i1 += i2;
-      b = i1;
-      StoreU32(ctx, i0 + 96u, i1);
-      goto block_23;
-    }
-    i0 = b;
-    i1 = a;
-    i2 = 92u;
-    i1 += i2;
-    b = i1;
-    i1 = LoadU32(ctx, i1);
-    l8 = i1;
-    i0 -= i1;
-    l9 = i0;
-    i1 = 2u;
-    i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-    l7 = i0;
-    i1 = 1u;
-    i0 += i1;
-    l3 = i0;
-    i1 = kF3219Const40000000;
-    i0 = i0 >= i1;
-    l6 = i0;
-  }
-  i0 = l6;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF3219ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = 0u;
-      l6 = i0;
-    }
-    i0 = l11;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 1053u;
-      i1 = b;
-      HostReleaseSlotPair(ctx, i0, i1);
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF3219ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      a = i0;
-      i0 = kF3219ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = a;
-      i1 = 1u;
-      i0 = i0 == i1;
-      if (i0) {goto block_11;}
-      goto block_9;
-    }
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    i1 = l2;
-    i2 = l8;
-    i1 -= i2;
-    l2 = i1;
-    i2 = 1u;
-    i1 = (uint32_t)((int32_t)i1 >> (i2 & 31));
-    b = i1;
-    i0 = i0 > i1;
-    l6 = i0;
-    i0 = l3;
-    i1 = b;
-    i2 = l6;
-    i0 = i2 ? i0 : i1;
-    i1 = kF3219Const3FFFFFFF;
-    i2 = l2;
-    i3 = 2u;
-    i2 = (uint32_t)((int32_t)i2 >> (i3 & 31));
-    i3 = kF3219Const1FFFFFFF;
-    i2 = i2 < i3;
-    l2 = i2;
-    i0 = i2 ? i0 : i1;
-    l3 = i0;
-    i0 = !(i0);
-    b = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = b;
-    if (i0) {
-      i0 = 0u;
-      l2 = i0;
-      goto block_32;
-    }
-    i0 = l3;
-    i1 = kF3219Const40000000;
-    i0 = i0 >= i1;
-    b = i0;
-  }
-  i0 = b;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF3219ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = 0u;
-      l6 = i0;
-    }
-    i0 = l11;
-    i1 = 3u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 1033u;
-      i1 = kF3219MsgAllocatorTAllocateSize;
-      HostReleaseSlotPair(ctx, i0, i1);
-      i0 = 3u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF3219ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      a = i0;
-      i0 = kF3219ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = a;
-      i1 = 1u;
-      i0 = i0 != i1;
-      if (i0) {goto block_9;}
-      goto block_11;
-    }
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = 0u;
-    l6 = i0;
-    i0 = kF3219ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l3;
-    i1 = 2u;
-    i0 <<= (i1 & 31);
-    b = i0;
-  }
-  i0 = l11;
-  i1 = 4u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 1032u;
-    i1 = b;
-    i0 = HostFoldLayoutOffset(ctx, i0, i1);
-    l4 = i0;
-    i0 = 4u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    l2 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF3219ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF3219ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = 1u;
-    i0 = i0 == i1;
-    b = i0;
-    if (i0) {goto block_11;}
-  }
-  block_32:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l2;
-    i1 = l7;
-    i2 = 2u;
-    i1 <<= (i2 & 31);
-    i0 += i1;
-    b = i0;
-    i1 = l10;
-    StoreU32(ctx, i0, i1);
-    i0 = l9;
-    i1 = 1u;
-    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-    l7 = i0;
-    if (i0) {
-      i0 = l2;
-      i1 = l8;
-      i2 = l9;
-      i0 = CopyBytes(ctx, i0, i1, i2);
-      l7 = i0;
-    }
-    i0 = a;
-    i1 = l3;
-    i2 = 2u;
-    i1 <<= (i2 & 31);
-    i2 = l2;
-    i1 += i2;
-    l3 = i1;
-    StoreU32(ctx, i0 + 100u, i1);
-    i0 = a;
-    i1 = b;
-    i2 = 4u;
-    i1 += i2;
-    b = i1;
-    StoreU32(ctx, i0 + 96u, i1);
-    i0 = a;
-    i1 = l2;
-    StoreU32(ctx, i0 + 92u, i1);
-    i0 = l8;
-    i0 = !(i0);
-    a = i0;
-    if (i0) {goto block_23;}
-    i0 = l8;
-    DeallocateRawBlock(ctx, i0);
-  }
-  block_23:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l5;
-    i0 = LoadS8(ctx, i0 + 27u);
-    i1 = kF3219ConstFFFFFFFF;
-    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-    if (i0) {
-      i0 = l5;
-      i0 = LoadU32(ctx, i0 + 16u);
-      DeallocateRawBlock(ctx, i0);
-    }
-    i0 = l5;
-    i0 = LoadS8(ctx, i0 + 43u);
-    i1 = kF3219ConstFFFFFFFF;
-    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-    if (i0) {goto block_12;}
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 32u);
-    DeallocateRawBlock(ctx, i0);
-    goto block_12;
-  }
-  block_13:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l7;
-    i1 = l8;
-    i2 = l13;
-    i3 = 0u;
-    i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
-    i0 = i2 ? i0 : i1;
-    i1 = l2;
-    i0 = i0 <= i1;
-    l3 = i0;
-    if (i0) {goto block_12;}
-  }
-  i0 = l11;
-  i1 = 5u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 44u;
-    i0 = AllocateStringBuffer(ctx, i0);
-    l4 = i0;
-    i0 = 5u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    l10 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l5;
-    i1 = 5u;
-    StoreU8(ctx, i0 + 43u, i1);
-    i0 = l5;
-    i1 = kF3219MsgPrint;
-    i1 = LoadU32(ctx, i1);
-    StoreU32(ctx, i0 + 32u, i1);
-    i0 = l5;
-    i1 = kF3219ConstB94E1;
-    i1 = LoadU8(ctx, i1);
-    l3 = i1;
-    StoreU8(ctx, i0 + 36u, i1);
-    i0 = l5;
-    i1 = 0u;
-    StoreU8(ctx, i0 + 37u, i1);
-    i0 = l5;
-    i1 = 0u;
-    StoreU8(ctx, i0 + 20u, i1);
-    i0 = l5;
-    i1 = kF3219Const61746164;
-    StoreU32(ctx, i0 + 16u, i1);
-    i0 = l5;
-    i1 = 4u;
-    StoreU8(ctx, i0 + 27u, i1);
-    i0 = kF3219ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-  }
-  i0 = l11;
-  i1 = 6u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 854u;
-    i1 = l5;
-    i2 = b;
-    i3 = l2;
-    i4 = kF3219ConstFFFFFFFF;
-    i5 = b;
-    i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
-    l4 = i0;
-    i0 = 6u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    l12 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF3219ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    b = i0;
-    i0 = kF3219ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = 1u;
-    l6 = i0;
-    i0 = b;
-    i1 = 1u;
-    i0 = i0 != i1;
-    b = i0;
-  }
-  i0 = b;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 16u);
-      b = i0;
-      i0 = kF3219ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = l5;
-      i1 = 16u;
-      i0 += i1;
-      l3 = i0;
-      i0 = l5;
-      i1 = 32u;
-      i0 += i1;
-      l2 = i0;
-    }
-    i0 = l11;
-    i1 = 7u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 3195u;
-      i1 = l10;
-      i2 = l2;
-      i3 = l3;
-      i4 = l12;
-      i5 = b;
-      i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
-      l4 = i0;
-      i0 = 7u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l4;
-      b = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF3219ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      b = i0;
-      i0 = kF3219ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = b;
-      i1 = 1u;
-      i0 = i0 == i1;
-      if (i0) {goto block_52;}
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 96u);
-      b = i0;
-      i1 = a;
-      i1 = LoadU32(ctx, i1 + 100u);
-      l2 = i1;
-      i0 = i0 < i1;
-      l3 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      if (i0) {
-        i0 = b;
-        i1 = l10;
-        StoreU32(ctx, i0, i1);
-        i0 = a;
-        i1 = b;
-        i2 = 4u;
-        i1 += i2;
-        StoreU32(ctx, i0 + 96u, i1);
-        goto block_59;
       }
-      i0 = b;
-      i1 = a;
-      i2 = 92u;
-      i1 += i2;
-      b = i1;
-      i1 = LoadU32(ctx, i1);
-      l8 = i1;
-      i0 -= i1;
-      l9 = i0;
-      i1 = 2u;
-      i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-      l7 = i0;
-      i1 = 1u;
-      i0 += i1;
-      l3 = i0;
-      i1 = kF3219Const40000000;
-      i0 = i0 >= i1;
-      l6 = i0;
+      goto finished;
     }
-    i0 = l6;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF3219ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-        i0 = 0u;
-        l6 = i0;
+    scratch = count;
+    index = static_cast<uint32_t>(count == 0u);
+    if (index != 0u) {
+      goto finished;
+    }
+    index = LoadU32(ctx, b);
+    scratch = 0u;
+    for (;;) {
+      scan = static_cast<uint32_t>(LoadU8(ctx, index + scratch) != 32u);
+      if (scan != 0u) {
+        goto finished;
       }
-      i0 = l11;
-      i1 = 8u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = 1053u;
-        i1 = b;
-        HostReleaseSlotPair(ctx, i0, i1);
-        i0 = 8u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-      }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF3219ConstD015C;
-        i0 = LoadU32(ctx, i0);
-        a = i0;
-        i0 = kF3219ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-        i0 = a;
-        i1 = 1u;
-        i0 = i0 != i1;
-        if (i0) {goto block_9;}
-        goto block_52;
+      scratch = scratch + 1u;
+      scan = static_cast<uint32_t>(count != scratch);
+      if (scan == 0u) {
+        break;
       }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      i1 = l2;
-      i2 = l8;
-      i1 -= i2;
-      l2 = i1;
-      i2 = 1u;
-      i1 = (uint32_t)((int32_t)i1 >> (i2 & 31));
-      b = i1;
-      i0 = i0 > i1;
-      l6 = i0;
-      i0 = l3;
-      i1 = b;
-      i2 = l6;
-      i0 = i2 ? i0 : i1;
-      i1 = kF3219Const3FFFFFFF;
-      i2 = l2;
-      i3 = 2u;
-      i2 = (uint32_t)((int32_t)i2 >> (i3 & 31));
-      i3 = kF3219Const1FFFFFFF;
-      i2 = i2 < i3;
-      l2 = i2;
-      i0 = i2 ? i0 : i1;
-      l3 = i0;
-      i0 = !(i0);
-      b = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = b;
-      if (i0) {
-        i0 = 0u;
-        l2 = i0;
-        goto block_68;
+    scratch = count;
+  finished:;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // A run that still has text in front of it: grow the layer's string buffer if it is full,
+    // otherwise remember how much of it is free.
+    if (scratch != 0u) {
+      scan = LoadU32(ctx, a + 196u);
+      handle = LoadU32(ctx, a + 8u);
+      index = static_cast<uint32_t>(scan >= handle);
+      if (index != 0u) {
+        goto cleanup_done;
       }
-      i0 = l3;
-      i1 = kF3219Const40000000;
-      i0 = i0 >= i1;
-      b = i0;
-    }
-    i0 = b;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF3219ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-        i0 = 0u;
-        l6 = i0;
+      buffer = LoadU8(ctx, a + 89u);
+      index = scan;
+      for (;;) {
+        flag = LoadU8(ctx, index);
+        if (buffer == flag) {
+          flag = static_cast<uint32_t>(LoadU8(ctx, index + 1u) != 32u);
+          if (flag != 0u) {
+            break;
+          }
+          uint32_t const probe = index + 1u;
+          uint32_t const complement = scan ^ kLuaTagsTextNoOwner;
+          index = complement;
+          scratch = probe + complement;
+          break;
+        }
+        flag = static_cast<uint32_t>(flag != 32u);
+        if (flag != 0u) {
+          break;
+        }
+        index = index + 1u;
+        flag = static_cast<uint32_t>(handle > index);
+        if (flag == 0u) {
+          break;
+        }
       }
-      i0 = l11;
-      i1 = 9u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = 1033u;
-        i1 = kF3219MsgAllocatorTAllocateSize;
-        HostReleaseSlotPair(ctx, i0, i1);
-        i0 = 9u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
+      if (scratch != 0u) {
+        goto cleanup_done;
       }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = kF3219ConstD015C;
-        i0 = LoadU32(ctx, i0);
-        a = i0;
-        i0 = kF3219ConstD015C;
-        i1 = 0u;
-        StoreU32(ctx, i0, i1);
-        i0 = a;
-        i1 = 1u;
-        i0 = i0 != i1;
-        if (i0) {goto block_9;}
-        goto block_52;
-      }
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = 0u;
-      l6 = i0;
-      i0 = kF3219ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = l3;
-      i1 = 2u;
-      i0 <<= (i1 & 31);
-      b = i0;
-    }
-    i0 = l11;
-    i1 = 10u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 1032u;
-      i1 = b;
-      i0 = HostFoldLayoutOffset(ctx, i0, i1);
-      l4 = i0;
-      i0 = 10u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l4;
-      l2 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF3219ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      b = i0;
-      i0 = kF3219ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = b;
-      i1 = 1u;
-      i0 = i0 == i1;
-      if (i0) {goto block_52;}
-    }
-    block_68:;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l2;
-      i1 = l7;
-      i2 = 2u;
-      i1 <<= (i2 & 31);
-      i0 += i1;
-      b = i0;
-      i1 = l10;
-      StoreU32(ctx, i0, i1);
-      i0 = l9;
-      i1 = 1u;
-      i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-      if (i0) {
-        i0 = l2;
-        i1 = l8;
-        i2 = l9;
-        i0 = CopyBytes(ctx, i0, i1, i2);
-      }
-      i0 = a;
-      i1 = l3;
-      i2 = 2u;
-      i1 <<= (i2 & 31);
-      i2 = l2;
-      i1 += i2;
-      StoreU32(ctx, i0 + 100u, i1);
-      i0 = a;
-      i1 = b;
-      i2 = 4u;
-      i1 += i2;
-      StoreU32(ctx, i0 + 96u, i1);
-      i0 = a;
-      i1 = l2;
-      StoreU32(ctx, i0 + 92u, i1);
-      i0 = l8;
-      i0 = !(i0);
-      if (i0) {goto block_59;}
-      i0 = l8;
-      DeallocateRawBlock(ctx, i0);
-    }
-    block_59:;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l12;
-      i0 = LoadS8(ctx, i0 + 11u);
-      i1 = kF3219ConstFFFFFFFF;
-      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-      if (i0) {
-        i0 = l12;
-        i0 = LoadU32(ctx, i0);
-        DeallocateRawBlock(ctx, i0);
-      }
-      i0 = l5;
-      i0 = LoadS8(ctx, i0 + 27u);
-      i1 = kF3219ConstFFFFFFFF;
-      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-      if (i0) {
-        i0 = l5;
-        i0 = LoadU32(ctx, i0 + 16u);
-        DeallocateRawBlock(ctx, i0);
-      }
-      i0 = l5;
-      i0 = LoadS8(ctx, i0 + 43u);
-      i1 = kF3219ConstFFFFFFFF;
-      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-      if (i0) {goto block_12;}
-      i0 = l5;
-      i0 = LoadU32(ctx, i0 + 32u);
-      DeallocateRawBlock(ctx, i0);
-      goto block_12;
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = HostRet0(ctx);
-    l2 = i0;
-    i0 = HostTempRet0(ctx);
-    goto block_51;
-  }
-  block_52:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = HostRet0(ctx);
-    l2 = i0;
-    i0 = HostTempRet0(ctx);
-    i0 = l12;
-    i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kF3219ConstFFFFFFFF;
-    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-    if (i0) {goto block_51;}
-    i0 = l12;
-    i0 = LoadU32(ctx, i0);
-    DeallocateRawBlock(ctx, i0);
-  }
-  block_51:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l5;
-    i0 = LoadS8(ctx, i0 + 27u);
-    i1 = kF3219ConstFFFFFFFF;
-    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-    if (i0) {
-      i0 = l5;
-      i0 = LoadU32(ctx, i0 + 16u);
-      DeallocateRawBlock(ctx, i0);
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAllocateBufferCall) : 1u) {
+    // Allocate the 44-byte string header the run is appended to.
+    call_result = AllocateStringBuffer(ctx, 44u);
+    resume_code = kAllocateBufferCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
     }
-    i0 = l5;
-    i0 = LoadS8(ctx, i0 + 43u);
-    i1 = kF3219ConstFFFFFFFF;
-    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-    if (i0) {
-      i0 = l5;
-      i0 = LoadU32(ctx, i0 + 32u);
-      DeallocateRawBlock(ctx, i0);
-    }
-    i0 = l6;
-    i0 = !(i0);
-    if (i0) {goto block_10;}
-    i0 = l10;
-    DeallocateRawBlock(ctx, i0);
-    goto block_10;
+    buffer = call_result;
   }
-  block_12:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l5;
-    i1 = 48u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Build the header on the scratch frame: its tag byte, the `print` literal, its trailing
+    // byte, the empty `data` buffer and the layer's own exception word.
+    StoreU8(ctx, scratch_frame + 43u, 5u);
+    StoreU32(ctx, scratch_frame + 32u, LoadU32(ctx, kLuaTagsTextPrintTextAddr));
+    StoreU8(ctx, scratch_frame + 36u, LoadU8(ctx, kLuaTagsTextPrintTailAddr));
+    StoreU8(ctx, scratch_frame + 37u, 0u);
+    StoreU8(ctx, scratch_frame + 20u, 0u);
+    StoreU32(ctx, scratch_frame + 16u, kLuaTagsTextDataTag);
+    StoreU8(ctx, scratch_frame + 27u, 4u);
+    scratch = LoadU32(ctx, a + 16u);
+    StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+    count = scratch_frame + 16u;
+    index = scratch_frame + 32u;
   }
-  block_11:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = HostRet0(ctx);
-    l2 = i0;
-    i0 = HostTempRet0(ctx);
-    i0 = l5;
-    i0 = LoadS8(ctx, i0 + 27u);
-    i1 = kF3219ConstFFFFFFFF;
-    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-    if (i0) {
-      i0 = l5;
-      i0 = LoadU32(ctx, i0 + 16u);
-      DeallocateRawBlock(ctx, i0);
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kInvokePrintCall) : 1u) {
+    // Append the run to the `print` string through the invoked helper.
+    call_result = HostInvokeIiiiii(ctx, 3195u, buffer, index, count, b, scratch);
+    resume_code = kInvokePrintCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
     }
-    i0 = l5;
-    i0 = LoadS8(ctx, i0 + 43u);
-    i1 = kF3219ConstFFFFFFFF;
-    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-    if (i0) {
-      i0 = l5;
-      i0 = LoadU32(ctx, i0 + 32u);
-      DeallocateRawBlock(ctx, i0);
+    b = call_result;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The helper reports through the latch: an error skips to the release path, otherwise the
+    // run has to be written into the layer's buffer.
+    b = LoadU32(ctx, kLuaTagsTextThrowLatchAddr);
+    StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+    flag = 1u;
+    if (b == 1u) {
+      goto slot_released;
     }
-    i0 = l6;
-    i0 = !(i0);
-    if (i0) {goto block_10;}
-    i0 = l10;
-    DeallocateRawBlock(ctx, i0);
-    i0 = l2;
-    HostOsRelease(ctx, i0);
+    b = LoadU32(ctx, a + 96u);
+    scratch = LoadU32(ctx, a + 100u);
+    index = static_cast<uint32_t>(b < scratch);
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (index != 0u) {
+      // Room for one more: write the buffer pointer and advance the layer's cursor.
+      StoreU32(ctx, b, buffer);
+      b = b + 4u;
+      StoreU32(ctx, a + 96u, b);
+      goto append_done;
+    }
+    // Grow the buffer: half the room left, capped by the element limits.
+    uint32_t const write_pos = b;
+    b = a + 92u;
+    size = LoadU32(ctx, b);
+    scan = write_pos - size;
+    count = scan >> 2u;
+    index = count + 1u;
+    flag = static_cast<uint32_t>(index >= kLuaTagsTextMaxAllocCount);
+  }
+  if (flag != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+      flag = 0u;
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kReleaseSlotCall) : 1u) {
+      HostReleaseSlotPair(ctx, 1053u, b);
+      resume_code = kReleaseSlotCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      a = LoadU32(ctx, kLuaTagsTextThrowLatchAddr);
+      StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+      if (a == 1u) {
+        goto slot_released;
+      }
+      goto cleanup_done;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Clamp the requested size: half the room left, at most the element limit of a signed count
+    // and failing that the limit of an unsigned one.
+    scratch = scratch - size;
+    b = scratch >> 1u;
+    flag = static_cast<uint32_t>(index > b);
+    uint32_t const selected = flag != 0u ? index : b;
+    scratch = static_cast<uint32_t>((scratch >> 2u) < kLuaTagsTextMaxSignedCount);
+    index = scratch != 0u ? selected : kLuaTagsTextMaxUnsignedCount;
+    b = static_cast<uint32_t>(index == 0u);
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (b != 0u) {
+      scratch = 0u;
+      goto grow_done;
+    }
+    b = static_cast<uint32_t>(index >= kLuaTagsTextMaxAllocCount);
+  }
+  if (b != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+      flag = 0u;
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kReleaseAllocatorSlotCall) : 1u) {
+      HostReleaseSlotPair(ctx, 1033u, kLuaTagsTextAllocatorErrorAddr);
+      resume_code = kReleaseAllocatorSlotCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      a = LoadU32(ctx, kLuaTagsTextThrowLatchAddr);
+      StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+      if (a != 1u) {
+        goto cleanup_done;
+      }
+      goto slot_released;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    flag = 0u;
+    StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+    b = index << 2u;
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFoldLayoutCall) : 1u) {
+    // Shift the buffer offset by the layout of the entry that was just reserved.
+    call_result = HostFoldLayoutOffset(ctx, 1032u, b);
+    resume_code = kFoldLayoutCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+    scratch = call_result;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    b = LoadU32(ctx, kLuaTagsTextThrowLatchAddr);
+    StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+    if (b == 1u) {
+      goto slot_released;
+    }
+  }
+  grow_done:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Lay the run out in the (possibly fresh) buffer and publish the new sizes.
+    b = scratch + (count << 2u);
+    StoreU32(ctx, b, buffer);
+    count = static_cast<uint32_t>(index >= 1u);
+    if (count != 0u) {
+      count = CopyBytes(ctx, scratch, size, index);
+    }
+    index = (index << 2u) + scratch;
+    StoreU32(ctx, a + 100u, index);
+    b = b + 4u;
+    StoreU32(ctx, a + 96u, b);
+    StoreU32(ctx, a + 92u, scratch);
+    a = static_cast<uint32_t>(size == 0u);
+    if (a != 0u) {
+      goto append_done;
+    }
+    DeallocateRawBlock(ctx, size);
+  }
+  append_done:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Release the string header built on the scratch frame: its data buffer first and then the
+    // `print` buffer, unless the trailing byte still belongs to this frame.
+    if (static_cast<int32_t>(LoadS8(ctx, scratch_frame + 27u)) <= static_cast<int32_t>(kLuaTagsTextNoOwner)) {
+      DeallocateRawBlock(ctx, LoadU32(ctx, scratch_frame + 16u));
+    }
+    if (static_cast<int32_t>(LoadS8(ctx, scratch_frame + 43u)) > static_cast<int32_t>(kLuaTagsTextNoOwner)) {
+      goto release_scratch;
+    }
+    DeallocateRawBlock(ctx, LoadU32(ctx, scratch_frame + 32u));
+    goto release_scratch;
+  }
+  cleanup_done:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Nothing left to copy once the run is no longer than what the buffer already holds.
+    uint32_t const pending = static_cast<int32_t>(byte_value) < 0 ? count : size;
+    index = static_cast<uint32_t>(pending <= scratch);
+    if (index != 0u) {
+      goto release_scratch;
+    }
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAllocateCopyCall) : 1u) {
+    // Allocate the second string header, the one the run is copied into.
+    call_result = AllocateStringBuffer(ctx, 44u);
+    resume_code = kAllocateCopyCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+    buffer = call_result;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Build the header again, this time for the grown buffer.
+    StoreU8(ctx, scratch_frame + 43u, 5u);
+    StoreU32(ctx, scratch_frame + 32u, LoadU32(ctx, kLuaTagsTextPrintTextAddr));
+    index = LoadU8(ctx, kLuaTagsTextPrintTailAddr);
+    StoreU8(ctx, scratch_frame + 36u, index);
+    StoreU8(ctx, scratch_frame + 37u, 0u);
+    StoreU8(ctx, scratch_frame + 20u, 0u);
+    StoreU32(ctx, scratch_frame + 16u, kLuaTagsTextDataTag);
+    StoreU8(ctx, scratch_frame + 27u, 4u);
+    StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+  }
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kInvokeCopyCall) : 1u) {
+    // Copy the old run into the new header and hand it back.
+    call_result = HostInvokeIiiiii(ctx, 854u, scratch_frame, b, scratch, kLuaTagsTextNoOwner, b);
+    resume_code = kInvokeCopyCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+    handle = call_result;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    b = LoadU32(ctx, kLuaTagsTextThrowLatchAddr);
+    StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+    flag = 1u;
+    b = static_cast<uint32_t>(b != 1u);
+  }
+  if (b != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      b = LoadU32(ctx, a + 16u);
+      StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+      index = scratch_frame + 16u;
+      scratch = scratch_frame + 32u;
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kInvokeSecondPrintCall) : 1u) {
+      call_result = HostInvokeIiiiii(ctx, 3195u, buffer, scratch, index, handle, b);
+      resume_code = kInvokeSecondPrintCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+      b = call_result;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      b = LoadU32(ctx, kLuaTagsTextThrowLatchAddr);
+      StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+      if (b == 1u) {
+        goto slot_released_second;
+      }
+      b = LoadU32(ctx, a + 96u);
+      scratch = LoadU32(ctx, a + 100u);
+      index = static_cast<uint32_t>(b < scratch);
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      if (index != 0u) {
+        StoreU32(ctx, b, buffer);
+        b = b + 4u;
+        StoreU32(ctx, a + 96u, b);
+        goto append_copy_done;
+      }
+      uint32_t const write_pos = b;
+      b = a + 92u;
+      size = LoadU32(ctx, b);
+      scan = write_pos - size;
+      count = scan >> 2u;
+      index = count + 1u;
+      flag = static_cast<uint32_t>(index >= kLuaTagsTextMaxAllocCount);
+    }
+    if (flag != 0u || ResumePhase(ctx) == kResumeRewinding) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+        flag = 0u;
+      }
+      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kReleaseSecondSlotCall) : 1u) {
+        HostReleaseSlotPair(ctx, 1053u, b);
+        resume_code = kReleaseSecondSlotCall;
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          goto suspend_point;
+        }
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        a = LoadU32(ctx, kLuaTagsTextThrowLatchAddr);
+        StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+        if (a != 1u) {
+          goto trap_path;
+        }
+        goto slot_released_second;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      scratch = scratch - size;
+      b = scratch >> 1u;
+      flag = static_cast<uint32_t>(index > b);
+      uint32_t const selected = flag != 0u ? index : b;
+      scratch = static_cast<uint32_t>((scratch >> 2u) < kLuaTagsTextMaxSignedCount);
+      index = scratch != 0u ? selected : kLuaTagsTextMaxUnsignedCount;
+      b = static_cast<uint32_t>(index == 0u);
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      if (b != 0u) {
+        scratch = 0u;
+        goto grow_copy_done;
+      }
+      b = static_cast<uint32_t>(index >= kLuaTagsTextMaxAllocCount);
+    }
+    if (b != 0u || ResumePhase(ctx) == kResumeRewinding) {
+      if (ResumePhase(ctx) == kResumeRunning) {
+        StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+        flag = 0u;
+      }
+      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kReleaseSecondAllocatorCall) : 1u) {
+        HostReleaseSlotPair(ctx, 1033u, kLuaTagsTextAllocatorErrorAddr);
+        resume_code = kReleaseSecondAllocatorCall;
+        if (ResumePhase(ctx) == kResumeSuspended) {
+          goto suspend_point;
+        }
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        a = LoadU32(ctx, kLuaTagsTextThrowLatchAddr);
+        StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+        if (a != 1u) {
+          goto trap_path;
+        }
+        goto slot_released_second;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      flag = 0u;
+      StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+      b = index << 2u;
+    }
+    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFoldSecondLayoutCall) : 1u) {
+      call_result = HostFoldLayoutOffset(ctx, 1032u, b);
+      resume_code = kFoldSecondLayoutCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+      scratch = call_result;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      b = LoadU32(ctx, kLuaTagsTextThrowLatchAddr);
+      StoreU32(ctx, kLuaTagsTextThrowLatchAddr, 0u);
+      if (b == 1u) {
+        goto slot_released_second;
+      }
+    }
+    grow_copy_done:;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Copy the run into the grown buffer and publish the shifted sizes.
+      b = scratch + (count << 2u);
+      StoreU32(ctx, b, buffer);
+      if (static_cast<int32_t>(index) >= 1) {
+        (void)CopyBytes(ctx, scratch, size, index);
+      }
+      index = (index << 2u) + scratch;
+      StoreU32(ctx, a + 100u, index);
+      b = b + 4u;
+      StoreU32(ctx, a + 96u, b);
+      StoreU32(ctx, a + 92u, scratch);
+      a = static_cast<uint32_t>(size == 0u);
+      if (a != 0u) {
+        goto append_copy_done;
+      }
+      DeallocateRawBlock(ctx, size);
+    }
+    append_copy_done:;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Release the header of the grown buffer and the two buffers of the scratch frame.
+      if (static_cast<int32_t>(LoadS8(ctx, handle + 11u)) <= static_cast<int32_t>(kLuaTagsTextNoOwner)) {
+        DeallocateRawBlock(ctx, LoadU32(ctx, handle));
+      }
+      if (static_cast<int32_t>(LoadS8(ctx, scratch_frame + 27u)) <= static_cast<int32_t>(kLuaTagsTextNoOwner)) {
+        DeallocateRawBlock(ctx, LoadU32(ctx, scratch_frame + 16u));
+      }
+      if (static_cast<int32_t>(LoadS8(ctx, scratch_frame + 43u)) > static_cast<int32_t>(kLuaTagsTextNoOwner)) {
+        goto release_scratch;
+      }
+      DeallocateRawBlock(ctx, LoadU32(ctx, scratch_frame + 32u));
+      goto release_scratch;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    scratch = HostRet0(ctx);
+    (void)HostTempRet0(ctx);
+    goto os_release_path;
+  }
+  slot_released_second:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    scratch = HostRet0(ctx);
+    (void)HostTempRet0(ctx);
+    if (static_cast<int32_t>(LoadS8(ctx, handle + 11u)) > static_cast<int32_t>(kLuaTagsTextNoOwner)) {
+      goto os_release_path;
+    }
+    DeallocateRawBlock(ctx, LoadU32(ctx, handle));
+  }
+  os_release_path:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Drop what the scratch frame still owns and hand the buffer back to the host.
+    if (static_cast<int32_t>(LoadS8(ctx, scratch_frame + 27u)) <= static_cast<int32_t>(kLuaTagsTextNoOwner)) {
+      DeallocateRawBlock(ctx, LoadU32(ctx, scratch_frame + 16u));
+    }
+    if (static_cast<int32_t>(LoadS8(ctx, scratch_frame + 43u)) <= static_cast<int32_t>(kLuaTagsTextNoOwner)) {
+      DeallocateRawBlock(ctx, LoadU32(ctx, scratch_frame + 32u));
+    }
+    if (flag == 0u) {
+      goto os_release_done;
+    }
+    DeallocateRawBlock(ctx, buffer);
+    goto os_release_done;
+  }
+  release_scratch:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    scratch_frame = scratch_frame + 48u;
+    GuestStackSp(ctx) = scratch_frame;
+    goto exit_path;
+  }
+  slot_released:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    scratch = HostRet0(ctx);
+    (void)HostTempRet0(ctx);
+    if (static_cast<int32_t>(LoadS8(ctx, scratch_frame + 27u)) <= static_cast<int32_t>(kLuaTagsTextNoOwner)) {
+      DeallocateRawBlock(ctx, LoadU32(ctx, scratch_frame + 16u));
+    }
+    if (static_cast<int32_t>(LoadS8(ctx, scratch_frame + 43u)) <= static_cast<int32_t>(kLuaTagsTextNoOwner)) {
+      DeallocateRawBlock(ctx, LoadU32(ctx, scratch_frame + 32u));
+    }
+    if (flag == 0u) {
+      goto os_release_done;
+    }
+    DeallocateRawBlock(ctx, buffer);
+    HostOsRelease(ctx, scratch);
     TrapUnreachable();
   }
-  block_10:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l2;
-    HostOsRelease(ctx, i0);
+  os_release_done:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    HostOsRelease(ctx, scratch);
     TrapUnreachable();
   }
-  block_9:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
+  trap_path:;
+  if (ResumePhase(ctx) == kResumeRunning) {
     TrapUnreachable();
   }
-  goto func_exit;
-  spill_frame:;
-  l4 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l4;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF3219ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l4 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l4;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l4;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l4;
-  i1 = l3;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l4;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l4;
-  i1 = l6;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l4;
-  i1 = l7;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = l4;
-  i1 = l8;
-  StoreU32(ctx, i0 + 28u, i1);
-  i0 = l4;
-  i1 = l9;
-  StoreU32(ctx, i0 + 32u, i1);
-  i0 = l4;
-  i1 = l10;
-  StoreU32(ctx, i0 + 36u, i1);
-  i0 = l4;
-  i1 = l12;
-  StoreU32(ctx, i0 + 40u, i1);
-  i0 = l4;
-  i1 = l13;
-  StoreU32(ctx, i0 + 44u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 48u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto exit_path;
+suspend_point:;
+  {
+    // Suspend: store the code of the call in flight, step past it, then push the 48-byte frame
+    // a rewinding pass reads back -- one word per slot, in the order they were saved.
+    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
+    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, saved_frame, a);
+    StoreU32(ctx, saved_frame + 4u, b);
+    StoreU32(ctx, saved_frame + 8u, scratch);
+    StoreU32(ctx, saved_frame + 12u, index);
+    StoreU32(ctx, saved_frame + 16u, scratch_frame);
+    StoreU32(ctx, saved_frame + 20u, flag);
+    StoreU32(ctx, saved_frame + 24u, count);
+    StoreU32(ctx, saved_frame + 28u, size);
+    StoreU32(ctx, saved_frame + 32u, scan);
+    StoreU32(ctx, saved_frame + 36u, buffer);
+    StoreU32(ctx, saved_frame + 40u, handle);
+    StoreU32(ctx, saved_frame + 44u, byte_value);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
+  }
+exit_path:;
   LeaveFrame();
 }
-}
-}
+
+}  // namespace MessageLayer
+
+}  // namespace artc

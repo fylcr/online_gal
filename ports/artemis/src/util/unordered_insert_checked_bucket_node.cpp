@@ -1,23 +1,8 @@
-// unordered_insert_checked_bucket_node.cpp -- the checked form of the bucket insert: the bucket is resolved, the load factor is verified, and only then is the node linked in..
-//
-// UnorderedInsertCheckedBucketNode -- the checked form of the bucket insert: the bucket is resolved, the load factor is verified, and only then is the node linked in.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 632994-632994 (f1471); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of callees defined elsewhere in the tree.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 uint32_t CompareBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);
@@ -25,414 +10,302 @@ void UnlinkListNode(EngineContext* ctx, uint32_t node, uint32_t victim);
 
 namespace {
 
-constexpr uint32_t kF1471ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF1471ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF1471SaveFrameBytes = 32u;
-constexpr uint32_t kF1471ResumeWordBytes = 4u;
+constexpr uint32_t kUnorderedInsertCheckedBucketNodeLastException = 0xD015Cu;
+constexpr uint32_t kUnorderedInsertCheckedBucketNodeSignedLimit = 0xFFFFFFFFu;
+constexpr uint32_t kUnorderedInsertCheckedBucketNodeSaveFrameBytes = 32u;
+constexpr uint32_t kUnorderedInsertCheckedBucketNodeResumeWordBytes = 4u;
 
 }  // namespace
 
-void UnorderedInsertCheckedBucketNode(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f) {
+// Checked form of the bucket insert: the chain position of the key is found
+// the same way, and a freshly allocated bucket node is linked in once the
+// caller has verified the load factor.  Suspendable at every host call.
+void UnorderedInsertCheckedBucketNode(EngineContext* ctx, uint32_t map, uint32_t bucket,
+                                      uint32_t key, uint32_t node, uint32_t value,
+                                      uint32_t link) {
+  uint32_t frame = 0u;         // frame a suspension saved its registers in
+  uint32_t field_addr = 0u;    // address of the node's key field
+  uint32_t cmp_result = 0u;    // byte comparison of the two keys
+  uint32_t new_node = 0u;      // freshly allocated bucket node
+  uint32_t suspend_code = 0u;  // code stored when this call suspends
+  uint32_t carry = 0u;         // carried register: key length, then the map copy
+  uint32_t aux = 0u;           // carried register: short-key flag, then a pointer
+  uint32_t resume_code = 0u;   // code of the suspension being resumed
+  uint32_t key_data = 0u;      // pointer to the key's bytes
+  uint32_t key_longer = 0u;    // the key is longer than the node's key
+  uint32_t cmp_len = 0u;       // bytes compared for this chain node
+  uint32_t prev_key = 0u;      // the key pointer from before the suspension
+  uint32_t tmp = 0u;
+  uint32_t tmp2 = 0u;
+  uint32_t tmp3 = 0u;
+  uint32_t tmp4 = 0u;
+  uint64_t zero64 = 0;
   EnterFrame();
-  uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1471SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l6 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 8u);
-    c = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 12u);
-    d = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 16u);
-    e = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 20u);
-    f = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l7 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l8 = i0;
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    tmp = ReturnFrameSp(ctx);
+    tmp2 = ReturnFrameSp(ctx);
+    tmp2 = LoadU32(ctx, tmp2);
+    tmp2 -= kUnorderedInsertCheckedBucketNodeSaveFrameBytes;
+    StoreU32(ctx, tmp, tmp2);
+    tmp = ReturnFrameSp(ctx);
+    tmp = LoadU32(ctx, tmp);
+    frame = tmp;
+    map = LoadU32(ctx, frame);
+    tmp = LoadU32(ctx, frame + 8u);
+    key = tmp;
+    tmp = LoadU32(ctx, frame + 12u);
+    node = tmp;
+    tmp = LoadU32(ctx, frame + 16u);
+    value = tmp;
+    tmp = LoadU32(ctx, frame + 20u);
+    link = tmp;
+    tmp = LoadU32(ctx, frame + 24u);
+    carry = tmp;
+    tmp = LoadU32(ctx, frame + 28u);
+    aux = tmp;
+    tmp = LoadU32(ctx, frame + 4u);
+    bucket = tmp;
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1471ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l9 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    tmp = ReturnFrameSp(ctx);
+    tmp2 = ReturnFrameSp(ctx);
+    tmp2 = LoadU32(ctx, tmp2);
+    tmp2 -= kUnorderedInsertCheckedBucketNodeResumeWordBytes;
+    StoreU32(ctx, tmp, tmp2);
+    tmp = ReturnFrameSp(ctx);
+    tmp = LoadU32(ctx, tmp);
+    resume_code = LoadU32(ctx, tmp);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = b;
-    i0 = LoadU32(ctx, i0 + 4u);
-    d = i0;
-    if (i0) {
-      i0 = c;
-      i0 = LoadU32(ctx, i0);
-      i1 = c;
-      i2 = c;
-      i2 = LoadU8(ctx, i2 + 11u);
-      f = i2;
-      i3 = 24u;
-      i2 <<= (i3 & 31);
-      i3 = 24u;
-      i2 = (uint32_t)((int32_t)i2 >> (i3 & 31));
-      i3 = 0u;
-      i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
-      l7 = i2;
-      i0 = i2 ? i0 : i1;
-      l10 = i0;
-      i0 = c;
-      i0 = LoadU32(ctx, i0 + 4u);
-      i1 = f;
-      i2 = l7;
-      i0 = i2 ? i0 : i1;
-      l7 = i0;
-      i0 = b;
-      i1 = 4u;
-      i0 += i1;
-      f = i0;
-      loop_7: 
-        i0 = d;
-        i0 = LoadU8(ctx, i0 + 27u);
-        c = i0;
-        i1 = 24u;
-        i0 <<= (i1 & 31);
-        i1 = 24u;
-        i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-        i1 = 0u;
-        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-        l8 = i0;
-        i0 = l7;
-        i1 = d;
-        i1 = LoadU32(ctx, i1 + 20u);
-        i2 = c;
-        i3 = l8;
-        i1 = i3 ? i1 : i2;
-        c = i1;
-        i0 = i0 > i1;
-        l11 = i0;
-        i0 = c;
-        i1 = l7;
-        i2 = l11;
-        i0 = i2 ? i0 : i1;
-        l12 = i0;
-        if (i0) {
-          i0 = l10;
-          i1 = d;
-          i2 = 16u;
-          i1 += i2;
-          l6 = i1;
-          i1 = LoadU32(ctx, i1);
-          i2 = l6;
-          i3 = l8;
-          i1 = i3 ? i1 : i2;
-          l8 = i1;
-          i2 = l12;
-          i0 = CompareBytes(ctx, i0, i1, i2);
-          l6 = i0;
-          i0 = !(i0);
-          if (i0) {
-            i0 = c;
-            i1 = l7;
-            i0 = i0 > i1;
-            if (i0) {goto block_13;}
-            goto block_12;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    node = LoadU32(ctx, bucket + 4u);
+    if (node != 0u) {
+      tmp = LoadU32(ctx, key);
+      tmp2 = key;
+      tmp3 = LoadU8(ctx, key + 11u);
+      link = tmp3;
+      tmp3 = tmp3 << (24u & 31u);
+      tmp4 = 24u;
+      tmp3 = (uint32_t)((int32_t)tmp3 >> (tmp4 & 31u));
+      tmp4 = 0u;
+      tmp3 = (uint32_t)((int32_t)tmp3 < (int32_t)tmp4);
+      carry = tmp3;
+      tmp = (tmp3 != 0u) ? tmp : tmp2;
+      key_data = tmp;
+      tmp = LoadU32(ctx, key + 4u);
+      tmp2 = link;
+      tmp3 = carry;
+      tmp = (tmp3 != 0u) ? tmp : tmp2;
+      carry = tmp;
+      link = bucket + 4u;
+      for (;;) {
+        tmp = LoadU8(ctx, node + 27u);
+        key = tmp;
+        tmp = key << (24u & 31u);
+        tmp2 = 24u;
+        tmp = (uint32_t)((int32_t)tmp >> (tmp2 & 31u));
+        tmp2 = 0u;
+        tmp = (uint32_t)((int32_t)tmp < (int32_t)tmp2);
+        aux = tmp;
+        tmp = carry;
+        tmp2 = LoadU32(ctx, node + 20u);
+        tmp3 = key;
+        tmp2 = (aux != 0u) ? tmp2 : tmp3;
+        key = tmp2;
+        tmp = (carry > key);
+        key_longer = tmp;
+        tmp = key;
+        tmp2 = carry;
+        tmp3 = key_longer;
+        tmp = (tmp3 != 0u) ? tmp : tmp2;
+        cmp_len = tmp;
+        if (cmp_len != 0u) {
+          tmp = key_data;
+          tmp2 = node + 16u;
+          field_addr = tmp2;
+          tmp2 = LoadU32(ctx, tmp2);
+          tmp3 = field_addr;
+          tmp4 = aux;
+          tmp2 = (tmp4 != 0u) ? tmp2 : tmp3;
+          aux = tmp2;
+          tmp3 = cmp_len;
+          tmp = CompareBytes(ctx, key_data, aux, tmp3);
+          cmp_result = tmp;
+          if (tmp == 0u) {
+            tmp = (key > carry);
+            if (tmp != 0u) {
+              goto walk_greater;
+            }
+            goto compare_tails;
           }
-          i0 = l6;
-          i1 = kF1471ConstFFFFFFFF;
-          i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-          if (i0) {goto block_12;}
-          goto block_13;
+          tmp = (uint32_t)((int32_t)cmp_result >
+                           (int32_t)kUnorderedInsertCheckedBucketNodeSignedLimit);
+          if (tmp != 0u) {
+            goto compare_tails;
+          }
+          goto walk_greater;
         }
-        i0 = c;
-        i1 = l7;
-        i0 = i0 <= i1;
-        if (i0) {goto block_11;}
-        block_13:;
-        i0 = d;
-        i0 = LoadU32(ctx, i0);
-        c = i0;
-        if (i0) {goto block_8;}
-        goto block_5;
-        block_12:;
-        i0 = l8;
-        i1 = l10;
-        i2 = l12;
-        i0 = CompareBytes(ctx, i0, i1, i2);
-        c = i0;
-        if (i0) {goto block_10;}
-        block_11:;
-        i0 = l11;
-        if (i0) {goto block_9;}
-        goto running_exit;
-        block_10:;
-        i0 = c;
-        i1 = kF1471ConstFFFFFFFF;
-        i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-        if (i0) {goto running_exit;}
-        block_9:;
-        i0 = d;
-        i1 = 4u;
-        i0 += i1;
-        f = i0;
-        i0 = d;
-        i0 = LoadU32(ctx, i0 + 4u);
-        c = i0;
-        i0 = !(i0);
-        l8 = i0;
-        if (i0) {goto running_exit;}
-        i0 = f;
-        d = i0;
-        block_8:;
-        i0 = d;
-        f = i0;
-        i0 = c;
-        d = i0;
-        goto loop_7;
+        tmp = (key <= carry);
+        if (tmp != 0u) {
+          goto tail_shorter;
+        }
+      walk_greater:;
+        key = LoadU32(ctx, node);
+        if (key != 0u) {
+          goto descend_chain;
+        }
+        goto insert_at_tail;
+      compare_tails:;
+        tmp = CompareBytes(ctx, aux, key_data, cmp_len);
+        key = tmp;
+        if (tmp != 0u) {
+          goto tail_longer;
+        }
+      tail_shorter:;
+        if (key_longer != 0u) {
+          goto advance_bucket;
+        }
+        goto walk_done;
+      tail_longer:;
+        tmp = (uint32_t)((int32_t)key > (int32_t)kUnorderedInsertCheckedBucketNodeSignedLimit);
+        if (tmp != 0u) {
+          goto walk_done;
+        }
+      advance_bucket:;
+        link = node + 4u;
+        key = LoadU32(ctx, node + 4u);
+        aux = (key == 0u);
+        if (key == 0u) {
+          goto walk_done;
+        }
+        node = link;
+      descend_chain:;
+        link = node;
+        node = key;
+        continue;
+      }
       TrapUnreachable();
     }
-    i0 = b;
-    i1 = 4u;
-    i0 += i1;
-    d = i0;
-    block_5:;
-    i0 = d;
-    f = i0;
-    running_exit:;
-    i0 = a;
-    l7 = i0;
-    i0 = f;
-    i0 = LoadU32(ctx, i0);
-    c = i0;
+    node = bucket + 4u;
+  insert_at_tail:;
+    link = node;
+  walk_done:;
+    carry = map;
+    key = LoadU32(ctx, link);
   }
-  i0 = b;
-  i1 = 0u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  i1 = b;
-  i2 = l13;
-  i3 = c;
-  i4 = ResumePhase(ctx);
-  i2 = i4 ? i2 : i3;
-  l13 = i2;
-  i3 = ResumePhase(ctx);
-  i4 = 2u;
-  i3 = i3 == i4;
-  i2 |= i3;
-  i0 = i2 ? i0 : i1;
-  b = i0;
-  i0 = l13;
-  i0 = !(i0);
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l9;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 40u;
-      i0 = AllocateStringBuffer(ctx, i0);
-      l6 = i0;
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l6;
-      c = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = e;
-      i0 = LoadU32(ctx, i0);
-      e = i0;
-      i0 = kF1471ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = c;
-      i1 = 16u;
-      i0 += i1;
-      l8 = i0;
-    }
-    i0 = l9;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 873u;
-      i1 = l8;
-      i2 = e;
-      i0 = HostOsQuery(ctx, i0, i1, i2);
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    if (i0) {
-      i0 = b;
-    } else {
-      i0 = kF1471ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      e = i0;
-      i0 = kF1471ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = e;
-      i1 = 1u;
-      i0 = i0 == i1;
-      if (i0) {goto block_16;}
-      i0 = c;
-      i1 = d;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = c;
-      j1 = 0ull;
-      StoreU64(ctx, i0, j1);
-      i0 = c;
-      j1 = 0ull;
-      StoreU64(ctx, i0 + 28u, j1);
-      i0 = c;
-      i1 = 0u;
-      StoreU8(ctx, i0 + 36u, i1);
-      i0 = f;
-      i1 = c;
-      StoreU32(ctx, i0, i1);
-      i0 = c;
-      e = i0;
-      i0 = b;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0);
-      d = i0;
-      if (i0) {
-        i0 = b;
-        i1 = d;
-        StoreU32(ctx, i0, i1);
-        i0 = f;
-        i0 = LoadU32(ctx, i0);
-        e = i0;
+  tmp = bucket;
+  tmp2 = 0u;
+  tmp = (ResumePhase(ctx) != 0u) ? tmp : tmp2;
+  tmp2 = bucket;
+  tmp3 = prev_key;
+  tmp4 = key;
+  tmp3 = (ResumePhase(ctx) != 0u) ? tmp3 : tmp4;
+  prev_key = tmp3;
+  tmp4 = (ResumePhase(ctx) == kResumeRewinding);
+  tmp3 |= tmp4;
+  tmp = (tmp3 != 0u) ? tmp : tmp2;
+  bucket = tmp;
+  tmp = (prev_key == 0u);
+  tmp2 = (ResumePhase(ctx) == kResumeRewinding);
+  tmp |= tmp2;
+  if (tmp != 0u) {
+    tmp = (resume_code == 0u);
+    tmp = (ResumePhase(ctx) != 0u) ? tmp : 1u;
+    if (tmp != 0u) {
+      new_node = AllocateStringBuffer(ctx, 40u);
+      suspend_code = 0u;
+      tmp = ResumePhase(ctx);
+      if (tmp == kResumeSuspended) {
+        goto save_suspend_frame;
       }
-      i0 = b;
-      i0 = LoadU32(ctx, i0 + 4u);
-      i1 = e;
-      UnlinkListNode(ctx, i0, i1);
-      i0 = b;
-      i1 = b;
-      i1 = LoadU32(ctx, i1 + 8u);
-      i2 = 1u;
-      i1 += i2;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = 1u;
+      key = new_node;
     }
-    b = i0;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      value = LoadU32(ctx, value);
+      StoreU32(ctx, kUnorderedInsertCheckedBucketNodeLastException, 0u);
+      aux = key + 16u;
+    }
+    tmp = (resume_code == kResumeSuspended);
+    tmp = (ResumePhase(ctx) != 0u) ? tmp : 1u;
+    if (tmp != 0u) {
+      HostOsQuery(ctx, 873u, aux, value);
+      suspend_code = 1u;
+      tmp = ResumePhase(ctx);
+      if (tmp == kResumeSuspended) {
+        goto save_suspend_frame;
+      }
+    }
+    if (ResumePhase(ctx) != 0u) {
+      tmp = bucket;
+    } else {
+      value = LoadU32(ctx, kUnorderedInsertCheckedBucketNodeLastException);
+      StoreU32(ctx, kUnorderedInsertCheckedBucketNodeLastException, 0u);
+      if (value == kResumeSuspended) {
+        goto unhandled_exception;
+      }
+      zero64 = 0ull;
+      StoreU32(ctx, key + 8u, node);
+      StoreU64(ctx, key, zero64);
+      StoreU64(ctx, key + 28u, zero64);
+      StoreU8(ctx, key + 36u, 0u);
+      StoreU32(ctx, link, key);
+      value = key;
+      tmp = LoadU32(ctx, bucket);
+      node = LoadU32(ctx, tmp);
+      if (node != 0u) {
+        StoreU32(ctx, bucket, node);
+        value = LoadU32(ctx, link);
+      }
+      tmp = LoadU32(ctx, bucket + 4u);
+      UnlinkListNode(ctx, tmp, value);
+      tmp = LoadU32(ctx, bucket + 8u);
+      tmp += 1u;
+      StoreU32(ctx, bucket + 8u, tmp);
+      tmp = 1u;
+    }
+    bucket = tmp;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l7;
-    i1 = b;
-    StoreU8(ctx, i0 + 4u, i1);
-    i0 = a;
-    i1 = c;
-    StoreU32(ctx, i0, i1);
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU8(ctx, carry + 4u, bucket);
+    StoreU32(ctx, map, key);
+    goto frame_stored;
   }
-  block_16:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = HostRet0(ctx);
-    a = i0;
-    i0 = HostTempRet0(ctx);
-    i0 = c;
-    DeallocateRawBlock(ctx, i0);
-    i0 = a;
-    HostOsRelease(ctx, i0);
+unhandled_exception:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    tmp = HostRet0(ctx);
+    map = tmp;
+    HostTempRet0(ctx);
+    DeallocateRawBlock(ctx, key);
+    HostOsRelease(ctx, map);
     TrapUnreachable();
   }
-  goto func_exit;
-  spill_frame:;
-  l6 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l6;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1471ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l6 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l6;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l6;
-  i1 = c;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l6;
-  i1 = d;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l6;
-  i1 = e;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l6;
-  i1 = f;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l6;
-  i1 = l7;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = l6;
-  i1 = l8;
-  StoreU32(ctx, i0 + 28u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 32u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto frame_stored;
+save_suspend_frame:;
+  tmp = suspend_code;
+  tmp2 = ReturnFrameSp(ctx);
+  tmp2 = LoadU32(ctx, tmp2);
+  StoreU32(ctx, tmp2, tmp);
+  tmp = ReturnFrameSp(ctx);
+  tmp2 = ReturnFrameSp(ctx);
+  tmp2 = LoadU32(ctx, tmp2);
+  tmp2 += kUnorderedInsertCheckedBucketNodeResumeWordBytes;
+  StoreU32(ctx, tmp, tmp2);
+  tmp = ReturnFrameSp(ctx);
+  tmp = LoadU32(ctx, tmp);
+  frame = tmp;
+  StoreU32(ctx, frame, map);
+  StoreU32(ctx, frame + 4u, bucket);
+  StoreU32(ctx, frame + 8u, key);
+  StoreU32(ctx, frame + 12u, node);
+  StoreU32(ctx, frame + 16u, value);
+  StoreU32(ctx, frame + 20u, link);
+  StoreU32(ctx, frame + 24u, carry);
+  StoreU32(ctx, frame + 28u, aux);
+  tmp = ReturnFrameSp(ctx);
+  tmp2 = ReturnFrameSp(ctx);
+  tmp2 = LoadU32(ctx, tmp2);
+  tmp2 += kUnorderedInsertCheckedBucketNodeSaveFrameBytes;
+  StoreU32(ctx, tmp, tmp2);
+frame_stored:;
   LeaveFrame();
 }
-}
+}  // namespace artc

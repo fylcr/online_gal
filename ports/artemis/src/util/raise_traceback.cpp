@@ -1,299 +1,175 @@
-// raise_traceback.cpp -- prefixes an error message with the %s:%d traceback source position..
-//
-// RaiseTraceback -- prefixes an error message with the %s:%d traceback source position.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 122216-122216 (f238); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Cross-TU callees: the output flush, the keyed-entry steps and the traceback
+// frame and slot formatters this path drives.
 uint32_t FlushOutputRoomIfFull(EngineContext* ctx, uint32_t state, uint32_t limit, uint32_t chunk);
 void InternKeyIntoTableSlot(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 void InsertFormattedKeyEntry(EngineContext* ctx, uint32_t a, uint32_t b);
 uint32_t StepCallValueFrame(EngineContext* ctx, uint32_t a);
-uint32_t TrimLocalSlotsAboveLevel(EngineContext* ctx, uint32_t proto, uint32_t level, uint32_t result);
+uint32_t TrimLocalSlotsAboveLevel(EngineContext* ctx, uint32_t proto, uint32_t level,
+                                  uint32_t result);
 uint32_t FormatTracebackFrame(EngineContext* ctx, uint32_t state, uint32_t name, uint32_t out);
 void FormatTracebackSlotEntry(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
 namespace {
 
-constexpr uint32_t kF238Const29D74 = 0x29D74u;  // 
-constexpr uint32_t kF238MsgSD = 0x29D77u;  // %s:%d: 
-constexpr uint32_t kF238Const29D7F = 0x29D7Fu;  // 
-constexpr uint32_t kF238SaveFrameBytes = 16u;
-constexpr uint32_t kF238ResumeWordBytes = 4u;
+constexpr uint32_t kRaiseTracebackConst29D74 = 0x29D74u;
+constexpr uint32_t kRaiseTracebackMsgSD = 0x29D77u;  // "%s:%d: "
+constexpr uint32_t kRaiseTracebackConst29D7F = 0x29D7Fu;
+constexpr uint32_t kRaiseTracebackSaveFrameBytes = 16u;
+constexpr uint32_t kRaiseTracebackResumeWordBytes = 4u;
 
 }  // namespace
 
+// Prefixes one error message with its "%s:%d:" traceback source position: a
+// rewinding pass re-reads the frame the raise saved, a running pass lays out a
+// fresh scratch frame and runs one of the six steps below. Answers a value word.
 uint32_t RaiseTraceback(EngineContext* ctx, uint32_t value, uint32_t message, uint32_t tag) {
   EnterFrame();
-  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF238SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    value = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 8u);
-    tag = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    message = i0;
+  uint32_t resume_code = 0u;
+  uint32_t frame_base = 0u;
+  uint32_t phase = 0u;
+
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the saved frame and read its words back in the saved order.
+    uint32_t sp = ReturnFrameSp(ctx);
+    uint32_t frame_top = ReturnFrameSp(ctx);
+    frame_top = LoadU32(ctx, frame_top) - kRaiseTracebackSaveFrameBytes;
+    StoreU32(ctx, sp, frame_top);
+    uint32_t frame = ReturnFrameSp(ctx);
+    frame = LoadU32(ctx, frame);
+    value = LoadU32(ctx, frame);
+    tag = LoadU32(ctx, frame + 8u);
+    frame_base = LoadU32(ctx, frame + 12u);
+    message = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF238ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word naming the call that was in flight.
+    uint32_t sp = ReturnFrameSp(ctx);
+    uint32_t frame_top = ReturnFrameSp(ctx);
+    frame_top = LoadU32(ctx, frame_top) - kRaiseTracebackResumeWordBytes;
+    StoreU32(ctx, sp, frame_top);
+    uint32_t word = ReturnFrameSp(ctx);
+    word = LoadU32(ctx, word);
+    resume_code = LoadU32(ctx, word);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 128u;
-    i0 -= i1;
-    l4 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = l4;
-    i1 = tag;
-    StoreU32(ctx, i0 + 20u, i1);
-    i0 = value;
-    i1 = 1u;
-    i2 = l4;
-    i3 = 24u;
-    i2 += i3;
-    i0 = TrimLocalSlotsAboveLevel(ctx, i0, i1, i2);
-    i0 = !(i0);
-    tag = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    frame_base = GuestStackSp(ctx) - 128u;
+    GuestStackSp(ctx) = frame_base;
+    StoreU32(ctx, frame_base + 20u, tag);
+    tag = TrimLocalSlotsAboveLevel(ctx, value, 1u, frame_base + 24u) == 0u;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = tag;
-    if (i0) {goto block_5;}
-    i0 = l4;
-    i1 = 24u;
-    i0 += i1;
-    tag = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (tag != 0u) {
+      goto keyed_entry_arm;
+    }
+    tag = frame_base + 24u;
   }
-  i0 = l5;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = value;
-    i1 = kF238Const29D74;
-    i2 = tag;
-    i0 = FormatTracebackFrame(ctx, i0, i1, i2);
-    l3 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    tag = i0;
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning || resume_code == 0u) {
+    // Rewinding only reaches an arm whose code already matches this one; this is
+    // the code a running pass resumes with.
+    uint32_t formatted = FormatTracebackFrame(ctx, value, kRaiseTracebackConst29D74, tag);
+    resume_code = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
+    }
+    tag = formatted;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 44u);
-    tag = i0;
-    i1 = 1u;
-    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-    if (i0) {goto block_5;}
-    i0 = l4;
-    i1 = tag;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = l4;
-    i1 = l4;
-    i2 = 60u;
-    i1 += i2;
-    tag = i1;
-    StoreU32(ctx, i0, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    tag = LoadU32(ctx, frame_base + 44u);
+    // Signed compare: a word below one skips the keyed-entry arm below.
+    if ((int32_t)tag < (int32_t)1u) {
+      goto keyed_entry_arm;
+    }
+    StoreU32(ctx, frame_base + 4u, tag);
+    tag = frame_base + 60u;
+    StoreU32(ctx, frame_base, tag);
   }
-  i0 = l5;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = value;
-    i1 = kF238MsgSD;
-    i2 = l4;
-    i0 = FlushOutputRoomIfFull(ctx, i0, i1, i2);
-    l3 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    tag = i0;
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning || resume_code == 1u) {
+    uint32_t flushed = FlushOutputRoomIfFull(ctx, value, kRaiseTracebackMsgSD, frame_base);
+    resume_code = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
+    }
+    tag = flushed;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {goto running_exit;}
-  block_5:;
-  i0 = l5;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = value;
-    i1 = kF238Const29D7F;
-    i2 = 0u;
-    InternKeyIntoTableSlot(ctx, i0, i1, i2);
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning) {
+    goto exit_path;
   }
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 20u);
-    tag = i0;
+keyed_entry_arm:;
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning || resume_code == 2u) {
+    InternKeyIntoTableSlot(ctx, value, kRaiseTracebackConst29D7F, 0u);
+    resume_code = 2u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
+    }
   }
-  i0 = l5;
-  i1 = 3u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = value;
-    i1 = message;
-    i2 = tag;
-    FormatTracebackSlotEntry(ctx, i0, i1, i2);
-    i0 = 3u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+exit_path:;
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning) {
+    tag = LoadU32(ctx, frame_base + 20u);
   }
-  i0 = l5;
-  i1 = 4u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = value;
-    i1 = 2u;
-    InsertFormattedKeyEntry(ctx, i0, i1);
-    i0 = 4u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning || resume_code == 3u) {
+    FormatTracebackSlotEntry(ctx, value, message, tag);
+    resume_code = 3u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
+    }
   }
-  i0 = l5;
-  i1 = 5u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = value;
-    i0 = StepCallValueFrame(ctx, i0);
-    l3 = i0;
-    i0 = 5u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    value = i0;
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning || resume_code == 4u) {
+    InsertFormattedKeyEntry(ctx, value, 2u);
+    resume_code = 4u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    i1 = 128u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    i0 = value;
-    goto func_exit;
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning || resume_code == 5u) {
+    uint32_t stepped = StepCallValueFrame(ctx, value);
+    resume_code = 5u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
+    }
+    value = stepped;
+  }
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning) {
+    // The running pass hands its scratch frame back to the guest stack.
+    GuestStackSp(ctx) = frame_base + 128u;
+    LeaveFrame();
+    return value;
   }
   TrapUnreachable();
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF238ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = value;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = message;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = tag;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l3;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 16u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+suspend_here:;
+  // Push the resume word naming the call that was in flight, then the frame the
+  // rewind path pops; both go in the order the pop above reads them back.
+  uint32_t slot = ReturnFrameSp(ctx);
+  slot = LoadU32(ctx, slot);
+  StoreU32(ctx, slot, resume_code);
+  uint32_t sp = ReturnFrameSp(ctx);
+  uint32_t word_top = ReturnFrameSp(ctx);
+  word_top = LoadU32(ctx, word_top) + kRaiseTracebackResumeWordBytes;
+  StoreU32(ctx, sp, word_top);
+  uint32_t base = ReturnFrameSp(ctx);
+  base = LoadU32(ctx, base);
+  StoreU32(ctx, base, value);
+  StoreU32(ctx, base + 4u, message);
+  StoreU32(ctx, base + 8u, tag);
+  StoreU32(ctx, base + 12u, frame_base);
+  sp = ReturnFrameSp(ctx);
+  word_top = ReturnFrameSp(ctx);
+  word_top = LoadU32(ctx, word_top) + kRaiseTracebackSaveFrameBytes;
+  StoreU32(ctx, sp, word_top);
   LeaveFrame();
-  return i0;
+  return 0u;
 }
-}
+
+}  // namespace artc

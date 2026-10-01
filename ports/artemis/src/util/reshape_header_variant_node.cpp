@@ -1,144 +1,65 @@
-// reshape_header_variant_node.cpp -- reshapes a node whose size is carried in the header variant field..
-//
-// ReshapeHeaderVariantNode -- reshapes a node whose size is carried in the header variant field.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 2733835-2733835 (f5628); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declaration -- the block reallocator.
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
 
-namespace {
-
-constexpr uint32_t kF5628SaveFrameBytes = 12u;
-constexpr uint32_t kF5628ResumeWordBytes = 4u;
-
-}  // namespace
-
+// Reshapes a node whose size is carried in the header variant field: the byte
+// that picks the variant also fixes the shift applied to the node's type byte,
+// and the storage is reallocated to the size that works out. Returns nothing.
 void ReshapeHeaderVariantNode(EngineContext* ctx, uint32_t state, uint32_t node) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF5628SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    node = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
+  // The reused slots: the word naming the call the suspend path was taken in, the
+  // size the node's header works out to, and the value the suspend path hands
+  // over.
+  uint32_t resume_word = 0u;
+  uint32_t old_size = 0u;
+  uint32_t spilled = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 12-byte frame the suspend path pushed and rebuild the
+    // size, the node and the state from it.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 12u);
+    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    old_size = LoadU32(ctx, saved_frame);
+    node = LoadU32(ctx, saved_frame + 4u);
+    state = LoadU32(ctx, saved_frame + 8u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF5628ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: the second pop names the call that was in flight. The two pops
+    // stay separate -- the driver keeps one region at a time.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
+    resume_word = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    l2 = i0;
-    i0 = node;
-    i0 = LoadU8(ctx, i0 + 7u);
-    i1 = 4u;
-    i2 = 2u;
-    i3 = node;
-    i3 = LoadU8(ctx, i3 + 6u);
-    state = i3;
-    i1 = i3 ? i1 : i2;
-    i0 <<= (i1 & 31);
-    l4 = i0;
-    i0 = l4;
-    i1 = 24u;
-    i2 = 20u;
-    i3 = state;
-    i1 = i3 ? i1 : i2;
-    i0 += i1;
-    state = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The type byte is shifted by two or four bits and the byte at six picks
+    // which, along with the header size the node carries.
+    uint32_t const variant = LoadU8(ctx, node + 7u);
+    uint32_t const flag = LoadU8(ctx, node + 6u);
+    old_size = (variant << (flag ? 4u : 2u)) + (flag ? 24u : 20u);
   }
-  i0 = l3;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l2;
-    i1 = node;
-    i2 = state;
-    i3 = 0u;
-    i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) ? static_cast<uint32_t>(!resume_word) : 1u) {
+    ReallocateBlock(ctx, state, node, old_size, 0u);
+    spilled = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
   }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF5628ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = node;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 12u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto exit_path;
+ suspend_point:;
+  {
+    // The stack pointer lives in the word the frame pointer names, so every push
+    // is a read-modify-write of that word.
+    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), spilled);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
+    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, saved_frame, old_size);
+    StoreU32(ctx, saved_frame + 4u, node);
+    StoreU32(ctx, saved_frame + 8u, state);
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 12u);
+  }
+ exit_path:;
   LeaveFrame();
 }
-}
+
+}  // namespace artc

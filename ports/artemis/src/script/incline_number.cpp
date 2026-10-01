@@ -1,304 +1,142 @@
-// incline_number.cpp -- bumps the line counter on a newline pair, keeping the lookahead consistent..
-//
-// InclineNumber -- bumps the line counter on a newline pair, keeping the lookahead consistent.
-//
-// The step is a plain call: the body holds no suspend point, so the
-// frame pair is bookkeeping only. Judgment order is untouched -- the
-// goto graph is the generated driver's own flattening, renamed labels
-// only.
-//
-// src: artemis.wasm2c.c 355751-355751 (f902); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
-uint32_t NextCharSlow(EngineContext* ctx, uint32_t a0);
-void LexError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+// Defined in other products.
+uint32_t NextCharSlow(EngineContext* ctx, uint32_t cursor);
+void LexError(EngineContext* ctx, uint32_t state, uint32_t message, uint32_t argument);
 
 namespace {
 
-constexpr uint32_t kF902MsgChunkHasTooMany = 0x2AD0Au;  // chunk has too many lines
-constexpr uint32_t kF902Const7FFFFFFC = 0x7FFFFFFCu;  // 
-constexpr uint32_t kF902ResumeWordBytes = 4u;
+constexpr uint32_t kInclineNumberChunkLimitMessage = 0x2AD0Au;  // chunk has too many lines
+constexpr uint32_t kInclineNumberLineLimit = 0x7FFFFFFCu;  // highest count the line counter may reach
+constexpr uint32_t kInclineNumberSaveFrameBytes = 16u;  // lex state, current byte, target, previous byte
+constexpr uint32_t kInclineNumberResumeWordBytes = 4u;
+constexpr uint32_t kInclineNumberReadCall = 0u;  // the first cursor read was in flight
+constexpr uint32_t kInclineNumberSkipCall = 1u;  // the read stepping over a doubled newline was in flight
+constexpr uint32_t kInclineNumberLimitCall = 2u;  // the line limit error was in flight
 
 }  // namespace
 
+// Steps the lexer over the byte under the cursor: the byte is written back into
+// the lexer state, the chunk's line count is adjusted, and the cursor moves past
+// it. Two newline bytes in a row count as one line, and a count that runs past
+// the chunk limit raises the chunk-has-too-many-lines error instead.
+// The slots below are reused across the step: `current` also carries the limit
+// verdict, `target` the pointer the byte is written through, `scratch` the result
+// of a cursor read.
 void InclineNumber(EngineContext* ctx, uint32_t lex_state) {
   EnterFrame();
-  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = 16u;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0);
-    lex_state = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l1 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
+  uint32_t current = 0u;
+  uint32_t target = 0u;
+  uint32_t scratch = 0u;
+  uint32_t previous = 0u;
+  uint32_t resume_word = 0u;
+  uint32_t resume_code = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kInclineNumberSaveFrameBytes);
+    previous = LoadU32(ctx, ReturnFrameSp(ctx));
+    lex_state = LoadU32(ctx, previous);
+    current = LoadU32(ctx, previous + 4u);
+    target = LoadU32(ctx, previous + 8u);
+    previous = LoadU32(ctx, previous + 12u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF902ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kInclineNumberResumeWordBytes);
+    resume_word = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = lex_state;
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = lex_state;
-    i0 = LoadU32(ctx, i0 + 56u);
-    l1 = i0;
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i1 = 1u;
-    i0 -= i1;
-    l2 = i0;
-    i0 = l1;
-    i1 = l2;
-    StoreU32(ctx, i0, i1);
-    i0 = lex_state;
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    previous = LoadU32(ctx, lex_state);
+    current = LoadU32(ctx, lex_state + 56u);
+    scratch = LoadU32(ctx, current);
+    StoreU32(ctx, current, scratch - 1u);
+    target = lex_state;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    if (i0) {
-      i0 = l1;
-      i1 = l1;
-      i1 = LoadU32(ctx, i1 + 4u);
-      l1 = i1;
-      i2 = 1u;
-      i1 += i2;
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = l1;
-      i0 = LoadU8(ctx, i0);
-      goto running_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (scratch != 0u) {
+      // The cursor already has the next byte: step it and read.
+      uint32_t const next = LoadU32(ctx, current + 4u);
+      StoreU32(ctx, current + 4u, next + 1u);
+      current = LoadU8(ctx, next);
+      goto have_byte;
     }
   }
-  i0 = l5;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l1;
-    i0 = NextCharSlow(ctx, i0);
-    l3 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-  } else {
-    i0 = l1;
+  if (ResumePhase(ctx) == kResumeRunning || resume_word == kInclineNumberReadCall) {
+    scratch = NextCharSlow(ctx, current);
+    resume_code = kInclineNumberReadCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {goto suspend_point;}
+    current = scratch;
   }
-  running_exit:;
-  l1 = i0;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l2;
-    i1 = l1;
-    StoreU32(ctx, i0, i1);
-    i0 = l1;
-    i1 = 10u;
-    i0 -= i1;
-    l2 = i0;
+  have_byte:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, target, current);
+    target = current - 10u;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l2;
-    switch (i0) {
-      case 0: goto block_11;
-      case 1: goto block_9;
-      case 2: goto block_9;
-      case 3: goto block_11;
-      default: goto block_9;
-    }
-    block_11:;
-    i0 = l1;
-    i1 = l4;
-    i0 = i0 == i1;
-    l1 = i0;
-    if (i0) {goto block_9;}
-    i0 = lex_state;
-    i0 = LoadU32(ctx, i0 + 56u);
-    l1 = i0;
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i1 = 1u;
-    i0 -= i1;
-    l2 = i0;
-    i0 = l1;
-    i1 = l2;
-    StoreU32(ctx, i0, i1);
-    i0 = lex_state;
-    l2 = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l4;
-    if (i0) {
-      i0 = l1;
-      i1 = l1;
-      i1 = LoadU32(ctx, i1 + 4u);
-      l1 = i1;
-      i2 = 1u;
-      i1 += i2;
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = l1;
-      i0 = LoadU8(ctx, i0);
-      goto block_12;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    switch (target) {
+      case 0u:  // a line feed
+      case 3u:  // a carriage return
+        // A newline byte counts unless the very same byte came just before.
+        current = static_cast<uint32_t>(current == previous);
+        if (current != 0u) {goto trim_line;}
+        current = LoadU32(ctx, lex_state + 56u);
+        previous = LoadU32(ctx, current);
+        target = previous - 1u;
+        StoreU32(ctx, current, target);
+        target = lex_state;
+        break;
+      default:
+        goto trim_line;
     }
   }
-  i0 = l5;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l1;
-    i0 = NextCharSlow(ctx, i0);
-    l3 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-  } else {
-    i0 = l1;
-  }
-  block_12:;
-  l1 = i0;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l2;
-    i1 = l1;
-    StoreU32(ctx, i0, i1);
-  }
-  block_9:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = lex_state;
-    i1 = lex_state;
-    i1 = LoadU32(ctx, i1 + 4u);
-    l1 = i1;
-    i2 = 1u;
-    i1 += i2;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = l1;
-    i1 = kF902Const7FFFFFFC;
-    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-    l1 = i0;
-  }
-  i0 = l1;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = lex_state;
-      i0 = LoadU32(ctx, i0 + 16u);
-      l1 = i0;
-    }
-    i0 = l5;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = lex_state;
-      i1 = kF902MsgChunkHasTooMany;
-      i2 = l1;
-      LexError(ctx, i0, i1, i2);
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (previous != 0u) {
+      uint32_t const next = LoadU32(ctx, current + 4u);
+      StoreU32(ctx, current + 4u, next + 1u);
+      current = LoadU8(ctx, next);
+      goto step_done;
     }
   }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF902ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = lex_state;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = l1;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l3;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 16u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  if (ResumePhase(ctx) == kResumeRunning || resume_word == kInclineNumberSkipCall) {
+    scratch = NextCharSlow(ctx, current);
+    resume_code = kInclineNumberSkipCall;
+    if (ResumePhase(ctx) == kResumeSuspended) {goto suspend_point;}
+    current = scratch;
+  }
+  step_done:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, target, current);
+  }
+  trim_line:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    current = LoadU32(ctx, lex_state + 4u);
+    StoreU32(ctx, lex_state + 4u, current + 1u);
+    current = static_cast<uint32_t>((int32_t)current >= (int32_t)kInclineNumberLineLimit);
+  }
+  if (current != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      current = LoadU32(ctx, lex_state + 16u);
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_word == kInclineNumberLimitCall) {
+      LexError(ctx, lex_state, kInclineNumberChunkLimitMessage, current);
+      resume_code = kInclineNumberLimitCall;
+      if (ResumePhase(ctx) == kResumeSuspended) {goto suspend_point;}
+    }
+  }
+  // The running pass is done; the frame write below belongs to a suspend only.
+  goto exit_path;
+  // Suspend here: the resume word naming the call in flight goes first, then the
+  // four saved words, and the caller's frame pointer is left above both.
+  suspend_point:;
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kInclineNumberResumeWordBytes);
+  scratch = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, scratch, lex_state);
+  StoreU32(ctx, scratch + 4u, current);
+  StoreU32(ctx, scratch + 8u, target);
+  StoreU32(ctx, scratch + 12u, previous);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kInclineNumberSaveFrameBytes);
+  exit_path:;
   LeaveFrame();
 }
-}
+}  // namespace artc

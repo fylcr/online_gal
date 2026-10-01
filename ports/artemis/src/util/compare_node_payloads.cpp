@@ -1,46 +1,15 @@
-// compare_node_payloads.cpp -- the three-way payload comparison behind a null check, with no side effect at all..
-//
-// CompareNodePayloads -- the three-way payload comparison behind a null check, with no side effect at all.
-//
-// The step is a plain call: the body holds no suspend point, so the
-// frame pair is bookkeeping only. Judgment order is untouched -- the
-// goto graph is the generated driver's own flattening, renamed labels
-// only.
-//
-// src: artemis.wasm2c.c 2762872-2762894 (f5749); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-
-namespace {
-
-
-}  // namespace
-
-uint32_t CompareNodePayloads(EngineContext* ctx, uint32_t a, uint32_t b) {
+// Compares two nodes by the payload word their first field points at and answers
+// the three-way result (-1, 0 or 1). Nothing is written.
+uint32_t CompareNodePayloads(EngineContext* ctx, uint32_t left, uint32_t right) {
   EnterFrame();
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  i0 = a;
-  i0 = LoadU32(ctx, i0);
-  i0 = LoadU32(ctx, i0);
-  a = i0;
-  i1 = b;
-  i1 = LoadU32(ctx, i1);
-  i1 = LoadU32(ctx, i1);
-  b = i1;
-  i0 = i0 > i1;
-  i1 = a;
-  i2 = b;
-  i1 = i1 < i2;
-  i0 -= i1;
+  uint32_t const lhs = LoadU32(ctx, LoadU32(ctx, left));
+  uint32_t const rhs = LoadU32(ctx, LoadU32(ctx, right));
   LeaveFrame();
-  return i0;
+  return (lhs > rhs) - (lhs < rhs);
 }
-}
+
+}  // namespace artc

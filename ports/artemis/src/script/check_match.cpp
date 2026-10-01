@@ -1,23 +1,8 @@
-// check_match.cpp -- the luaY_check-shaped syntax match check: on a mismatch it names what was expected, the token that showed up instead and the position, then raises.
-//
-// CheckMatch -- the luaY_check-shaped syntax match check: on a mismatch it names what was expected, the token that showed up instead and the position, then raises. Calls RaiseSyntaxError(lex_state, message) and FormatPushString.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 483874-484612 (f1119); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations for the callees this step calls.
 void ExpectToken(EngineContext* ctx, uint32_t a, uint32_t b);
 uint32_t AppendWithLimit(EngineContext* ctx, uint32_t list, uint32_t entry, uint32_t limit, uint32_t what);
 void MatchKeyword(EngineContext* ctx, uint32_t a, uint32_t b);
@@ -37,724 +22,268 @@ uint32_t EncodeConstant(EngineContext* ctx, uint32_t func_state, uint32_t value)
 
 namespace {
 
-constexpr uint32_t kF1119MsgSExpected = 0x2B625u;  // '%s' expected
-constexpr uint32_t kF1119MsgUnexpectedSymbol = 0x2B76Du;  // unexpected symbol
-constexpr uint32_t kF1119SaveFrameBytes = 28u;
-constexpr uint32_t kF1119ResumeWordBytes = 4u;
+// Message templates the raising step formats into the scratch record.
+constexpr uint32_t kCheckMatchMsgExpected = 0x2B625u;  // '%s' expected
+constexpr uint32_t kCheckMatchMsgUnexpected = 0x2B76Du;  // unexpected symbol
+constexpr uint32_t kCheckMatchSaveFrameBytes = 28u;
+constexpr uint32_t kCheckMatchResumeWordBytes = 4u;
 
 }  // namespace
 
+// Consumes the token `expected` from the lexer and records the match on the
+// expectation record.  When some other token turns up instead the step raises
+// the syntax error that names what showed up and where.  The 32-byte scratch
+// record parked on the guest stack carries the pieces of that message.
 void CheckMatch(EngineContext* ctx, uint32_t lex_state, uint32_t expected) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1119SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    lex_state = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l5 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l6 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l7 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l8 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    expected = i0;
+  // Live across suspensions; also a scratch cell for intermediate values.
+  uint32_t token = 0u;
+  uint32_t scratch = 0u;
+  uint32_t compiler = 0u;
+  uint32_t flag = 0u;
+  uint32_t appended = 0u;
+  uint32_t resume_point = 0u;
+
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kCheckMatchSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    lex_state = LoadU32(ctx, frame);
+    token = LoadU32(ctx, frame + 8u);
+    flag = LoadU32(ctx, frame + 12u);
+    scratch = LoadU32(ctx, frame + 16u);
+    compiler = LoadU32(ctx, frame + 20u);
+    appended = LoadU32(ctx, frame + 24u);
+    expected = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1119ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // The resume word sits one slot below the frame the spill pushed.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kCheckMatchResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 32u;
-    i0 -= i1;
-    l6 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = lex_state;
-    i0 = LoadU32(ctx, i0 + 48u);
-    l7 = i0;
-    i0 = lex_state;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l2 = i0;
-    i1 = 285u;
-    i0 = i0 != i1;
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    scratch = GuestStackSp(ctx) - 32u;
+    GuestStackSp(ctx) = scratch;
+    compiler = LoadU32(ctx, lex_state + 48u);
+    token = LoadU32(ctx, lex_state + 16u);
+    flag = token != 285u;
   }
-  i0 = l5;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l2;
-      i1 = 40u;
-      i0 = i0 != i1;
-      l2 = i0;
-      if (i0) {goto running_exit;}
-      i0 = lex_state;
-      i0 = LoadU32(ctx, i0 + 4u);
-      l2 = i0;
+  if (flag != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Only the end-of-statement marker gets matched here; anything else is
+      // the "unexpected symbol" case.
+      if (token != 40u) { goto unexpected_symbol; }
+      token = LoadU32(ctx, lex_state + 4u);
     }
-    i0 = l4;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = lex_state;
-      StepRecordResume(ctx, i0);
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+      StepRecordResume(ctx, lex_state);
+      resume_point = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
     }
-    i0 = l4;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = lex_state;
-      i1 = expected;
-      i2 = 0u;
-      i0 = CheckStatementLimits(ctx, i0, i1, i2);
-      l3 = i0;
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l3;
-      l5 = i0;
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+      flag = CheckStatementLimits(ctx, lex_state, expected, 0u);
+      resume_point = 1u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
     }
-    i0 = l4;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = lex_state;
-      i1 = 41u;
-      i2 = 40u;
-      i3 = l2;
-      CheckClosingMatch(ctx, i0, i1, i2, i3);
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+      CheckClosingMatch(ctx, lex_state, 41u, 40u, token);
+      resume_point = 2u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = lex_state;
-      i0 = LoadU32(ctx, i0 + 48u);
-      l2 = i0;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      token = LoadU32(ctx, lex_state + 48u);
     }
-    i0 = l4;
-    i1 = 3u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l2;
-      i1 = expected;
-      DischargeExpression(ctx, i0, i1);
-      i0 = 3u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+      DischargeExpression(ctx, token, expected);
+      resume_point = 3u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto block_3;}
+    if (ResumePhase(ctx) == kResumeRunning) { goto dispatch; }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = lex_state;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    token = LoadU32(ctx, lex_state + 24u);
   }
-  i0 = l4;
-  i1 = 4u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = lex_state;
-    StepRecordResume(ctx, i0);
-    i0 = 4u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
+    StepRecordResume(ctx, lex_state);
+    resume_point = 4u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = lex_state;
-    i0 = LoadU32(ctx, i0 + 48u);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    flag = LoadU32(ctx, lex_state + 48u);
   }
-  i0 = l4;
-  i1 = 5u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l5;
-    i1 = l2;
-    i2 = expected;
-    i3 = 1u;
-    i0 = AppendWithLimit(ctx, i0, i1, i2, i3);
-    l3 = i0;
-    i0 = 5u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    l8 = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
+    appended = AppendWithLimit(ctx, flag, token, expected, 1u);
+    resume_point = 5u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  i1 = 0u;
-  i2 = l8;
-  i3 = 8u;
-  i2 = i2 != i3;
-  i0 = i2 ? i0 : i1;
-  if (i0) {goto block_3;}
-  i0 = l4;
-  i1 = 6u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l5;
-    i1 = l2;
-    i0 = EncodeConstant(ctx, i0, i1);
-    l3 = i0;
-    i0 = 6u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning && appended != 8u) { goto dispatch; }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
+    token = EncodeConstant(ctx, flag, token);
+    resume_point = 6u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = expected;
-    i1 = l2;
-    StoreU32(ctx, i0 + 8u, i1);
-    goto block_3;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    StoreU32(ctx, expected + 8u, token);
+    goto dispatch;
   }
-  running_exit:;
-  i0 = l4;
-  i1 = 7u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = lex_state;
-    i1 = kF1119MsgUnexpectedSymbol;
-    RaiseSyntaxError(ctx, i0, i1);
-    i0 = 7u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+unexpected_symbol:
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 7u) {
+    RaiseSyntaxError(ctx, lex_state, kCheckMatchMsgUnexpected);
+    resume_point = 7u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  block_3:;
-  loop_21: 
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = lex_state;
-      i0 = LoadU32(ctx, i0 + 16u);
-      l2 = i0;
-      i1 = 90u;
-      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-      l5 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l5;
-      if (i0) {
-        i0 = l2;
-        i1 = 40u;
-        i0 -= i1;
-        l2 = i0;
-        switch (i0) {
-          case 0: goto block_28;
-          case 1: goto block_22;
-          case 2: goto block_22;
-          case 3: goto block_22;
-          case 4: goto block_22;
-          case 5: goto block_22;
-          case 6: goto block_26;
-          case 7: goto block_22;
-          case 8: goto block_22;
-          case 9: goto block_22;
-          case 10: goto block_22;
-          case 11: goto block_22;
-          case 12: goto block_22;
-          case 13: goto block_22;
-          case 14: goto block_22;
-          case 15: goto block_22;
-          case 16: goto block_22;
-          case 17: goto block_22;
-          case 18: goto block_24;
-          default: goto block_22;
-        }
-      }
-      i0 = l2;
-      i1 = 91u;
-      i0 = i0 == i1;
-      l5 = i0;
-      if (i0) {goto block_25;}
-      i0 = l2;
-      i1 = 123u;
-      i0 = i0 == i1;
-      l5 = i0;
-      if (i0) {goto block_28;}
-      i0 = l2;
-      i1 = 286u;
-      i0 = i0 != i1;
-      l2 = i0;
-      if (i0) {goto block_22;}
-      block_28:;
-    }
-    i0 = l4;
-    i1 = 8u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l7;
-      i1 = expected;
-      CheckExprComplexity(ctx, i0, i1);
-      i0 = 8u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = l4;
-    i1 = 9u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = lex_state;
-      i1 = expected;
-      ParseArguments(ctx, i0, i1);
-      i0 = 9u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto loop_21;}
-    block_26:;
-    i0 = l4;
-    i1 = 10u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = lex_state;
-      i1 = expected;
-      ExpectToken(ctx, i0, i1);
-      i0 = 10u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto loop_21;}
-    block_25:;
-    i0 = l4;
-    i1 = 11u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l7;
-      i1 = expected;
-      i0 = EmitConditionJump(ctx, i0, i1);
-      l3 = i0;
-      i0 = 11u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l3;
-    } else {
-      i0 = l2;
-    }
-    i1 = l6;
-    i2 = 8u;
-    i1 += i2;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l2 = i0;
-    i0 = l4;
-    i1 = 12u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = lex_state;
-      i1 = l2;
-      MatchKeyword(ctx, i0, i1);
-      i0 = 12u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = l2;
-    i1 = l6;
-    i2 = 8u;
-    i1 += i2;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    l2 = i0;
-    i0 = l4;
-    i1 = 13u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l7;
-      i1 = expected;
-      i2 = l2;
-      EmitMoveSlot(ctx, i0, i1, i2);
-      i0 = 13u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto loop_21;}
-    block_24:;
-    i0 = l4;
-    i1 = 14u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = lex_state;
-      StepRecordResume(ctx, i0);
-      i0 = 14u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = lex_state;
-      i0 = LoadU32(ctx, i0 + 16u);
-      i1 = 285u;
-      i0 = i0 != i1;
-      l2 = i0;
-    }
-    i0 = l2;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = lex_state;
-        i0 = LoadU32(ctx, i0 + 52u);
-        l2 = i0;
-      }
-      i0 = l4;
-      i1 = 15u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = lex_state;
-        i1 = 285u;
-        i0 = FormatCharValue(ctx, i0, i1);
-        l3 = i0;
-        i0 = 15u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-        i0 = l3;
-        l5 = i0;
-      }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = l6;
-        i1 = l5;
-        StoreU32(ctx, i0, i1);
-      }
-      i0 = l4;
-      i1 = 16u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = l2;
-        i1 = kF1119MsgSExpected;
-        i2 = l6;
-        i0 = FormatPushString(ctx, i0, i1, i2);
-        l3 = i0;
-        i0 = 16u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-        i0 = l3;
-        l2 = i0;
-      }
-      i0 = l4;
-      i1 = 17u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = lex_state;
-        i1 = l2;
-        RaiseSyntaxError(ctx, i0, i1);
-        i0 = 17u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
+dispatch:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    token = LoadU32(ctx, lex_state + 16u);
+    flag = static_cast<uint32_t>(static_cast<int32_t>(token) <= 90);
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (flag != 0u) {
+      // Punctuation that opens a construct ends the step differently from the
+      // tokens that simply close it.
+      switch (token - 40u) {
+        case 0: goto check_complexity;
+        case 6: goto expect_token;
+        case 18: goto raise_expected;
+        default: goto done;
       }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = lex_state;
-      i0 = LoadU32(ctx, i0 + 24u);
-      l2 = i0;
-    }
-    i0 = l4;
-    i1 = 18u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = lex_state;
-      StepRecordResume(ctx, i0);
-      i0 = 18u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = lex_state;
-      i0 = LoadU32(ctx, i0 + 48u);
-      l5 = i0;
-    }
-    i0 = l4;
-    i1 = 19u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l5;
-      i1 = l2;
-      i0 = EncodeConstant(ctx, i0, i1);
-      l3 = i0;
-      i0 = 19u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l3;
-      l2 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l6;
-      j1 = 18446744073709551615ull;
-      StoreU64(ctx, i0 + 24u, j1);
-      i0 = l6;
-      i1 = l2;
-      StoreU32(ctx, i0 + 16u, i1);
-      i0 = l6;
-      i1 = 4u;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = l6;
-      i1 = 8u;
-      i0 += i1;
-      l2 = i0;
-    }
-    i0 = l4;
-    i1 = 20u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l7;
-      i1 = expected;
-      i2 = l2;
-      EmitJumpIf(ctx, i0, i1, i2);
-      i0 = 20u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = l4;
-    i1 = 21u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = lex_state;
-      i1 = expected;
-      ParseArguments(ctx, i0, i1);
-      i0 = 21u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto loop_21;}
-    block_22:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l6;
-    i1 = 32u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
+    flag = static_cast<uint32_t>(token == 91u);
+    if (flag != 0u) { goto emit_condition; }
+    flag = static_cast<uint32_t>(token == 123u);
+    if (flag != 0u) { goto check_complexity; }
+    token = static_cast<uint32_t>(token != 286u);
+    if (token != 0u) { goto done; }
+  check_complexity:;
   }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1119ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = lex_state;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = expected;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l3;
-  i1 = l5;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l3;
-  i1 = l6;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l3;
-  i1 = l7;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l3;
-  i1 = l8;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 28u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 8u) {
+    CheckExprComplexity(ctx, compiler, expected);
+    resume_point = 8u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 9u) {
+    ParseArguments(ctx, lex_state, expected);
+    resume_point = 9u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) { goto dispatch; }
+expect_token:
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 10u) {
+    ExpectToken(ctx, lex_state, expected);
+    resume_point = 10u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) { goto dispatch; }
+emit_condition:
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 11u) {
+    uint32_t const emitted = EmitConditionJump(ctx, compiler, expected);
+    resume_point = 11u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    token = ResumePhase(ctx) != kResumeRunning ? emitted : scratch + 8u;
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 12u) {
+    MatchKeyword(ctx, lex_state, token);
+    resume_point = 12u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    token = scratch + 8u;
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 13u) {
+    EmitMoveSlot(ctx, compiler, expected, token);
+    resume_point = 13u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) { goto dispatch; }
+raise_expected:
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 14u) {
+    StepRecordResume(ctx, lex_state);
+    resume_point = 14u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Anything that is not the statement terminator is worth reporting.
+    token = static_cast<uint32_t>(LoadU32(ctx, lex_state + 16u) != 285u);
+  }
+  if (token != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      token = LoadU32(ctx, lex_state + 52u);
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 15u) {
+      flag = FormatCharValue(ctx, lex_state, 285u);
+      resume_point = 15u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, scratch, flag);
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 16u) {
+      token = FormatPushString(ctx, token, kCheckMatchMsgExpected, scratch);
+      resume_point = 16u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 17u) {
+      RaiseSyntaxError(ctx, lex_state, token);
+      resume_point = 17u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    token = LoadU32(ctx, lex_state + 24u);
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 18u) {
+    StepRecordResume(ctx, lex_state);
+    resume_point = 18u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    flag = LoadU32(ctx, lex_state + 48u);
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 19u) {
+    token = EncodeConstant(ctx, flag, token);
+    resume_point = 19u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // Fill the record the jump is emitted against: a one-slot list holding the
+    // constant that was just encoded.
+    StoreU64(ctx, scratch + 24u, 0xFFFFFFFFFFFFFFFFull);
+    StoreU32(ctx, scratch + 16u, token);
+    StoreU32(ctx, scratch + 8u, 4u);
+    token = scratch + 8u;
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 20u) {
+    EmitJumpIf(ctx, compiler, expected, token);
+    resume_point = 20u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 21u) {
+    ParseArguments(ctx, lex_state, expected);
+    resume_point = 21u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) { goto dispatch; }
+done:
+  if (ResumePhase(ctx) == kResumeRunning) {
+    GuestStackSp(ctx) = scratch + 32u;
+  }
+  goto exit_path;
+suspend_point:
+  // Suspend: record the resume point, then push the frame with the live state.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kCheckMatchResumeWordBytes);
+  {
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, lex_state);
+    StoreU32(ctx, frame + 4u, expected);
+    StoreU32(ctx, frame + 8u, token);
+    StoreU32(ctx, frame + 12u, flag);
+    StoreU32(ctx, frame + 16u, scratch);
+    StoreU32(ctx, frame + 20u, compiler);
+    StoreU32(ctx, frame + 24u, appended);
+  }
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kCheckMatchSaveFrameBytes);
+exit_path:
   LeaveFrame();
 }
-}
+
+}  // namespace artc

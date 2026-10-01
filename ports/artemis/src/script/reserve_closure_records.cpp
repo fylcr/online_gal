@@ -1,224 +1,99 @@
-// reserve_closure_records.cpp -- reserves the upvalue records a batch of closures needs, raising when the block cannot grow..
-//
-// ReserveClosureRecords -- reserves the upvalue records a batch of closures needs, raising when the block cannot grow.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 819000-819000 (f1739); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of the callees below.
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
 uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t a);
 
 namespace {
 
-constexpr uint32_t kF1739ConstAAAAAAA = 0xAAAAAAAu;  // 
-constexpr uint32_t kF1739SaveFrameBytes = 20u;
-constexpr uint32_t kF1739ResumeWordBytes = 4u;
+constexpr uint32_t kReserveRecordLimit = 0xAAAAAAAu;  // most records the block may hold
+constexpr uint32_t kReserveRecordBytes = 24u;  // bytes per upvalue record
+constexpr uint32_t kReserveSaveFrameBytes = 20u;
+constexpr uint32_t kReserveResumeWordBytes = 4u;
 
 }  // namespace
 
+// Reserves room for `count` more closure upvalue records: the record block is
+// grown when it can still hold them, otherwise the block-too-big error is
+// raised.  The closure table lives in the compiler state -- +20 free pointer,
+// +36 last record, +40 record block, +48 record count.
+//
+// Suspendable: either call can suspend, so every value that outlives a suspend
+// goes into the frame below, and the resume code (0 or 1) names the call that
+// has to be replayed.
 void ReserveClosureRecords(EngineContext* ctx, uint32_t state, uint32_t count) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1739SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    count = i0;
+  uint32_t can_grow = 0u;
+  uint32_t block = 0u;
+  uint32_t old_block = 0u;
+  uint32_t old_span = 0u;
+  uint32_t new_span = 0u;
+  uint32_t resume_point = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 20-byte frame the suspend path saved.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kReserveSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    state = LoadU32(ctx, frame);
+    count = LoadU32(ctx, frame + 4u);
+    new_span = LoadU32(ctx, frame + 8u);
+    old_block = LoadU32(ctx, frame + 12u);
+    old_span = LoadU32(ctx, frame + 16u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1739ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l6 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 4-byte frame that saves the resume code.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kReserveResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 40u);
-    l4 = i0;
-    i0 = count;
-    i1 = 1u;
-    i0 += i1;
-    i1 = kF1739ConstAAAAAAA;
-    i0 = i0 <= i1;
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    old_block = LoadU32(ctx, state + 40u);
+    can_grow = static_cast<uint32_t>(count + 1u <= kReserveRecordLimit);
   }
-  i0 = l3;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = state;
-      i0 = LoadU32(ctx, i0 + 48u);
-      i1 = 24u;
-      i0 *= i1;
-      l5 = i0;
-      i0 = count;
-      i1 = 24u;
-      i0 *= i1;
-      l3 = i0;
+  if (can_grow != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      old_span = LoadU32(ctx, state + 48u) * kReserveRecordBytes;
+      new_span = count * kReserveRecordBytes;
     }
-    i0 = l6;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = state;
-      i1 = l4;
-      i2 = l5;
-      i3 = l3;
-      i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
-      l2 = i0;
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l2;
-      l3 = i0;
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+      block = ReallocateBlock(ctx, state, old_block, old_span, new_span);
+      resume_point = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {goto block_3;}
+    if (ResumePhase(ctx) == kResumeRunning) { goto commit; }
   }
-  i0 = l6;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = state;
-    i0 = RaiseBlockTooBig(ctx, i0);
-    l2 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l2;
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+    block = RaiseBlockTooBig(ctx, state);
+    resume_point = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
   }
-  block_3:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i1 = count;
-    StoreU32(ctx, i0 + 48u, i1);
-    i0 = state;
-    i1 = l3;
-    StoreU32(ctx, i0 + 40u, i1);
-    i0 = state;
-    i1 = l3;
-    i2 = count;
-    i3 = 24u;
-    i2 *= i3;
-    i1 += i2;
-    i2 = 24u;
-    i1 -= i2;
-    StoreU32(ctx, i0 + 36u, i1);
-    i0 = state;
-    i1 = l3;
-    i2 = state;
-    i2 = LoadU32(ctx, i2 + 20u);
-    i3 = l4;
-    i2 -= i3;
-    i3 = 24u;
-    i2 = I32_DIV_S(i2, i3);
-    i3 = 24u;
-    i2 *= i3;
-    i1 += i2;
-    StoreU32(ctx, i0 + 20u, i1);
+commit:
+  // Publish the new block: its base, the record count, the last record, and the
+  // free pointer moved by the same whole-record offset the block moved by.
+  if (ResumePhase(ctx) == kResumeRunning) {
+    uint32_t const free_offset =
+        I32_DIV_S(LoadU32(ctx, state + 20u) - old_block, kReserveRecordBytes) * kReserveRecordBytes;
+    StoreU32(ctx, state + 48u, count);
+    StoreU32(ctx, state + 40u, block);
+    StoreU32(ctx, state + 36u, block + count * kReserveRecordBytes - kReserveRecordBytes);
+    StoreU32(ctx, state + 20u, block + free_offset);
   }
-  goto func_exit;
-  spill_frame:;
-  l2 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1739ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l2 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l2;
-  i1 = count;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l2;
-  i1 = l3;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l2;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l2;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 20u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto exit_path;
+suspend_point:
+  // Suspend: write the resume code, then push the frame with the live state.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kReserveResumeWordBytes);
+  {
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, state);
+    StoreU32(ctx, frame + 4u, count);
+    StoreU32(ctx, frame + 8u, new_span);
+    StoreU32(ctx, frame + 12u, old_block);
+    StoreU32(ctx, frame + 16u, old_span);
+  }
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kReserveSaveFrameBytes);
+exit_path:
   LeaveFrame();
 }
-}
+
+}  // namespace artc

@@ -1,115 +1,57 @@
-// raise_block_too_big.cpp -- raises a block-too-big error: the requested size is formatted and the allocation is refused..
-//
-// RaiseBlockTooBig -- raises a block-too-big error: the requested size is formatted and the allocation is refused.
-//
-// The step is a plain call: the body holds no suspend point, so the
-// frame pair is bookkeeping only. Judgment order is untouched -- the
-// goto graph is the generated driver's own flattening, renamed labels
-// only.
-//
-// src: artemis.wasm2c.c 124567-124567 (f250); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
-void RaiseScriptError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+// The script error this refusal is reported through.
+void RaiseScriptError(EngineContext* ctx, uint32_t state, uint32_t message, uint32_t argument);
 
 namespace {
-
-constexpr uint32_t kF250MsgMemoryAllocationErrorBlock = 0x2AF6Eu;  // memory allocation error: block too big
-constexpr uint32_t kF250ResumeWordBytes = 4u;
-
+// The refusal's record in the data segment.
+constexpr uint32_t kRaiseBlockTooBigMessage = 0x2AF6Eu;  // memory allocation error: block too big
 }  // namespace
 
-uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t a) {
+// Refuses a block allocation that is too big and reports it through the script
+// error route. Answers zero; the step is suspendable, so the state word and the
+// resume point travel through the return frame.
+uint32_t RaiseBlockTooBig(EngineContext* ctx, uint32_t state) {
   EnterFrame();
-  uint32_t l1 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF250ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    a = i0;
+  // Zero means the refusal below never completed, so it is issued again.
+  uint32_t resume_point = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the 4-byte frame holding the state word.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
+    state = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF250ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-  } else {
-    i0 = l1;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume point pushed with that frame.
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    i1 = kF250MsgMemoryAllocationErrorBlock;
-    i2 = 0u;
-    RaiseScriptError(ctx, i0, i1, i2);
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  // A running pass always owes the refusal; a rewinding one owes it only at the
+  // resume point it popped above.
+  uint32_t issue_error = static_cast<uint32_t>(!resume_point);
+  issue_error = ResumePhase(ctx) != kResumeRunning ? issue_error : 1u;
+  if (issue_error) {
+    RaiseScriptError(ctx, state, kRaiseBlockTooBigMessage, 0u);
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      // The refusal reports zero, which is also the resume point saved below.
+      goto spill_point;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = 0u;
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    LeaveFrame();
+    return 0u;
   }
   TrapUnreachable();
-  spill_frame:;
-  l1 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l1;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF250ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 4u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+spill_point:;
+  // Suspend: push the resume point, then the 4-byte frame holding the state word
+  // the rewinding pop restores.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), 0u);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), state);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
   LeaveFrame();
-  return i0;
+  return 0u;
 }
-}
+
+}  // namespace artc

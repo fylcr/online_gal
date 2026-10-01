@@ -1,671 +1,338 @@
-// assign_shared_owner.cpp -- installs a shared owner on a value, walking the tag field the owner must be recorded in..
-//
-// AssignSharedOwner -- installs a shared owner on a value, walking the tag field the owner must be recorded in.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 125260-125260 (f255); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations for the callees this step drives.
 void Panic(EngineContext* ctx, uint32_t a0);
 uint32_t CopyBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 void CreateSharedRecord(EngineContext* ctx, uint32_t state, uint32_t value);
 
 namespace {
 
-constexpr uint32_t kF255MsgPx = 0x91399u;  // px != 0
-constexpr uint32_t kF255MsgBoostBoostSmartPtr = 0x913A1u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
-constexpr uint32_t kF255MsgOperator = 0x913D9u;  // operator->
-constexpr uint32_t kF255ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF255SaveFrameBytes = 24u;
-constexpr uint32_t kF255ResumeWordBytes = 4u;
+// Guest word that holds the pending-call flag.
+constexpr uint32_t kAssignSharedOwnerPendingFlag = 0xD015Cu;
+// Bytes of live state pushed on the return frame when the step suspends.
+constexpr uint32_t kAssignSharedOwnerSaveFrameBytes = 24u;
+// Bytes of resume word pushed above that frame.
+constexpr uint32_t kAssignSharedOwnerResumeWordBytes = 4u;
+// Guest stack bytes the step borrows as its staging block.
+constexpr uint32_t kAssignSharedOwnerScratchBytes = 16u;
+// Assertion text at the failure site: "px != 0".
+constexpr uint32_t kData91399 = 0x91399u;
+// Assertion text at the failure site: ".../boost/smart_ptr/shared_ptr.hpp".
+constexpr uint32_t kData913A1 = 0x913A1u;
+// Assertion text at the failure site: "operator->".
+constexpr uint32_t kData913D9 = 0x913D9u;
 
 }  // namespace
 
+// Gives a value a shared owner: the owner record is linked into the owner's slot
+// chain, and the value itself is copied through a 16-byte staging block borrowed
+// from the guest stack.  A copy longer than one slot hands its tail back to this
+// same step, which moves it through CopyBytes one chunk at a time.
+//
+// Every callee here can suspend, so each call site carries a resume point naming
+// it, and owner, value, shared, field, field_value and scratch are the live words
+// pushed before the step returns; the two rewind gates at the top restore them.
 void AssignSharedOwner(EngineContext* ctx, uint32_t owner, uint32_t value, uint32_t shared) {
   EnterFrame();
-  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF255SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
-    i0 = LoadU32(ctx, i0);
-    owner = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 8u);
-    shared = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l4 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l6 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 4u);
-    value = i0;
+  // field and field_value are the two words of the owner's slot entry; scratch is
+  // the block borrowed from the guest stack, staging holds an intermediate
+  // offset, and resume_point names the call being resumed.
+  uint32_t field = 0u;
+  uint32_t field_value = 0u;
+  uint32_t staging = 0u;
+  uint32_t scratch = 0u;
+  uint32_t resume_point = 0u;
+
+  // Rewind: drop the 24-byte frame, then the resume word above it.
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kAssignSharedOwnerSaveFrameBytes);
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    owner = LoadU32(ctx, frame);
+    shared = LoadU32(ctx, frame + 8u);
+    field = LoadU32(ctx, frame + 12u);
+    field_value = LoadU32(ctx, frame + 16u);
+    scratch = LoadU32(ctx, frame + 20u);
+    value = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF255ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l7 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx),
+             LoadU32(ctx, ReturnFrameSp(ctx)) - kAssignSharedOwnerResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = GuestStackSp(ctx);
-    i1 = 16u;
-    i0 -= i1;
-    l6 = i0;
-    GuestStackSp(ctx) = i0;
-    i0 = l6;
-    i1 = shared;
-    StoreU32(ctx, i0 + 12u, i1);
-    i0 = owner;
-    i0 = LoadU32(ctx, i0 + 36u);
-    l4 = i0;
-    i0 = !(i0);
-    l3 = i0;
+
+  // Borrow the staging block and pick up the owner's slot entry.
+  if (ResumePhase(ctx) == kResumeRunning) {
+    scratch = GuestStackSp(ctx) - kAssignSharedOwnerScratchBytes;
+    GuestStackSp(ctx) = scratch;
+    StoreU32(ctx, scratch + 12u, shared);
+    field_value = LoadU32(ctx, owner + 36u);
+    field = (field_value == 0u);
   }
-  i0 = l3;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = owner;
-      i1 = 36u;
-      i0 += i1;
-      l4 = i0;
-      i0 = owner;
-      i0 = LoadU32(ctx, i0 + 32u);
-      l3 = i0;
-      i0 = owner;
-      i1 = 0u;
-      StoreU32(ctx, i0 + 32u, i1);
-      i0 = owner;
-      i1 = l3;
-      i2 = 1u;
-      i1 <<= (i2 & 31);
-      l3 = i1;
-      StoreU32(ctx, i0 + 36u, i1);
-      i0 = shared;
-      i1 = l3;
-      i0 = i0 > i1;
-      if (i0) {
-        i0 = l4;
-        i1 = shared;
-        StoreU32(ctx, i0, i1);
-        i0 = shared;
-        l3 = i0;
+
+  // Only an owner whose slot entry is empty (or a rewind past this point) has to
+  // build the record and fill it in.
+  if (field != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    // Normalize the slot entry: clear the tag word, keep the others live.
+    if (ResumePhase(ctx) == kResumeRunning) {
+      field_value = owner + 36u;
+      field = LoadU32(ctx, owner + 32u);
+      StoreU32(ctx, owner + 32u, 0u);
+      field = field << 1u;
+      StoreU32(ctx, owner + 36u, field);
+      if (shared > field) {
+        StoreU32(ctx, field_value, shared);
+        field = shared;
       }
-      i0 = l3;
-      i1 = owner;
-      i1 = LoadU32(ctx, i1 + 24u);
-      shared = i1;
-      i0 = i0 < i1;
-      l3 = i0;
-      if (i0) {
-        i0 = l4;
-        i1 = shared;
-        StoreU32(ctx, i0, i1);
+      shared = LoadU32(ctx, owner + 24u);
+      field = (field < shared);
+      if (field != 0u) {
+        StoreU32(ctx, field_value, shared);
       }
     }
-    i0 = l7;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l6;
-      i1 = l4;
-      CreateSharedRecord(ctx, i0, i1);
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+      CreateSharedRecord(ctx, scratch, field_value);
+      resume_point = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF255ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, kAssignSharedOwnerPendingFlag, 0u);
     }
-    i0 = l7;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 1032u;
-      i1 = 16u;
-      i0 = HostFoldLayoutOffset(ctx, i0, i1);
-      l5 = i0;
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l5;
-      shared = i0;
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+      staging = HostFoldLayoutOffset(ctx, 1032u, 16u);
+      resume_point = 1u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+      shared = staging;
     }
-    i0 = ResumePhase(ctx);
-    if (i0) {
-      i0 = shared;
-    } else {
-      i0 = kF255ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      l4 = i0;
-      i0 = kF255ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = l4;
-      i1 = 1u;
-      i0 = i0 == i1;
-      l3 = i0;
-      if (i0) {goto block_9;}
-      i0 = shared;
-      i1 = l6;
-      i1 = LoadU32(ctx, i1);
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = l6;
-      i0 = LoadU32(ctx, i0 + 4u);
-      l4 = i0;
-      i0 = shared;
-      i1 = owner;
-      i2 = 4u;
-      i1 += i2;
-      l3 = i1;
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = shared;
-      i1 = l4;
-      StoreU32(ctx, i0 + 12u, i1);
-      i0 = shared;
-      i1 = owner;
-      i1 = LoadU32(ctx, i1 + 4u);
-      l4 = i1;
-      StoreU32(ctx, i0, i1);
-      i0 = l4;
-      i1 = shared;
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = owner;
-      i1 = shared;
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = owner;
-      i1 = owner;
-      i1 = LoadU32(ctx, i1 + 12u);
-      i2 = 1u;
-      i1 += i2;
-      StoreU32(ctx, i0 + 12u, i1);
-      i0 = owner;
-      i0 = LoadU32(ctx, i0 + 36u);
-      l4 = i0;
-      i0 = l6;
-      i0 = LoadU32(ctx, i0 + 12u);
-    }
-    shared = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = owner;
-    i0 = LoadU32(ctx, i0 + 4u);
-    i0 = LoadU32(ctx, i0 + 8u);
-    l3 = i0;
-    i0 = shared;
-    i1 = l4;
-    i0 = i0 <= i1;
-    if (i0) {goto block_7;}
-    i0 = l3;
-    if (i0) {goto block_8;}
-    i0 = kF255ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-  }
-  i0 = l7;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 857u;
-    i1 = kF255MsgPx;
-    i2 = kF255MsgBoostBoostSmartPtr;
-    i3 = 734u;
-    i4 = kF255MsgOperator;
-    HostFailAssertion(ctx, i0, i1, i2, i3, i4);
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF255ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    owner = i0;
-    i0 = kF255ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = owner;
-    i1 = 1u;
-    i0 = i0 != i1;
-    owner = i0;
-    if (i0) {goto block_5;}
-    goto block_3;
-  }
-  block_9:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = HostRet0(ctx);
-    value = i0;
-    i0 = HostTempRet0(ctx);
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 4u);
-    owner = i0;
-    i0 = !(i0);
-    if (i0) {goto running_exit;}
-    i0 = owner;
-    i1 = owner;
-    i1 = LoadU32(ctx, i1 + 4u);
-    shared = i1;
-    i2 = 1u;
-    i1 -= i2;
-    l3 = i1;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = shared;
-    i1 = 1u;
-    i0 = i0 != i1;
-    if (i0) {goto running_exit;}
-    i0 = owner;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0 + 8u);
-    shared = i0;
-    i0 = kF255ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-  }
-  i0 = l7;
-  i1 = 3u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = shared;
-    i1 = owner;
-    HostReleaseSlotPair(ctx, i0, i1);
-    i0 = 3u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF255ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    shared = i0;
-    i0 = kF255ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = shared;
-    i1 = 1u;
-    i0 = i0 != i1;
-    shared = i0;
-  }
-  i0 = shared;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = owner;
-      i1 = owner;
-      i1 = LoadU32(ctx, i1 + 8u);
-      shared = i1;
-      i2 = 1u;
-      i1 -= i2;
-      l3 = i1;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = shared;
-      i1 = 1u;
-      i0 = i0 != i1;
-      if (i0) {goto running_exit;}
-      i0 = owner;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 12u);
-      shared = i0;
-      i0 = kF255ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-    }
-    i0 = l7;
-    i1 = 4u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = shared;
-      i1 = owner;
-      HostReleaseSlotPair(ctx, i0, i1);
-      i0 = 4u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF255ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      owner = i0;
-      i0 = kF255ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = owner;
-      i1 = 1u;
-      i0 = i0 != i1;
-      owner = i0;
-      if (i0) {goto running_exit;}
+
+    // Fill the record in.  A rewind keeps the pointer it already restored.
+    if (ResumePhase(ctx) == kResumeRunning) {
+      field_value = LoadU32(ctx, kAssignSharedOwnerPendingFlag);
+      StoreU32(ctx, kAssignSharedOwnerPendingFlag, 0u);
+      field = (field_value == 1u);
+      if (field != 0u) {
+        goto read_call_result;
+      }
+      StoreU32(ctx, shared + 8u, LoadU32(ctx, scratch));
+      field_value = LoadU32(ctx, scratch + 4u);
+      StoreU32(ctx, shared + 4u, owner + 4u);
+      StoreU32(ctx, shared + 12u, field_value);
+      field_value = LoadU32(ctx, owner + 4u);
+      StoreU32(ctx, shared, field_value);
+      StoreU32(ctx, field_value + 4u, shared);
+      StoreU32(ctx, owner + 4u, shared);
+      StoreU32(ctx, owner + 12u, LoadU32(ctx, owner + 12u) + 1u);
+      field_value = LoadU32(ctx, owner + 36u);
+      shared = LoadU32(ctx, scratch + 12u);
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {goto block_3;}
-  block_8:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 12u);
-    i1 = l3;
-    i1 = LoadU32(ctx, i1 + 4u);
-    i0 += i1;
-    l3 = i0;
-    i1 = owner;
-    i1 = LoadU32(ctx, i1 + 32u);
-    i0 += i1;
-    i1 = value;
-    i2 = l4;
-    i0 = CopyBytes(ctx, i0, i1, i2);
-    i0 = owner;
-    i1 = 0u;
-    StoreU32(ctx, i0 + 36u, i1);
-    i0 = owner;
-    i1 = l4;
-    i2 = owner;
-    i2 = LoadU32(ctx, i2 + 28u);
-    i1 += i2;
-    StoreU32(ctx, i0 + 28u, i1);
-    i0 = owner;
-    i1 = l4;
-    i2 = owner;
-    i2 = LoadU32(ctx, i2 + 32u);
-    i1 += i2;
-    StoreU32(ctx, i0 + 32u, i1);
-    i0 = l6;
-    i0 = LoadU32(ctx, i0 + 12u);
-    i1 = l4;
-    i0 -= i1;
-    shared = i0;
-    i0 = value;
-    i1 = l4;
-    i0 += i1;
-    value = i0;
-  }
-  i0 = l7;
-  i1 = 5u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = owner;
-    i1 = value;
-    i2 = shared;
-    AssignSharedOwner(ctx, i0, i1, i2);
-    i0 = 5u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {goto block_6;}
-  block_7:;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = l4;
-  i2 = l3;
-  i2 = !(i2);
-  i3 = ResumePhase(ctx);
-  i1 = i3 ? i1 : i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF255ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
+
+  // Dispatch on how much is left and how big a slot is.
+  if (ResumePhase(ctx) == kResumeRunning) {
+    field = LoadU32(ctx, LoadU32(ctx, owner + 4u) + 8u);
+    if (shared <= field_value) {
+      goto copy_remaining;
     }
-    i0 = l7;
-    i1 = 6u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 857u;
-      i1 = kF255MsgPx;
-      i2 = kF255MsgBoostBoostSmartPtr;
-      i3 = 734u;
-      i4 = kF255MsgOperator;
-      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
-      i0 = 6u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
+    if (field != 0u) {
+      goto copy_chunk;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF255ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      owner = i0;
-      i0 = kF255ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = owner;
-      i1 = 1u;
-      i0 = i0 != i1;
-      owner = i0;
-      if (i0) {goto block_5;}
-      goto block_3;
+    StoreU32(ctx, kAssignSharedOwnerPendingFlag, 0u);
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+    HostFailAssertion(ctx, 857u, kData91399, kData913A1, 734u, kData913D9);
+    resume_point = 2u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = owner;
-    i0 = LoadU32(ctx, i0 + 32u);
-    i1 = l3;
-    i1 = LoadU32(ctx, i1 + 12u);
-    i2 = l3;
-    i2 = LoadU32(ctx, i2 + 4u);
-    i1 += i2;
-    i0 += i1;
-    i1 = value;
-    i2 = shared;
-    i0 = CopyBytes(ctx, i0, i1, i2);
-    i0 = owner;
-    i1 = l6;
-    i1 = LoadU32(ctx, i1 + 12u);
-    value = i1;
-    i2 = owner;
-    i2 = LoadU32(ctx, i2 + 28u);
-    i1 += i2;
-    StoreU32(ctx, i0 + 28u, i1);
-    i0 = owner;
-    i1 = owner;
-    i1 = LoadU32(ctx, i1 + 32u);
-    i2 = value;
-    i1 += i2;
-    StoreU32(ctx, i0 + 32u, i1);
-    i0 = owner;
-    i1 = owner;
-    i1 = LoadU32(ctx, i1 + 36u);
-    i2 = value;
-    i1 -= i2;
-    value = i1;
-    StoreU32(ctx, i0 + 36u, i1);
+  if (ResumePhase(ctx) == kResumeRunning) {
+    owner = LoadU32(ctx, kAssignSharedOwnerPendingFlag);
+    StoreU32(ctx, kAssignSharedOwnerPendingFlag, 0u);
+    owner = (owner != 1u);
+    if (owner != 0u) {
+      goto trap_path;
+    }
+    goto rethrow_pending;
   }
-  block_6:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l6;
-    i1 = 16u;
-    i0 += i1;
-    GuestStackSp(ctx) = i0;
-    goto func_exit;
+
+  // The call this step made returned a record pointer; release it or keep going
+  // with the slot it points at.  owner and value carry the result here.
+  read_call_result:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = HostRet0(ctx);
+    HostTempRet0(ctx);
+    owner = LoadU32(ctx, scratch + 4u);
+    if (owner == 0u) {
+      goto release_and_trap;
+    }
+    shared = LoadU32(ctx, owner + 4u);
+    field = shared - 1u;
+    StoreU32(ctx, owner + 4u, field);
+    if (shared != 1u) {
+      goto release_and_trap;
+    }
+    shared = LoadU32(ctx, LoadU32(ctx, owner) + 8u);
+    StoreU32(ctx, kAssignSharedOwnerPendingFlag, 0u);
   }
-  block_5:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+    HostReleaseSlotPair(ctx, shared, owner);
+    resume_point = 3u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    shared = LoadU32(ctx, kAssignSharedOwnerPendingFlag);
+    StoreU32(ctx, kAssignSharedOwnerPendingFlag, 0u);
+    shared = (shared != 1u);
+  }
+
+  // Release the second slot pair the same way.
+  if (shared != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      shared = LoadU32(ctx, owner + 8u);
+      field = shared - 1u;
+      StoreU32(ctx, owner + 8u, field);
+      if (shared != 1u) {
+        goto release_and_trap;
+      }
+      shared = LoadU32(ctx, LoadU32(ctx, owner) + 12u);
+      StoreU32(ctx, kAssignSharedOwnerPendingFlag, 0u);
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
+      HostReleaseSlotPair(ctx, shared, owner);
+      resume_point = 4u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      owner = LoadU32(ctx, kAssignSharedOwnerPendingFlag);
+      StoreU32(ctx, kAssignSharedOwnerPendingFlag, 0u);
+      owner = (owner != 1u);
+      if (owner != 0u) {
+        goto release_and_trap;
+      }
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    goto rethrow_pending;
+  }
+
+  // A full slot: copy one chunk, advance the counters and hand the tail back to
+  // this same step.
+  copy_chunk:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    field = LoadU32(ctx, field + 12u) + LoadU32(ctx, field + 4u) + LoadU32(ctx, owner + 32u);
+    CopyBytes(ctx, field, value, field_value);
+    StoreU32(ctx, owner + 36u, 0u);
+    StoreU32(ctx, owner + 28u, LoadU32(ctx, owner + 28u) + field_value);
+    StoreU32(ctx, owner + 32u, LoadU32(ctx, owner + 32u) + field_value);
+    shared = LoadU32(ctx, scratch + 12u) - field_value;
+    value = value + field_value;
+  }
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
+    AssignSharedOwner(ctx, owner, value, shared);
+    resume_point = 5u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    goto pop_scratch;
+  }
+
+  // Everything left fits in one slot: copy it, then fold the counts back.
+  copy_remaining:;
+  if ((ResumePhase(ctx) == kResumeRunning ? field == 0u : field_value != 0u) ||
+      ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU32(ctx, kAssignSharedOwnerPendingFlag, 0u);
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
+      HostFailAssertion(ctx, 857u, kData91399, kData913A1, 734u, kData913D9);
+      resume_point = 6u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_point;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      owner = LoadU32(ctx, kAssignSharedOwnerPendingFlag);
+      StoreU32(ctx, kAssignSharedOwnerPendingFlag, 0u);
+      owner = (owner != 1u);
+      if (owner != 0u) {
+        goto trap_path;
+      }
+      goto rethrow_pending;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    CopyBytes(ctx,
+              LoadU32(ctx, owner + 32u) + LoadU32(ctx, field + 12u) + LoadU32(ctx, field + 4u),
+              value, shared);
+    value = LoadU32(ctx, scratch + 12u);
+    StoreU32(ctx, owner + 28u, LoadU32(ctx, owner + 28u) + value);
+    StoreU32(ctx, owner + 32u, LoadU32(ctx, owner + 32u) + value);
+    value = LoadU32(ctx, owner + 36u) - value;
+    StoreU32(ctx, owner + 36u, value);
+  }
+
+  // Done: give the staging block back to the guest stack and leave.
+  pop_scratch:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    GuestStackSp(ctx) = scratch + kAssignSharedOwnerScratchBytes;
+    goto done;
+  }
+  trap_path:;
+  if (ResumePhase(ctx) == kResumeRunning) {
     TrapUnreachable();
   }
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = value;
-    HostOsRelease(ctx, i0);
+  release_and_trap:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    HostOsRelease(ctx, value);
     TrapUnreachable();
   }
-  block_3:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = 0u;
-    i0 = FindMatchingCatch(ctx, i0);
-    owner = i0;
-    i0 = HostTempRet0(ctx);
+  rethrow_pending:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    owner = FindMatchingCatch(ctx, 0u);
+    HostTempRet0(ctx);
   }
-  i0 = l7;
-  i1 = 7u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = owner;
-    Panic(ctx, i0);
-    i0 = 7u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 7u) {
+    Panic(ctx, owner);
+    resume_point = 7u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_point;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
+  if (ResumePhase(ctx) == kResumeRunning) {
     TrapUnreachable();
   }
-  goto func_exit;
-  spill_frame:;
-  l5 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l5;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF255ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l5 = i0;
-  i1 = owner;
-  StoreU32(ctx, i0, i1);
-  i0 = l5;
-  i1 = value;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l5;
-  i1 = shared;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l5;
-  i1 = l3;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l5;
-  i1 = l4;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l5;
-  i1 = l6;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 24u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  goto done;
+
+  suspend_point:;
+  // Suspend: push the resume point, then the 24-byte frame with the live state.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kAssignSharedOwnerResumeWordBytes);
+  {
+    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    StoreU32(ctx, frame, owner);
+    StoreU32(ctx, frame + 4u, value);
+    StoreU32(ctx, frame + 8u, shared);
+    StoreU32(ctx, frame + 12u, field);
+    StoreU32(ctx, frame + 16u, field_value);
+    StoreU32(ctx, frame + 20u, scratch);
+  }
+  StoreU32(ctx, ReturnFrameSp(ctx),
+           LoadU32(ctx, ReturnFrameSp(ctx)) + kAssignSharedOwnerSaveFrameBytes);
+  done:;
   LeaveFrame();
 }
-}
+}  // namespace artc

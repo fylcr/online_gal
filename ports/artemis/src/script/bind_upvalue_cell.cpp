@@ -1,219 +1,130 @@
-// bind_upvalue_cell.cpp -- binds a local slot to its upvalue cell and copies the current value across..
-//
-// BindUpvalueCell -- binds a local slot to its upvalue cell and copies the current value across.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 221015-221015 (f548); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Defined elsewhere in the tree.
 uint32_t InternString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 void EnsureTableArrayRoom(EngineContext* ctx, uint32_t a);
 uint32_t GetTableFieldByString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 
 namespace {
 
-constexpr uint32_t kF548SaveFrameBytes = 16u;
-constexpr uint32_t kF548ResumeWordBytes = 4u;
+// Guest-frame bytes spilled while this step is suspended.
+constexpr uint32_t kBindUpvalueCellFrameBytes = 16u;
+// Bytes of the resume word that rides with the spilled frame.
+constexpr uint32_t kBindUpvalueCellResumeWordBytes = 4u;
 
 }  // namespace
 
+// Binds the local slot `local` to its upvalue cell: the first time the slot is
+// closed over the cell is interned, then the current value is copied across and
+// the slot that now holds the shared value is answered.
 uint32_t BindUpvalueCell(EngineContext* ctx, uint32_t state, uint32_t local, uint32_t upvalue) {
   EnterFrame();
-  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF548SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = LoadU32(ctx, i0);
-    state = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 8u);
-    upvalue = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l4 = i0;
-    i0 = l3;
-    i0 = LoadU32(ctx, i0 + 4u);
-    local = i0;
+  uint32_t frame = 0u;
+  uint32_t holder = 0u;
+  uint32_t resume_code = 0u;
+  uint32_t next_resume_code = 0u;
+  uint32_t slot = 0u;
+  uint32_t sp = 0u;
+  uint32_t prev = 0u;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    sp = ReturnFrameSp(ctx);
+    prev = ReturnFrameSp(ctx);
+    prev = LoadU32(ctx, prev);
+    StoreU32(ctx, sp, prev - kBindUpvalueCellFrameBytes);
+    sp = ReturnFrameSp(ctx);
+    frame = LoadU32(ctx, sp);
+    state = LoadU32(ctx, frame);
+    upvalue = LoadU32(ctx, frame + 8u);
+    holder = LoadU32(ctx, frame + 12u);
+    local = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF548ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    sp = ReturnFrameSp(ctx);
+    prev = ReturnFrameSp(ctx);
+    prev = LoadU32(ctx, prev);
+    StoreU32(ctx, sp, prev - kBindUpvalueCellResumeWordBytes);
+    uint32_t word = ReturnFrameSp(ctx);
+    word = LoadU32(ctx, word);
+    resume_code = LoadU32(ctx, word);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 52u);
-    l4 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    holder = LoadU32(ctx, state + 52u);
   }
-  i0 = l5;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l4;
-    i1 = local;
-    i2 = upvalue;
-    i0 = InternString(ctx, i0, i1, i2);
-    l3 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    local = i0;
+  // Each call below re-runs on re-entry only while the resume code it wrote
+  // when it suspended matches the code that was read back.
+  if (ResumePhase(ctx) == kResumeRunning || resume_code == 0u) {
+    slot = InternString(ctx, holder, local, upvalue);
+    next_resume_code = 0u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_frame;
+    }
+    local = slot;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 48u);
-    i0 = LoadU32(ctx, i0 + 4u);
-    state = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    uint32_t record = LoadU32(ctx, state + 48u);
+    state = LoadU32(ctx, record + 4u);
   }
-  i0 = l5;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l4;
-    i1 = state;
-    i2 = local;
-    i0 = GetTableFieldByString(ctx, i0, i1, i2);
-    l3 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l3;
-    state = i0;
+  if (ResumePhase(ctx) == kResumeRunning || resume_code == 1u) {
+    slot = GetTableFieldByString(ctx, holder, state, local);
+    next_resume_code = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_frame;
+    }
+    state = slot;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = state;
-    i0 = LoadU32(ctx, i0 + 8u);
-    upvalue = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    upvalue = LoadU32(ctx, state + 8u);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = upvalue;
-    if (i0) {goto block_8;}
-    i0 = state;
-    i1 = 1u;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = state;
-    i1 = 1u;
-    StoreU32(ctx, i0, i1);
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 16u);
-    state = i0;
-    i0 = LoadU32(ctx, i0 + 68u);
-    upvalue = i0;
-    i0 = upvalue;
-    i1 = state;
-    i1 = LoadU32(ctx, i1 + 64u);
-    i0 = i0 < i1;
-    if (i0) {goto block_8;}
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (upvalue != 0u) {
+      goto binding_done;
+    }
+    StoreU32(ctx, state + 8u, 1u);
+    StoreU32(ctx, state, 1u);
+    state = LoadU32(ctx, holder + 16u);
+    upvalue = LoadU32(ctx, state + 68u);
+    if (upvalue < LoadU32(ctx, state + 64u)) {
+      goto binding_done;
+    }
   }
-  i0 = l5;
-  i1 = 2u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l4;
-    EnsureTableArrayRoom(ctx, i0);
-    i0 = 2u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  if (ResumePhase(ctx) == kResumeRunning || resume_code == 2u) {
+    EnsureTableArrayRoom(ctx, holder);
+    next_resume_code = 2u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_frame;
+    }
   }
-  block_8:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = local;
-    goto func_exit;
+binding_done:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    LeaveFrame();
+    return local;
   }
   TrapUnreachable();
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF548ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = state;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = local;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = upvalue;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l3;
-  i1 = l4;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 16u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+suspend_frame:;
+  // The call suspended: spill the live locals above the return frame and hand
+  // the resume code back to the runner so it can replay this step.
+  uint32_t resume_slot = ReturnFrameSp(ctx);
+  resume_slot = LoadU32(ctx, resume_slot);
+  StoreU32(ctx, resume_slot, next_resume_code);
+  sp = ReturnFrameSp(ctx);
+  prev = ReturnFrameSp(ctx);
+  prev = LoadU32(ctx, prev);
+  prev += kBindUpvalueCellResumeWordBytes;
+  StoreU32(ctx, sp, prev);
+  sp = ReturnFrameSp(ctx);
+  frame = LoadU32(ctx, sp);
+  StoreU32(ctx, frame, state);
+  StoreU32(ctx, frame + 4u, local);
+  StoreU32(ctx, frame + 8u, upvalue);
+  StoreU32(ctx, frame + 12u, holder);
+  sp = ReturnFrameSp(ctx);
+  prev = ReturnFrameSp(ctx);
+  prev = LoadU32(ctx, prev);
+  StoreU32(ctx, sp, prev + kBindUpvalueCellFrameBytes);
   LeaveFrame();
-  return i0;
+  return 0u;
 }
-}
+
+}  // namespace artc

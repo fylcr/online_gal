@@ -1,46 +1,28 @@
-// pack_manager_c.cpp -- the third file and index tag body: the reservedCommands side of the file API..
-//
-// PackManager::FileDispatchC -- the third file and index tag body: the reservedCommands side of the file API.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 1374213-1374213 (f3087); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations for the callees this step calls.
 void Panic(EngineContext* ctx, uint32_t a0);
 void ResizeValueStack(EngineContext* ctx, uint32_t a0, uint32_t a1);
 void SetStackTop(EngineContext* ctx, uint32_t stack, uint32_t index);
 void AppendTableSlot(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
-namespace {
-
-constexpr uint32_t kF3087MsgFile = 0xBAE4Cu;  // file
-constexpr uint32_t kF3087MsgIndex = 0xBB108u;  // index
-constexpr uint32_t kF3087MsgReservedcommands = 0xBB32Eu;  // reservedCommands
-constexpr uint32_t kF3087ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF3087ConstFFFFD8F0 = 0xFFFFD8F0u;  // 
-constexpr uint32_t kF3087ConstFFFFFFC0 = 0xFFFFFFC0u;  // 
-constexpr uint32_t kF3087ConstFFFFFFFE = 0xFFFFFFFEu;  // 
-constexpr uint32_t kF3087ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF3087SaveFrameBytes = 48u;
-constexpr uint32_t kF3087ResumeWordBytes = 4u;
-
-}  // namespace
-
 namespace PackManager {
+// PackManager::FileDispatchC -- the third file and index tag body: the
+// reservedCommands side of the file API.
+
 void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
+  constexpr uint32_t kMsgFile = 0xBAE4Cu;  // file
+  constexpr uint32_t kMsgIndex = 0xBB108u;  // index
+  constexpr uint32_t kMsgReservedcommands = 0xBB32Eu;  // reservedCommands
+  constexpr uint32_t kDataFFFFD8F0 = 0xFFFFD8F0u;
+  constexpr uint32_t kDataFFFFFFC0 = 0xFFFFFFC0u;
+  constexpr uint32_t kDataFFFFFFFE = 0xFFFFFFFEu;
+  constexpr uint32_t kDataFFFFFFFF = 0xFFFFFFFFu;
+  constexpr uint32_t kSaveFrameBytes = 48u;
+  constexpr uint32_t kResumeWordBytes = 4u;
   uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
   double d1 = 0;
@@ -52,7 +34,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kF3087SaveFrameBytes;
+    i2 = kSaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -101,7 +83,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kF3087ResumeWordBytes;
+    i2 = kResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -114,7 +96,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = GuestStackSp(ctx);
     l3 = i0;
-    i1 = kF3087ConstFFFFFFC0;
+    i1 = kDataFFFFFFC0;
     i0 += i1;
     l4 = i0;
     GuestStackSp(ctx) = i0;
@@ -142,21 +124,21 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = !(i0);
   if (i0) {
     i0 = a;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     StoreU32(ctx, i0 + 4u, i1);
     i0 = a;
     i1 = l2;
     StoreU32(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
-    i1 = kF3087ConstFFFFFFFF;
+    i1 = kDataFFFFFFFF;
     SetStackTop(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -169,7 +151,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l3;
     if (i0) {goto block_8;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -182,7 +164,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = 1001u;
     i1 = l2;
-    i2 = kF3087ConstFFFFD8F0;
+    i2 = kDataFFFFD8F0;
     i0 = HostOsQuery(ctx, i0, i1, i2);
     l6 = i0;
     i0 = 1u;
@@ -196,10 +178,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l8 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l8;
@@ -212,16 +194,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     StoreU32(ctx, i0 + 4u, i1);
     i0 = 0u;
     l8 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -238,16 +220,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = HostRet0(ctx);
     a = i0;
     i0 = HostTempRet0(ctx);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -360,7 +342,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = b;
         i0 = LoadU32(ctx, i0 + 16u);
         l3 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -385,29 +367,29 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
         i1 = 1u;
         i0 = i0 == i1;
         if (i0) {goto block_37;}
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
         i1 = l3;
         StoreU32(ctx, i0 + 32u, i1);
         i0 = l3;
-        i1 = kF3087ConstFFFFFFFF;
+        i1 = kDataFFFFFFFF;
         SetStackTop(ctx, i0, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -420,7 +402,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {
         i0 = l5;
         if (i0) {goto block_54;}
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -433,7 +415,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {
         i0 = 1001u;
         i1 = l3;
-        i2 = kF3087ConstFFFFD8F0;
+        i2 = kDataFFFFD8F0;
         i0 = HostOsQuery(ctx, i0, i1, i2);
         l6 = i0;
         i0 = 3u;
@@ -447,10 +429,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l8 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l8;
@@ -458,19 +440,19 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i0 == i1;
         l5 = i0;
         if (i0) {goto block_54;}
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
         i1 = l2;
         StoreU32(ctx, i0 + 36u, i1);
         i0 = l3;
-        i1 = kF3087ConstFFFFFFFE;
+        i1 = kDataFFFFFFFE;
         ResizeValueStack(ctx, i0, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -487,16 +469,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = HostRet0(ctx);
         l2 = i0;
         i0 = HostTempRet0(ctx);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
-        i1 = kF3087ConstFFFFFFFE;
+        i1 = kDataFFFFFFFE;
         ResizeValueStack(ctx, i0, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -513,7 +495,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = b;
       i0 = LoadU32(ctx, i0 + 16u);
       l3 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -538,29 +520,29 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
       i1 = 1u;
       i0 = i0 == i1;
       if (i0) {goto block_19;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = l3;
       StoreU32(ctx, i0 + 32u, i1);
       i0 = l3;
-      i1 = kF3087ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       SetStackTop(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -573,7 +555,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = l5;
       if (i0) {goto block_63;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -586,7 +568,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = 1001u;
       i1 = l3;
-      i2 = kF3087ConstFFFFD8F0;
+      i2 = kDataFFFFD8F0;
       i0 = HostOsQuery(ctx, i0, i1, i2);
       l6 = i0;
       i0 = 5u;
@@ -600,10 +582,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -611,19 +593,19 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l5 = i0;
       if (i0) {goto block_63;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = l2;
       StoreU32(ctx, i0 + 36u, i1);
       i0 = l3;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       ResizeValueStack(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -640,16 +622,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = HostRet0(ctx);
       l2 = i0;
       i0 = HostTempRet0(ctx);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       ResizeValueStack(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -666,7 +648,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = a;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -680,10 +662,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = 4u;
       i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
       l3 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -693,7 +675,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l4;
       i1 = a;
       StoreU32(ctx, i0 + 56u, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -716,10 +698,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i2 = 16u;
       i1 += i2;
       StoreU32(ctx, i0 + 8u, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -727,7 +709,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l3 = i0;
       if (i0) {goto block_18;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -762,10 +744,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -777,16 +759,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0 + 48u);
       l2 = i0;
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
-        i1 = kF3087ConstFFFFFFFE;
+        i1 = kDataFFFFFFFE;
         ResizeValueStack(ctx, i0, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -808,11 +790,11 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l4;
       i0 = LoadU32(ctx, i0 + 36u);
       l3 = i0;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       i0 = i0 == i1;
       l5 = i0;
       if (i0) {goto block_72;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -825,7 +807,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = 1002u;
       i1 = l2;
-      i2 = kF3087ConstFFFFD8F0;
+      i2 = kDataFFFFD8F0;
       i3 = l3;
       HostSyncSlot(ctx, i0, i1, i2, i3);
       i0 = 7u;
@@ -837,10 +819,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -856,7 +838,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = a;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -870,10 +852,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = 4u;
       i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
       l3 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -883,7 +865,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l4;
       i1 = a;
       StoreU32(ctx, i0 + 40u, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -906,10 +888,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i2 = 16u;
       i1 += i2;
       StoreU32(ctx, i0 + 8u, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -922,7 +904,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = LoadU32(ctx, i1 + 32u);
       l2 = i1;
       StoreU32(ctx, i0 + 48u, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -933,10 +915,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = 4u;
       i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
       l3 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -944,7 +926,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l5 = i0;
       if (i0) {goto block_22;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -968,7 +950,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = 969u;
       i1 = l2;
-      i2 = kF3087MsgFile;
+      i2 = kMsgFile;
       HostOsSchedule(ctx, i0, i1, i2);
       i0 = 8u;
       i1 = ResumePhase(ctx);
@@ -979,10 +961,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -990,7 +972,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l3 = i0;
       if (i0) {goto block_22;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l8;
@@ -1025,10 +1007,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1040,16 +1022,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0 + 48u);
       l2 = i0;
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
-        i1 = kF3087ConstFFFFFFFE;
+        i1 = kDataFFFFFFFE;
         ResizeValueStack(ctx, i0, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -1061,16 +1043,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0 + 32u);
       l2 = i0;
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
-        i1 = kF3087ConstFFFFFFFE;
+        i1 = kDataFFFFFFFE;
         ResizeValueStack(ctx, i0, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -1081,7 +1063,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = a;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1095,10 +1077,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = 4u;
       i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
       l3 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -1108,7 +1090,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l4;
       i1 = a;
       StoreU32(ctx, i0 + 40u, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1131,10 +1113,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i2 = 16u;
       i1 += i2;
       StoreU32(ctx, i0 + 8u, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1147,7 +1129,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = LoadU32(ctx, i1 + 32u);
       l2 = i1;
       StoreU32(ctx, i0 + 48u, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1158,10 +1140,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = 4u;
       i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
       l3 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -1169,7 +1151,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l5 = i0;
       if (i0) {goto block_26;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1193,7 +1175,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = 969u;
       i1 = l2;
-      i2 = kF3087MsgIndex;
+      i2 = kMsgIndex;
       HostOsSchedule(ctx, i0, i1, i2);
       i0 = 10u;
       i1 = ResumePhase(ctx);
@@ -1204,10 +1186,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1215,7 +1197,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l3 = i0;
       if (i0) {goto block_26;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l8;
@@ -1250,10 +1232,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1265,16 +1247,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0 + 48u);
       l2 = i0;
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
-        i1 = kF3087ConstFFFFFFFE;
+        i1 = kDataFFFFFFFE;
         ResizeValueStack(ctx, i0, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -1286,16 +1268,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0 + 32u);
       l2 = i0;
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
-        i1 = kF3087ConstFFFFFFFE;
+        i1 = kDataFFFFFFFE;
         ResizeValueStack(ctx, i0, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -1306,7 +1288,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = b;
       i0 = LoadU32(ctx, i0 + 16u);
       l3 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1331,29 +1313,29 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
       i1 = 1u;
       i0 = i0 == i1;
       if (i0) {goto block_33;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = l3;
       StoreU32(ctx, i0 + 8u, i1);
       i0 = l3;
-      i1 = kF3087ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       SetStackTop(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1366,7 +1348,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = l5;
       if (i0) {goto block_92;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1379,7 +1361,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = 1001u;
       i1 = l3;
-      i2 = kF3087ConstFFFFD8F0;
+      i2 = kDataFFFFD8F0;
       i0 = HostOsQuery(ctx, i0, i1, i2);
       l6 = i0;
       i0 = 13u;
@@ -1393,10 +1375,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -1404,19 +1386,19 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l5 = i0;
       if (i0) {goto block_92;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = l2;
       StoreU32(ctx, i0 + 12u, i1);
       i0 = l3;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       ResizeValueStack(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1433,16 +1415,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = HostRet0(ctx);
       l2 = i0;
       i0 = HostTempRet0(ctx);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       ResizeValueStack(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -1459,7 +1441,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = a;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1473,10 +1455,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = 4u;
       i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
       l3 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -1486,7 +1468,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l4;
       i1 = a;
       StoreU32(ctx, i0 + 40u, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1509,10 +1491,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i2 = 16u;
       i1 += i2;
       StoreU32(ctx, i0 + 8u, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1525,7 +1507,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = LoadU32(ctx, i1 + 32u);
       l2 = i1;
       StoreU32(ctx, i0 + 48u, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1536,10 +1518,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = 4u;
       i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
       l3 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -1547,7 +1529,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l5 = i0;
       if (i0) {goto block_31;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1571,7 +1553,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = 969u;
       i1 = l2;
-      i2 = kF3087MsgReservedcommands;
+      i2 = kMsgReservedcommands;
       HostOsSchedule(ctx, i0, i1, i2);
       i0 = 14u;
       i1 = ResumePhase(ctx);
@@ -1582,10 +1564,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1593,7 +1575,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l3 = i0;
       if (i0) {goto block_31;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1628,10 +1610,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1643,16 +1625,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0 + 48u);
       l2 = i0;
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
-        i1 = kF3087ConstFFFFFFFE;
+        i1 = kDataFFFFFFFE;
         ResizeValueStack(ctx, i0, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -1664,16 +1646,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0 + 32u);
       l2 = i0;
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
-        i1 = kF3087ConstFFFFFFFE;
+        i1 = kDataFFFFFFFE;
         ResizeValueStack(ctx, i0, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -1695,11 +1677,11 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l4;
       i0 = LoadU32(ctx, i0 + 12u);
       l3 = i0;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       i0 = i0 == i1;
       l5 = i0;
       if (i0) {goto block_104;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1712,7 +1694,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = 1002u;
       i1 = l2;
-      i2 = kF3087ConstFFFFD8F0;
+      i2 = kDataFFFFD8F0;
       i3 = l3;
       HostSyncSlot(ctx, i0, i1, i2, i3);
       i0 = 16u;
@@ -1724,10 +1706,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1741,7 +1723,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     if (i0) {
       i0 = l8;
-      i1 = kF3087ConstFFFFFFC0;
+      i1 = kDataFFFFFFC0;
       i0 -= i1;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
@@ -1860,7 +1842,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
           l7 = i0;
           goto loop_46;
         }
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -1889,10 +1871,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -1903,7 +1885,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = a;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -1917,10 +1899,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = 4u;
         i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
         l7 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l11 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l11;
@@ -1931,7 +1913,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = l4;
         i1 = a;
         StoreU32(ctx, i0 + 16u, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -1955,10 +1937,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 += i2;
         l7 = i1;
         StoreU32(ctx, i0 + 8u, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -1971,7 +1953,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = LoadU32(ctx, i1 + 8u);
         l2 = i1;
         StoreU32(ctx, i0 + 32u, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -1982,10 +1964,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = 4u;
         i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
         l7 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l11 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l11;
@@ -1993,7 +1975,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i0 == i1;
         l11 = i0;
         if (i0) {goto block_43;}
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -2017,7 +1999,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {
         i0 = 969u;
         i1 = l2;
-        i2 = kF3087MsgReservedcommands;
+        i2 = kMsgReservedcommands;
         HostOsSchedule(ctx, i0, i1, i2);
         i0 = 18u;
         i1 = ResumePhase(ctx);
@@ -2028,10 +2010,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -2044,7 +2026,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = LoadU32(ctx, i1 + 32u);
         l2 = i1;
         StoreU32(ctx, i0 + 48u, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -2055,10 +2037,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = 4u;
         i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
         l7 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l11 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l11;
@@ -2066,7 +2048,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i0 == i1;
         l11 = i0;
         if (i0) {goto block_45;}
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -2095,10 +2077,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 += i2;
         l7 = i1;
         StoreU32(ctx, i0 + 8u, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -2106,7 +2088,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i0 == i1;
         l2 = i0;
         if (i0) {goto block_45;}
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -2141,10 +2123,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -2165,16 +2147,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0 + 48u);
           l2 = i0;
           if (i0) {
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
-            i1 = kF3087ConstFFFFFFFE;
+            i1 = kDataFFFFFFFE;
             ResizeValueStack(ctx, i0, i1);
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -2186,16 +2168,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0 + 32u);
           l2 = i0;
           if (i0) {
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
-            i1 = kF3087ConstFFFFFFFE;
+            i1 = kDataFFFFFFFE;
             ResizeValueStack(ctx, i0, i1);
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -2207,16 +2189,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0 + 8u);
           l2 = i0;
           if (i0) {
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
-            i1 = kF3087ConstFFFFFFFE;
+            i1 = kDataFFFFFFFE;
             ResizeValueStack(ctx, i0, i1);
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -2238,11 +2220,11 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = l4;
           i0 = LoadU32(ctx, i0 + 28u);
           l7 = i0;
-          i1 = kF3087ConstFFFFFFFE;
+          i1 = kDataFFFFFFFE;
           i0 = i0 == i1;
           l11 = i0;
           if (i0) {goto block_127;}
-          i0 = kF3087ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -2255,7 +2237,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = 1002u;
           i1 = l2;
-          i2 = kF3087ConstFFFFD8F0;
+          i2 = kDataFFFFD8F0;
           i3 = l7;
           HostSyncSlot(ctx, i0, i1, i2, i3);
           i0 = 20u;
@@ -2267,10 +2249,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3087ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kF3087ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
@@ -2297,7 +2279,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = LoadU32(ctx, i0 + 4u);
             l3 = i0;
             i0 = l9;
-            i1 = kF3087ResumeWordBytes;
+            i1 = kResumeWordBytes;
             i0 += i1;
             l9 = i0;
           }
@@ -2329,16 +2311,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_44;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -2367,16 +2349,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_42;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -2405,16 +2387,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_40;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -2446,11 +2428,11 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l4;
     i0 = LoadU32(ctx, i0 + 28u);
     l4 = i0;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     i0 = i0 == i1;
     l3 = i0;
     if (i0) {goto block_15;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2463,7 +2445,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = 1002u;
     i1 = b;
-    i2 = kF3087ConstFFFFD8F0;
+    i2 = kDataFFFFD8F0;
     i3 = l4;
     HostSyncSlot(ctx, i0, i1, i2, i3);
     i0 = 21u;
@@ -2475,10 +2457,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -2505,7 +2487,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = a;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -2519,10 +2501,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i1 = 4u;
     i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
     l3 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l8 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l8;
@@ -2532,7 +2514,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l4;
     i1 = a;
     StoreU32(ctx, i0 + 56u, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -2555,10 +2537,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i2 = 16u;
     i1 += i2;
     StoreU32(ctx, i0 + 8u, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -2566,7 +2548,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = i0 == i1;
     l3 = i0;
     if (i0) {goto block_36;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -2601,10 +2583,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -2616,16 +2598,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0 + 48u);
     l2 = i0;
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       ResizeValueStack(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -2647,11 +2629,11 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l4;
     i0 = LoadU32(ctx, i0 + 36u);
     l3 = i0;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     i0 = i0 == i1;
     l5 = i0;
     if (i0) {goto block_147;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2664,7 +2646,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = 1002u;
     i1 = l2;
-    i2 = kF3087ConstFFFFD8F0;
+    i2 = kDataFFFFD8F0;
     i3 = l3;
     HostSyncSlot(ctx, i0, i1, i2, i3);
     i0 = 23u;
@@ -2676,10 +2658,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -2698,7 +2680,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = a;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -2712,10 +2694,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i1 = 4u;
     i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
     l8 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l9 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l9;
@@ -2731,7 +2713,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l4;
     i1 = a;
     StoreU32(ctx, i0 + 40u, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -2754,10 +2736,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i2 = 16u;
     i1 += i2;
     StoreU32(ctx, i0 + 8u, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -2769,7 +2751,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i1 = LoadU32(ctx, i1 + 32u);
     l2 = i1;
     StoreU32(ctx, i0 + 48u, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -2780,17 +2762,17 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i1 = 4u;
     i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
     l8 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l9 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l9;
     i1 = 1u;
     i0 = i0 == i1;
     if (i0) {goto block_154;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -2814,7 +2796,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = 969u;
     i1 = l2;
-    i2 = kF3087MsgFile;
+    i2 = kMsgFile;
     HostOsSchedule(ctx, i0, i1, i2);
     i0 = 24u;
     i1 = ResumePhase(ctx);
@@ -2825,17 +2807,17 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
     i1 = 1u;
     i0 = i0 == i1;
     if (i0) {goto block_154;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -2870,10 +2852,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -2885,16 +2867,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0 + 48u);
     l2 = i0;
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       ResizeValueStack(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -2906,16 +2888,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0 + 32u);
     l2 = i0;
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       ResizeValueStack(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -2929,7 +2911,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = a;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -2943,10 +2925,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i1 = 4u;
     i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
     l8 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l9 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l9;
@@ -2962,7 +2944,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l4;
     i1 = a;
     StoreU32(ctx, i0 + 40u, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -2985,10 +2967,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i2 = 16u;
     i1 += i2;
     StoreU32(ctx, i0 + 8u, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -3000,7 +2982,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i1 = LoadU32(ctx, i1 + 32u);
     l2 = i1;
     StoreU32(ctx, i0 + 48u, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -3011,17 +2993,17 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i1 = 4u;
     i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
     l8 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l9 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l9;
     i1 = 1u;
     i0 = i0 == i1;
     if (i0) {goto block_165;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -3045,7 +3027,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = 969u;
     i1 = l2;
-    i2 = kF3087MsgIndex;
+    i2 = kMsgIndex;
     HostOsSchedule(ctx, i0, i1, i2);
     i0 = 26u;
     i1 = ResumePhase(ctx);
@@ -3056,17 +3038,17 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
     i1 = 1u;
     i0 = i0 == i1;
     if (i0) {goto block_165;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -3101,10 +3083,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -3116,16 +3098,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0 + 48u);
     l2 = i0;
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       ResizeValueStack(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -3137,16 +3119,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0 + 32u);
     l2 = i0;
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       ResizeValueStack(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -3157,7 +3139,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = b;
     i0 = LoadU32(ctx, i0 + 16u);
     l3 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -3182,10 +3164,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -3202,19 +3184,19 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = l3;
       StoreU32(ctx, i0 + 8u, i1);
       i0 = l3;
-      i1 = kF3087ConstFFFFFFFF;
+      i1 = kDataFFFFFFFF;
       SetStackTop(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -3227,7 +3209,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = l5;
       if (i0) {goto block_185;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -3240,7 +3222,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = 1001u;
       i1 = l3;
-      i2 = kF3087ConstFFFFD8F0;
+      i2 = kDataFFFFD8F0;
       i0 = HostOsQuery(ctx, i0, i1, i2);
       l6 = i0;
       i0 = 29u;
@@ -3254,10 +3236,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l8 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l8;
@@ -3265,19 +3247,19 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l5 = i0;
       if (i0) {goto block_185;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = l2;
       StoreU32(ctx, i0 + 12u, i1);
       i0 = l3;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       ResizeValueStack(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -3294,16 +3276,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = HostRet0(ctx);
       l2 = i0;
       i0 = HostTempRet0(ctx);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       ResizeValueStack(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -3320,7 +3302,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = a;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -3334,10 +3316,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = 4u;
       i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
       l3 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l8 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l8;
@@ -3347,7 +3329,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l4;
       i1 = a;
       StoreU32(ctx, i0 + 40u, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -3370,10 +3352,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i2 = 16u;
       i1 += i2;
       StoreU32(ctx, i0 + 8u, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -3386,7 +3368,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = LoadU32(ctx, i1 + 32u);
       l2 = i1;
       StoreU32(ctx, i0 + 48u, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -3397,10 +3379,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = 4u;
       i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
       l3 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l8 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l8;
@@ -3408,7 +3390,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l5 = i0;
       if (i0) {goto block_178;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -3432,7 +3414,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = 969u;
       i1 = l2;
-      i2 = kF3087MsgReservedcommands;
+      i2 = kMsgReservedcommands;
       HostOsSchedule(ctx, i0, i1, i2);
       i0 = 30u;
       i1 = ResumePhase(ctx);
@@ -3443,10 +3425,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -3454,7 +3436,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l3 = i0;
       if (i0) {goto block_178;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -3489,10 +3471,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -3504,16 +3486,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0 + 48u);
       l2 = i0;
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
-        i1 = kF3087ConstFFFFFFFE;
+        i1 = kDataFFFFFFFE;
         ResizeValueStack(ctx, i0, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -3525,16 +3507,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0 + 32u);
       l2 = i0;
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
-        i1 = kF3087ConstFFFFFFFE;
+        i1 = kDataFFFFFFFE;
         ResizeValueStack(ctx, i0, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -3556,11 +3538,11 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l4;
       i0 = LoadU32(ctx, i0 + 12u);
       l3 = i0;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       i0 = i0 == i1;
       l5 = i0;
       if (i0) {goto block_197;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -3573,7 +3555,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = 1002u;
       i1 = l2;
-      i2 = kF3087ConstFFFFD8F0;
+      i2 = kDataFFFFD8F0;
       i3 = l3;
       HostSyncSlot(ctx, i0, i1, i2, i3);
       i0 = 32u;
@@ -3585,10 +3567,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -3689,12 +3671,12 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i0 == i1;
         if (i0) {
           i0 = l4;
-          i1 = kF3087ConstFFFFFFC0;
+          i1 = kDataFFFFFFC0;
           i0 -= i1;
           GuestStackSp(ctx) = i0;
           goto func_exit;
         }
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -3723,10 +3705,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -3736,7 +3718,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = a;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -3750,10 +3732,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = 4u;
         i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
         l7 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -3763,7 +3745,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = l4;
         i1 = a;
         StoreU32(ctx, i0 + 16u, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -3786,10 +3768,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i2 = 16u;
         i1 += i2;
         StoreU32(ctx, i0 + 8u, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -3801,7 +3783,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = LoadU32(ctx, i1 + 8u);
         l2 = i1;
         StoreU32(ctx, i0 + 32u, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -3812,17 +3794,17 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = 4u;
         i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
         l7 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
         i1 = 1u;
         i0 = i0 == i1;
         if (i0) {goto block_207;}
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -3846,7 +3828,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {
         i0 = 969u;
         i1 = l2;
-        i2 = kF3087MsgReservedcommands;
+        i2 = kMsgReservedcommands;
         HostOsSchedule(ctx, i0, i1, i2);
         i0 = 34u;
         i1 = ResumePhase(ctx);
@@ -3857,10 +3839,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -3872,7 +3854,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = LoadU32(ctx, i1 + 32u);
         l2 = i1;
         StoreU32(ctx, i0 + 48u, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -3883,17 +3865,17 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = 4u;
         i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
         l7 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
         i1 = 1u;
         i0 = i0 == i1;
         if (i0) {goto block_209;}
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -3921,17 +3903,17 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i2 = 16u;
         i1 += i2;
         StoreU32(ctx, i0 + 8u, i1);
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
         i1 = 1u;
         i0 = i0 == i1;
         if (i0) {goto block_209;}
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -3966,10 +3948,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kF3087ConstD015C;
+        i0 = kDataD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -3990,16 +3972,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0 + 48u);
           l2 = i0;
           if (i0) {
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
-            i1 = kF3087ConstFFFFFFFE;
+            i1 = kDataFFFFFFFE;
             ResizeValueStack(ctx, i0, i1);
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -4011,16 +3993,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0 + 32u);
           l2 = i0;
           if (i0) {
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
-            i1 = kF3087ConstFFFFFFFE;
+            i1 = kDataFFFFFFFE;
             ResizeValueStack(ctx, i0, i1);
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -4032,16 +4014,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0 + 8u);
           l2 = i0;
           if (i0) {
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
-            i1 = kF3087ConstFFFFFFFE;
+            i1 = kDataFFFFFFFE;
             ResizeValueStack(ctx, i0, i1);
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kF3087ConstD015C;
+            i0 = kDataD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -4063,10 +4045,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = l4;
           i0 = LoadU32(ctx, i0 + 28u);
           l7 = i0;
-          i1 = kF3087ConstFFFFFFFE;
+          i1 = kDataFFFFFFFE;
           i0 = i0 == i1;
           if (i0) {goto block_226;}
-          i0 = kF3087ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -4079,7 +4061,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = 1002u;
           i1 = l2;
-          i2 = kF3087ConstFFFFD8F0;
+          i2 = kDataFFFFD8F0;
           i3 = l7;
           HostSyncSlot(ctx, i0, i1, i2, i3);
           i0 = 36u;
@@ -4091,10 +4073,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kF3087ConstD015C;
+          i0 = kDataD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kF3087ConstD015C;
+          i0 = kDataD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
@@ -4120,7 +4102,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = LoadU32(ctx, i0 + 4u);
             l3 = i0;
             i0 = l9;
-            i1 = kF3087ResumeWordBytes;
+            i1 = kResumeWordBytes;
             i0 += i1;
             l9 = i0;
           }
@@ -4160,16 +4142,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = !(i0);
       l3 = i0;
       if (i0) {goto block_208;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       ResizeValueStack(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -4198,16 +4180,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = !(i0);
       l3 = i0;
       if (i0) {goto block_206;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       ResizeValueStack(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -4236,16 +4218,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = !(i0);
       l3 = i0;
       if (i0) {goto block_204;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       ResizeValueStack(ctx, i0, i1);
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -4277,11 +4259,11 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l4;
       i0 = LoadU32(ctx, i0 + 28u);
       l4 = i0;
-      i1 = kF3087ConstFFFFFFFE;
+      i1 = kDataFFFFFFFE;
       i0 = i0 == i1;
       l3 = i0;
       if (i0) {goto block_15;}
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -4294,7 +4276,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = 1002u;
       i1 = b;
-      i2 = kF3087ConstFFFFD8F0;
+      i2 = kDataFFFFD8F0;
       i3 = l4;
       HostSyncSlot(ctx, i0, i1, i2, i3);
       i0 = 37u;
@@ -4306,10 +4288,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kF3087ConstD015C;
+      i0 = kDataD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -4372,16 +4354,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_176;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -4401,16 +4383,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_175;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -4433,11 +4415,11 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l4;
     i0 = LoadU32(ctx, i0 + 12u);
     l4 = i0;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     i0 = i0 == i1;
     l3 = i0;
     if (i0) {goto block_15;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -4450,7 +4432,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = 1002u;
     i1 = b;
-    i2 = kF3087ConstFFFFD8F0;
+    i2 = kDataFFFFD8F0;
     i3 = l4;
     HostSyncSlot(ctx, i0, i1, i2, i3);
     i0 = 38u;
@@ -4462,10 +4444,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -4508,16 +4490,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_163;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -4537,16 +4519,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_15;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -4589,16 +4571,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_152;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -4618,16 +4600,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_15;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -4670,16 +4652,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_34;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -4702,11 +4684,11 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l4;
     i0 = LoadU32(ctx, i0 + 36u);
     l4 = i0;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     i0 = i0 == i1;
     l3 = i0;
     if (i0) {goto block_15;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -4719,7 +4701,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = 1002u;
     i1 = b;
-    i2 = kF3087ConstFFFFD8F0;
+    i2 = kDataFFFFD8F0;
     i3 = l4;
     HostSyncSlot(ctx, i0, i1, i2, i3);
     i0 = 39u;
@@ -4731,10 +4713,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -4787,16 +4769,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_29;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -4816,16 +4798,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_28;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -4848,11 +4830,11 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l4;
     i0 = LoadU32(ctx, i0 + 12u);
     l4 = i0;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     i0 = i0 == i1;
     l3 = i0;
     if (i0) {goto block_15;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -4865,7 +4847,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = 1002u;
     i1 = b;
-    i2 = kF3087ConstFFFFD8F0;
+    i2 = kDataFFFFD8F0;
     i3 = l4;
     HostSyncSlot(ctx, i0, i1, i2, i3);
     i0 = 40u;
@@ -4877,10 +4859,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -4923,16 +4905,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_24;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -4952,16 +4934,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_15;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -5004,16 +4986,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_20;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -5033,16 +5015,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_15;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -5085,16 +5067,16 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     l3 = i0;
     if (i0) {goto block_16;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     ResizeValueStack(ctx, i0, i1);
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -5117,11 +5099,11 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l4;
     i0 = LoadU32(ctx, i0 + 36u);
     l4 = i0;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     i0 = i0 == i1;
     l3 = i0;
     if (i0) {goto block_15;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -5134,7 +5116,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = 1002u;
     i1 = b;
-    i2 = kF3087ConstFFFFD8F0;
+    i2 = kDataFFFFD8F0;
     i3 = l4;
     HostSyncSlot(ctx, i0, i1, i2, i3);
     i0 = 41u;
@@ -5146,10 +5128,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -5177,10 +5159,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = a;
     i0 = LoadU32(ctx, i0 + 4u);
     a = i0;
-    i1 = kF3087ConstFFFFFFFE;
+    i1 = kDataFFFFFFFE;
     i0 = i0 == i1;
     if (i0) {goto block_288;}
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -5193,7 +5175,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = 1002u;
     i1 = b;
-    i2 = kF3087ConstFFFFD8F0;
+    i2 = kDataFFFFD8F0;
     i3 = a;
     HostSyncSlot(ctx, i0, i1, i2, i3);
     i0 = 42u;
@@ -5205,10 +5187,10 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kF3087ConstD015C;
+    i0 = kDataD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -5265,7 +5247,7 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kF3087ResumeWordBytes;
+  i2 = kResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
@@ -5316,4 +5298,4 @@ void FileDispatchC(EngineContext* ctx, uint32_t a, uint32_t b) {
   LeaveFrame();
 }
 }
-}
+}  // namespace artc

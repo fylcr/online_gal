@@ -1,936 +1,405 @@
-// rebucket_unordered_node_array.cpp -- re-buckets the unordered table's node array: the bucket chain is released and every node is linked again under the new bucket count..
-//
-// RebucketUnorderedNodeArray -- re-buckets the unordered table's node array: the bucket chain is released and every node is linked again under the new bucket count.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 623555-623555 (f1459); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declarations of the callees below.
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);
 void UnlinkListNode(EngineContext* ctx, uint32_t node, uint32_t victim);
 
 namespace {
 
-constexpr uint32_t kF1459SaveFrameBytes = 36u;
-constexpr uint32_t kF1459ResumeWordBytes = 4u;
+constexpr uint32_t kRebucketSaveFrameBytes = 36u;  // live state bytes pushed on suspend
+constexpr uint32_t kRebucketResumeWordBytes = 4u;  // resume word pushed above that frame
 
 }  // namespace
 
+// Rebuilds the bucket trees of an unordered node array: each bucket root is
+// searched for the entry's slot, missing entries are allocated and linked in,
+// and the collision handler is dispatched through the entry's table.
+//
+// Every callee here can suspend, so each call site carries a resume point naming
+// it, and a, node, link_cell, block, flag, new_node, value, target, saved and
+// cursor are the live words pushed before the step returns; the two rewind gates
+// at the top restore them.
 uint32_t RebucketUnorderedNodeArray(EngineContext* ctx, uint32_t a) {
   EnterFrame();
-  uint32_t l1 = 0u; uint32_t l10 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
-  uint64_t j1 = 0;
-      l9 = 0, l10 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1459SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l3 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l4 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l6 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 24u);
-    l7 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 28u);
-    l9 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 32u);
-    l10 = i0;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l1 = i0;
+  uint32_t node = 0u;
+  uint32_t cursor = 0u;
+  uint32_t link_cell = 0u;
+  uint32_t block = 0u;
+  uint32_t flag = 0u;
+  uint32_t new_node = 0u;
+  uint32_t value = 0u;
+  uint32_t target = 0u;
+  uint32_t resume_point = 0u;
+  uint32_t saved = 0u;
+  uint32_t result = 0u;
+  uint32_t frame = 0u;
+  // Rewind: drop the 36-byte frame, then the resume word above it.
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kRebucketSaveFrameBytes);
+    frame = LoadU32(ctx, ReturnFrameSp(ctx));
+    a = LoadU32(ctx, frame);
+    link_cell = LoadU32(ctx, frame + 8u);
+    block = LoadU32(ctx, frame + 12u);
+    flag = LoadU32(ctx, frame + 16u);
+    value = LoadU32(ctx, frame + 20u);
+    target = LoadU32(ctx, frame + 24u);
+    saved = LoadU32(ctx, frame + 28u);
+    cursor = LoadU32(ctx, frame + 32u);
+    node = LoadU32(ctx, frame + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1459ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l8 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kRebucketResumeWordBytes);
+    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i1 = 24u;
-    i0 += i1;
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    l1 = i0;
-    if (i0) {
-      i0 = a;
-      i1 = 24u;
-      i0 += i1;
-      l2 = i0;
-      loop_7: 
-        i0 = l1;
-        i0 = LoadU32(ctx, i0 + 16u);
-        l3 = i0;
-        i1 = 14u;
-        i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-        if (i0) {
-          i0 = l1;
-          i0 = LoadU32(ctx, i0);
-          l3 = i0;
-          if (i0) {goto block_8;}
-          i0 = l1;
-          l2 = i0;
-          goto block_5;
-        }
-        i0 = l3;
-        i1 = 14u;
-        i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-        if (i0) {goto block_5;}
-        i0 = l1;
-        i1 = 4u;
-        i0 += i1;
-        l2 = i0;
-        i0 = l1;
-        i0 = LoadU32(ctx, i0 + 4u);
-        l3 = i0;
-        i0 = !(i0);
-        if (i0) {goto block_5;}
-        i0 = l2;
-        l1 = i0;
-        block_8:;
-        i0 = l1;
-        l2 = i0;
-        i0 = l3;
-        l1 = i0;
-        goto loop_7;
+  // First bucket: walk its tree looking for the entry's slot.
+  if (ResumePhase(ctx) == kResumeRunning) {
+    link_cell = a + 24u;
+    node = LoadU32(ctx, link_cell);
+    if (node != 0u) {
+      link_cell = a + 24u;
+      descend_node:;
+      block = LoadU32(ctx, node + 16u);
+      if (static_cast<int32_t>(block) > 14) {
+        block = LoadU32(ctx, node);
+        if (block != 0u) goto step_child;
+        link_cell = node;
+        goto leaf_slot;
+      }
+      if (static_cast<int32_t>(block) >= 14) goto leaf_slot;
+      link_cell = node + 4u;
+      block = LoadU32(ctx, node + 4u);
+      if (block == 0u) goto leaf_slot;
+      node = link_cell;
+      step_child:;
+      link_cell = node;
+      node = block;
+      goto descend_node;
       TrapUnreachable();
     }
-    i0 = l2;
-    l1 = i0;
-    block_5:;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = !(i0);
-    l6 = i0;
+    node = link_cell;
+    leaf_slot:;
+    block = LoadU32(ctx, link_cell);
+    value = (block == 0u);
   }
-  i0 = l6;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l8;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 24u;
-      i0 = AllocateStringBuffer(ctx, i0);
-      l5 = i0;
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l5;
-      l3 = i0;
+  if (value != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
+      // No slot in this bucket: allocate the entry node and link it in.
+      new_node = AllocateStringBuffer(ctx, 24u);
+      resume_point = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+      block = new_node;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      i1 = 0u;
-      StoreU8(ctx, i0 + 20u, i1);
-      i0 = l3;
-      i1 = 14u;
-      StoreU32(ctx, i0 + 16u, i1);
-      i0 = l3;
-      i1 = l1;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = l3;
-      j1 = 0ull;
-      StoreU64(ctx, i0, j1);
-      i0 = l2;
-      i1 = l3;
-      StoreU32(ctx, i0, i1);
-      i0 = l3;
-      l6 = i0;
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 20u);
-      i0 = LoadU32(ctx, i0);
-      l1 = i0;
-      i0 = !(i0);
-      l4 = i0;
-      i0 = !(i0);
-      if (i0) {
-        i0 = a;
-        i1 = l1;
-        StoreU32(ctx, i0 + 20u, i1);
-        i0 = l2;
-        i0 = LoadU32(ctx, i0);
-        l6 = i0;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU8(ctx, block + 20u, 0u);
+      StoreU32(ctx, block + 16u, 14u);
+      StoreU32(ctx, block + 8u, node);
+      StoreU64(ctx, block, 0ull);
+      StoreU32(ctx, link_cell, block);
+      value = block;
+      node = LoadU32(ctx, LoadU32(ctx, a + 20u));
+      flag = (node == 0u);
+      if (flag == 0u) {
+        StoreU32(ctx, a + 20u, node);
+        value = LoadU32(ctx, link_cell);
       }
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 24u);
-      l2 = i0;
-      i1 = l6;
-      UnlinkListNode(ctx, i0, i1);
-      i0 = a;
-      i1 = a;
-      i1 = LoadU32(ctx, i1 + 28u);
-      i2 = 1u;
-      i1 += i2;
-      l1 = i1;
-      StoreU32(ctx, i0 + 28u, i1);
+      link_cell = LoadU32(ctx, a + 24u);
+      UnlinkListNode(ctx, link_cell, value);
+      node = LoadU32(ctx, a + 28u) + 1u;
+      StoreU32(ctx, a + 28u, node);
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = 0u;
-    l6 = i0;
-    i0 = l3;
-    i0 = LoadU8(ctx, i0 + 20u);
-    i0 = !(i0);
-    l1 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    value = 0u;
+    node = !(LoadU8(ctx, block + 20u));
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l1;
-    if (i0) {goto block_15;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l1 = i0;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0 + 20u);
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (node != 0u) goto value_ready;
+    node = LoadU32(ctx, a + 4u);
+    link_cell = LoadU32(ctx, LoadU32(ctx, node) + 20u);
   }
-  i0 = l8;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l1;
-    i1 = 136u;
-    i2 = l2;
-    i0 = CallTableT3(ctx, i2, i0, i1);
-#if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
+    #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
-#endif
-    l5 = i0;
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l5;
-    l6 = i0;
+    #endif
+    new_node = CallTableT3(ctx, link_cell, node, 136u);
+    resume_point = 1u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    value = new_node;
   }
-  block_15:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    i1 = 36u;
-    i0 += i1;
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    l1 = i0;
-    if (i0) {
-      i0 = a;
-      i1 = 36u;
-      i0 += i1;
-      l2 = i0;
-      loop_22: 
-        i0 = l1;
-        i0 = LoadU32(ctx, i0 + 16u);
-        l3 = i0;
-        i1 = 14u;
-        i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-        if (i0) {
-          i0 = l1;
-          i0 = LoadU32(ctx, i0);
-          l3 = i0;
-          if (i0) {goto block_23;}
-          i0 = l1;
-          l2 = i0;
-          goto block_20;
-        }
-        i0 = l3;
-        i1 = 14u;
-        i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-        if (i0) {goto block_20;}
-        i0 = l1;
-        i1 = 4u;
-        i0 += i1;
-        l2 = i0;
-        i0 = l1;
-        i0 = LoadU32(ctx, i0 + 4u);
-        l3 = i0;
-        i0 = !(i0);
-        if (i0) {goto block_20;}
-        i0 = l2;
-        l1 = i0;
-        block_23:;
-        i0 = l1;
-        l2 = i0;
-        i0 = l3;
-        l1 = i0;
-        goto loop_22;
+  value_ready:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    link_cell = a + 36u;
+    node = LoadU32(ctx, link_cell);
+    if (node != 0u) {
+      link_cell = a + 36u;
+      descend_child:;
+      block = LoadU32(ctx, node + 16u);
+      if (static_cast<int32_t>(block) > 14) {
+        block = LoadU32(ctx, node);
+        if (block != 0u) goto step_down;
+        link_cell = node;
+        goto leaf_linked;
+      }
+      if (static_cast<int32_t>(block) >= 14) goto leaf_linked;
+      link_cell = node + 4u;
+      block = LoadU32(ctx, node + 4u);
+      if (block == 0u) goto leaf_linked;
+      node = link_cell;
+      step_down:;
+      link_cell = node;
+      node = block;
+      goto descend_child;
       TrapUnreachable();
     }
-    i0 = l2;
-    l1 = i0;
-    block_20:;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
-    i0 = !(i0);
-    l4 = i0;
+    node = link_cell;
+    leaf_linked:;
+    block = LoadU32(ctx, link_cell);
+    flag = (block == 0u);
   }
-  i0 = l4;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = l8;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = 24u;
-      i0 = AllocateStringBuffer(ctx, i0);
-      l5 = i0;
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-      i0 = l5;
-      l3 = i0;
+  if (flag != 0u || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
+      new_node = AllocateStringBuffer(ctx, 24u);
+      resume_point = 2u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+      block = new_node;
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l3;
-      i1 = 0u;
-      StoreU8(ctx, i0 + 20u, i1);
-      i0 = l3;
-      i1 = 14u;
-      StoreU32(ctx, i0 + 16u, i1);
-      i0 = l3;
-      i1 = l1;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = l3;
-      j1 = 0ull;
-      StoreU64(ctx, i0, j1);
-      i0 = l2;
-      i1 = l3;
-      StoreU32(ctx, i0, i1);
-      i0 = l3;
-      l4 = i0;
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 32u);
-      i0 = LoadU32(ctx, i0);
-      l1 = i0;
-      i0 = !(i0);
-      l7 = i0;
-      i0 = !(i0);
-      if (i0) {
-        i0 = a;
-        i1 = l1;
-        StoreU32(ctx, i0 + 32u, i1);
-        i0 = l2;
-        i0 = LoadU32(ctx, i0);
-        l4 = i0;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      StoreU8(ctx, block + 20u, 0u);
+      StoreU32(ctx, block + 16u, 14u);
+      StoreU32(ctx, block + 8u, node);
+      StoreU64(ctx, block, 0ull);
+      StoreU32(ctx, link_cell, block);
+      flag = block;
+      node = LoadU32(ctx, LoadU32(ctx, a + 32u));
+      target = (node == 0u);
+      if (target == 0u) {
+        StoreU32(ctx, a + 32u, node);
+        flag = LoadU32(ctx, link_cell);
       }
-      i0 = a;
-      i0 = LoadU32(ctx, i0 + 36u);
-      l2 = i0;
-      i1 = l4;
-      UnlinkListNode(ctx, i0, i1);
-      i0 = a;
-      i1 = a;
-      i1 = LoadU32(ctx, i1 + 40u);
-      i2 = 1u;
-      i1 += i2;
-      l1 = i1;
-      StoreU32(ctx, i0 + 40u, i1);
+      link_cell = LoadU32(ctx, a + 36u);
+      UnlinkListNode(ctx, link_cell, flag);
+      node = LoadU32(ctx, a + 40u) + 1u;
+      StoreU32(ctx, a + 40u, node);
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l3;
-    i0 = LoadU8(ctx, i0 + 20u);
-    i0 = !(i0);
-    l2 = i0;
-    i0 = 0u;
-    l1 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    link_cell = !(LoadU8(ctx, block + 20u));
+    node = 0u;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = l2;
-    if (i0) {goto block_30;}
-    i0 = a;
-    i0 = LoadU32(ctx, i0 + 4u);
-    l1 = i0;
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0 + 20u);
-    l2 = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (link_cell != 0u) goto table_call_done;
+    node = LoadU32(ctx, a + 4u);
+    link_cell = LoadU32(ctx, LoadU32(ctx, node) + 20u);
   }
-  i0 = l8;
-  i1 = 3u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = l1;
-    i1 = 137u;
-    i2 = l2;
-    i0 = CallTableT3(ctx, i2, i0, i1);
-#if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
+  if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
+    #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
-#endif
-    l5 = i0;
-    i0 = 3u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l5;
-    l1 = i0;
+    #endif
+    new_node = CallTableT3(ctx, link_cell, node, 137u);
+    resume_point = 3u;
+    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    node = new_node;
   }
-  block_30:;
-  i0 = a;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  i1 = a;
-  i2 = l9;
-  i3 = l1;
-  i4 = l1;
-  i5 = l6;
-  i4 |= i5;
-  i5 = ResumePhase(ctx);
-  i3 = i5 ? i3 : i4;
-  l1 = i3;
-  i4 = ResumePhase(ctx);
-  i2 = i4 ? i2 : i3;
-  l9 = i2;
-  i3 = ResumePhase(ctx);
-  i4 = 2u;
-  i3 = i3 == i4;
-  i2 |= i3;
-  i0 = i2 ? i0 : i1;
-  a = i0;
-  i0 = l9;
-  i0 = !(i0);
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = a;
-      i1 = 12u;
-      i0 += i1;
-      l6 = i0;
-      i0 = LoadU32(ctx, i0);
-      l1 = i0;
-      if (i0) {
-        i0 = a;
-        i1 = 12u;
-        i0 += i1;
-        l2 = i0;
-        loop_38: 
-          i0 = l1;
-          i0 = LoadU32(ctx, i0 + 16u);
-          l3 = i0;
-          i1 = 14u;
-          i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-          if (i0) {
-            i0 = l1;
-            i0 = LoadU32(ctx, i0);
-            l3 = i0;
-            if (i0) {goto block_39;}
-            i0 = l1;
-            l2 = i0;
-            goto block_36;
-          }
-          i0 = l3;
-          i1 = 14u;
-          i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-          if (i0) {goto block_36;}
-          i0 = l1;
-          i1 = 4u;
-          i0 += i1;
-          l2 = i0;
-          i0 = l1;
-          i0 = LoadU32(ctx, i0 + 4u);
-          l3 = i0;
-          i0 = !(i0);
-          if (i0) {goto block_36;}
-          i0 = l2;
-          l1 = i0;
-          block_39:;
-          i0 = l1;
-          l2 = i0;
-          i0 = l3;
-          l1 = i0;
-          goto loop_38;
+  table_call_done:;
+  // Merge the call outcomes: running takes the rebuilt value, rewinding keeps
+  // the restored one.
+  node = ResumePhase(ctx) ? node : (node | value);
+  saved = ResumePhase(ctx) ? saved : node;
+  a = (saved | (ResumePhase(ctx) == 2u)) ? (ResumePhase(ctx) ? a : 1u) : a;
+  if (!(saved) || ResumePhase(ctx) == kResumeRewinding) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      value = a + 12u;
+      node = LoadU32(ctx, value);
+      if (node != 0u) {
+        link_cell = a + 12u;
+        descend_list:;
+        block = LoadU32(ctx, node + 16u);
+        if (static_cast<int32_t>(block) > 14) {
+          block = LoadU32(ctx, node);
+          if (block != 0u) goto step_list_child;
+          link_cell = node;
+          goto list_slot;
+        }
+        if (static_cast<int32_t>(block) >= 14) goto list_slot;
+        link_cell = node + 4u;
+        block = LoadU32(ctx, node + 4u);
+        if (block == 0u) goto list_slot;
+        node = link_cell;
+        step_list_child:;
+        link_cell = node;
+        node = block;
+        goto descend_list;
         TrapUnreachable();
       }
-      i0 = l6;
-      l1 = i0;
-      l2 = i0;
-      block_36:;
-      i0 = l2;
-      i0 = LoadU32(ctx, i0);
-      l3 = i0;
-      i0 = !(i0);
-      l4 = i0;
+      node = value;
+      link_cell = node;
+      list_slot:;
+      block = LoadU32(ctx, link_cell);
+      flag = (block == 0u);
     }
-    i0 = l4;
-    i1 = ResumePhase(ctx);
-    i2 = 2u;
-    i1 = i1 == i2;
-    i0 |= i1;
-    if (i0) {
-      i0 = l8;
-      i1 = 4u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = 32u;
-        i0 = AllocateStringBuffer(ctx, i0);
-        l5 = i0;
-        i0 = 4u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-        i0 = l5;
-        l3 = i0;
+    if (flag != 0u || ResumePhase(ctx) == kResumeRewinding) {
+      if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
+        new_node = AllocateStringBuffer(ctx, 32u);
+        resume_point = 4u;
+        if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+        block = new_node;
       }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = l3;
-        j1 = 0ull;
-        StoreU64(ctx, i0 + 24u, j1);
-        i0 = l3;
-        i1 = 14u;
-        StoreU32(ctx, i0 + 16u, i1);
-        i0 = l3;
-        i1 = l1;
-        StoreU32(ctx, i0 + 8u, i1);
-        i0 = l3;
-        j1 = 0ull;
-        StoreU64(ctx, i0, j1);
-        i0 = l3;
-        i1 = l3;
-        i2 = 24u;
-        i1 += i2;
-        StoreU32(ctx, i0 + 20u, i1);
-        i0 = l2;
-        i1 = l3;
-        StoreU32(ctx, i0, i1);
-        i0 = l3;
-        l4 = i0;
-        i0 = a;
-        i0 = LoadU32(ctx, i0 + 8u);
-        i0 = LoadU32(ctx, i0);
-        l1 = i0;
-        i0 = !(i0);
-        l7 = i0;
-        i0 = !(i0);
-        if (i0) {
-          i0 = a;
-          i1 = l1;
-          StoreU32(ctx, i0 + 8u, i1);
-          i0 = l2;
-          i0 = LoadU32(ctx, i0);
-          l4 = i0;
+      if (ResumePhase(ctx) == kResumeRunning) {
+        StoreU64(ctx, block + 24u, 0ull);
+        StoreU32(ctx, block + 16u, 14u);
+        StoreU32(ctx, block + 8u, node);
+        StoreU64(ctx, block, 0ull);
+        StoreU32(ctx, block + 20u, block + 24u);
+        StoreU32(ctx, link_cell, block);
+        flag = block;
+        node = LoadU32(ctx, LoadU32(ctx, a + 8u));
+        target = (node == 0u);
+        if (target == 0u) {
+          StoreU32(ctx, a + 8u, node);
+          flag = LoadU32(ctx, link_cell);
         }
-        i0 = a;
-        i0 = LoadU32(ctx, i0 + 12u);
-        l2 = i0;
-        i1 = l4;
-        UnlinkListNode(ctx, i0, i1);
-        i0 = a;
-        i1 = a;
-        i1 = LoadU32(ctx, i1 + 16u);
-        i2 = 1u;
-        i1 += i2;
-        l1 = i1;
-        StoreU32(ctx, i0 + 16u, i1);
+        link_cell = LoadU32(ctx, a + 12u);
+        UnlinkListNode(ctx, link_cell, flag);
+        node = LoadU32(ctx, a + 16u) + 1u;
+        StoreU32(ctx, a + 16u, node);
       }
     }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = a;
-      i1 = 12u;
-      i0 += i1;
-      l10 = i0;
-      i0 = l3;
-      i0 = LoadU32(ctx, i0 + 20u);
-      l3 = i0;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      cursor = a + 12u;
+      block = LoadU32(ctx, block + 20u);
     }
-    loop_46: 
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = l10;
-        l2 = i0;
-        i0 = l6;
-        i0 = LoadU32(ctx, i0);
-        l1 = i0;
-        i0 = !(i0);
-        if (i0) {
-          i0 = l6;
-          l1 = i0;
-          l2 = i0;
-          goto block_49;
+    // Rewalk the chain after the handler changed the bucket.
+    rescan_chain:;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      link_cell = cursor;
+      node = LoadU32(ctx, value);
+      if (node == 0u) {
+        node = value;
+        link_cell = node;
+        goto chain_tail;
+      }
+      walk_chain:;
+      flag = LoadU32(ctx, node + 16u);
+      if (static_cast<int32_t>(flag) > 14) {
+        flag = LoadU32(ctx, node);
+        if (flag != 0u) goto step_chain_child;
+        link_cell = node;
+        goto chain_tail;
+      }
+      if (static_cast<int32_t>(flag) >= 14) goto chain_tail;
+      link_cell = node + 4u;
+      flag = LoadU32(ctx, node + 4u);
+      if (flag == 0u) goto chain_tail;
+      node = link_cell;
+      step_chain_child:;
+      link_cell = node;
+      node = flag;
+      goto walk_chain;
+      TrapUnreachable();
+      chain_tail:;
+      flag = LoadU32(ctx, link_cell);
+      target = (flag == 0u);
+    }
+    if (target != 0u || ResumePhase(ctx) == kResumeRewinding) {
+      if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
+        new_node = AllocateStringBuffer(ctx, 32u);
+        resume_point = 5u;
+        if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+        flag = new_node;
+      }
+      if (ResumePhase(ctx) == kResumeRunning) {
+        StoreU64(ctx, flag + 24u, 0ull);
+        StoreU32(ctx, flag + 16u, 14u);
+        StoreU32(ctx, flag + 8u, node);
+        StoreU64(ctx, flag, 0ull);
+        StoreU32(ctx, flag + 20u, flag + 24u);
+        StoreU32(ctx, link_cell, flag);
+        target = flag;
+        node = LoadU32(ctx, LoadU32(ctx, a + 8u));
+        if (node != 0u) {
+          StoreU32(ctx, a + 8u, node);
+          target = LoadU32(ctx, link_cell);
         }
-        loop_51: 
-          i0 = l1;
-          i0 = LoadU32(ctx, i0 + 16u);
-          l4 = i0;
-          i1 = 14u;
-          i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-          if (i0) {
-            i0 = l1;
-            i0 = LoadU32(ctx, i0);
-            l4 = i0;
-            if (i0) {goto block_52;}
-            i0 = l1;
-            l2 = i0;
-            goto block_49;
-          }
-          i0 = l4;
-          i1 = 14u;
-          i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
-          if (i0) {goto block_49;}
-          i0 = l1;
-          i1 = 4u;
-          i0 += i1;
-          l2 = i0;
-          i0 = l1;
-          i0 = LoadU32(ctx, i0 + 4u);
-          l4 = i0;
-          i0 = !(i0);
-          if (i0) {goto block_49;}
-          i0 = l2;
-          l1 = i0;
-          block_52:;
-          i0 = l1;
-          l2 = i0;
-          i0 = l4;
-          l1 = i0;
-          goto loop_51;
-        TrapUnreachable();
-        block_49:;
-        i0 = l2;
-        i0 = LoadU32(ctx, i0);
-        l4 = i0;
-        i0 = !(i0);
-        l7 = i0;
+        link_cell = LoadU32(ctx, a + 12u);
+        UnlinkListNode(ctx, link_cell, target);
+        node = LoadU32(ctx, a + 16u) + 1u;
+        StoreU32(ctx, a + 16u, node);
       }
-      i0 = l7;
-      i1 = ResumePhase(ctx);
-      i2 = 2u;
-      i1 = i1 == i2;
-      i0 |= i1;
-      if (i0) {
-        i0 = l8;
-        i1 = 5u;
-        i0 = i0 == i1;
-        i1 = 1u;
-        i2 = ResumePhase(ctx);
-        i0 = i2 ? i0 : i1;
-        if (i0) {
-          i0 = 32u;
-          i0 = AllocateStringBuffer(ctx, i0);
-          l5 = i0;
-          i0 = 5u;
-          i1 = ResumePhase(ctx);
-          i2 = 1u;
-          i1 = i1 == i2;
-          if (i1) {goto spill_frame;}
-          i0 = l5;
-          l4 = i0;
-        }
-        i0 = ResumePhase(ctx);
-        i0 = !(i0);
-        if (i0) {
-          i0 = l4;
-          j1 = 0ull;
-          StoreU64(ctx, i0 + 24u, j1);
-          i0 = l4;
-          i1 = 14u;
-          StoreU32(ctx, i0 + 16u, i1);
-          i0 = l4;
-          i1 = l1;
-          StoreU32(ctx, i0 + 8u, i1);
-          i0 = l4;
-          j1 = 0ull;
-          StoreU64(ctx, i0, j1);
-          i0 = l4;
-          i1 = l4;
-          i2 = 24u;
-          i1 += i2;
-          StoreU32(ctx, i0 + 20u, i1);
-          i0 = l2;
-          i1 = l4;
-          StoreU32(ctx, i0, i1);
-          i0 = l4;
-          l7 = i0;
-          i0 = a;
-          i0 = LoadU32(ctx, i0 + 8u);
-          i0 = LoadU32(ctx, i0);
-          l1 = i0;
-          if (i0) {
-            i0 = a;
-            i1 = l1;
-            StoreU32(ctx, i0 + 8u, i1);
-            i0 = l2;
-            i0 = LoadU32(ctx, i0);
-            l7 = i0;
-          }
-          i0 = a;
-          i0 = LoadU32(ctx, i0 + 12u);
-          l2 = i0;
-          i1 = l7;
-          UnlinkListNode(ctx, i0, i1);
-          i0 = a;
-          i1 = a;
-          i1 = LoadU32(ctx, i1 + 16u);
-          i2 = 1u;
-          i1 += i2;
-          l1 = i1;
-          StoreU32(ctx, i0 + 16u, i1);
-        }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      node = flag + 24u;
+      link_cell = (block == node);
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      if (link_cell != 0u) goto rescan_done;
+      link_cell = LoadU32(ctx, a + 4u);
+      target = LoadU32(ctx, LoadU32(ctx, link_cell) + 20u);
+      flag = LoadU32(ctx, block + 16u);
+    }
+    if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
+      #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
+      SyncMemoryBase(ctx);
+      #endif
+      new_node = CallTableT3(ctx, target, link_cell, flag);
+      resume_point = 6u;
+      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+      link_cell = new_node;
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      if (link_cell != 0u) goto rescan_done;
+      node = LoadU32(ctx, block + 4u);
+      link_cell = (node == 0u);
+      if (link_cell != 0u) {
+        link_cell = block + 8u;
+        node = block;
+        block = LoadU32(ctx, node + 8u);
+        flag = LoadU32(ctx, block);
+        node = (node == flag);
+        if (node != 0u) goto rescan_chain;
+        walk_parents:;
+        node = LoadU32(ctx, link_cell);
+        link_cell = node + 8u;
+        block = LoadU32(ctx, node + 8u);
+        flag = LoadU32(ctx, block);
+        node = (flag != node);
+        if (node != 0u) goto walk_parents;
+        goto rescan_chain;
       }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = l3;
-        i1 = l4;
-        i2 = 24u;
-        i1 += i2;
-        l1 = i1;
-        i0 = i0 == i1;
-        l2 = i0;
-      }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = l2;
-        if (i0) {goto block_59;}
-        i0 = a;
-        i0 = LoadU32(ctx, i0 + 4u);
-        l2 = i0;
-        i0 = LoadU32(ctx, i0);
-        i0 = LoadU32(ctx, i0 + 20u);
-        l7 = i0;
-        i0 = l3;
-        i0 = LoadU32(ctx, i0 + 16u);
-        l4 = i0;
-      }
-      i0 = l8;
-      i1 = 6u;
-      i0 = i0 == i1;
-      i1 = 1u;
-      i2 = ResumePhase(ctx);
-      i0 = i2 ? i0 : i1;
-      if (i0) {
-        i0 = l2;
-        i1 = l4;
-        i2 = l7;
-        i0 = CallTableT3(ctx, i2, i0, i1);
-#if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
-        SyncMemoryBase(ctx);
-#endif
-        l5 = i0;
-        i0 = 6u;
-        i1 = ResumePhase(ctx);
-        i2 = 1u;
-        i1 = i1 == i2;
-        if (i1) {goto spill_frame;}
-        i0 = l5;
-        l2 = i0;
-      }
-      i0 = ResumePhase(ctx);
-      i0 = !(i0);
-      if (i0) {
-        i0 = l2;
-        if (i0) {goto block_59;}
-        i0 = l3;
-        i0 = LoadU32(ctx, i0 + 4u);
-        l1 = i0;
-        i0 = !(i0);
-        l2 = i0;
-        if (i0) {
-          i0 = l3;
-          i1 = 8u;
-          i0 += i1;
-          l2 = i0;
-          i0 = l3;
-          l1 = i0;
-          i0 = LoadU32(ctx, i0 + 8u);
-          l3 = i0;
-          i0 = LoadU32(ctx, i0);
-          l4 = i0;
-          i0 = l1;
-          i1 = l4;
-          i0 = i0 == i1;
-          l1 = i0;
-          if (i0) {goto loop_46;}
-          loop_64: 
-            i0 = l2;
-            i0 = LoadU32(ctx, i0);
-            l1 = i0;
-            i1 = 8u;
-            i0 += i1;
-            l2 = i0;
-            i0 = l1;
-            i0 = LoadU32(ctx, i0 + 8u);
-            l3 = i0;
-            i0 = LoadU32(ctx, i0);
-            l4 = i0;
-            i1 = l1;
-            i0 = i0 != i1;
-            l1 = i0;
-            if (i0) {goto loop_64;}
-          goto loop_46;
-        }
-        loop_65: 
-          i0 = l1;
-          l3 = i0;
-          i0 = l1;
-          i0 = LoadU32(ctx, i0);
-          l1 = i0;
-          if (i0) {goto loop_65;}
-        goto loop_46;
-      }
-      block_59:;
-    i0 = a;
-    i1 = l1;
-    i2 = l3;
-    i1 = i1 != i2;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    a = i0;
+      walk_leftmost:;
+      block = node;
+      node = LoadU32(ctx, node);
+      if (node != 0u) goto walk_leftmost;
+      goto rescan_chain;
+    }
+    rescan_done:;
+    a = ResumePhase(ctx) ? a : (node != block);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = a;
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    result = a;
+    goto exit_path;
   }
   TrapUnreachable();
-  spill_frame:;
-  l5 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l5;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1459ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l5 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l5;
-  i1 = l1;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l5;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l5;
-  i1 = l3;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l5;
-  i1 = l4;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l5;
-  i1 = l6;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l5;
-  i1 = l7;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = l5;
-  i1 = l9;
-  StoreU32(ctx, i0 + 28u, i1);
-  i0 = l5;
-  i1 = l10;
-  StoreU32(ctx, i0 + 32u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 36u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = 0u;
-  func_exit:;
+  suspend_point:;
+  // Suspend: push the resume point, then the 36-byte frame with the live state.
+  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kRebucketResumeWordBytes);
+  frame = LoadU32(ctx, ReturnFrameSp(ctx));
+  StoreU32(ctx, frame, a);
+  StoreU32(ctx, frame + 4u, node);
+  StoreU32(ctx, frame + 8u, link_cell);
+  StoreU32(ctx, frame + 12u, block);
+  StoreU32(ctx, frame + 16u, flag);
+  StoreU32(ctx, frame + 20u, value);
+  StoreU32(ctx, frame + 24u, target);
+  StoreU32(ctx, frame + 28u, saved);
+  StoreU32(ctx, frame + 32u, cursor);
+  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kRebucketSaveFrameBytes);
+  result = 0u;
+  exit_path:;
   LeaveFrame();
-  return i0;
+  return result;
 }
-}
+
+}  // namespace artc

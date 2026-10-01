@@ -1,375 +1,305 @@
-// emplace_hashed_entry.cpp -- hash table emplace: looks the hash up in the bucket chain and either reports the existing node through the out parameter or links a freshly allocated one..
-//
-// EmplaceHashedEntry -- hash table emplace: looks the hash up in the bucket chain and either reports the existing node through the out parameter or links a freshly allocated one.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 620298-620298 (f1456); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);
 
 namespace {
-
-constexpr uint32_t kF1456MsgBuckets = 0xB5B6Cu;  // buckets_
-constexpr uint32_t kF1456MsgBoostBoostUnorderedDetail = 0xB5B75u;  // ../../../../boost_1_66_0/boost/unordered/detail/implementation.hpp
-constexpr uint32_t kF1456MsgGetBucket = 0xB5BB8u;  // get_bucket
-constexpr uint32_t kF1456ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF1456Const7FFFFFFF = 0x7FFFFFFFu;  // 
-constexpr uint32_t kF1456SaveFrameBytes = 24u;
-constexpr uint32_t kF1456ResumeWordBytes = 4u;
-
+// The buckets_ member named by an assert.
+constexpr uint32_t kEmplaceHashedEntryBucketsText = 0xB5B6Cu;
+// The boost/unordered header path named by an assert.
+constexpr uint32_t kEmplaceHashedEntryHeaderPathText = 0xB5B75u;
+// The get_bucket member named by an assert.
+constexpr uint32_t kEmplaceHashedEntryGetBucketText = 0xB5BB8u;
+// The word a pending result is published in.
+constexpr uint32_t kEmplaceHashedEntryStatusAddr = 0xD015Cu;
+// The low bits a node's stored index keeps.
+constexpr uint32_t kEmplaceHashedEntryIndexMask = 0x7FFFFFFFu;
+constexpr uint32_t kEmplaceHashedEntrySaveFrameBytes = 24u;
+constexpr uint32_t kEmplaceHashedEntryResumeWordBytes = 4u;
 }  // namespace
 
+// Looks a hash up in the bucket chain of a hash table and either reports the
+// node that already holds it through the out parameter or links a freshly
+// allocated node in, counting the element as inserted.
 void EmplaceHashedEntry(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
   EnterFrame();
-  uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
-  uint64_t j1 = 0;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1456SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 8u);
-    c = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 12u);
-    d = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l5 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 20u);
-    l7 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
+  uint32_t top = 0u;
+  uint32_t arg = 0u;
+  uint32_t third = 0u;
+  uint32_t fourth = 0u;
+  // The frame base, an index, a node pointer, and a staged await code.
+  uint32_t hold = 0u;
+  // The hash value, and a slot address.
+  uint32_t hash = 0u;
+  // The bucket index of the hash.
+  uint32_t index = 0u;
+  // The table's element count.
+  uint32_t count = 0u;
+  // The await code a suspend was resumed with.
+  uint32_t await_code = 0u;
+  uint64_t zero = 0;
+
+  if (ResumePhase(ctx) == 2u) {
+    top = ReturnFrameSp(ctx);
+    arg = ReturnFrameSp(ctx);
+    arg = LoadU32(ctx, arg);
+    arg = arg - kEmplaceHashedEntrySaveFrameBytes;
+    StoreU32(ctx, top, arg);
+    top = ReturnFrameSp(ctx);
+    top = LoadU32(ctx, top);
+    hold = top;
+    a = LoadU32(ctx, hold);
+    c = LoadU32(ctx, hold + 8u);
+    d = LoadU32(ctx, hold + 12u);
+    hash = LoadU32(ctx, hold + 16u);
+    count = LoadU32(ctx, hold + 20u);
+    b = LoadU32(ctx, hold + 4u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF1456ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l8 = i0;
+  if (ResumePhase(ctx) == 2u) {
+    top = ReturnFrameSp(ctx);
+    arg = ReturnFrameSp(ctx);
+    arg = LoadU32(ctx, arg);
+    arg = arg - kEmplaceHashedEntryResumeWordBytes;
+    StoreU32(ctx, top, arg);
+    top = ReturnFrameSp(ctx);
+    top = LoadU32(ctx, top);
+    await_code = LoadU32(ctx, top);
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = c;
-    i0 = LoadU32(ctx, i0);
-    l5 = i0;
-    i1 = b;
-    i1 = LoadU32(ctx, i1 + 4u);
-    i0 = REM_U(i0, i1);
-    l6 = i0;
-    i0 = b;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l7 = i0;
-    i0 = !(i0);
-    c = i0;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    // The bucket of the hash, and whether the table is still empty.
+    hash = LoadU32(ctx, c);
+    arg = LoadU32(ctx, b + 4u);
+    index = REM_U(hash, arg);
+    count = LoadU32(ctx, b + 8u);
+    c = count == 0u;
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = c;
-    if (i0) {goto block_6;}
-    i0 = b;
-    i0 = LoadU32(ctx, i0 + 20u);
-    c = i0;
-    if (i0) {
-      i0 = l6;
-      i1 = 2u;
-      i0 <<= (i1 & 31);
-      i1 = c;
-      i0 += i1;
-      i0 = LoadU32(ctx, i0);
-      c = i0;
-      i0 = !(i0);
-      if (i0) {goto block_6;}
-      i0 = c;
-      i0 = LoadU32(ctx, i0);
-      c = i0;
-      i0 = !(i0);
-      if (i0) {goto block_6;}
-      i0 = l5;
-      i1 = c;
-      i1 = LoadU32(ctx, i1 + 8u);
-      i0 = i0 != i1;
-      if (i0) {
-        i0 = c;
-        i0 = LoadU32(ctx, i0 + 4u);
-        l4 = i0;
-        loop_9: 
-          i0 = l6;
-          i1 = l4;
-          i2 = kF1456Const7FFFFFFF;
-          i1 &= i2;
-          i0 = i0 != i1;
-          if (i0) {goto block_6;}
-          loop_10: 
-            i0 = c;
-            i0 = LoadU32(ctx, i0);
-            c = i0;
-            i0 = !(i0);
-            if (i0) {goto block_6;}
-            i0 = c;
-            i0 = LoadU32(ctx, i0 + 4u);
-            l4 = i0;
-            i1 = 0u;
-            i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
-            if (i0) {goto loop_10;}
-          i0 = c;
-          i0 = LoadU32(ctx, i0 + 8u);
-          i1 = l5;
-          i0 = i0 != i1;
-          if (i0) {goto loop_9;}
-      }
-      i0 = a;
-      i1 = c;
-      StoreU32(ctx, i0, i1);
-      i0 = a;
-      i1 = 0u;
-      StoreU8(ctx, i0 + 4u, i1);
-      goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    if (c != 0u) {
+      goto lookup_done;
     }
-    goto running_exit;
-    block_6:;
-  }
-  i0 = l8;
-  i0 = !(i0);
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 12u;
-    i0 = AllocateStringBuffer(ctx, i0);
-    l4 = i0;
-    i0 = 0u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-    i0 = l4;
-    c = i0;
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = c;
-    j1 = 0ull;
-    StoreU64(ctx, i0, j1);
-    i0 = c;
-    i1 = d;
-    i1 = LoadU32(ctx, i1);
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = kF1456ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = l7;
-    i1 = 1u;
-    i0 += i1;
-    d = i0;
-  }
-  i0 = l8;
-  i1 = 1u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = 2750u;
-    i1 = b;
-    i2 = d;
-    HostOsSchedule(ctx, i0, i1, i2);
-    i0 = 1u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
-  }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF1456ConstD015C;
-    i0 = LoadU32(ctx, i0);
-    d = i0;
-    i0 = kF1456ConstD015C;
-    i1 = 0u;
-    StoreU32(ctx, i0, i1);
-    i0 = d;
-    i1 = 1u;
-    i0 = i0 != i1;
-    if (i0) {
-      i0 = l5;
-      i1 = b;
-      i1 = LoadU32(ctx, i1 + 4u);
-      l6 = i1;
-      i0 = REM_U(i0, i1);
-      l4 = i0;
-      i0 = b;
-      i0 = LoadU32(ctx, i0 + 20u);
-      d = i0;
-      i0 = !(i0);
-      if (i0) {goto block_15;}
-      i0 = c;
-      i1 = l4;
-      i2 = kF1456Const7FFFFFFF;
-      i1 &= i2;
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = l4;
-      i1 = 2u;
-      i0 <<= (i1 & 31);
-      i1 = d;
-      i0 += i1;
-      l5 = i0;
-      i0 = LoadU32(ctx, i0);
-      l4 = i0;
-      if (i0) {goto block_17;}
-      i0 = l6;
-      i1 = 2u;
-      i0 <<= (i1 & 31);
-      i1 = d;
-      i0 += i1;
-      l4 = i0;
-      i0 = LoadU32(ctx, i0);
-      l6 = i0;
-      if (i0) {
-        i0 = l6;
-        i0 = LoadU32(ctx, i0 + 4u);
-        i1 = 2u;
-        i0 <<= (i1 & 31);
-        i1 = d;
-        i0 += i1;
-        i1 = c;
-        StoreU32(ctx, i0, i1);
+    c = LoadU32(ctx, b + 20u);
+    if (c != 0u) {
+      // Walk the bucket's chain for a node holding the same hash.
+      top = index;
+      arg = 2u;
+      top = top << (arg & 31);
+      arg = c;
+      top = top + arg;
+      c = LoadU32(ctx, top);
+      if (c == 0u) {
+        goto lookup_done;
       }
-      i0 = l5;
-      i1 = l4;
-      StoreU32(ctx, i0, i1);
-      i0 = c;
-      i1 = l4;
-      i1 = LoadU32(ctx, i1);
-      StoreU32(ctx, i0, i1);
-      goto block_16;
+      c = LoadU32(ctx, c);
+      if (c == 0u) {
+        goto lookup_done;
+      }
+      top = hash;
+      arg = LoadU32(ctx, c + 8u);
+      top = top != arg;
+      if (top != 0u) {
+        hold = LoadU32(ctx, c + 4u);
+        while (true) {
+          top = index;
+          arg = hold;
+          third = kEmplaceHashedEntryIndexMask;
+          arg = arg & third;
+          top = top != arg;
+          if (top != 0u) {
+            goto lookup_done;
+          }
+          // Skip the nodes whose stored index has the counted bit set.
+          while (true) {
+            c = LoadU32(ctx, c);
+            if (c == 0u) {
+              goto lookup_done;
+            }
+            hold = LoadU32(ctx, c + 4u);
+            if ((int32_t)hold < 0) {
+              continue;
+            }
+            break;
+          }
+          top = LoadU32(ctx, c + 8u);
+          arg = hash;
+          top = top != arg;
+          if (top != 0u) {
+            continue;
+          }
+          break;
+        }
+      }
+      top = a;
+      arg = c;
+      StoreU32(ctx, top, arg);
+      top = a;
+      arg = 0u;
+      StoreU8(ctx, top + 4u, arg);
+      LeaveFrame();
+      return;
     }
-    i0 = HostRet0(ctx);
-    a = i0;
-    i0 = HostTempRet0(ctx);
-    i0 = c;
-    DeallocateRawBlock(ctx, i0);
-    i0 = a;
-    HostOsRelease(ctx, i0);
+    goto resume_path;
+lookup_done:;
+  }
+  if (await_code == 0u || ResumePhase(ctx) == kResumeRunning) {
+    top = 12u;
+    top = AllocateStringBuffer(ctx, top);
+    hold = top;
+    top = 0u;
+    arg = ResumePhase(ctx);
+    arg = arg == kResumeSuspended;
+    if (arg != 0u) {
+      goto save_frame;
+    }
+    c = hold;
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    zero = 0ull;
+    StoreU64(ctx, c, zero);
+    arg = LoadU32(ctx, d);
+    StoreU32(ctx, c + 8u, arg);
+    StoreU32(ctx, kEmplaceHashedEntryStatusAddr, 0u);
+    top = count;
+    arg = 1u;
+    top = top + arg;
+    d = top;
+  }
+  if (await_code == 1u || ResumePhase(ctx) == kResumeRunning) {
+    top = 2750u;
+    arg = b;
+    third = d;
+    HostOsSchedule(ctx, top, arg, third);
+    top = 1u;
+    arg = ResumePhase(ctx);
+    arg = arg == kResumeSuspended;
+    if (arg != 0u) {
+      goto save_frame;
+    }
+  }
+  if (ResumePhase(ctx) == kResumeRunning) {
+    d = LoadU32(ctx, kEmplaceHashedEntryStatusAddr);
+    StoreU32(ctx, kEmplaceHashedEntryStatusAddr, 0u);
+    if (d != 1u) {
+      // Link the new node into its bucket chain.
+      arg = LoadU32(ctx, b + 4u);
+      index = arg;
+      hold = REM_U(hash, arg);
+      d = LoadU32(ctx, b + 20u);
+      if (d == 0u) {
+        goto skip_insert;
+      }
+      arg = c;
+      third = hold;
+      third = third & kEmplaceHashedEntryIndexMask;
+      StoreU32(ctx, arg + 4u, third);
+      arg = hold;
+      third = 2u;
+      arg = arg << (third & 31);
+      third = d;
+      arg = arg + third;
+      hash = arg;
+      hold = LoadU32(ctx, arg);
+      if (hold != 0u) {
+        goto insert_tail;
+      }
+      arg = index;
+      third = 2u;
+      arg = arg << (third & 31);
+      third = d;
+      arg = arg + third;
+      hold = arg;
+      index = LoadU32(ctx, arg);
+      if (index != 0u) {
+        arg = index;
+        arg = LoadU32(ctx, arg + 4u);
+        third = 2u;
+        arg = arg << (third & 31);
+        third = d;
+        arg = arg + third;
+        third = c;
+        StoreU32(ctx, arg, third);
+      }
+      arg = hash;
+      third = hold;
+      StoreU32(ctx, arg, third);
+      arg = c;
+      third = hold;
+      third = LoadU32(ctx, third);
+      StoreU32(ctx, arg, third);
+      goto link_entry;
+    }
+    arg = HostRet0(ctx);
+    a = arg;
+    arg = HostTempRet0(ctx);
+    arg = c;
+    DeallocateRawBlock(ctx, arg);
+    arg = a;
+    HostOsRelease(ctx, arg);
     TrapUnreachable();
-    block_17:;
-    i0 = c;
-    i1 = l4;
-    i1 = LoadU32(ctx, i1);
-    StoreU32(ctx, i0, i1);
-    i0 = l5;
-    i0 = LoadU32(ctx, i0);
-    l4 = i0;
-    block_16:;
-    i0 = l4;
-    i1 = c;
-    StoreU32(ctx, i0, i1);
-    i0 = b;
-    i1 = b;
-    i1 = LoadU32(ctx, i1 + 8u);
-    i2 = 1u;
-    i1 += i2;
-    StoreU32(ctx, i0 + 8u, i1);
-    i0 = a;
-    i1 = c;
-    StoreU32(ctx, i0, i1);
-    i0 = a;
-    i1 = 1u;
-    StoreU8(ctx, i0 + 4u, i1);
-    goto func_exit;
-    block_15:;
+insert_tail:;
+    arg = c;
+    third = hold;
+    third = LoadU32(ctx, third);
+    StoreU32(ctx, arg, third);
+    arg = hash;
+    hold = LoadU32(ctx, arg);
+link_entry:;
+    arg = hold;
+    third = c;
+    StoreU32(ctx, arg, third);
+    arg = b;
+    third = b;
+    third = LoadU32(ctx, third + 8u);
+    fourth = 1u;
+    third = third + fourth;
+    StoreU32(ctx, arg + 8u, third);
+    arg = a;
+    third = c;
+    StoreU32(ctx, arg, third);
+    arg = a;
+    third = 1u;
+    StoreU8(ctx, arg + 4u, third);
+    LeaveFrame();
+    return;
+skip_insert:;
   }
-  running_exit:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = kF1456MsgBuckets;
-    i1 = kF1456MsgBoostBoostUnorderedDetail;
-    i2 = 2956u;
-    i3 = kF1456MsgGetBucket;
-    HostAssertFail(ctx, i0, i1, i2, i3);
+resume_path:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    HostAssertFail(ctx, kEmplaceHashedEntryBucketsText, kEmplaceHashedEntryHeaderPathText, 2956u,
+                   kEmplaceHashedEntryGetBucketText);
     TrapUnreachable();
   }
-  goto func_exit;
-  spill_frame:;
-  l4 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l4;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF1456ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l4 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l4;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l4;
-  i1 = c;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = l4;
-  i1 = d;
-  StoreU32(ctx, i0 + 12u, i1);
-  i0 = l4;
-  i1 = l5;
-  StoreU32(ctx, i0 + 16u, i1);
-  i0 = l4;
-  i1 = l7;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 24u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
   LeaveFrame();
+  return;
+save_frame:;
+  // Push the word naming the call in flight, then the save frame; a rewind
+  // reads them back in that order.
+  hold = top;
+  top = ReturnFrameSp(ctx);
+  top = LoadU32(ctx, top);
+  StoreU32(ctx, top, hold);
+  top = ReturnFrameSp(ctx);
+  arg = ReturnFrameSp(ctx);
+  arg = LoadU32(ctx, arg);
+  arg = arg + kEmplaceHashedEntryResumeWordBytes;
+  StoreU32(ctx, top, arg);
+  top = ReturnFrameSp(ctx);
+  top = LoadU32(ctx, top);
+  hold = top;
+  StoreU32(ctx, hold, a);
+  StoreU32(ctx, hold + 4u, b);
+  StoreU32(ctx, hold + 8u, c);
+  StoreU32(ctx, hold + 12u, d);
+  StoreU32(ctx, hold + 16u, hash);
+  StoreU32(ctx, hold + 20u, count);
+  top = ReturnFrameSp(ctx);
+  arg = ReturnFrameSp(ctx);
+  arg = LoadU32(ctx, arg);
+  arg = arg + 24u;
+  StoreU32(ctx, top, arg);
+  LeaveFrame();
+  return;
 }
-}
+
+}  // namespace artc

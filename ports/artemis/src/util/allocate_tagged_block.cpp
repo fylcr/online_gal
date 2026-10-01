@@ -1,529 +1,229 @@
-// allocate_tagged_block.cpp -- allocates a tagged block of the requested size and stamps its header..
-//
-// AllocateTaggedBlock -- allocates a tagged block of the requested size and stamps its header.
-//
-// The step is a plain call: the body holds no suspend point, so the
-// frame pair is bookkeeping only. Judgment order is untouched -- the
-// goto graph is the generated driver's own flattening, renamed labels
-// only.
-//
-// src: artemis.wasm2c.c 1013088-1013088 (f2207); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Forward declaration for the callee this step drives.
 void ReclaimFreeBlock(EngineContext* ctx, uint32_t state, uint32_t block);
 
 namespace {
 
-constexpr uint32_t kF2207ConstD1370 = 0xD1370u;  // 
-constexpr uint32_t kF2207ConstD1374 = 0xD1374u;  // 
-constexpr uint32_t kF2207ConstD1378 = 0xD1378u;  // 
-constexpr uint32_t kF2207ConstD137C = 0xD137Cu;  // 
-constexpr uint32_t kF2207ConstD1380 = 0xD1380u;  // 
-constexpr uint32_t kF2207ConstD1384 = 0xD1384u;  // 
-constexpr uint32_t kF2207ConstD1388 = 0xD1388u;  // 
-constexpr uint32_t kF2207ConstD1398 = 0xD1398u;  // 
-constexpr uint32_t kF2207ConstD14A0 = 0xD14A0u;  // 
-constexpr uint32_t kF2207ConstD1550 = 0xD1550u;  // 
-constexpr uint32_t kF2207ConstFFFFFFF8 = 0xFFFFFFF8u;  // 
-constexpr uint32_t kF2207ConstFFFFFFFE = 0xFFFFFFFEu;  // 
+// The allocator's global bookkeeping words and bucket tables.
+constexpr uint32_t kDataD1370 = 0xD1370u;  // in-use bitset of the small size classes
+constexpr uint32_t kDataD1374 = 0xD1374u;  // in-use bitset of the tree size classes
+constexpr uint32_t kDataD1378 = 0xD1378u;  // payload size of the top block
+constexpr uint32_t kDataD137C = 0xD137Cu;  // payload size of the tail block
+constexpr uint32_t kDataD1380 = 0xD1380u;  // lowest address the heap hands out
+constexpr uint32_t kDataD1384 = 0xD1384u;  // address of the top (wilderness) block
+constexpr uint32_t kDataD1388 = 0xD1388u;  // address of the tail block
+constexpr uint32_t kDataD14A0 = 0xD14A0u;  // base of the tree size-class bucket table
+constexpr uint32_t kDataD1550 = 0xD1550u;  // counter the split remainder threshold derives from
+constexpr uint32_t kAllocateTaggedBlockSizeMask = 0xFFFFFFF8u;  // clears a block's three flag bits
+constexpr uint32_t kAllocateTaggedBlockClearLowBit = 0xFFFFFFFEu;  // clears "in use" / "tree root"
 
 }  // namespace
 
+// Serves a request of `size` bytes from the free block at `header`.  Reads the
+// block's header word for its size and flags, then either splits it in place,
+// grows it into the adjacent top or tail block, or merges it with the following
+// free block and unlinks that one from the size buckets.  Returns the block the
+// caller may use, or 0 when the request cannot be served from here.  The block
+// is stamped with its new size and flags before it is handed back.
 uint32_t AllocateTaggedBlock(EngineContext* ctx, uint32_t header, uint32_t size) {
   EnterFrame();
-  uint32_t l10 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
-      l10 = 0;
-  i0 = header;
-  i0 = LoadU32(ctx, i0 + 4u);
-  l7 = i0;
-  i1 = 3u;
-  i0 &= i1;
-  l2 = i0;
-  i0 = l7;
-  i1 = kF2207ConstFFFFFFF8;
-  i0 &= i1;
-  l6 = i0;
-  i1 = header;
-  i0 += i1;
-  l5 = i0;
-  i0 = kF2207ConstD1380;
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = header;
-  i0 = i0 > i1;
-  if (i0) {goto block_0;}
-  i0 = l2;
-  i1 = 1u;
-  i0 = i0 == i1;
-  if (i0) {goto block_0;}
-  block_0:;
-  i0 = l2;
-  i0 = !(i0);
-  if (i0) {
-    i0 = 0u;
-    l2 = i0;
-    i0 = size;
-    i1 = 256u;
-    i0 = i0 < i1;
-    if (i0) {goto spill_frame;}
-    i0 = l6;
-    i1 = size;
-    i2 = 4u;
-    i1 += i2;
-    i0 = i0 >= i1;
-    if (i0) {
-      i0 = header;
-      l2 = i0;
-      i0 = l6;
-      i1 = size;
-      i0 -= i1;
-      i1 = kF2207ConstD1550;
-      i1 = LoadU32(ctx, i1);
-      i2 = 1u;
-      i1 <<= (i2 & 31);
-      i0 = i0 <= i1;
-      if (i0) {goto spill_frame;}
+  const uint32_t header_word = LoadU32(ctx, header + 4u);
+  const uint32_t block_flags = header_word & 3u;
+  const uint32_t block_size = header_word & kAllocateTaggedBlockSizeMask;
+  const uint32_t next = header + block_size;
+  const uint32_t lowest = LoadU32(ctx, kDataD1380);
+  if (block_flags == 0u) {
+    // Unallocated tail block: it can only be handed out whole, and only when
+    // the request is past the 256-byte minimum and the leftover would be too
+    // small to be worth keeping.
+    if (size < 256u) {
+      LeaveFrame();
+      return 0u;
     }
-    i0 = 0u;
-    goto func_exit;
-  }
-  i0 = size;
-  i1 = l6;
-  i0 = i0 <= i1;
-  if (i0) {
-    i0 = l6;
-    i1 = size;
-    i0 -= i1;
-    l2 = i0;
-    i1 = 16u;
-    i0 = i0 < i1;
-    if (i0) {goto running_exit;}
-    i0 = header;
-    i1 = l7;
-    i2 = 1u;
-    i1 &= i2;
-    i2 = size;
-    i1 |= i2;
-    i2 = 2u;
-    i1 |= i2;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = header;
-    i1 = size;
-    i0 += i1;
-    size = i0;
-    i1 = l2;
-    i2 = 3u;
-    i1 |= i2;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = l5;
-    i1 = l5;
-    i1 = LoadU32(ctx, i1 + 4u);
-    i2 = 1u;
-    i1 |= i2;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = size;
-    i1 = l2;
-    ReclaimFreeBlock(ctx, i0, i1);
-    goto running_exit;
-  }
-  i0 = 0u;
-  l2 = i0;
-  i0 = l5;
-  i1 = kF2207ConstD1388;
-  i1 = LoadU32(ctx, i1);
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = l6;
-    i1 = kF2207ConstD137C;
-    i1 = LoadU32(ctx, i1);
-    i0 += i1;
-    l3 = i0;
-    i1 = size;
-    i0 = i0 <= i1;
-    if (i0) {goto spill_frame;}
-    i0 = header;
-    i1 = l7;
-    i2 = 1u;
-    i1 &= i2;
-    i2 = size;
-    i1 |= i2;
-    i2 = 2u;
-    i1 |= i2;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = header;
-    i1 = size;
-    i0 += i1;
-    l2 = i0;
-    i1 = l3;
-    i2 = size;
-    i1 -= i2;
-    size = i1;
-    i2 = 1u;
-    i1 |= i2;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = kF2207ConstD137C;
-    i1 = size;
-    StoreU32(ctx, i0, i1);
-    i0 = kF2207ConstD1388;
-    i1 = l2;
-    StoreU32(ctx, i0, i1);
-    goto running_exit;
-  }
-  i0 = l5;
-  i1 = kF2207ConstD1384;
-  i1 = LoadU32(ctx, i1);
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = l6;
-    i1 = kF2207ConstD1378;
-    i1 = LoadU32(ctx, i1);
-    i0 += i1;
-    l3 = i0;
-    i1 = size;
-    i0 = i0 < i1;
-    if (i0) {goto spill_frame;}
-    i0 = l3;
-    i1 = size;
-    i0 -= i1;
-    l2 = i0;
-    i1 = 16u;
-    i0 = i0 >= i1;
-    if (i0) {
-      i0 = header;
-      i1 = l7;
-      i2 = 1u;
-      i1 &= i2;
-      i2 = size;
-      i1 |= i2;
-      i2 = 2u;
-      i1 |= i2;
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = header;
-      i1 = size;
-      i0 += i1;
-      size = i0;
-      i1 = l2;
-      i2 = 1u;
-      i1 |= i2;
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = header;
-      i1 = l3;
-      i0 += i1;
-      l3 = i0;
-      i1 = l2;
-      StoreU32(ctx, i0, i1);
-      i0 = l3;
-      i1 = l3;
-      i1 = LoadU32(ctx, i1 + 4u);
-      i2 = kF2207ConstFFFFFFFE;
-      i1 &= i2;
-      StoreU32(ctx, i0 + 4u, i1);
-      goto block_8;
+    if (block_size >= size + 4u &&
+        block_size - size <= (LoadU32(ctx, kDataD1550) << 1u)) {
+      LeaveFrame();
+      return header;
     }
-    i0 = header;
-    i1 = l3;
-    i2 = l7;
-    i3 = 1u;
-    i2 &= i3;
-    i1 |= i2;
-    i2 = 2u;
-    i1 |= i2;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = header;
-    i1 = l3;
-    i0 += i1;
-    size = i0;
-    i0 = LoadU32(ctx, i0 + 4u);
-    i1 = 1u;
-    i0 |= i1;
-    l2 = i0;
-    i0 = size;
-    i1 = l2;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = 0u;
-    l2 = i0;
-    i0 = 0u;
-    size = i0;
-    block_8:;
-    i0 = kF2207ConstD1384;
-    i1 = size;
-    StoreU32(ctx, i0, i1);
-    i0 = kF2207ConstD1378;
-    i1 = l2;
-    StoreU32(ctx, i0, i1);
-    goto running_exit;
+    LeaveFrame();
+    return 0u;
   }
-  i0 = l5;
-  i0 = LoadU32(ctx, i0 + 4u);
-  l4 = i0;
-  i1 = 2u;
-  i0 &= i1;
-  if (i0) {goto spill_frame;}
-  i0 = l4;
-  i1 = kF2207ConstFFFFFFF8;
-  i0 &= i1;
-  i1 = l6;
-  i0 += i1;
-  l9 = i0;
-  i1 = size;
-  i0 = i0 < i1;
-  if (i0) {goto spill_frame;}
-  i0 = l9;
-  i1 = size;
-  i0 -= i1;
-  l10 = i0;
-  i0 = l4;
-  i1 = 255u;
-  i0 = i0 <= i1;
-  if (i0) {
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l6 = i0;
-    i1 = l4;
-    i2 = 3u;
-    i1 >>= (i2 & 31);
-    l3 = i1;
-    i2 = 3u;
-    i1 <<= (i2 & 31);
-    i2 = kF2207ConstD1398;
-    i1 += i2;
-    i0 = i0 != i1;
-    i0 = l5;
-    i0 = LoadU32(ctx, i0 + 12u);
-    l8 = i0;
-    i1 = l6;
-    i0 = i0 == i1;
-    if (i0) {
-      i0 = kF2207ConstD1370;
-      i1 = kF2207ConstD1370;
-      i1 = LoadU32(ctx, i1);
-      i2 = kF2207ConstFFFFFFFE;
-      i3 = l3;
-      i2 = I32_ROTL(i2, i3);
-      i1 &= i2;
-      StoreU32(ctx, i0, i1);
-      goto block_10;
+  if (size <= block_size) {
+    // Big enough as is: split off the leftover and return the whole block.
+    const uint32_t remainder = block_size - size;
+    if (remainder >= 16u) {
+      StoreU32(ctx, header + 4u, (header_word & 1u) | size | 2u);
+      const uint32_t split = header + size;
+      StoreU32(ctx, split + 4u, remainder | 3u);
+      StoreU32(ctx, next + 4u, LoadU32(ctx, next + 4u) | 1u);
+      ReclaimFreeBlock(ctx, split, remainder);
     }
-    i0 = l6;
-    i1 = l8;
-    StoreU32(ctx, i0 + 12u, i1);
-    i0 = l8;
-    i1 = l6;
-    StoreU32(ctx, i0 + 8u, i1);
-    goto block_10;
+    LeaveFrame();
+    return header;
   }
-  i0 = l5;
-  i0 = LoadU32(ctx, i0 + 24u);
-  l8 = i0;
-  i0 = l5;
-  i1 = l5;
-  i1 = LoadU32(ctx, i1 + 12u);
-  l4 = i1;
-  i0 = i0 != i1;
-  if (i0) {
-    i0 = l3;
-    i1 = l5;
-    i1 = LoadU32(ctx, i1 + 8u);
-    l2 = i1;
-    i0 = i0 <= i1;
-    if (i0) {
-      i0 = l2;
-      i0 = LoadU32(ctx, i0 + 12u);
+  if (next == LoadU32(ctx, kDataD1388)) {
+    // Grow into the tail block: the request takes the block's size plus the
+    // tail's, and the tail moves past the split.
+    const uint32_t grown = block_size + LoadU32(ctx, kDataD137C);
+    if (grown <= size) {
+      LeaveFrame();
+      return 0u;
     }
-    i0 = l2;
-    i1 = l4;
-    StoreU32(ctx, i0 + 12u, i1);
-    i0 = l4;
-    i1 = l2;
-    StoreU32(ctx, i0 + 8u, i1);
-    goto block_13;
+    StoreU32(ctx, header + 4u, (header_word & 1u) | size | 2u);
+    const uint32_t split = header + size;
+    const uint32_t tail_size = grown - size;
+    StoreU32(ctx, split + 4u, tail_size | 1u);
+    StoreU32(ctx, kDataD137C, tail_size);
+    StoreU32(ctx, kDataD1388, split);
+    LeaveFrame();
+    return header;
   }
-  i0 = l5;
-  i1 = 20u;
-  i0 += i1;
-  l2 = i0;
-  i0 = LoadU32(ctx, i0);
-  l6 = i0;
-  if (i0) {goto block_16;}
-  i0 = l5;
-  i1 = 16u;
-  i0 += i1;
-  l2 = i0;
-  i0 = LoadU32(ctx, i0);
-  l6 = i0;
-  if (i0) {goto block_16;}
-  i0 = 0u;
-  l4 = i0;
-  goto block_13;
-  block_16:;
-  loop_17: 
-    i0 = l2;
-    l3 = i0;
-    i0 = l6;
-    l4 = i0;
-    i1 = 20u;
-    i0 += i1;
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    l6 = i0;
-    if (i0) {goto loop_17;}
-    i0 = l4;
-    i1 = 16u;
-    i0 += i1;
-    l2 = i0;
-    i0 = l4;
-    i0 = LoadU32(ctx, i0 + 16u);
-    l6 = i0;
-    if (i0) {goto loop_17;}
-  i0 = l3;
-  i1 = 0u;
-  StoreU32(ctx, i0, i1);
-  block_13:;
-  i0 = l8;
-  i0 = !(i0);
-  if (i0) {goto block_10;}
-  i0 = l5;
-  i1 = l5;
-  i1 = LoadU32(ctx, i1 + 28u);
-  l3 = i1;
-  i2 = 2u;
-  i1 <<= (i2 & 31);
-  i2 = kF2207ConstD14A0;
-  i1 += i2;
-  l2 = i1;
-  i1 = LoadU32(ctx, i1);
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = l2;
-    i1 = l4;
-    StoreU32(ctx, i0, i1);
-    i0 = l4;
-    if (i0) {goto block_18;}
-    i0 = kF2207ConstD1374;
-    i1 = kF2207ConstD1374;
-    i1 = LoadU32(ctx, i1);
-    i2 = kF2207ConstFFFFFFFE;
-    i3 = l3;
-    i2 = I32_ROTL(i2, i3);
-    i1 &= i2;
-    StoreU32(ctx, i0, i1);
-    goto block_10;
+  if (next == LoadU32(ctx, kDataD1384)) {
+    // Grow into the top (wilderness) block, which stays parked at the tail.
+    const uint32_t grown = block_size + LoadU32(ctx, kDataD1378);
+    if (grown < size) {
+      LeaveFrame();
+      return 0u;
+    }
+    const uint32_t remainder = grown - size;
+    uint32_t top_block = 0u;
+    uint32_t top_size = 0u;
+    if (remainder >= 16u) {
+      StoreU32(ctx, header + 4u, (header_word & 1u) | size | 2u);
+      const uint32_t split = header + size;
+      StoreU32(ctx, split + 4u, remainder | 1u);
+      StoreU32(ctx, header + grown, remainder);
+      StoreU32(ctx, header + grown + 4u,
+               LoadU32(ctx, header + grown + 4u) & kAllocateTaggedBlockClearLowBit);
+      top_block = split;
+      top_size = remainder;
+    } else {
+      // No usable remainder: the top block just grows and neither global moves.
+      StoreU32(ctx, header + 4u, (header_word & 1u) | grown | 2u);
+      const uint32_t end = header + grown;
+      StoreU32(ctx, end + 4u, LoadU32(ctx, end + 4u) | 1u);
+    }
+    StoreU32(ctx, kDataD1384, top_block);
+    StoreU32(ctx, kDataD1378, top_size);
+    LeaveFrame();
+    return header;
   }
-  i0 = l8;
-  i1 = 16u;
-  i2 = 20u;
-  i3 = l5;
-  i4 = l8;
-  i4 = LoadU32(ctx, i4 + 16u);
-  i3 = i3 == i4;
-  i1 = i3 ? i1 : i2;
-  i0 += i1;
-  i1 = l4;
-  StoreU32(ctx, i0, i1);
-  i0 = l4;
-  i0 = !(i0);
-  if (i0) {goto block_10;}
-  block_18:;
-  i0 = l4;
-  i1 = l8;
-  StoreU32(ctx, i0 + 24u, i1);
-  i0 = l5;
-  i0 = LoadU32(ctx, i0 + 16u);
-  l2 = i0;
-  if (i0) {
-    i0 = l4;
-    i1 = l2;
-    StoreU32(ctx, i0 + 16u, i1);
-    i0 = l2;
-    i1 = l4;
-    StoreU32(ctx, i0 + 24u, i1);
+  // The following block is free and not the top: merge it into this one.
+  const uint32_t next_word = LoadU32(ctx, next + 4u);
+  if (next_word & 2u) {
+    LeaveFrame();
+    return 0u;
   }
-  i0 = l5;
-  i0 = LoadU32(ctx, i0 + 20u);
-  l2 = i0;
-  i0 = !(i0);
-  if (i0) {goto block_10;}
-  i0 = l4;
-  i1 = l2;
-  StoreU32(ctx, i0 + 20u, i1);
-  i0 = l2;
-  i1 = l4;
-  StoreU32(ctx, i0 + 24u, i1);
-  block_10:;
-  i0 = l10;
-  i1 = 15u;
-  i0 = i0 <= i1;
-  if (i0) {
-    i0 = header;
-    i1 = l9;
-    i2 = l7;
-    i3 = 1u;
-    i2 &= i3;
-    i1 |= i2;
-    i2 = 2u;
-    i1 |= i2;
-    StoreU32(ctx, i0 + 4u, i1);
-    i0 = header;
-    i1 = l9;
-    i0 += i1;
-    size = i0;
-    i0 = LoadU32(ctx, i0 + 4u);
-    i1 = 1u;
-    i0 |= i1;
-    l2 = i0;
-    i0 = size;
-    i1 = l2;
-    StoreU32(ctx, i0 + 4u, i1);
-    goto running_exit;
+  const uint32_t merged = (next_word & kAllocateTaggedBlockSizeMask) + block_size;
+  if (merged < size) {
+    LeaveFrame();
+    return 0u;
   }
-  i0 = header;
-  i1 = l7;
-  i2 = 1u;
-  i1 &= i2;
-  i2 = size;
-  i1 |= i2;
-  i2 = 2u;
-  i1 |= i2;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = header;
-  i1 = size;
-  i0 += i1;
-  l2 = i0;
-  i1 = l10;
-  i2 = 3u;
-  i1 |= i2;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = header;
-  i1 = l9;
-  i0 += i1;
-  size = i0;
-  i0 = LoadU32(ctx, i0 + 4u);
-  i1 = 1u;
-  i0 |= i1;
-  l3 = i0;
-  i0 = size;
-  i1 = l3;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l2;
-  i1 = l10;
-  ReclaimFreeBlock(ctx, i0, i1);
-  running_exit:;
-  i0 = header;
-  l2 = i0;
-  spill_frame:;
-  i0 = l2;
-  func_exit:;
+  const uint32_t leftover = merged - size;
+  if (next_word <= 255u) {
+    // Small block: unlink it from its size-class bucket list.  A block that is
+    // its own neighbour was the bucket's last, so the class bit is cleared.
+    const uint32_t link_prev = LoadU32(ctx, next + 8u);
+    const uint32_t link_next = LoadU32(ctx, next + 12u);
+    if (link_next == link_prev) {
+      StoreU32(ctx, kDataD1370,
+               LoadU32(ctx, kDataD1370) &
+                 I32_ROTL(kAllocateTaggedBlockClearLowBit, next_word >> 3));
+    } else {
+      StoreU32(ctx, link_prev + 12u, link_next);
+      StoreU32(ctx, link_next + 8u, link_prev);
+    }
+  } else {
+    // Large block: unlink it from the size tree.
+    const uint32_t tree_parent = LoadU32(ctx, next + 24u);
+    uint32_t tree_next = LoadU32(ctx, next + 12u);
+    if (next != tree_next) {
+      uint32_t tree_prev = LoadU32(ctx, next + 8u);
+      if (lowest <= tree_prev) {
+        // The node's own slot is read here and the value dropped: the links
+        // below are rewritten in place.
+        (void)LoadU32(ctx, tree_prev + 12u);
+      }
+      StoreU32(ctx, tree_prev + 12u, tree_next);
+      StoreU32(ctx, tree_next + 8u, tree_prev);
+    } else {
+      // No sibling link: descend to the deepest node below and detach that.
+      uint32_t link_slot = next + 20u;
+      uint32_t child = LoadU32(ctx, link_slot);
+      if (child == 0u) {
+        link_slot = next + 16u;
+        child = LoadU32(ctx, link_slot);
+      }
+      if (child == 0u) {
+        tree_next = 0u;
+      } else {
+        uint32_t parent_slot = 0u;
+        while (child != 0u) {
+          parent_slot = link_slot;
+          tree_next = child;
+          link_slot = child + 20u;
+          child = LoadU32(ctx, link_slot);
+          if (child != 0u) continue;
+          link_slot = tree_next + 16u;
+          child = LoadU32(ctx, tree_next + 16u);
+        }
+        StoreU32(ctx, parent_slot, 0u);
+      }
+    }
+    if (tree_parent != 0u) {
+      // Splice the detached subtree back where the unlinked block sat: the
+      // class slot when the block was the tree's root, otherwise the parent's
+      // own child slot.
+      const uint32_t tree_class = LoadU32(ctx, next + 28u);
+      const uint32_t tree_link = (tree_class << 2) + kDataD14A0;
+      bool relink = tree_next != 0u;
+      if (next == LoadU32(ctx, tree_link)) {
+        StoreU32(ctx, tree_link, tree_next);
+        if (tree_next == 0u) {
+          StoreU32(ctx, kDataD1374,
+                   LoadU32(ctx, kDataD1374) &
+                     I32_ROTL(kAllocateTaggedBlockClearLowBit, tree_class));
+          relink = false;
+        }
+      } else {
+        // The parent keeps its left slot when the block was its left child.
+        StoreU32(ctx, tree_parent +
+                        (next == LoadU32(ctx, tree_parent + 16u) ? 16u : 20u),
+                 tree_next);
+      }
+      if (relink) {
+        StoreU32(ctx, tree_next + 24u, tree_parent);
+        const uint32_t left = LoadU32(ctx, next + 16u);
+        if (left != 0u) {
+          StoreU32(ctx, tree_next + 16u, left);
+          StoreU32(ctx, left + 24u, tree_next);
+        }
+        const uint32_t right = LoadU32(ctx, next + 20u);
+        if (right != 0u) {
+          StoreU32(ctx, tree_next + 20u, right);
+          StoreU32(ctx, right + 24u, tree_next);
+        }
+      }
+    }
+  }
+  if (leftover <= 15u) {
+    // Too little to be worth a block of its own: keep it in the allocation.
+    StoreU32(ctx, header + 4u, merged | (header_word & 1u) | 2u);
+    const uint32_t end = header + merged;
+    StoreU32(ctx, end + 4u, LoadU32(ctx, end + 4u) | 1u);
+  } else {
+    StoreU32(ctx, header + 4u, (header_word & 1u) | size | 2u);
+    const uint32_t split = header + size;
+    StoreU32(ctx, split + 4u, leftover | 3u);
+    const uint32_t end = header + merged;
+    StoreU32(ctx, end + 4u, LoadU32(ctx, end + 4u) | 1u);
+    ReclaimFreeBlock(ctx, split, leftover);
+  }
   LeaveFrame();
-  return i0;
+  return header;
 }
-}
+
+}  // namespace artc

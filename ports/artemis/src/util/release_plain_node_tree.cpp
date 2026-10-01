@@ -1,323 +1,196 @@
-// release_plain_node_tree.cpp -- releases a plain node tree: both children are freed and the node goes back to the pool without touching a tagged tail..
-//
-// ReleasePlainNodeTree -- releases a plain node tree: both children are freed and the node goes back to the pool without touching a tagged tail.
-//
-// The step is suspendable: every gate below replays the call its resume
-// code names. Judgment order is untouched -- the goto graph is the
-// generated driver's own flattening, renamed labels only.
-//
-// src: artemis.wasm2c.c 261275-261275 (f680); R1 transcribe-keep.
-//
-// Written against artemis-compat, with the official WebAssembly decompile
-// as the reference: this body reproduces the asyncify module's generated C
-// call for call.  The prose below records what this particular step does.
-//
-
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- batch-mates and registered callees.
+// Cross-product callees, defined in other product translation units.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 
 namespace {
 
-constexpr uint32_t kF680ConstD015C = 0xD015Cu;  // 
-constexpr uint32_t kF680ConstFFFFFFFF = 0xFFFFFFFFu;  // 
-constexpr uint32_t kF680SaveFrameBytes = 12u;
-constexpr uint32_t kF680ResumeWordBytes = 4u;
+constexpr uint32_t kReleasePlainNodeTreeConstD015C = 0xD015Cu;
+constexpr uint32_t kReleasePlainNodeTreeConstFFFFFFFF = 0xFFFFFFFFu;
+constexpr uint32_t kReleasePlainNodeTreeSaveFrameBytes = 12u;
+constexpr uint32_t kReleasePlainNodeTreeResumeWordBytes = 4u;
 
 }  // namespace
 
+// Releases a plain node tree: both child links are released recursively, the
+// child records' counts are dropped (the host pair release runs once a count
+// reaches one) and the node block itself goes back to the heap. Answers nothing.
 void ReleasePlainNodeTree(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  uint32_t l2 = 0u; uint32_t l3 = 0u;
-  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF680SaveFrameBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    l2 = i0;
-    i0 = LoadU32(ctx, i0);
-    a = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 4u);
-    b = i0;
-    i0 = l2;
-    i0 = LoadU32(ctx, i0 + 8u);
-    l2 = i0;
+  uint32_t frame = 0u;
+  uint32_t slot = 0u;
+  uint32_t resume_code = 0u;
+  uint32_t phase = 0u;
+
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the saved frame and read its words back in the saved order.
+    uint32_t sp = ReturnFrameSp(ctx);
+    uint32_t frame_top = ReturnFrameSp(ctx);
+    frame_top = LoadU32(ctx, frame_top) - kReleasePlainNodeTreeSaveFrameBytes;
+    StoreU32(ctx, sp, frame_top);
+    frame = ReturnFrameSp(ctx);
+    uint32_t base = LoadU32(ctx, frame);
+    a = LoadU32(ctx, base);
+    b = LoadU32(ctx, base + 4u);
+    slot = LoadU32(ctx, base + 8u);
   }
-  i0 = ResumePhase(ctx);
-  i1 = 2u;
-  i0 = i0 == i1;
-  if (i0) {
-    i0 = ReturnFrameSp(ctx);
-    i1 = ReturnFrameSp(ctx);
-    i1 = LoadU32(ctx, i1);
-    i2 = kF680ResumeWordBytes;
-    i1 -= i2;
-    StoreU32(ctx, i0, i1);
-    i0 = ReturnFrameSp(ctx);
-    i0 = LoadU32(ctx, i0);
-    i0 = LoadU32(ctx, i0);
-    l3 = i0;
+  if (ResumePhase(ctx) == kResumeRewinding) {
+    // Rewinding: pop the resume word that names the call that was in flight.
+    uint32_t sp = ReturnFrameSp(ctx);
+    uint32_t word_top = ReturnFrameSp(ctx);
+    word_top = LoadU32(ctx, word_top) - kReleasePlainNodeTreeResumeWordBytes;
+    StoreU32(ctx, sp, word_top);
+    uint32_t word = ReturnFrameSp(ctx);
+    word = LoadU32(ctx, word);
+    resume_code = LoadU32(ctx, word);
   }
-  i0 = b;
-  i1 = ResumePhase(ctx);
-  i2 = 2u;
-  i1 = i1 == i2;
-  i0 |= i1;
-  if (i0) {
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = b;
-      i0 = LoadU32(ctx, i0);
-      l2 = i0;
+  uint32_t entered = b | static_cast<uint32_t>(ResumePhase(ctx) == kResumeRewinding);
+  if (entered != 0u) {
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // A running pass starts from the node's first child link.
+      slot = LoadU32(ctx, b);
     }
-    i0 = l3;
-    i0 = !(i0);
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = l2;
-      ReleasePlainNodeTree(ctx, i0, i1);
-      i0 = 0u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = b;
-      i0 = LoadU32(ctx, i0 + 4u);
-      l2 = i0;
-    }
-    i0 = l3;
-    i1 = 1u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = a;
-      i1 = l2;
-      ReleasePlainNodeTree(ctx, i0, i1);
-      i0 = 1u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = b;
-      i0 = LoadU32(ctx, i0 + 32u);
-      a = i0;
-      i0 = !(i0);
-      l2 = i0;
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = l2;
-      if (i0) {goto block_10;}
-      i0 = a;
-      i1 = a;
-      i1 = LoadU32(ctx, i1 + 4u);
-      l2 = i1;
-      i2 = 1u;
-      i1 -= i2;
-      StoreU32(ctx, i0 + 4u, i1);
-      i0 = l2;
-      i1 = 1u;
-      i0 = i0 != i1;
-      if (i0) {goto block_10;}
-      i0 = a;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 8u);
-      l2 = i0;
-      i0 = kF680ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-    }
-    i0 = l3;
-    i1 = 2u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l2;
-      i1 = a;
-      HostReleaseSlotPair(ctx, i0, i1);
-      i0 = 2u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF680ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      l2 = i0;
-      i0 = kF680ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = l2;
-      i1 = 1u;
-      i0 = i0 == i1;
-      if (i0) {goto block_3;}
-      i0 = a;
-      i1 = a;
-      i1 = LoadU32(ctx, i1 + 8u);
-      l2 = i1;
-      i2 = 1u;
-      i1 -= i2;
-      StoreU32(ctx, i0 + 8u, i1);
-      i0 = l2;
-      i1 = 1u;
-      i0 = i0 != i1;
-      if (i0) {goto block_10;}
-      i0 = a;
-      i0 = LoadU32(ctx, i0);
-      i0 = LoadU32(ctx, i0 + 12u);
-      l2 = i0;
-      i0 = kF680ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-    }
-    i0 = l3;
-    i1 = 3u;
-    i0 = i0 == i1;
-    i1 = 1u;
-    i2 = ResumePhase(ctx);
-    i0 = i2 ? i0 : i1;
-    if (i0) {
-      i0 = l2;
-      i1 = a;
-      HostReleaseSlotPair(ctx, i0, i1);
-      i0 = 3u;
-      i1 = ResumePhase(ctx);
-      i2 = 1u;
-      i1 = i1 == i2;
-      if (i1) {goto spill_frame;}
-    }
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = kF680ConstD015C;
-      i0 = LoadU32(ctx, i0);
-      a = i0;
-      i0 = kF680ConstD015C;
-      i1 = 0u;
-      StoreU32(ctx, i0, i1);
-      i0 = a;
-      i1 = 1u;
-      i0 = i0 == i1;
-      a = i0;
-      if (i0) {goto block_3;}
-    }
-    block_10:;
-    i0 = ResumePhase(ctx);
-    i0 = !(i0);
-    if (i0) {
-      i0 = b;
-      i0 = LoadS8(ctx, i0 + 27u);
-      i1 = kF680ConstFFFFFFFF;
-      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
-      a = i0;
-      if (i0) {
-        i0 = b;
-        i0 = LoadU32(ctx, i0 + 16u);
-        a = i0;
-        DeallocateRawBlock(ctx, i0);
+    phase = ResumePhase(ctx);
+    if (phase == kResumeRunning || resume_code == 0u) {
+      ReleasePlainNodeTree(ctx, a, slot);
+      resume_code = 0u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_here;
       }
-      i0 = b;
-      DeallocateRawBlock(ctx, i0);
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      slot = LoadU32(ctx, b + 4u);
+    }
+    phase = ResumePhase(ctx);
+    if (phase == kResumeRunning || resume_code == 1u) {
+      ReleasePlainNodeTree(ctx, a, slot);
+      resume_code = 1u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_here;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // The node's second child link hangs at +32 and doubles as the flag the
+      // count release below tests.
+      a = LoadU32(ctx, b + 32u);
+      slot = static_cast<uint32_t>(a == 0u);
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Drop the first child record's count; at one, its tail goes back through
+      // the host pair release and the pending-throw cell is cleared.
+      if (slot == 0u) {
+        goto free_node;
+      }
+      uint32_t refs = LoadU32(ctx, a + 4u);
+      slot = refs;
+      StoreU32(ctx, a + 4u, refs - 1u);
+      if (refs != 1u) {
+        goto free_node;
+      }
+      uint32_t tail = LoadU32(ctx, a);
+      slot = LoadU32(ctx, tail + 8u);
+      StoreU32(ctx, kReleasePlainNodeTreeConstD015C, 0u);
+    }
+    phase = ResumePhase(ctx);
+    if (phase == kResumeRunning || resume_code == 2u) {
+      HostReleaseSlotPair(ctx, slot, a);
+      resume_code = 2u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_here;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // Read and clear the pending-throw cell: a one hands control to the
+      // unwind path instead of releasing the second child record.
+      slot = LoadU32(ctx, kReleasePlainNodeTreeConstD015C);
+      StoreU32(ctx, kReleasePlainNodeTreeConstD015C, 0u);
+      if (slot == 1u) {
+        goto unwind_exception;
+      }
+      uint32_t refs = LoadU32(ctx, a + 8u);
+      slot = refs;
+      StoreU32(ctx, a + 8u, refs - 1u);
+      if (refs != 1u) {
+        goto free_node;
+      }
+      uint32_t tail = LoadU32(ctx, a);
+      slot = LoadU32(ctx, tail + 12u);
+      StoreU32(ctx, kReleasePlainNodeTreeConstD015C, 0u);
+    }
+    phase = ResumePhase(ctx);
+    if (phase == kResumeRunning || resume_code == 3u) {
+      HostReleaseSlotPair(ctx, slot, a);
+      resume_code = 3u;
+      if (ResumePhase(ctx) == kResumeSuspended) {
+        goto suspend_here;
+      }
+    }
+    if (ResumePhase(ctx) == kResumeRunning) {
+      a = LoadU32(ctx, kReleasePlainNodeTreeConstD015C);
+      StoreU32(ctx, kReleasePlainNodeTreeConstD015C, 0u);
+      a = static_cast<uint32_t>(a == 1u);
+      if (a != 0u) {
+        goto unwind_exception;
+      }
+    }
+    free_node:;
+    if (ResumePhase(ctx) == kResumeRunning) {
+      // A node whose link byte signed as negative owns a payload block of its
+      // own; every node gives its node block back.
+      if (static_cast<uint32_t>(static_cast<int32_t>(LoadS8(ctx, b + 27u)) <=
+                                static_cast<int32_t>(kReleasePlainNodeTreeConstFFFFFFFF))) {
+        uint32_t payload = LoadU32(ctx, b + 16u);
+        a = payload;
+        DeallocateRawBlock(ctx, payload);
+      }
+      DeallocateRawBlock(ctx, b);
     }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    goto func_exit;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    LeaveFrame();
+    return;
   }
-  block_3:;
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
-    i0 = 0u;
-    i0 = FindMatchingCatch(ctx, i0);
-    a = i0;
-    i0 = HostTempRet0(ctx);
+unwind_exception:;
+  if (ResumePhase(ctx) == kResumeRunning) {
+    a = FindMatchingCatch(ctx, 0u);
+    HostTempRet0(ctx);
   }
-  i0 = l3;
-  i1 = 4u;
-  i0 = i0 == i1;
-  i1 = 1u;
-  i2 = ResumePhase(ctx);
-  i0 = i2 ? i0 : i1;
-  if (i0) {
-    i0 = a;
-    Panic(ctx, i0);
-    i0 = 4u;
-    i1 = ResumePhase(ctx);
-    i2 = 1u;
-    i1 = i1 == i2;
-    if (i1) {goto spill_frame;}
+  phase = ResumePhase(ctx);
+  if (phase == kResumeRunning || resume_code == 4u) {
+    Panic(ctx, a);
+    resume_code = 4u;
+    if (ResumePhase(ctx) == kResumeSuspended) {
+      goto suspend_here;
+    }
   }
-  i0 = ResumePhase(ctx);
-  i0 = !(i0);
-  if (i0) {
+  if (ResumePhase(ctx) == kResumeRunning) {
     TrapUnreachable();
   }
-  goto func_exit;
-  spill_frame:;
-  l3 = i0;
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  i1 = l3;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = kF680ResumeWordBytes;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  i0 = ReturnFrameSp(ctx);
-  i0 = LoadU32(ctx, i0);
-  l3 = i0;
-  i1 = a;
-  StoreU32(ctx, i0, i1);
-  i0 = l3;
-  i1 = b;
-  StoreU32(ctx, i0 + 4u, i1);
-  i0 = l3;
-  i1 = l2;
-  StoreU32(ctx, i0 + 8u, i1);
-  i0 = ReturnFrameSp(ctx);
-  i1 = ReturnFrameSp(ctx);
-  i1 = LoadU32(ctx, i1);
-  i2 = 12u;
-  i1 += i2;
-  StoreU32(ctx, i0, i1);
-  func_exit:;
+  LeaveFrame();
+  return;
+suspend_here:;
+  // Push the resume word naming the call that was in flight, then the frame the
+  // rewind pops; the words go in the order that pop reads them back.
+  uint32_t resume_word = ReturnFrameSp(ctx);
+  resume_word = LoadU32(ctx, resume_word);
+  StoreU32(ctx, resume_word, resume_code);
+  uint32_t sp = ReturnFrameSp(ctx);
+  uint32_t word_top = ReturnFrameSp(ctx);
+  word_top = LoadU32(ctx, word_top) + kReleasePlainNodeTreeResumeWordBytes;
+  StoreU32(ctx, sp, word_top);
+  uint32_t base = ReturnFrameSp(ctx);
+  base = LoadU32(ctx, base);
+  StoreU32(ctx, base, a);
+  StoreU32(ctx, base + 4u, b);
+  StoreU32(ctx, base + 8u, slot);
+  sp = ReturnFrameSp(ctx);
+  word_top = ReturnFrameSp(ctx);
+  word_top = LoadU32(ctx, word_top) + kReleasePlainNodeTreeSaveFrameBytes;
+  StoreU32(ctx, sp, word_top);
   LeaveFrame();
 }
-}
+
+}  // namespace artc
