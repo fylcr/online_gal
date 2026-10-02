@@ -1,172 +1,264 @@
+// format_concatenation_error.cpp -- formats a concatenation error: the offending operand types are rendered into the message..
+//
+// FormatConcatenationError -- formats a concatenation error: the offending operand types are rendered into the message.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 2738029-2738029 (f5645); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Resolves the variable an operand stand for, through the record the chain is
-// held in.
-uint32_t ResolveVariableKind(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3);
-
-// Raises the script error the text and its arguments make.
+// Forward declarations -- batch-mates and registered callees.
 void RaiseScriptError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
+uint32_t ResolveVariableKind(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3);
 
 namespace {
 
-// The texts this step raises, and the key name both of them carry.
-constexpr uint32_t kFormatConcatenationErrorLongText = 0x2A718u;
-constexpr uint32_t kFormatConcatenationErrorShortText = 0x2A73Bu;
-constexpr uint32_t kFormatConcatenationErrorName = 0x2A754u;
-
-// The table the type text is looked up in by the slot's own kind field.
-constexpr uint32_t kFormatConcatenationErrorTypeTable = 0x2BD80u;
-
-// The two kinds that stand at their own slot rather than being looked up in the
-// chain.
-constexpr uint32_t kFormatConcatenationErrorOperandKind = 3u;
-constexpr uint32_t kFormatConcatenationErrorKindCount = 2u;
-
-// The chain's entries: sixteen bytes each, and the record the two texts are
-// built from is forty-eight bytes with its key field at the end.
-constexpr uint32_t kFormatConcatenationErrorEntryBytes = 16u;
-constexpr uint32_t kFormatConcatenationErrorRecordBytes = 48u;
-constexpr uint32_t kFormatConcatenationErrorFieldOffset = 44u;
-
-// The suspend frame: the words this body saves, and the resume word pushed with
-// them, whose number names the call that was in flight.
-constexpr uint32_t kFormatConcatenationErrorSaveFrameBytes = 16u;
-constexpr uint32_t kFormatConcatenationErrorResumeWordBytes = 4u;
-constexpr uint32_t kFormatConcatenationErrorLongCall = 0u;
-constexpr uint32_t kFormatConcatenationErrorShortCall = 1u;
+constexpr uint32_t kF5645MsgAttemptToSS = 0x2A718u;  // attempt to %s %s '%s' (a %s value)
+constexpr uint32_t kF5645MsgAttemptToSA = 0x2A73Bu;  // attempt to %s a %s value
+constexpr uint32_t kF5645MsgConcatenate = 0x2A754u;  // concatenate
+constexpr uint32_t kF5645Const2BD80 = 0x2BD80u;  // 
+constexpr uint32_t kF5645SaveFrameBytes = 16u;
+constexpr uint32_t kF5645ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Renders the two operand types of a concatenation into the text the script
-// error carries. The long text names both operands and the key that was looked
-// up; the short one is raised when the chain holds no key for the operand.
-void FormatConcatenationError(EngineContext* ctx, uint32_t state, uint32_t entry, uint32_t slot) {
+void FormatConcatenationError(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   EnterFrame();
-  // The suspend frame base: a rewind pops it and the suspend path writes its
-  // four words into it.
-  uint32_t frame = 0u;
-  // The record the two texts are built from.
-  uint32_t record = 0u;
-  // The operand's own kind, and then the text the type table holds for the
-  // slot's element kind.
-  uint32_t type = 0u;
-  // The record the operand chain lives in, the entry it ends at, and whether it
-  // is already at that end.
-  uint32_t chain = 0u;
-  uint32_t chain_end = 0u;
-  uint32_t at_end = 0u;
-  // The call a rewinding pass re-issues, and the number a spilling pass saves.
-  uint32_t resume_point = 0u;
-  uint32_t resume_code = 0u;
-
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 16-byte frame and read its words back in the saved
-    // order.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kFormatConcatenationErrorSaveFrameBytes);
-    frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    state = LoadU32(ctx, frame);
-    entry = LoadU32(ctx, frame + 4u);
-    record = LoadU32(ctx, frame + 8u);
-    type = LoadU32(ctx, frame + 12u);
+  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5645SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 4u);
+    b = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l3 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l4 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume word pushed with that frame. It names the call
-    // that was in flight, so only that call is issued again.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kFormatConcatenationErrorResumeWordBytes);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5645ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The record the two texts are built from lives on the guest stack, and its
-    // own key field starts empty.
-    GuestStackSp(ctx) -= kFormatConcatenationErrorRecordBytes;
-    record = GuestStackSp(ctx);
-    type = LoadU32(ctx, entry + 8u);
-    StoreU32(ctx, record + kFormatConcatenationErrorFieldOffset, 0u);
-    // One of the two operands stands at its own slot; the other is carried by
-    // the entry the first one names.
-    slot = type - kFormatConcatenationErrorOperandKind < kFormatConcatenationErrorKindCount ? slot : entry;
-    type = LoadU32(ctx, kFormatConcatenationErrorTypeTable + (LoadU32(ctx, slot + 8u) << 2));
-    chain = LoadU32(ctx, state + 20u);
-    entry = LoadU32(ctx, chain);
-    chain_end = LoadU32(ctx, chain + 8u);
-    at_end = static_cast<uint32_t>(entry >= chain_end);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = GuestStackSp(ctx);
+    i1 = 48u;
+    i0 -= i1;
+    l3 = i0;
+    GuestStackSp(ctx) = i0;
+    i0 = b;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l4 = i0;
+    i0 = l3;
+    i1 = 0u;
+    StoreU32(ctx, i0 + 44u, i1);
+    i0 = c;
+    i1 = b;
+    i2 = l4;
+    i3 = 3u;
+    i2 -= i3;
+    i3 = 2u;
+    i2 = i2 < i3;
+    i0 = i2 ? i0 : i1;
+    c = i0;
+    i0 = LoadU32(ctx, i0 + 8u);
+    i1 = 2u;
+    i0 <<= (i1 & 31);
+    i1 = kF5645Const2BD80;
+    i0 += i1;
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l6 = i0;
+    i0 = LoadU32(ctx, i0);
+    b = i0;
+    i1 = l6;
+    i1 = LoadU32(ctx, i1 + 8u);
+    l8 = i1;
+    i0 = i0 >= i1;
+    l7 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Walk the chain to the entry whose slot the operand stands at; the short
-    // text is the one raised when the chain holds no key for it.
-    if (at_end) {
-      goto short_path;
-    }
-    while (entry != slot && chain_end > entry + kFormatConcatenationErrorEntryBytes) {
-      entry += kFormatConcatenationErrorEntryBytes;
-    }
-    if (entry != slot) {
-      goto short_path;
-    }
-    entry = ResolveVariableKind(ctx, state, chain,
-                                static_cast<uint32_t>(static_cast<int32_t>(
-                                    slot - LoadU32(ctx, state + 12u)) >> 4),
-                                record + kFormatConcatenationErrorFieldOffset);
-    if (entry == 0u) {
-      goto short_path;
-    }
-    // The key's own text and the two operands are the long text's arguments.
-    StoreU32(ctx, record + 16u, kFormatConcatenationErrorName);
-    StoreU32(ctx, record + 20u, entry);
-    StoreU32(ctx, record + 24u, LoadU32(ctx, record + kFormatConcatenationErrorFieldOffset));
-    StoreU32(ctx, record + 28u, type);
-    entry = record + 16u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l7;
+    if (i0) {goto block_5;}
+    loop_7: 
+      i0 = b;
+      i1 = c;
+      i0 = i0 != i1;
+      if (i0) {
+        i0 = l8;
+        i1 = b;
+        i2 = 16u;
+        i1 += i2;
+        b = i1;
+        i0 = i0 > i1;
+        if (i0) {goto loop_7;}
+        goto block_5;
+      }
+    i0 = a;
+    i1 = l6;
+    i2 = c;
+    i3 = a;
+    i3 = LoadU32(ctx, i3 + 12u);
+    i2 -= i3;
+    i3 = 4u;
+    i2 = (uint32_t)((int32_t)i2 >> (i3 & 31));
+    i3 = l3;
+    i4 = 44u;
+    i3 += i4;
+    i0 = ResolveVariableKind(ctx, i0, i1, i2, i3);
+    b = i0;
+    i0 = !(i0);
+    if (i0) {goto block_5;}
+    i0 = l3;
+    i1 = kF5645MsgConcatenate;
+    StoreU32(ctx, i0 + 16u, i1);
+    i0 = l3;
+    i1 = b;
+    StoreU32(ctx, i0 + 20u, i1);
+    i0 = l3;
+    i1 = l3;
+    i1 = LoadU32(ctx, i1 + 44u);
+    StoreU32(ctx, i0 + 24u, i1);
+    i0 = l3;
+    i1 = l4;
+    StoreU32(ctx, i0 + 28u, i1);
+    i0 = l3;
+    i1 = 16u;
+    i0 += i1;
+    b = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == kFormatConcatenationErrorLongCall) {
-    RaiseScriptError(ctx, state, kFormatConcatenationErrorLongText, entry);
-    resume_code = kFormatConcatenationErrorLongCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
+  i0 = l5;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5645MsgAttemptToSS;
+    i2 = b;
+    RaiseScriptError(ctx, i0, i1, i2);
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The long text was raised, so the short one is not reached.
-    goto done;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {goto running_exit;}
+  block_5:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l3;
+    i1 = l4;
+    StoreU32(ctx, i0 + 4u, i1);
+    i0 = l3;
+    i1 = kF5645MsgConcatenate;
+    StoreU32(ctx, i0, i1);
   }
-short_path:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The short text's own arguments: the key name and the operand's type text.
-    StoreU32(ctx, record + 4u, type);
-    StoreU32(ctx, record, kFormatConcatenationErrorName);
+  i0 = l5;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5645MsgAttemptToSA;
+    i2 = l3;
+    RaiseScriptError(ctx, i0, i1, i2);
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == kFormatConcatenationErrorShortCall) {
-    RaiseScriptError(ctx, state, kFormatConcatenationErrorShortText, record);
-    resume_code = kFormatConcatenationErrorShortCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l3;
+    i1 = 48u;
+    i0 += i1;
+    GuestStackSp(ctx) = i0;
   }
-done:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The record reserved on the guest stack goes back.
-    GuestStackSp(ctx) = record + kFormatConcatenationErrorRecordBytes;
-  }
+  goto func_exit;
+  spill_frame:;
+  c = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = c;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF5645ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  c = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = c;
+  i1 = b;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = c;
+  i1 = l3;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = c;
+  i1 = l4;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 16u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
-  return;
-suspend_point:;
-  // Push the resume word naming the call that was in flight, then the frame the
-  // rewind pops; the words are saved in the order that pop reads them.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-           LoadU32(ctx, ReturnFrameSp(ctx)) + kFormatConcatenationErrorResumeWordBytes);
-  frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, frame, state);
-  StoreU32(ctx, frame + 4u, entry);
-  StoreU32(ctx, frame + 8u, record);
-  StoreU32(ctx, frame + 12u, type);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-           LoadU32(ctx, ReturnFrameSp(ctx)) + kFormatConcatenationErrorSaveFrameBytes);
-  LeaveFrame();
-  return;
 }
-
-}  // namespace artc
+}

@@ -1,191 +1,275 @@
+// append_text_bytes.cpp -- appends bytes to the text block, growing the buffer first and raising the length error when the text would overflow..
+//
+// AppendTextBytes -- appends bytes to the text block, growing the buffer first and raising the length error when the text would overflow.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 387582-387582 (f970); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Hands back a fresh string buffer of the requested size.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);
-// Raises the error a text that grew past its limit ends in.
 void RaiseStringLengthError(EngineContext* ctx, uint32_t a);
-// Copies bytes into a text's storage; a zero length copies nothing.
 void CopyIfNonEmpty(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 
 namespace {
-// The flag that marks a text's storage as heap allocated, the largest length a
-// text may take before the count overflows, and the mask that rounds the
-// allocation size up to a multiple of sixteen.
-constexpr uint32_t kAppendTextBytesHeapFlag = 0x80000000u;
-constexpr uint32_t kAppendTextBytesMaxLength = 0xFFFFFFEFu;
-constexpr uint32_t kAppendTextBytesAlignMask = 0xFFFFFFF0u;
-// The words a save frame costs, and the word that names a call in flight.
-constexpr uint32_t kAppendTextBytesSaveFrameBytes = 28u;
-constexpr uint32_t kAppendTextBytesResumeWordBytes = 4u;
+
+constexpr uint32_t kF970Const80000000 = 0x80000000u;  // 
+constexpr uint32_t kF970ConstFFFFFFEF = 0xFFFFFFEFu;  // 
+constexpr uint32_t kF970ConstFFFFFFF0 = 0xFFFFFFF0u;  // 
+constexpr uint32_t kF970SaveFrameBytes = 28u;
+constexpr uint32_t kF970ResumeWordBytes = 4u;
+
 }  // namespace
 
-// Appends a byte string to a text. A text of at most ten characters keeps them
-// in the object itself; a longer one gets a fresh heap buffer, and a length
-// that would overflow raises the length error.
 void AppendTextBytes(EngineContext* ctx, uint32_t text, uint32_t bytes, uint32_t length) {
   EnterFrame();
-  // The stack pointer a frame comes off, and scratch words for the values that
-  // pass through it.
-  uint32_t sp = 0u;
-  uint32_t top = 0u;
-  uint32_t arg = 0u;
-  uint32_t third = 0u;
-  // The word the save frame carries: the short-text flag on a running pass,
-  // and the storage the bytes are copied to once that storage exists.
-  uint32_t hold = 0u;
-  // The object whose storage field the new buffer is written into.
-  uint32_t target = 0u;
-  // The freshly allocated buffer, and later the base of the save frame.
-  uint32_t scratch = 0u;
-  // Sixteen bytes cut off the guest stack for the terminator byte that follows
-  // the copied text.
-  uint32_t pad = 0u;
-  // The size asked of the allocator.
-  uint32_t capacity = 0u;
-  // The call a rewinding pass replays, and the word a suspending pass pushes.
-  uint32_t resume_index = 0u;
-  uint32_t resume_code = 0u;
-
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the save frame and read its words back.
-    sp = ReturnFrameSp(ctx);
-    top = ReturnFrameSp(ctx);
-    top = LoadU32(ctx, top) - kAppendTextBytesSaveFrameBytes;
-    StoreU32(ctx, sp, top);
-    target = ReturnFrameSp(ctx);
-    target = LoadU32(ctx, target);
-    text = LoadU32(ctx, target);
-    bytes = LoadU32(ctx, target + 4u);
-    length = LoadU32(ctx, target + 8u);
-    hold = LoadU32(ctx, target + 12u);
-    pad = LoadU32(ctx, target + 16u);
-    capacity = LoadU32(ctx, target + 20u);
-    target = LoadU32(ctx, target + 24u);
+  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF970SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    i0 = LoadU32(ctx, i0);
+    text = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 4u);
+    bytes = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 8u);
+    length = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l3 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l6 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l7 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l4 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume word, which names the call that was in flight.
-    sp = ReturnFrameSp(ctx);
-    top = ReturnFrameSp(ctx);
-    top = LoadU32(ctx, top) - kAppendTextBytesResumeWordBytes;
-    StoreU32(ctx, sp, top);
-    sp = ReturnFrameSp(ctx);
-    top = LoadU32(ctx, sp);
-    resume_index = LoadU32(ctx, top);
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF970ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l8 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Cut the scratch area off the guest stack, then hold the length against
-    // the largest count that cannot overflow it.
-    top = GuestStackSp(ctx);
-    top = top - 16u;
-    pad = top;
-    GuestStackSp(ctx) = top;
-    hold = length <= kAppendTextBytesMaxLength;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = GuestStackSp(ctx);
+    i1 = 16u;
+    i0 -= i1;
+    l6 = i0;
+    GuestStackSp(ctx) = i0;
+    i0 = length;
+    i1 = kF970ConstFFFFFFEF;
+    i0 = i0 <= i1;
+    l3 = i0;
   }
-  top = hold;
-  arg = ResumePhase(ctx) == kResumeRewinding;
-  top = top | arg;
-  if (top != 0u) {
-    // The length fits, or a rewinding pass is replaying this attempt.
-    third = length <= 10u;
-    top = ResumePhase(ctx);
-    hold = top ? hold : third;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      if (hold != 0u) {
-        // A short text: the characters stay in the object, so only its length
-        // has to be noted.
-        StoreU8(ctx, text + 11u, length);
-        hold = text;
-        goto text_done;
+  i0 = l3;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = l3;
+    i1 = length;
+    i2 = 10u;
+    i1 = i1 <= i2;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    l3 = i0;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l3;
+      if (i0) {
+        i0 = text;
+        i1 = length;
+        StoreU8(ctx, i0 + 11u, i1);
+        i0 = text;
+        l3 = i0;
+        goto block_6;
       }
-      target = text;
-      if (length >= 11u) {
-        // Round the allocation up to sixteen byte steps.
-        arg = length + 16u;
-        arg = arg & kAppendTextBytesAlignMask;
-        third = arg - 1u;
-        third = third == 11u ? arg : third;
+      i0 = text;
+      l4 = i0;
+      i0 = length;
+      i1 = 11u;
+      i0 = i0 >= i1;
+      if (i0) {
+        i0 = length;
+        i1 = 16u;
+        i0 += i1;
+        i1 = kF970ConstFFFFFFF0;
+        i0 &= i1;
+        l3 = i0;
+        i1 = l3;
+        i2 = 1u;
+        i1 -= i2;
+        l3 = i1;
+        i2 = l3;
+        i3 = 11u;
+        i2 = i2 == i3;
+        i0 = i2 ? i0 : i1;
       } else {
-        third = 10u;
+        i0 = 10u;
       }
-      hold = third;
-      capacity = hold + 1u;
+      l3 = i0;
+      i1 = 1u;
+      i0 += i1;
+      l7 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_index == 0u) {
-      // The allocation is the call that can suspend.
-      scratch = AllocateStringBuffer(ctx, capacity);
-      resume_code = 0u;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto save_frame;
-      }
-      hold = scratch;
+    i0 = l8;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l7;
+      i0 = AllocateStringBuffer(ctx, i0);
+      l5 = i0;
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l5;
+      l3 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // Point the object at the new buffer.
-      StoreU32(ctx, target, hold);
-      arg = capacity | kAppendTextBytesHeapFlag;
-      StoreU32(ctx, text + 8u, arg);
-      StoreU32(ctx, text + 4u, length);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      i1 = l3;
+      StoreU32(ctx, i0, i1);
+      i0 = text;
+      i1 = l7;
+      i2 = kF970Const80000000;
+      i1 |= i2;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = text;
+      i1 = length;
+      StoreU32(ctx, i0 + 4u, i1);
     }
-  text_done:;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // Copy the bytes in, then put the terminator byte after them.
-      CopyIfNonEmpty(ctx, hold, bytes, length);
-      StoreU8(ctx, pad + 15u, 0u);
-      arg = length + hold;
-      top = LoadU8(ctx, pad + 15u);
-      StoreU8(ctx, arg, top);
-      top = pad + 16u;
-      GuestStackSp(ctx) = top;
-      LeaveFrame();
-      return;
+    block_6:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l3;
+      i1 = bytes;
+      i2 = length;
+      CopyIfNonEmpty(ctx, i0, i1, i2);
+      i0 = l6;
+      i1 = 0u;
+      StoreU8(ctx, i0 + 15u, i1);
+      i0 = length;
+      i1 = l3;
+      i0 += i1;
+      i1 = l6;
+      i1 = LoadU8(ctx, i1 + 15u);
+      StoreU8(ctx, i0, i1);
+      i0 = l6;
+      i1 = 16u;
+      i0 += i1;
+      GuestStackSp(ctx) = i0;
+      goto func_exit;
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_index == 1u) {
-    // The length did not fit: this is the error the caller ends in.
-    RaiseStringLengthError(ctx, text);
-    resume_code = 1u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto save_frame;
-    }
+  i0 = l8;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = text;
+    RaiseStringLengthError(ctx, i0);
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
     TrapUnreachable();
   }
-  LeaveFrame();
-  return;
-save_frame:;
-  // Push the word naming the call in flight, then the save frame; a rewind
-  // reads them back in that order.
-  scratch = resume_code;
-  sp = ReturnFrameSp(ctx);
-  top = LoadU32(ctx, sp);
-  StoreU32(ctx, top, scratch);
-  sp = ReturnFrameSp(ctx);
-  top = ReturnFrameSp(ctx);
-  top = LoadU32(ctx, top) + kAppendTextBytesResumeWordBytes;
-  StoreU32(ctx, sp, top);
-  sp = ReturnFrameSp(ctx);
-  scratch = LoadU32(ctx, sp);
-  StoreU32(ctx, scratch, text);
-  arg = bytes;
-  StoreU32(ctx, scratch + 4u, arg);
-  arg = length;
-  StoreU32(ctx, scratch + 8u, arg);
-  arg = hold;
-  StoreU32(ctx, scratch + 12u, arg);
-  arg = pad;
-  StoreU32(ctx, scratch + 16u, arg);
-  arg = capacity;
-  StoreU32(ctx, scratch + 20u, arg);
-  arg = target;
-  StoreU32(ctx, scratch + 24u, arg);
-  sp = ReturnFrameSp(ctx);
-  top = ReturnFrameSp(ctx);
-  top = LoadU32(ctx, top) + 28u;
-  StoreU32(ctx, sp, top);
+  goto func_exit;
+  spill_frame:;
+  l5 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l5;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF970ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l5 = i0;
+  i1 = text;
+  StoreU32(ctx, i0, i1);
+  i0 = l5;
+  i1 = bytes;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l5;
+  i1 = length;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l5;
+  i1 = l3;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l5;
+  i1 = l6;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l5;
+  i1 = l7;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = l5;
+  i1 = l4;
+  StoreU32(ctx, i0 + 24u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 28u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

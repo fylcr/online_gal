@@ -1,6 +1,21 @@
 # Online Gal · 浏览器环境的线上视觉小说模拟器
 
-一个**完全运行在浏览器中**的多引擎视觉小说平台。导入本地游戏文件夹或压缩包，平台会识别游戏使用的引擎，选择合适的运行时并直接运行；游戏文件不会上传，存档写入浏览器本地数据库。
+一个**运行在浏览器中**的多引擎视觉小说平台。导入本地游戏文件夹或压缩包，平台识别引擎并选择运行时；是否能启动取决于该运行时及引擎资产是否可用。游戏文件不上传，存档写入浏览器本地数据库。
+
+## 源码、构建与当前交付边界
+
+本仓库原位维护三套原生引擎的适配源码与构建入口，未把 ONS / KiriKiri 的完整上游检出复制入库。
+详细目录、上传清单与检查方式见 [`源码布局指南`](docs/source-layout.md)。
+
+| 引擎 | 源码导航 | 当前边界 |
+| --- | --- | --- |
+| ONScripter | [`ONS 导航`](ports/ons/README.md) | 固定上游源码 + 事件 shim / worker 宿主；CI private 包包含引擎资产；需要跨源隔离 |
+| KiriKiri | [`KiriKiri 导航`](ports/krkr/README.md) | 固定上游源码 + VLFS 补丁 / overlays；页面资产与 runtime-kag tarball 分开交付，须部署并配置 `pageUrl` |
+| Artemis | [`Artemis 导航`](ports/artemis/README.md) | 目标仅 asyncify 手写 C++ + 独立现代宿主；仍依赖 SDK 转译输入和生成剩余体，public provider 尚不能启动游戏 |
+
+包保持 private / GPL-3.0-or-later，不发布 npm。**目录完整、构建成功、合成测试通过、真实游戏可用和再分发授权是不同结论。**
+本次仅整理导航和上传边界，保留现有源码、Git 索引及本地资料，不重新构建、不运行游戏、不提交或推送。
+下文保留历史实现和测量；当前 Artemis 状态以上述边界及其导航为准。
 
 参考并移植了两套移动端模拟器的架构思想：
 
@@ -23,18 +38,16 @@
 | RPG Maker MV / MZ | `js/rpg_core.js`、`js/rmmz_core.js`、`www/` 布局 | 内置 Web 运行时 | ✅ 可运行 |
 | 通用 HTML5 / NW.js | `index.html`、`app.asar` | 内置 Web 运行时 | ✅ 可运行 |
 | SiglusEngine | `Scene.pck`、`Gameexe.ini`/`Gameexe.dat`（含 `Data/` 布局） | 已接入识别与配置读取；执行需 `siglus_rs` 的 WebAssembly 构建 | ⚠️ 仅识别 |
-| ArtemisEngine | `root.pfs`、`system.ini`、`boot.ini`、`system/first.iet`、`root.pfs.NNN` 补丁包 | 官方 SDK 的 WebAssembly 构建已可部署真实游戏（`ports/artemis/build/official-web-deploy.py`），并提供 `root.pfs` 目录读取 | ⚠️ 引擎能跑，但**尚未接入平台**；音频与读缓存未完成 |
+| ArtemisEngine | `root.pfs`、`system.ini`、`boot.ini`、`system/first.iet`、`root.pfs.NNN` 补丁包 | PFS 目录读取、asyncify 手写 C++ 产品与现代宿主组件 | ⚠️ 平台不可运行；provider `load()` 拒绝启动，手写冷启动与现代宿主验收未完成 |
 | Ren'Py | `.rpa`、`game/script.rpy`、`renpy/` | — | 仅识别（无探针） |
 
 「仅识别」的引擎会被记录在游戏条目上，导入后**明确提示不可运行**，而不是给出一个点了没反应的启动按钮。
-Siglus 与 Artemis 的提供者都不是把 `availability` 写死成 `unavailable`，而是**取决于宿主是否注册了
-引擎宿主**：Siglus 声明 `availability: siglusEngineHosts.length > 0 ? 'runnable' : 'unavailable'`，
-Artemis 同理。仓库里目前**没有任何代码调用 `registerSiglusEngineHost` 或 `registerArtemisEngineHost`**，
-所以由本平台直接启动时两者都落回 `unavailable`，游戏库卡片上显示「引擎不可用」而不是「开始」——
-这是当前的真实行为，而不是硬编码的结论。
+当前 Artemis provider 在对象创建时根据空的 host 列表求值为 `unavailable`，并不是随注册变化的实时 getter。
+更重要的是 [`ArtemisRuntime.load()`](packages/runtime-artemis/src/runtime.ts) 仍无条件抛出
+`UnsupportedEngineError`，**仅注册宿主不能让它启动游戏**。Siglus 同样尚无可用的平台执行路径。
 
-> Artemis 与 Siglus 的差别在**引擎那一侧**：Siglus 没有可用的 WebAssembly 构建，Artemis 有，
-> 而且已经能跑真实游戏——见下文「ArtemisEngine」一节。
+> 官方 Artemis wasm / minified glue 的历史游戏测试与 generated-body 诊断，不证明手写引擎、
+> 独立现代宿主或 public package 已通过真实游戏验收，也不是另一条出货路线。
 
 ### 自研解释器没有实现的部分（本项目最大的限制之一）
 
@@ -53,7 +66,7 @@ KiriKiri2 是 C++ 引擎（参考实现 Kirikiroid2 的 `src/` 约 7.2 MB，仅 
 | TJS2 **字节码 VM** | ❌ 无 | 能读、能反汇编，但**不能执行**；编译型 `.ks` 会被明确拒绝 |
 | TJS2 完整对象模型 | ❌ 部分 | 无 `property` 访问器语义、命名空间、完整标准库 |
 | TVP 原生插件（`loadplugin`） | ❌ 无 | 需要 `.dll`/`.so`，浏览器里没有对应物 |
-| 原生引擎的 WASM 移植 | ✅ 已有 | KiriKiri2、ONScripter、Artemis 三者的上游/官方 WASM 构建都已跑通（见下文各节）；**Siglus 仍无** |
+| 原生引擎的 WASM 移植 | 分引擎验收 | ONS / KiriKiri 有历史真实游戏证据；Artemis 的官方诊断不等于手写引擎或现代宿主可用；Siglus 尚无可用构建 |
 
 因此**下面这条限制针对的是本项目的解释器，而不是平台整体**：解释器的兼容性预期应当是
 「简单到中等的 KAG3 游戏、且脚本为明文」。以下情况会失败（且会明确报错，不会静默）：
@@ -83,7 +96,7 @@ pnpm build        # 构建全部 packages + 静态站点（apps/app/dist）
 pnpm preview
 ```
 
-测试（本机实测 416 个用例，411 通过 / 5 永久跳过）：
+本地完整套件（依赖未入库的工作台与游戏；历史用例数不是本次整理的验收结果）：
 
 ```bash
 pnpm test
@@ -93,17 +106,26 @@ pnpm test
 > 仓库跑 `pnpm test` 会**明确报错退出**，而不是打一个 0 用例的绿色结果——空 glob 下
 > `node --test` 会以 0 退出，那种「假通过」比失败更糟。要跑测试，先把 `.test/` 与 `.ref/` 恢复。
 
-引擎 wasm 也同理：`ports/**/*.wasm` 不进仓库。`.github/workflows/` 里的 CI **按引擎分别构建**
-（只在上游 pin 或该引擎源码变化时触发，不会每次 push 都重编全部），产物发布为 release asset，
-别人**不需要自己编译**。取用与校验见 [docs/fetch-engine-artifacts.md](docs/fetch-engine-artifacts.md)：
+不依赖私有游戏的源码组织检查可直接运行：
+
+```bash
+npm run check:layout
+npm run check:sources
+npm run test:sources
+```
+
+常规引擎构建输出不进源码仓库；已有 ONS 资产与 Artemis SDK 输入是明确保留的例外。
+CI **按引擎分别构建**，artifact 与可选 release 发布分开处理；不要求下游自己编译 wasm。
+KiriKiri 页面资产需单独部署，Artemis public runtime 仍未可用。
+取用与历史校验见 [`制品下载指南`](docs/fetch-engine-artifacts.md)：
 
 ```bash
 node ports/lib/fetch-engine.mjs ons          # 下载 + 校验 sha256 + 落位
 ```
 
-> 这套 CI 与取用链路的**两侧都已在本机实测**（产物生成 → manifest → 下载 → sha256 校验 → 落位，
-> 字节一致；退出码矩阵齐备），但**尚未在真实 GitHub Actions 上跑过，也还没有发布过 release**——
-> 在第一个 release 出现之前，fetch 会以退出码 2 报「制品不可得」并回落到本地源码构建。
+> GitHub 构建、下载校验与游戏测试的历史记录见制品指南；它们不证明当前未提交源码或 Artemis
+> 现代宿主已验收。本次整理不派发 workflow、不发布 release。fetch 的退出码 2 表示制品不可得；
+> ONS 获取入口可在此类不可用情形回落源码构建，但退出码 3（校验失败）必须停止，不能悄悄回落。
 
 类型检查：
 
@@ -114,7 +136,7 @@ pnpm check        # tsc -b（全部 packages）+ astro check
 ### 部署注意
 
 - 站点是**纯静态**的，可直接部署到任意静态托管。
-- 建议设置 `Cross-Origin-Opener-Policy: same-origin` 与 `Cross-Origin-Embedder-Policy: credentialless`（开发服务器已配置）。当前引擎不依赖 `SharedArrayBuffer`，但保留这组头可以让后续接入 threaded WebAssembly 引擎时无需改动部署。
+- ONS worker 的同步取数桥依赖 `SharedArrayBuffer`，需要跨源隔离。设置 `Cross-Origin-Opener-Policy: same-origin` 与适用的 `Cross-Origin-Embedder-Policy`（如 `credentialless`；开发服务器已配置），并核对引擎页面及资源的响应头。不能把隔离头当作可有可无的未来优化。
 
 ---
 
@@ -602,32 +624,23 @@ wasm 构建、WebGPU 离屏读回、`Scene.pck` 解包、`Gameexe.dat` 解码器
 
 ### ArtemisEngine（`packages/runtime-artemis`）
 
-这个包本身**只做识别与读取目录，不执行**——它比 Siglus 多了一层实质能力：能读 PFS 包。
-但 Artemis 这条线**整个平台**已经不只是「仅识别」了，两件事必须分开讲。
+public package 当前能识别游戏、读取 PFS 和声明 provider；现代宿主组件存在，
+但**平台执行路径尚不可用**。详见 [`Artemis 源码导航`](ports/artemis/README.md)。
 
-**一、包里的 provider 仍会落回 `unavailable`，但那不是常量。**
-`runtime.ts` 声明的是 `availability: artemisEngineHosts.length > 0 ? 'runnable' : 'unavailable'`：
-只要宿主用 `registerArtemisEngineHost(host)` 注入一个引擎宿主，它就能跑。仓库里**目前没有任何
-代码调用这个函数**，所以由本平台直接启动时它确实报「引擎不可用」——这是诚实的现状，不是结论。
-
-**二、引擎真的跑起来了，而且有两条不同的路线：**
-
-- **官方 SDK 的 WebAssembly 构建**（`ports/artemis/build/official-web-deploy.py`）——
-  把真实游戏部署到官方 asyncify 构建上。这是**唯一验证过能在浏览器里完整跑起真实游戏**的路线
-  （`.ref/artemis/WebAssembly/asyncify/`）。官方只给了二进制，所以它入库属于一个被推翻的
-  许可决定，理由见 [`docs/artemis-web-port.md`](docs/artemis-web-port.md) §15。
-- **`artemis-compat` 的自建移植**（`ports/artemis/src/`）——第三方引擎，输入层
-  的工作都在这一条上。`ports/artemis/src/` 是它的**重写产物**：手写 C++，逐个函数替换
-  wasm2c 转译出来的函数体，命名空间 `artc`，共 159 个文件、约 71,000 行，全部是**已跟踪的
-  普通源码**。旁边放着它的风格宪法 `ports/artemis/REWRITE.md` 与逐函数改名台账
-  `ports/artemis/rewrite-names.tsv`（314 个 `fn` 行，其中 157 行已经落到 `src/` 里的真文件）。
-  曾经的旧位置 `.ref/artemis-official/rewrite/` 已删除；同步（sync）那一份产品**没有入库**。
-- **校验不是声明，是会失败的断言**：`ports/artemis/reverse/wasm-replace-test.mjs` 对候选引擎
-  走四道闸、`ports/artemis/reverse/wasm-diff.mjs` 与官方做严格差分、
-  `bash ports/artemis/reverse/style-gate.sh` 检查重写代码的风格（实测 PASS）。
-- **已知缺口**：**音频**（OpenSL ES 那一层还没换到 Web Audio，日志能证明调用到达，但没声音）
-  与**读缓存**（同一段载荷在一次启动里被重复读取，没有缓存层）。这两项与其余未完成项记在
-  [`docs/artemis-web-port.md`](docs/artemis-web-port.md) §十。
+- [`runtime.ts`](packages/runtime-artemis/src/runtime.ts) 的 `availability` 在 provider 对象创建时
+  按 host 列表求值，并非实时 getter；`load()` 仍无条件抛出 `UnsupportedEngineError`。
+  **调用 `registerArtemisEngineHost()` 不能补齐执行路径。**
+- [`src/index.ts`](packages/runtime-artemis/src/index.ts) 只导出 SHA-1 / PFS / probe / provider，
+  未提供完整现代宿主 session；导入表、GL 或 Asyncify 组件测试不等于游戏验收。
+- 引擎目标只有 **asyncify 手写 C++ + 独立现代宿主**。工作树台账对应 **340 个映射函数 /
+  340 个 C++ 产品文件**，其中四个新产品尚未进入索引；拼接构建仍使用官方 wasm 转译输入和
+  未替换的生成体。`artemis-compat` 是命名/结构参考，不是本次 CI 编译的完整上游引擎。
+- 官方 wasm / minified glue 部署与 generated-body masks 是**诊断路线**，不作为出货宿主，
+  不证明当前手写冷启动、public runtime 或 GitHub 包已可用。当前手写冷启动失败，完整风格与
+  whitespace gate 也未通过；不能沿用旧的「引擎语义完整 / 已可运行 / style PASS」结论。
+- [`历史移植记录`](docs/artemis-web-port.md) 保留既有实验与欠账；
+  本次只整理源码入口，不推进冷启动修复、现代宿主接入或真实游戏复验。
+  SDK 及行为重表达产品的再分发授权另行核实。
 
 下面几条是 `packages/runtime-artemis` 这个包自己的范围：
 
@@ -640,9 +653,10 @@ wasm 构建、WebGPU 离屏读回、`Scene.pck` 解包、`Gameexe.dat` 解码器
 - **PFS 读取器**（`pfs.ts`）：`pf8`/`pf7`/`pf6` 容器，表头 + 变长记录。这解决了一个实际问题——
   打包发行的游戏根目录**只有 `root.pfs` 一个文件**，不看包内目录无法判断游戏是否完整。
   现在能列出包内条目，并直接从 `system.ini` 读取配置。
-- **SHA-1**（`sha1.ts`）：PFS 的载荷常用 `SHA-1(表字节)` 作为 XOR 密钥流，而 Web Crypto
-  **故意不提供 SHA-1**（`crypto.subtle.digest` 只有 SHA-2/3），所以按 FIPS 180-1 自行实现，
-  并用 Node 的 `crypto` 交叉验证。
+- **SHA-1**（[`sha1.ts`](packages/runtime-artemis/src/sha1.ts)）：PFS 的载荷常用
+  `SHA-1(表字节)` 作为 XOR 密钥流。Web Crypto 支持 SHA-1，但 digest API 是异步的；
+  这里提供同步纯 TypeScript 实现，按 FIPS 180-1 并用 Node 的 `crypto` 交叉验证。
+  这是格式兼容用途，不是推荐将 SHA-1 用于安全设计。
 - **`ArtemisEngineHost` 接口**：把 AetherKiri `bridge/rfvp_runtime` 的 `aether_rfvp_*` 契约
   转写成 TypeScript。选 RFVP 而不是 Artemis 本身来记录，是因为 RFVP 是 Rust 实现且已经渲染到
   调用方提供的表面，移植到 WebAssembly 属于换渲染后端而非重新设计。
@@ -688,8 +702,9 @@ TyranoBuilder 额外注入一个 shim，让桌面导出回退到 Web 存储路�
 `test/` 没有被忽略，`.test/` 才是。两个名字分开，克隆下来的仓库就可以自带 `test/`
 而不与这套本地测试冲突。
 
-**因此，克隆下来的仓库没有测试可跑，`pnpm test` 会报错退出**（见「快速开始」的说明）。
-这不是缺陷，是刻意的：静默通过比明确失败更容易骗人。
+**克隆后可运行 `npm run test:sources` 的源码上传回归测试，不需要游戏或工具链。**
+`pnpm test` 仍是依赖本地工作台的完整套件，缺少该工作台时会明确报错退出，不会伪装成 0 用例通过。
+以下目录和用例数是本地历史套件的导航，不是本次整理重跑后的结果。
 
 ```
 .test/
@@ -757,20 +772,22 @@ ports/                       把上面的运行时接到真实引擎的构建配
 ├── ons/                     ONScripter：构建配方 + shim + worker harness
 ├── krkr/kirikiroid2/        KiriKiri（现行）：构建配方 + vcpkg overlay ports + 浏览器测试
 ├── krkr/krkrsdl2/           KiriKiri（早期方案，已被取代，保留其诊断结论）
-└── artemis/                 Artemis：构建配方 + Android shim + engine patch + 页面 harness
-    ├── src/                 重写后的引擎源码（手写 C++，159 个文件，已跟踪）
-    ├── REWRITE.md           重写风格宪法（命名、注释口吻、目录落位）
-    ├── rewrite-names.tsv    逐函数改名台账（wasm2c 名 → artc 名）
-    ├── reverse/             逆向官方二进制并自校验的配方（差分、风格闸、帧锚）
-    └── vendor/              官方 SDK 的二进制，**有意入库**（专有许可，见下）
-scripts/                     仓库自身的检查脚本（布局约定、测试入口）
-.test/                       跨包测试套件（含 harness/ 模拟浏览器，已被 gitignore）
+└── artemis/                 Artemis：asyncify 桥接构建、手写产品及历史诊断工具
+    ├── src/                 手写 C++ 产品（工作树 340 个；四个新产品尚未进索引）
+    ├── REWRITE.md           重写约束；存在约束不表示全树已通过
+    ├── rewrite-names.tsv    函数与产品路径台账（须区分占位和有效映射）
+    ├── reverse/             拼接器、桥接构建与诊断配方；非独立完整引擎
+    └── vendor/              已跟踪 SDK 参考输入；再分发授权未解决
+scripts/                     仓库自身的布局、上传检查及测试入口
+test/                        可交付的源码上传回归测试，无需私有游戏
+.test/                       本地跨包套件、游戏与证据（gitignored）
 ```
 
 ### 代码放在哪里（约定）
 
-**模拟/移植代码一律放在仓库根下的对应位置**（`packages/`、`apps/`、`ports/`），**只有测试代码
-放在 `.test/`**。`.test/` 被 gitignore，所以放进去的代码既推不到 GitHub，克隆也拿不到。
+**模拟/移植源码放在对应的 `packages/`、`apps/`、`ports/`；随仓库交付的测试放在 `test/`。**
+`.test/` 是被忽略的本地套件、游戏与证据工作台，不能承载 clean-clone 所需代码。
+目录边界、已有资产例外和逐路径上传检查见 [`源码布局指南`](docs/source-layout.md)。
 
 这条约定来自一次真实的代价：整套 WASM 移植——构建脚本、Android shim、harness，甚至引擎
 patch——最初全都躺在 `.test/` 里，结果**没有任何东西能推送**，新克隆也根本构建不出来。后来把
@@ -780,10 +797,10 @@ patch——最初全都躺在 `.test/` 里，结果**没有任何东西能推送
 `ports/` 代码文件，若出现对 `.test/` 的引用就失败。它只看代码，注释会先被剥掉，因此正文里
 解释这条约定的文字不会误报。
 
-`ports/` 下的每个配方都驱动一份**上游引擎检出**与一套 Emscripten SDK，两者都不在仓库内：
-上游检出放在被忽略的 `.ref/`，SDK 由 `ports/env.sh` 按 `emcc` 是否存在来搜索。因此
-**没有一条配方里写死绝对路径**，克隆到任何位置都能构建。上游仓库与固定 commit 的清单见
-[`ports/README.md`](ports/README.md)。
+ONS / KiriKiri 从忽略的 `.ref/` 或 CI 临时目录取得固定上游源码；Artemis 桥接使用已跟踪
+SDK wasm 作为转译输入。Emscripten / WABT / vcpkg 等依赖另行准备，不复制工具链入库。
+Linux CI 与本地配方并非完全相同：KiriKiri 本地入口和部分 Artemis 工具仍有 Windows 或本机
+路径默认值，不能承诺任意平台 clone 后直接构建。主入口与前提见 [`ports 导航`](ports/README.md)。
 
 工作区使用 pnpm workspace；packages 通过 `tsc -b` 增量编译，开发时 Astro/Vite 直接解析 TypeScript 源码（`development` 导出条件），生产构建消费 `dist/`。
 
@@ -791,61 +808,42 @@ patch——最初全都躺在 `.test/` 里，结果**没有任何东西能推送
 
 ## 许可证
 
-本项目以 **GPL-3.0-or-later** 发布，见 [`LICENSE`](LICENSE)。第三方材料的出处与许可证声明见
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+项目自有代码声明 **GPL-3.0-or-later**，见 [`LICENSE`](LICENSE)。第三方材料的出处与
+适用声明见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)；根许可证不覆盖缺少授权的 SDK。
+选择 GPL 与 AetherKiri 的适配知识来源相一致，但兼容性不等于全部分发义务已履行。
 
-选择 GPL-3.0 的原因：接入各引擎运行时的知识几乎全部来自 GPL-3.0 的
-[AetherKiri](https://github.com/AetherKiri/AetherKiri)（其 `bridge/` 目录就是各引擎的适配层），
-因此直接采用同一许可证，避免混入时的授权摩擦。
-
-各参考项目的许可证与可否直接复制（均已核对源码头部与 LICENSE，非仅 README 声明）：
-
-| 项目 | 许可证 | 可否直接复制 |
+| 项目 | 许可证 / 材料边界 | 当前使用与分发要求 |
 | --- | --- | --- |
-| [AetherKiri](https://github.com/AetherKiri/AetherKiri) | **GPL-3.0-or-later** | ✅ 可（并入后本项目保持 GPL-3.0，已满足） |
-| [OnscripterYuri](https://github.com/YuriSizuku/OnscripterYuri)（AetherKiri fork） | **GPL-2.0-or-later** | ✅ 可升到 GPL-3.0 |
-| [Kirikiroid2](https://github.com/zeas2/Kirikiroid2)（TJS2 操作码与字节码格式表） | BSD 风格 | ✅ 已使用，声明保留在 `THIRD_PARTY_NOTICES.md` |
-| [Tyranor-Next](https://github.com/Weiss-UltimateSavior/Tyranor-Next) | **GPL-2.0-or-later** | ✅ 可升到 GPL-3.0；目前只用了其文档化的引擎特征表 |
-| [siglus_rs](https://github.com/xmoezzz/siglus_rs)（Siglus 引擎，尚未引入） | MPL-2.0 | ⚠️ 可通过 §3.3 二次许可与 GPL-3.0 组合，须保留 MPL 声明 |
-| [artemis-compat](https://github.com/Weiss-UltimateSavior/artemis-compat) | **GPL-3.0** | ✅ 可（`ports/artemis/src/` 的重写代码对齐它的 house style；同名函数按语义重表达，未逐字直译，故不在源码里加「Adapted from」字样） |
-| [kirikiroid2-web](https://github.com/fenghengzhi/kirikiroid2-web) | 上游 README 写 MIT，但仓库 `LICENSE` 是 Kirikiri 系的 BSD 风格全文 | ✅ 已使用其架构与两处被打补丁的 `platforms/web/` 文件；声明见 `THIRD_PARTY_NOTICES.md` |
-| 官方 Artemis Engine SDK（`ports/artemis/vendor/artemis-sdk/`） | **专有**（非自由许可，商业需付费） | ❌ **与 GPL-3.0 不兼容，但仍已入库**——这是有意承担的风险，理由见 [`docs/artemis-web-port.md`](docs/artemis-web-port.md) §15 与 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。再分发本仓库前应先删除该目录，除非持有作者授权 |
+| [AetherKiri](https://github.com/AetherKiri/AetherKiri) | GPL-3.0-or-later | provider / 宿主架构参考；实际引入代码须保留声明并履行 GPL 义务 |
+| [OnscripterYuri](https://github.com/YuriSizuku/OnscripterYuri) | 源码头部声明 GPL-2.0-or-later | 固定源码构建 wasm；分发二进制仍须提供对应源码及声明 |
+| [Kirikiroid2](https://github.com/zeas2/Kirikiroid2) | BSD 风格 | TJS2 格式表参考；保留适用版权与许可声明 |
+| [Tyranor-Next](https://github.com/Weiss-UltimateSavior/Tyranor-Next) | GPL-2.0-or-later | 当前借用引擎特征事实与分层设计，未复制实现 |
+| [siglus_rs](https://github.com/xmoezzz/siglus_rs) | MPL-2.0，尚未引入 | 如后续移植，核对二次许可适用条件并保留 MPL 声明 |
+| [artemis-compat](https://github.com/Weiss-UltimateSavior/artemis-compat) | GPL-3.0 | 命名与结构参考；不是当前桥接 CI 编译的完整源码，也不能授权官方 SDK |
+| [kirikiroid2-web](https://github.com/fenghengzhi/kirikiroid2-web) | 实际 LICENSE 为 Kirikiri BSD 风格及各依赖声明，不能只看 README 的 MIT 标识 | 上游构建及 VLFS 补丁；源码与二进制声明义务均需保留 |
+| 官方 Artemis SDK | 作者保留全部权利；本仓库未记录经核实的本体再分发授权 | 保留参考输入不等于许可；SDK、剩余转译体和重表达产品须单独审查 |
 
-关键判定依据：
-
-- OnscripterYuri 与 Tyranor-Next 都声明 GPL-2 **or later**，因此可并入 GPL-3.0 项目——AetherKiri
-  把整个项目标为 GPL-3.0-or-later 正是依赖这一点，其 `bridge/onscripter_runtime/` 就是 OnscripterYuri
-  的宿主桥。
-- Tyranor-Next 的价值在于引擎特征表与分层设计；即便其许可证允许，当前也只借用了这些事实性/架构性
-  信息，没有复制实现代码。
-
-> 因此：**AetherKiri、Kirikiroid2、Tyranor-Next 与 artemis-compat 的代码都可以移植或转录。**
-> 引入任何移植代码时，必须在本文件与 `THIRD_PARTY_NOTICES.md` 中追加对应的版权声明与来源说明。
-> 官方 Artemis SDK **不在此列**：它只能作为校验用的对照物，不能据此再分发。
+未核实的「商业需付费」「特定授权程序」以及把保留 SDK 写成已接受违法的旧表述已撤回。
+不能仅删除 vendor 目录便认定已有衍生产物的授权已解决，也不能把 GPL 或手写改名当作授权。
+本次不删除 SDK、不改写其版权声明、不发布衍生产物。
 
 ### 包与下游义务
 
-`packages/*` 的 12 个包与 `apps/app` 都带 `"license": "GPL-3.0-or-later"`，并且全部
-`private: true`：它们**不发布到 npm**。复用方式是从 GitHub release 取包 tarball
-（取法与私有仓库所需 token 见 [`docs/fetch-engine-artifacts.md`](docs/fetch-engine-artifacts.md)），
-或直接以 git 依赖引入。
+workspace 包与应用保持 `private: true`、GPL-3.0-or-later，不发布 npm。GitHub artifact / 可选
+release tarball 的获取方式见 [`制品下载指南`](docs/fetch-engine-artifacts.md)。
+ONS 包带引擎资产；KiriKiri 页面资产单独部署；Artemis 包有 bridge 字节但 public runtime 未可用。
 
-这条选择带来一个对下游的硬约束，写在这里是为了让人一开始就知道，而不是在分发前才发现：
-**以任何方式链接或改编这些包的项目，其分发必须同样以 GPL-3.0（or later）授权，并提供对应源代码。**
-这不是本仓库追加的条款，而是 GPL-3.0 本身的效力。
+分发基于本项目的 GPL 组合或修改版本，应按适用 GPL 条款保留许可、提供对应源码并履行其他义务；
+是否构成组合程序需看实际集成方式，不能概括为「任何链接一律同许可」。
+上游源码不入本仓库，不免除已交付二进制的对应源码、版权及依赖许可义务。
 
-### 官方 Artemis SDK 在收敛成一份出货形态之后是什么
+### Artemis 当前仍保留什么
 
-它的用途只剩一个：作为 `wasm2c` 的**转译输入**（出货模块沿用它那套导入/导出面当外壳）。
-因此「出货的模块里是否只剩我们自己的代码」必须按实测回答，而不是按印象回答：
+当前 asyncify 桥接依赖 SDK wasm 的转译输入，由 **340 个映射函数 / 340 个工作树产品文件**
+替换部分函数体，其余生成体仍在。台账覆盖与函数数不是完整语义、风格或游戏行为验收。
+旧的 157 / 159 产品及「100% tag 语义完成」数字不再代表当前状态。
 
-- 引擎语义层是完整的 —— 46 个 tag 根函数沿调用图三层的闭包共 **318 个函数 / 505,768 行**，
-  覆盖 **100% 的 tag 语义**（占全文 5,609 个函数的 5.7%、却占 2,705,479 行的 18.7%）；
-- 函数总量层不是 —— `ports/artemis/src/` 是 **157 个手写产品**，而模块共 **5,610 个函数**
-  （`.wasm2c.c` 里 `w2c_artemis_fNNN` 唯一名实测），其余由 `wasm2c` 的机器转译体填充，
-  是渲染/数学/压缩/字体这类叶节点。
-
-要让后者也成立，只有两条路：把叶节点换成**真上游库源码**（zlib / freetype / Lua 它们自己那份，
-而不是转译 SDK 里的副本），或者补完
-[`docs/artemis-wasm-transcription-handoff.md`](docs/artemis-wasm-transcription-handoff.md) §12
-列的三件欠账（`f3744` 的切分、batch-4B 余量、P4 长尾）。
+继续收敛需要分别完成：手写引擎冷启动修复与完整游戏验收、独立现代宿主 public session 接入、
+第三方真实源码替换 / 再分发授权审查，以及下载 GitHub 构建字节后的真实游戏复验。
+本次只完成源码组织；具体历史记录见 [`Artemis 导航`](ports/artemis/README.md)
+与 [`移植交接记录`](docs/artemis-wasm-transcription-handoff.md)。

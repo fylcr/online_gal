@@ -1,8 +1,23 @@
+// lua_tag_generic_del.cpp -- the delon* tag registry: matches the tag name against the delonautomodein ..
+//
+// TagGenericDelOn -- the delon* tag registry: matches the tag name against the delonautomodein .. delonwindowbutton handler table, erases the stored script block and releases the sound object slot it owned.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 1804237-1804237 (f3650); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations for the callees this step calls.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void FindOrInsertSoundObjectSlot(EngineContext* ctx, uint32_t a, uint32_t b);
 void Panic(EngineContext* ctx, uint32_t a0);
@@ -12,50 +27,52 @@ uint32_t SkipWhitespace(EngineContext* ctx, uint32_t text);
 uint32_t CombineComparisonResults(EngineContext* ctx, uint32_t left, uint32_t right, uint32_t result, uint32_t box);
 uint32_t EraseTaggedTreeEntry(EngineContext* ctx, uint32_t a, uint32_t b);
 
-namespace LuaEngine {
-// TagGenericDelOn -- the delon* tag registry: it matches the tag name against
-// the delonautomodein .. delonwindowbutton handler table and erases the
-// matching registration.
+namespace {
 
+constexpr uint32_t kF3650Const8C564 = 0x8C564u;  // 
+constexpr uint32_t kF3650MsgDelonclick = 0xAF6A3u;  // delonclick
+constexpr uint32_t kF3650MsgDelonrollover = 0xAF6BCu;  // delonrollover
+constexpr uint32_t kF3650MsgDelonrollout = 0xAF6D7u;  // delonrollout
+constexpr uint32_t kF3650MsgDelondragin = 0xAF6F0u;  // delondragin
+constexpr uint32_t kF3650MsgDelondrag = 0xAF706u;  // delondrag
+constexpr uint32_t kF3650MsgDelondragout = 0xAF71Du;  // delondragout
+constexpr uint32_t kF3650MsgDelonpush = 0xAF734u;  // delonpush
+constexpr uint32_t kF3650MsgDelonautomodein = 0xAF74Eu;  // delonautomodein
+constexpr uint32_t kF3650MsgDelonautomodeout = 0xAF76Fu;  // delonautomodeout
+constexpr uint32_t kF3650MsgDeloncommandskipin = 0xAF793u;  // deloncommandskipin
+constexpr uint32_t kF3650MsgDeloncommandskipout = 0xAF7BAu;  // deloncommandskipout
+constexpr uint32_t kF3650MsgDeloncontrolskipin = 0xAF7E1u;  // deloncontrolskipin
+constexpr uint32_t kF3650MsgDeloncontrolskipout = 0xAF808u;  // deloncontrolskipout
+constexpr uint32_t kF3650MsgDelonhidein = 0xAF828u;  // delonhidein
+constexpr uint32_t kF3650MsgDelonhideout = 0xAF841u;  // delonhideout
+constexpr uint32_t kF3650MsgDelonbacklogin = 0xAF85Du;  // delonbacklogin
+constexpr uint32_t kF3650MsgDelonbacklogout = 0xAF87Cu;  // delonbacklogout
+constexpr uint32_t kF3650MsgDelonwindowbutton = 0xAF89Eu;  // delonwindowbutton
+constexpr uint32_t kF3650MsgDelondirchg = 0xAF8BCu;  // delondirchg
+constexpr uint32_t kF3650MsgDelonvideofinish = 0xAF8D9u;  // delonvideofinish
+constexpr uint32_t kF3650MsgDelonsoundfinish = 0xAF8FBu;  // delonsoundfinish
+constexpr uint32_t kF3650ConstB53F7 = 0xB53F7u;  // 
+constexpr uint32_t kF3650ConstB53F9 = 0xB53F9u;  // 
+constexpr uint32_t kF3650MsgButton = 0xB53FBu;  // button
+constexpr uint32_t kF3650ConstB53FF = 0xB53FFu;  // 
+constexpr uint32_t kF3650ConstB5E30 = 0xB5E30u;  // 
+constexpr uint32_t kF3650MsgPx = 0xB5E31u;  // px != 0
+constexpr uint32_t kF3650MsgBoostBoostSmartPtr = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
+constexpr uint32_t kF3650MsgOperator = 0xB5E71u;  // operator->
+constexpr uint32_t kF3650ConstB5F40 = 0xB5F40u;  // 
+constexpr uint32_t kF3650ConstB8F8C = 0xB8F8Cu;  // 
+constexpr uint32_t kF3650ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF3650ConstFFFFFFC0 = 0xFFFFFFC0u;  // 
+constexpr uint32_t kF3650ConstFFFFFFFE = 0xFFFFFFFEu;  // 
+constexpr uint32_t kF3650ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF3650SaveFrameBytes = 40u;
+constexpr uint32_t kF3650ResumeWordBytes = 4u;
+
+}  // namespace
+
+namespace LuaEngine {
 void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   EnterFrame();
-  constexpr uint32_t kData8C564 = 0x8C564u;
-  constexpr uint32_t kMsgDelonclick = 0xAF6A3u;  // delonclick
-  constexpr uint32_t kMsgDelonrollover = 0xAF6BCu;  // delonrollover
-  constexpr uint32_t kMsgDelonrollout = 0xAF6D7u;  // delonrollout
-  constexpr uint32_t kMsgDelondragin = 0xAF6F0u;  // delondragin
-  constexpr uint32_t kMsgDelondrag = 0xAF706u;  // delondrag
-  constexpr uint32_t kMsgDelondragout = 0xAF71Du;  // delondragout
-  constexpr uint32_t kMsgDelonpush = 0xAF734u;  // delonpush
-  constexpr uint32_t kMsgDelonautomodein = 0xAF74Eu;  // delonautomodein
-  constexpr uint32_t kMsgDelonautomodeout = 0xAF76Fu;  // delonautomodeout
-  constexpr uint32_t kMsgDeloncommandskipin = 0xAF793u;  // deloncommandskipin
-  constexpr uint32_t kMsgDeloncommandskipout = 0xAF7BAu;  // deloncommandskipout
-  constexpr uint32_t kMsgDeloncontrolskipin = 0xAF7E1u;  // deloncontrolskipin
-  constexpr uint32_t kMsgDeloncontrolskipout = 0xAF808u;  // deloncontrolskipout
-  constexpr uint32_t kMsgDelonhidein = 0xAF828u;  // delonhidein
-  constexpr uint32_t kMsgDelonhideout = 0xAF841u;  // delonhideout
-  constexpr uint32_t kMsgDelonbacklogin = 0xAF85Du;  // delonbacklogin
-  constexpr uint32_t kMsgDelonbacklogout = 0xAF87Cu;  // delonbacklogout
-  constexpr uint32_t kMsgDelonwindowbutton = 0xAF89Eu;  // delonwindowbutton
-  constexpr uint32_t kMsgDelondirchg = 0xAF8BCu;  // delondirchg
-  constexpr uint32_t kMsgDelonvideofinish = 0xAF8D9u;  // delonvideofinish
-  constexpr uint32_t kMsgDelonsoundfinish = 0xAF8FBu;  // delonsoundfinish
-  constexpr uint32_t kDataB53F7 = 0xB53F7u;
-  constexpr uint32_t kDataB53F9 = 0xB53F9u;
-  constexpr uint32_t kMsgButton = 0xB53FBu;  // button
-  constexpr uint32_t kDataB53FF = 0xB53FFu;
-  constexpr uint32_t kDataB5E30 = 0xB5E30u;
-  constexpr uint32_t kMsgPx = 0xB5E31u;  // px != 0
-  constexpr uint32_t kMsgSmartPtrPath = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
-  constexpr uint32_t kMsgOperator = 0xB5E71u;  // operator->
-  constexpr uint32_t kDataB5F40 = 0xB5F40u;
-  constexpr uint32_t kDataB8F8C = 0xB8F8Cu;
-  constexpr uint32_t kDataFFFFFFC0 = 0xFFFFFFC0u;
-  constexpr uint32_t kDataFFFFFFFE = 0xFFFFFFFEu;
-  constexpr uint32_t kDataFFFFFFFF = 0xFFFFFFFFu;
-  constexpr uint32_t kSaveFrameBytes = 40u;
-  constexpr uint32_t kResumeWordBytes = 4u;
   uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u; uint32_t i6 = 0u;
   uint64_t j1 = 0;
@@ -67,7 +84,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kSaveFrameBytes;
+    i2 = kF3650SaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -110,7 +127,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kResumeWordBytes;
+    i2 = kF3650ResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -147,7 +164,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i0 == i1;
     l10 = i0;
     i0 = b;
-    i1 = kResumeWordBytes;
+    i1 = kF3650ResumeWordBytes;
     i0 += i1;
     l9 = i0;
   }
@@ -160,7 +177,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -173,8 +190,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l9;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kMsgDelonclick;
+      i3 = kF3650ConstFFFFFFFF;
+      i4 = kF3650MsgDelonclick;
       i5 = 10u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -190,10 +207,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l4;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -240,7 +257,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -254,8 +271,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l9;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kMsgDelonrollover;
+      i3 = kF3650ConstFFFFFFFF;
+      i4 = kF3650MsgDelonrollover;
       i5 = 13u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -271,10 +288,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l4;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -321,7 +338,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -335,8 +352,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l9;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kMsgDelonrollout;
+      i3 = kF3650ConstFFFFFFFF;
+      i4 = kF3650MsgDelonrollout;
       i5 = 12u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -352,10 +369,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l4;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -402,7 +419,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -416,8 +433,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l9;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kMsgDelondragin;
+      i3 = kF3650ConstFFFFFFFF;
+      i4 = kF3650MsgDelondragin;
       i5 = 11u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -433,10 +450,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l4;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -483,7 +500,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -497,8 +514,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l9;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kMsgDelondrag;
+      i3 = kF3650ConstFFFFFFFF;
+      i4 = kF3650MsgDelondrag;
       i5 = 9u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -514,10 +531,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l4;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -564,7 +581,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -578,8 +595,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l9;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kMsgDelondragout;
+      i3 = kF3650ConstFFFFFFFF;
+      i4 = kF3650MsgDelondragout;
       i5 = 12u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -595,10 +612,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l4;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -657,7 +674,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -669,10 +686,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3650MsgPx;
+      i2 = kF3650MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3650MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 6u;
       i1 = ResumePhase(ctx);
@@ -683,10 +700,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -715,7 +732,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -727,10 +744,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3650MsgPx;
+      i2 = kF3650MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3650MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 7u;
       i1 = ResumePhase(ctx);
@@ -741,10 +758,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -767,7 +784,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = l3;
     i1 = 2u;
     StoreU8(ctx, i0 + 11u, i1);
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -801,7 +818,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l5;
     i2 = l10;
     i3 = l3;
-    i4 = kDataB5E30;
+    i4 = kF3650ConstB5E30;
     i5 = l6;
     i6 = l11;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -814,10 +831,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -837,7 +854,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 304u);
     l6 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -870,10 +887,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -883,7 +900,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {goto block_70;}
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3650ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l3;
@@ -927,17 +944,17 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3650ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_8;}
-    goto exit_path;
+    goto running_exit;
   }
   block_69:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -951,8 +968,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelonclick;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelonclick;
     i5 = 10u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -967,10 +984,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -1004,7 +1021,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1016,10 +1033,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3650MsgPx;
+      i2 = kF3650MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3650MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 11u;
       i1 = ResumePhase(ctx);
@@ -1030,10 +1047,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -1054,7 +1071,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 272u);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -1083,10 +1100,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -1120,14 +1137,14 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l5;
       if (i0) {goto block_92;}
       i0 = l4;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3650ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       l4 = i0;
       i0 = !(i0);
       l5 = i0;
       if (i0) {goto block_92;}
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1161,10 +1178,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1210,14 +1227,14 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = b;
     if (i0) {goto block_99;}
     i0 = a;
-    i1 = kDataFFFFFFFE;
+    i1 = kF3650ConstFFFFFFFE;
     i0 &= i1;
     i0 = LoadU32(ctx, i0);
     a = i0;
     i0 = !(i0);
     b = i0;
     if (i0) {goto block_99;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -1250,10 +1267,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -1279,7 +1296,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -1293,8 +1310,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelonpush;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelonpush;
     i5 = 9u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -1309,10 +1326,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -1338,14 +1355,14 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 0u;
     StoreU8(ctx, i0 + 3u, i1);
     i0 = l3;
-    i1 = kDataB53F7;
+    i1 = kF3650ConstB53F7;
     i1 = LoadU16(ctx, i1);
     StoreU16(ctx, i0, i1);
     i0 = l3;
-    i1 = kDataB53F9;
+    i1 = kF3650ConstB53F9;
     i1 = LoadU8(ctx, i1);
     StoreU8(ctx, i0 + 2u, i1);
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -1379,7 +1396,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = c;
     i2 = b;
     i3 = l3;
-    i4 = kDataB5E30;
+    i4 = kF3650ConstB5E30;
     i5 = l5;
     i6 = l6;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -1392,10 +1409,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -1411,7 +1428,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       b = i0;
       i0 = c;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -1423,7 +1440,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       c = i0;
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 11u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -1534,11 +1551,11 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3650ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_8;}
-    goto exit_path;
+    goto running_exit;
     block_110:;
     i0 = b;
     l4 = i0;
@@ -1628,7 +1645,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l11;
     if (i0) {goto block_125;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -1642,8 +1659,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelonrollover;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelonrollover;
     i5 = 13u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -1658,10 +1675,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -1704,7 +1721,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1716,10 +1733,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3650MsgPx;
+        i2 = kF3650MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3650MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 19u;
         i1 = ResumePhase(ctx);
@@ -1730,10 +1747,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -1754,7 +1771,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 272u);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -1783,10 +1800,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1820,14 +1837,14 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l5;
         if (i0) {goto block_145;}
         i0 = l4;
-        i1 = kDataFFFFFFFE;
+        i1 = kF3650ConstFFFFFFFE;
         i0 &= i1;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
         i0 = !(i0);
         l5 = i0;
         if (i0) {goto block_145;}
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -1861,10 +1878,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -1910,14 +1927,14 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = b;
       if (i0) {goto block_152;}
       i0 = a;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3650ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       a = i0;
       i0 = !(i0);
       b = i0;
       if (i0) {goto block_152;}
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -1950,10 +1967,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -2002,7 +2019,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l11;
     if (i0) {goto block_158;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2016,8 +2033,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelonrollout;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelonrollout;
     i5 = 12u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -2032,10 +2049,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -2078,7 +2095,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -2090,10 +2107,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3650MsgPx;
+        i2 = kF3650MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3650MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 24u;
         i1 = ResumePhase(ctx);
@@ -2104,10 +2121,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -2128,7 +2145,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 272u);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -2157,10 +2174,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -2194,14 +2211,14 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l5;
         if (i0) {goto block_178;}
         i0 = l4;
-        i1 = kDataFFFFFFFE;
+        i1 = kF3650ConstFFFFFFFE;
         i0 &= i1;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
         i0 = !(i0);
         l5 = i0;
         if (i0) {goto block_178;}
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -2235,10 +2252,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -2284,14 +2301,14 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = b;
       if (i0) {goto block_185;}
       i0 = a;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3650ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       a = i0;
       i0 = !(i0);
       b = i0;
       if (i0) {goto block_185;}
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -2324,10 +2341,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -2376,7 +2393,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l11;
     if (i0) {goto block_191;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2390,8 +2407,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelondragin;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelondragin;
     i5 = 11u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -2406,10 +2423,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -2452,7 +2469,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -2464,10 +2481,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3650MsgPx;
+        i2 = kF3650MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3650MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 29u;
         i1 = ResumePhase(ctx);
@@ -2478,10 +2495,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -2502,7 +2519,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 272u);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -2531,10 +2548,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -2568,14 +2585,14 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l5;
         if (i0) {goto block_211;}
         i0 = l4;
-        i1 = kDataFFFFFFFE;
+        i1 = kF3650ConstFFFFFFFE;
         i0 &= i1;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
         i0 = !(i0);
         l5 = i0;
         if (i0) {goto block_211;}
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -2609,10 +2626,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -2658,14 +2675,14 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = b;
       if (i0) {goto block_218;}
       i0 = a;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3650ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       a = i0;
       i0 = !(i0);
       b = i0;
       if (i0) {goto block_218;}
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -2698,10 +2715,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -2750,7 +2767,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l11;
     if (i0) {goto block_224;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2764,8 +2781,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelondrag;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelondrag;
     i5 = 9u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -2780,10 +2797,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -2826,7 +2843,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -2838,10 +2855,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3650MsgPx;
+        i2 = kF3650MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3650MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 34u;
         i1 = ResumePhase(ctx);
@@ -2852,10 +2869,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -2876,7 +2893,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 272u);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -2905,10 +2922,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -2942,14 +2959,14 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l5;
         if (i0) {goto block_244;}
         i0 = l4;
-        i1 = kDataFFFFFFFE;
+        i1 = kF3650ConstFFFFFFFE;
         i0 &= i1;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
         i0 = !(i0);
         l5 = i0;
         if (i0) {goto block_244;}
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -2983,10 +3000,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -3032,14 +3049,14 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = b;
       if (i0) {goto block_251;}
       i0 = a;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3650ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       a = i0;
       i0 = !(i0);
       b = i0;
       if (i0) {goto block_251;}
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -3072,10 +3089,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -3119,7 +3136,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i0 != i1;
     l5 = i0;
     if (i0) {goto block_14;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -3133,8 +3150,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelondragout;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelondragout;
     i5 = 12u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -3149,10 +3166,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -3186,7 +3203,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -3198,10 +3215,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3650MsgPx;
+        i2 = kF3650MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3650MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 39u;
         i1 = ResumePhase(ctx);
@@ -3212,10 +3229,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -3236,11 +3253,11 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 272u);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kDataFFFFFFC0;
+      i1 = kF3650ConstFFFFFFC0;
       i0 -= i1;
       l6 = i0;
     }
@@ -3265,10 +3282,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -3302,20 +3319,20 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l5;
         if (i0) {goto block_274;}
         i0 = l4;
-        i1 = kDataFFFFFFFE;
+        i1 = kF3650ConstFFFFFFFE;
         i0 &= i1;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
         i0 = !(i0);
         l5 = i0;
         if (i0) {goto block_274;}
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
         l5 = i0;
         i0 = l3;
-        i1 = kDataFFFFFFC0;
+        i1 = kF3650ConstFFFFFFC0;
         i0 -= i1;
         l6 = i0;
         i1 = 4u;
@@ -3343,10 +3360,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -3392,20 +3409,20 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = b;
       if (i0) {goto block_281;}
       i0 = a;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3650ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       a = i0;
       i0 = !(i0);
       b = i0;
       if (i0) {goto block_281;}
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
       b = i0;
       i0 = l3;
-      i1 = kDataFFFFFFC0;
+      i1 = kF3650ConstFFFFFFC0;
       i0 -= i1;
       i1 = 4u;
       i0 |= i1;
@@ -3432,10 +3449,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -3482,7 +3499,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -3494,10 +3511,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3650MsgPx;
+      i2 = kF3650MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3650MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 43u;
       i1 = ResumePhase(ctx);
@@ -3508,10 +3525,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -3534,7 +3551,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = l3;
     i1 = 2u;
     StoreU8(ctx, i0 + 11u, i1);
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -3564,7 +3581,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = c;
     i2 = l10;
     i3 = l3;
-    i4 = kDataB5E30;
+    i4 = kF3650ConstB5E30;
     i5 = l5;
     i6 = l6;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -3577,10 +3594,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     c = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = c;
@@ -3600,7 +3617,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 += i2;
     c = i1;
     StoreU32(ctx, i0 + 176u, i1);
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -3631,7 +3648,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l5;
     i2 = a;
     i3 = c;
-    i4 = kDataB5E30;
+    i4 = kF3650ConstB5E30;
     i5 = l6;
     i6 = l4;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -3644,10 +3661,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -3674,7 +3691,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -3701,10 +3718,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -3733,7 +3750,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -3761,10 +3778,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -3779,7 +3796,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3650ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_12;}
@@ -3804,7 +3821,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3650ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_13;}
@@ -3840,7 +3857,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -3863,10 +3880,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -3900,7 +3917,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -3923,10 +3940,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -3971,7 +3988,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -3994,10 +4011,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -4031,7 +4048,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -4054,10 +4071,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -4103,7 +4120,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_333;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -4117,8 +4134,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelonvideofinish;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelonvideofinish;
     i5 = 16u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -4133,10 +4150,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -4179,7 +4196,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -4191,10 +4208,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3650MsgPx;
+        i2 = kF3650MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3650MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 53u;
         i1 = ResumePhase(ctx);
@@ -4205,10 +4222,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -4237,7 +4254,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -4249,10 +4266,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3650MsgPx;
+        i2 = kF3650MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3650MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 54u;
         i1 = ResumePhase(ctx);
@@ -4263,10 +4280,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -4289,7 +4306,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l3;
       i1 = 2u;
       StoreU8(ctx, i0 + 11u, i1);
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -4323,7 +4340,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = c;
       i2 = b;
       i3 = l3;
-      i4 = kDataB5E30;
+      i4 = kF3650ConstB5E30;
       i5 = l5;
       i6 = l6;
       HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -4336,10 +4353,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -4359,7 +4376,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 304u);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -4392,10 +4409,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -4431,8 +4448,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = a;
-      i1 = kData8C564;
-      i2 = kDataB8F8C;
+      i1 = kF3650Const8C564;
+      i2 = kF3650ConstB8F8C;
       i3 = 0u;
       i0 = CombineComparisonResults(ctx, i0, i1, i2, i3);
       l8 = i0;
@@ -4503,7 +4520,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -4526,10 +4543,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -4553,7 +4570,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -4576,10 +4593,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -4594,7 +4611,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 11u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -4614,7 +4631,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 372u);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -4638,10 +4655,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -4667,7 +4684,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 24u);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -4695,10 +4712,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -4723,14 +4740,14 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = b;
       if (i0) {goto block_386;}
       i0 = a;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3650ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       a = i0;
       i0 = !(i0);
       b = i0;
       if (i0) {goto block_386;}
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -4763,10 +4780,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -4810,7 +4827,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -4833,10 +4850,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -4860,7 +4877,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -4883,10 +4900,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -4920,7 +4937,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -4943,10 +4960,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -4980,7 +4997,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5003,10 +5020,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -5028,11 +5045,11 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = HostTempRet0(ctx);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 11u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_8;}
-      goto exit_path;
+      goto running_exit;
     }
     block_358:;
     i0 = ResumePhase(ctx);
@@ -5064,14 +5081,14 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = b;
         if (i0) {goto block_407;}
         i0 = a;
-        i1 = kDataFFFFFFFE;
+        i1 = kF3650ConstFFFFFFFE;
         i0 &= i1;
         i0 = LoadU32(ctx, i0);
         a = i0;
         i0 = !(i0);
         b = i0;
         if (i0) {goto block_407;}
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -5104,10 +5121,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -5151,7 +5168,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -5174,10 +5191,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -5211,7 +5228,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5234,10 +5251,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -5284,7 +5301,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -5307,10 +5324,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -5344,7 +5361,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5367,10 +5384,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -5409,7 +5426,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i0 != i1;
     c = i0;
     if (i0) {goto block_9;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -5423,8 +5440,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelonsoundfinish;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelonsoundfinish;
     i5 = 16u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -5439,10 +5456,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -5537,7 +5554,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             goto block_437;
           }
           i0 = l10;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3650ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           c = i0;
           if (i0) {goto block_437;}
@@ -5551,7 +5568,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           l5 = i0;
           if (i0) {goto block_441;}
           i0 = c;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3650ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           c = i0;
           if (i0) {goto block_440;}
@@ -5575,7 +5592,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l3;
         i1 = 2u;
         StoreU8(ctx, i0 + 11u, i1);
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -5609,7 +5626,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = c;
         i2 = l10;
         i3 = l3;
-        i4 = kDataB5E30;
+        i4 = kF3650ConstB5E30;
         i5 = b;
         i6 = l5;
         HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -5622,10 +5639,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3650ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = 1u;
@@ -5728,7 +5745,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
                 goto block_452;
               }
               i0 = l8;
-              i1 = kDataFFFFFFFF;
+              i1 = kF3650ConstFFFFFFFF;
               i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
               l4 = i0;
               if (i0) {goto block_452;}
@@ -5742,7 +5759,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               l9 = i0;
               if (i0) {goto block_454;}
               i0 = l4;
-              i1 = kDataFFFFFFFF;
+              i1 = kF3650ConstFFFFFFFF;
               i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
               l4 = i0;
               if (i0) {goto block_453;}
@@ -5774,7 +5791,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           block_450:;
           i0 = l3;
           i0 = LoadS8(ctx, i0 + 11u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3650ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l3;
@@ -5798,7 +5815,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3650ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -5810,10 +5827,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = i2 ? i0 : i1;
           if (i0) {
             i0 = 857u;
-            i1 = kMsgPx;
-            i2 = kMsgSmartPtrPath;
+            i1 = kF3650MsgPx;
+            i2 = kF3650MsgBoostBoostSmartPtr;
             i3 = 734u;
-            i4 = kMsgOperator;
+            i4 = kF3650MsgOperator;
             HostFailAssertion(ctx, i0, i1, i2, i3, i4);
             i0 = 74u;
             i1 = ResumePhase(ctx);
@@ -5824,10 +5841,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3650ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF3650ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -5850,7 +5867,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = l3;
           i1 = 2u;
           StoreU8(ctx, i0 + 11u, i1);
-          i0 = kDataD015C;
+          i0 = kF3650ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -5880,7 +5897,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = c;
           i2 = l10;
           i3 = l3;
-          i4 = kDataB5E30;
+          i4 = kF3650ConstB5E30;
           i5 = l5;
           i6 = l6;
           HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -5893,10 +5910,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3650ConstD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kDataD015C;
+          i0 = kF3650ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -5916,7 +5933,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 += i2;
           c = i1;
           StoreU32(ctx, i0 + 160u, i1);
-          i0 = kDataD015C;
+          i0 = kF3650ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -5947,7 +5964,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = l5;
           i2 = a;
           i3 = c;
-          i4 = kDataB5E30;
+          i4 = kF3650ConstB5E30;
           i5 = l6;
           i6 = l4;
           HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -5960,10 +5977,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3650ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3650ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -5975,7 +5992,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = LoadU32(ctx, i0 + 184u);
           i0 = LoadU32(ctx, i0 + 28u);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3650ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -5999,10 +6016,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3650ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3650ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -6012,7 +6029,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           if (i0) {goto block_466;}
           i0 = l3;
           i0 = LoadS8(ctx, i0 + 11u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3650ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_6;}
@@ -6031,11 +6048,11 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = HostTempRet0(ctx);
           i0 = l3;
           i0 = LoadS8(ctx, i0 + 11u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3650ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_8;}
-          goto exit_path;
+          goto running_exit;
         }
       }
       i0 = ResumePhase(ctx);
@@ -6046,11 +6063,11 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = HostTempRet0(ctx);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 11u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3650ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         a = i0;
         if (i0) {goto block_8;}
-        goto exit_path;
+        goto running_exit;
       }
       block_438:;
       i0 = l6;
@@ -6088,7 +6105,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -6100,10 +6117,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3650MsgPx;
+      i2 = kF3650MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3650MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 78u;
       i1 = ResumePhase(ctx);
@@ -6114,10 +6131,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -6178,7 +6195,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i0 != i1;
     c = i0;
     if (i0) {goto block_7;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -6192,8 +6209,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelonwindowbutton;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelonwindowbutton;
     i5 = 17u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -6208,10 +6225,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -6246,11 +6263,11 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 0u;
       StoreU8(ctx, i0 + 6u, i1);
       i0 = l3;
-      i1 = kDataB53FF;
+      i1 = kF3650ConstB53FF;
       i1 = LoadU16(ctx, i1);
       StoreU16(ctx, i0 + 4u, i1);
       i0 = l3;
-      i1 = kMsgButton;
+      i1 = kF3650MsgButton;
       i1 = LoadU32(ctx, i1);
       c = i1;
       StoreU32(ctx, i0, i1);
@@ -6321,7 +6338,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               goto block_499;
             }
             i0 = l10;
-            i1 = kDataFFFFFFFF;
+            i1 = kF3650ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             c = i0;
             if (i0) {goto block_499;}
@@ -6335,7 +6352,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             l5 = i0;
             if (i0) {goto block_503;}
             i0 = c;
-            i1 = kDataFFFFFFFF;
+            i1 = kF3650ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             c = i0;
             if (i0) {goto block_502;}
@@ -6354,17 +6371,17 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = 6u;
           StoreU8(ctx, i0 + 11u, i1);
           i0 = l3;
-          i1 = kMsgButton;
+          i1 = kF3650MsgButton;
           i1 = LoadU32(ctx, i1);
           StoreU32(ctx, i0, i1);
           i0 = l3;
-          i1 = kDataB53FF;
+          i1 = kF3650ConstB53FF;
           i1 = LoadU16(ctx, i1);
           StoreU16(ctx, i0 + 4u, i1);
           i0 = l3;
           i1 = 0u;
           StoreU8(ctx, i0 + 6u, i1);
-          i0 = kDataD015C;
+          i0 = kF3650ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -6398,7 +6415,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = c;
           i2 = b;
           i3 = l3;
-          i4 = kDataB5E30;
+          i4 = kF3650ConstB5E30;
           i5 = l5;
           i6 = l6;
           HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -6411,10 +6428,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3650ConstD015C;
           i0 = LoadU32(ctx, i0);
           b = i0;
-          i0 = kDataD015C;
+          i0 = kF3650ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = b;
@@ -6461,7 +6478,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       j1 = 0ull;
       StoreU64(ctx, i0 + 4u, j1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       j1 = 0ull;
@@ -6477,7 +6494,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 14231u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -6547,7 +6564,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       b = i0;
       i0 = c;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -6597,7 +6614,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
       b = i0;
       if (i0) {goto block_514;}
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -6605,10 +6622,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 += i1;
       i1 = l4;
       i0 = EraseTaggedTreeEntry(ctx, i0, i1);
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3650ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -6619,7 +6636,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       block_514:;
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 11u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -6657,7 +6674,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 14255u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -6688,7 +6705,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 40u);
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i1 = 16u;
@@ -6697,7 +6714,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -6720,11 +6737,11 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3650ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_8;}
-    goto exit_path;
+    goto running_exit;
   }
   block_8:;
   i0 = ResumePhase(ctx);
@@ -6757,7 +6774,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_522;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -6771,8 +6788,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelonautomodein;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelonautomodein;
     i5 = 15u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -6787,10 +6804,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -6825,7 +6842,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       j1 = 0ull;
       StoreU64(ctx, i0 + 4u, j1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       j1 = 0ull;
@@ -6841,7 +6858,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 13779u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -6920,7 +6937,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 13803u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -6951,7 +6968,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 40u);
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i1 = 16u;
@@ -6960,7 +6977,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -6995,7 +7012,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_533;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -7009,8 +7026,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelonautomodeout;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelonautomodeout;
     i5 = 16u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -7025,10 +7042,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -7063,7 +7080,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       j1 = 0ull;
       StoreU64(ctx, i0 + 4u, j1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       j1 = 0ull;
@@ -7079,7 +7096,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 13823u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -7158,7 +7175,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 13847u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -7189,7 +7206,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 40u);
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i1 = 16u;
@@ -7198,7 +7215,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -7233,7 +7250,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_544;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -7247,8 +7264,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDeloncommandskipin;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDeloncommandskipin;
     i5 = 18u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -7263,10 +7280,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -7301,7 +7318,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       j1 = 0ull;
       StoreU64(ctx, i0 + 4u, j1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       j1 = 0ull;
@@ -7317,7 +7334,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 13867u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -7396,7 +7413,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 13891u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -7427,7 +7444,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 40u);
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i1 = 16u;
@@ -7436,7 +7453,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -7471,7 +7488,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_555;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -7485,8 +7502,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDeloncommandskipout;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDeloncommandskipout;
     i5 = 19u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -7501,10 +7518,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -7539,7 +7556,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       j1 = 0ull;
       StoreU64(ctx, i0 + 4u, j1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       j1 = 0ull;
@@ -7555,7 +7572,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 13911u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -7634,7 +7651,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 13935u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -7665,7 +7682,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 40u);
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i1 = 16u;
@@ -7674,7 +7691,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -7709,7 +7726,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_566;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -7723,8 +7740,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDeloncontrolskipin;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDeloncontrolskipin;
     i5 = 18u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -7739,10 +7756,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -7777,7 +7794,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       j1 = 0ull;
       StoreU64(ctx, i0 + 4u, j1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       j1 = 0ull;
@@ -7793,7 +7810,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 13955u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -7872,7 +7889,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 13979u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -7903,7 +7920,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 40u);
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i1 = 16u;
@@ -7912,7 +7929,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -7947,7 +7964,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_577;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -7961,8 +7978,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDeloncontrolskipout;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDeloncontrolskipout;
     i5 = 19u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -7977,10 +7994,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -8015,7 +8032,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       j1 = 0ull;
       StoreU64(ctx, i0 + 4u, j1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       j1 = 0ull;
@@ -8031,7 +8048,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 13999u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -8110,7 +8127,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 14023u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -8141,7 +8158,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 40u);
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i1 = 16u;
@@ -8150,7 +8167,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -8185,7 +8202,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_588;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -8199,8 +8216,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelonhidein;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelonhidein;
     i5 = 11u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -8215,10 +8232,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -8253,7 +8270,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       j1 = 0ull;
       StoreU64(ctx, i0 + 4u, j1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       j1 = 0ull;
@@ -8269,7 +8286,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 14043u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -8348,7 +8365,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 14067u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -8379,7 +8396,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 40u);
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i1 = 16u;
@@ -8388,7 +8405,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -8423,7 +8440,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_599;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -8437,8 +8454,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelonhideout;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelonhideout;
     i5 = 12u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -8453,10 +8470,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -8491,7 +8508,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       j1 = 0ull;
       StoreU64(ctx, i0 + 4u, j1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       j1 = 0ull;
@@ -8507,7 +8524,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 14087u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -8586,7 +8603,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 14111u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -8617,7 +8634,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 40u);
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i1 = 16u;
@@ -8626,7 +8643,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -8661,7 +8678,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_610;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -8675,8 +8692,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelonbacklogin;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelonbacklogin;
     i5 = 14u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -8691,10 +8708,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -8729,7 +8746,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       j1 = 0ull;
       StoreU64(ctx, i0 + 4u, j1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       j1 = 0ull;
@@ -8745,7 +8762,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 14131u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -8824,7 +8841,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 14155u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -8855,7 +8872,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 40u);
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i1 = 16u;
@@ -8864,7 +8881,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -8899,7 +8916,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_621;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -8913,8 +8930,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelonbacklogout;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelonbacklogout;
     i5 = 15u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -8929,10 +8946,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -8967,7 +8984,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       j1 = 0ull;
       StoreU64(ctx, i0 + 4u, j1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       j1 = 0ull;
@@ -8983,7 +9000,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 14175u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -9062,7 +9079,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 14199u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -9093,7 +9110,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 40u);
       StoreU32(ctx, i0, i1);
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3650ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i1 = 16u;
@@ -9102,7 +9119,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3650ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -9132,7 +9149,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i0 != i1;
     b = i0;
     if (i0) {goto block_6;}
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -9146,8 +9163,8 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l9;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgDelondirchg;
+    i3 = kF3650ConstFFFFFFFF;
+    i4 = kF3650MsgDelondirchg;
     i5 = 11u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -9162,10 +9179,10 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i0 = LoadU32(ctx, i0);
     c = i0;
-    i0 = kDataD015C;
+    i0 = kF3650ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = c;
@@ -9190,7 +9207,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     j1 = 0ull;
     StoreU64(ctx, i0 + 4u, j1);
     i0 = l3;
-    i1 = kDataB5F40;
+    i1 = kF3650ConstB5F40;
     StoreU32(ctx, i0, i1);
     i0 = l3;
     j1 = 0ull;
@@ -9206,7 +9223,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 14275u;
     i0 += i1;
     i0 = LoadS8(ctx, i0);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3650ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = b;
@@ -9285,7 +9302,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 14299u;
     i0 += i1;
     i0 = LoadS8(ctx, i0);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3650ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = b;
@@ -9316,7 +9333,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = LoadU32(ctx, i1 + 40u);
     StoreU32(ctx, i0, i1);
     i0 = l3;
-    i1 = kDataB5F40;
+    i1 = kF3650ConstB5F40;
     StoreU32(ctx, i0, i1);
     i0 = l3;
     i1 = 16u;
@@ -9325,7 +9342,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     ReleaseNodeTree(ctx, i0, i1);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 15u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3650ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_6;}
@@ -9373,7 +9390,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     TrapUnreachable();
   }
-  exit_path:;
+  running_exit:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
@@ -9394,7 +9411,7 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kResumeWordBytes;
+  i2 = kF3650ResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
@@ -9439,4 +9456,4 @@ void TagGenericDelOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   LeaveFrame();
 }
 }
-}  // namespace artc
+}

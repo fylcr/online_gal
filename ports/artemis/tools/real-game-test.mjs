@@ -52,6 +52,7 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -72,7 +73,7 @@ const { ensureChrome, sleep } = await import(
 function parseArgs(argv) {
   // A cold boot streams roughly 18 MB of game data through one wasm thread and needs well over
   // 90 s before the first frame, so a shorter wait reports "still loading" as a broken module.
-  const out = { flavour: 'asyncify', port: 4710, cdpPort: 9222, hashlist: false, wait: 240000, json: false, keep: false };
+  const out = { flavour: 'asyncify', port: 0, cdpPort: 9222, hashlist: false, wait: 240000, json: false, keep: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     const next = () => argv[++i];
@@ -100,7 +101,7 @@ function usage() {
   --game DIR      the tree extract-pfs.mjs produced (must contain system.ini)
   --engine FILE   candidate module to serve as artemis.wasm
   --flavour NAME  asyncify (default) or plain
-  --port N        first HTTP port; the control runs on N+1 (default 4710)
+  --port N        first HTTP port; the control runs on N+1 (default: a fresh free pair)
   --cdp-port N    the browser's debugging port (default 9222)
   --hashlist      also write hashlist.txt
   --wait MS       settle time before sampling (default 240000)
@@ -109,6 +110,27 @@ function usage() {
   --json-out FILE write the result to FILE
   --savepath S    fixed cache key instead of a fresh one each run
   --keep          leave the servers up`);
+}
+
+// ---------------------------------------------------------------------------
+// ports
+// ---------------------------------------------------------------------------
+function isPortFree(port) {
+  return new Promise((done) => {
+    const probe = createServer();
+    probe.once('error', () => done(false));
+    probe.once('listening', () => probe.close(() => done(true)));
+    probe.listen(port, '127.0.0.1');
+  });
+}
+
+// Two ports are needed (control and candidate) and the harness always uses the pair base, base+1.
+async function freePortPair() {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const base = 4600 + 2 * Math.floor(Math.random() * 500);
+    if (await isPortFree(base) && await isPortFree(base + 1)) return base;
+  }
+  throw new Error('no free port pair found for the probe');
 }
 
 // ---------------------------------------------------------------------------
@@ -388,13 +410,21 @@ async function measure(cdpPort, url, waitMs) {
     // names the protocol accepts. A wrong name fails the whole call, and the old `.catch(() => {})`
     // here turned that failure into a no-op -- the cache was never cleared, and a reused port
     // went on serving the previous run's files to a different engine.
+    // `ARTC_KEEP_STORAGE=1` skips the wipe. The engine's first boot on an origin downloads the
+    // whole game tree into IndexedDB; every later boot reads that cache instead. Running the
+    // same build with and without the wipe is therefore how a broken download path is told
+    // apart from a broken start-up path.
     const origin = new URL(url).origin;
-    await cdp.send('Storage.clearDataForOrigin', {
-      origin,
-      storageTypes: 'indexeddb,websql,local_storage,service_workers,cache_storage',
-    }).catch((error) => {
-      console.error(`     warning: could not clear ${origin}: ${error.message}`);
-    });
+    if (process.env.ARTC_KEEP_STORAGE === '1') {
+      console.log(`     keeping ${origin} storage (ARTC_KEEP_STORAGE=1)`);
+    } else {
+      await cdp.send('Storage.clearDataForOrigin', {
+        origin,
+        storageTypes: 'indexeddb,websql,local_storage,service_workers,cache_storage',
+      }).catch((error) => {
+        console.error(`     warning: could not clear ${origin}: ${error.message}`);
+      });
+    }
 
     await cdp.send('Page.navigate', { url });
     await sleep(600);
@@ -411,7 +441,17 @@ async function measure(cdpPort, url, waitMs) {
         budget,
       )),
     ]);
-    return { ...result, console: console_.slice(-20) };
+    // Keep the head of the console as well as the tail: a boot that stops early
+    // diverges in its first messages, and the tail alone then shows only the
+    // 404 probes both branches share.
+    const consoleTail = console_.slice(-20);
+    const consoleHead = console_.slice(0, 40);
+    return {
+      ...result,
+      console: console_.length > consoleHead.length + consoleTail.length
+        ? consoleHead.concat(['... (console truncated) ...'], consoleTail)
+        : console_,
+    };
   } finally {
     cdp.close();
     // Close only the tab this run opened, so the user's browser is left as it was found.
@@ -439,8 +479,23 @@ async function main() {
   const work = mkdtempSync(join(tmpdir(), 'artc-real-game-'));
   const control = join(work, 'control');
   const candidate = join(work, 'candidate');
-  const controlPort = args.port;
-  const candidatePort = args.port + 1;
+  // An origin is scheme+host+port, and the asyncify engine keeps the downloaded game in
+  // IndexedDB under that origin. Reusing one fixed port therefore lets a run inherit whatever
+  // an earlier deployment (or a leftover server still bound to the port) put there, which shows
+  // up as a healthy module that stalls in the boot script. Pick a fresh free pair by default,
+  // and refuse a caller-supplied port that is already taken instead of running on top of it.
+  let controlPort = args.port;
+  if (controlPort) {
+    if (!(await isPortFree(controlPort)) || !(await isPortFree(controlPort + 1))) {
+      throw new Error(
+        `port ${controlPort} or ${controlPort + 1} is already in use: `
+        + 'a leftover server would serve an old deployment on that origin',
+      );
+    }
+  } else {
+    controlPort = await freePortPair();
+  }
+  const candidatePort = controlPort + 1;
   const game = resolve(args.game);
 
   console.error(`== deploying ==`);

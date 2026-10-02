@@ -1,67 +1,9 @@
-# The Artemis rewrite bridge: the official module, rebuilt on top of the hand-written engine.
-#
-# WHY THIS IS THE ONLY ARTEMIS BUILD NOW
-#
-# An earlier workflow, `build-wasm-artemis.yml`, compiled the third-party `artemis-compat` engine
-# into a web deploy artifact. It is retired, along with `.github/scripts/build-artemis.sh`,
-# `ports/artemis/build/web-deploy.sh` and `ports/artemis/engine/0001-web-host.patch`; this one is
-# the only Artemis form that ships.
-#
-# The two produced different modules from different sources, and that is still why the acceptance
-# test here is the four gates rather than "it compiled". This workflow takes the *official* module,
-# transpiles it to C with wasm2c, and lets `ports/artemis/src` (159 hand-written files, namespace
-# `artc`) replace the transpiled bodies function by function. The result keeps the official
-# module's import and export faces, which is the entire point.
-#
-# Merging them would also mean one `paths:` list covering both source trees, so an edit to one
-# engine would queue a build of the other.
-#
-# WHAT THE BUILD NEEDS, AND WHY NONE OF IT IS MISSING FROM A CLONE
-#
-# The bridge's route needs `artemis.wasm2c.c` (103 MB), its `.h`, and wasm/runtime/* -- 160 MB of
-# machine-written C that is gitignored and used to exist only under `.ref/`. It is regenerable:
-# wabt at the pinned commit produces the reference bytes exactly, md5-asserted in the build script,
-# because the input module IS committed under `ports/artemis/vendor/artemis-sdk/`. So this builds
-# from a clean clone.
-#
-# THE GATES
-#
-# Three separate assertions, and they answer different questions:
-#   * the per-flavour md5 assertion in the build script -- the transpile really is the measured one,
-#     byte for byte. This comes first because every later gate would still pass on a transpile of
-#     some *other* module: the gates check the ABI shape, not whose code that shape is.
-#   * `wasm-diff.mjs` -- the rebuilt engine behaves like the official module, export by export.
-#     Re-run after the build, and its exit status is what fails this workflow.
-#   * `wasm-replace-test.mjs` -- the four loader-contract gates (import face, export face,
-#     behaviour via `wasm-diff.mjs`, host wiring). Run by `build-bridge-route.sh` itself, and the
-#     whole route is built around passing all four.
-#   * `tools/real-game-test.mjs` -- the settled frame in a real Chrome, official and candidate side
-#     by side. This is the one that catches a module that passes every structural gate and renders
-#     black.
-#   * `ports/artemis/harness/glue/imports-map.mjs` + `verify-imports-map.mjs` -- the glue identity
-#     gate, run against THIS run's `bridge.wasm`. It answers a question none of the four above can:
-#     the table says which of the 207 imports land in a real TS implementation, and every one of
-#     those rows carries a byte offset into one specific `artemis.js`. Nothing above regenerates
-#     the table, so an edit to the glue, to the rewrite, or to the route would leave a committed
-#     table that still describes a different file -- and it would still be byte-identical, because
-#     the table records the offsets it was built with, not the ones that are true. The gate
-#     regenerates from this build's module and the tracked glue and compares every ABI line byte for
-#     byte, masking the two module-provenance rows: a module embeds its own build directory, so its
-#     hash can only match on the machine that produced the committed table, while the import surface
-#     and the offsets are the same everywhere. A stale table is a failed run rather than a comment
-#     nobody re-reads. It lives in the reusable
-#     workflow's `build` job (behind the `glue-import-map` input), because a `uses:` job has no
-#     steps of its own; `ports/artemis/harness/glue/**` is therefore in `paths:` below, or the gate
-#     would never run on the very edits it exists to catch.
-#
-# Note what is NOT among them: the `rebuild.sh wasm` round-trip. It is the dev-machine check that the
-# transpile is reversible, and it cannot run here at all -- its wasm half shells out to
-# `wat2wasm.exe` (rebuild.sh:275). The hash assertion above answers the same "is this the reference
-# transpile?" question on this platform, and `wasm-diff.mjs` answers the stronger one.
-#
-# The real-game test needs a game tree, which is not in this repository (a title's assets are not
-# ours to redistribute). It is therefore only run when the `game_tree` input names one -- typically
-# a self-hosted runner with the extract already on disk. The structural gates always run.
+# Purpose: rebuild the official Artemis module on top of the hand-written engine in
+# `ports/artemis/src` and gate the result. For intended inputs, secrets and outputs, see
+# `.github/workflows/build-wasm-reusable.yml`.
+# This workflow asserts the bytes of the rebuilt module and its agreement with the official module.
+# It does not measure how much of the rewrite is in place, and its green run does not mean the module
+# boots a game.
 name: Build wasm (Artemis bridge)
 
 on:
@@ -80,23 +22,10 @@ on:
       - 'ports/artemis/REWRITE.md'
       - 'ports/artemis/tools/real-game-test.mjs'
       - 'ports/artemis/vendor/artemis-sdk/WebAssembly/**'
-      # The glue identity gate. These three files ARE the criterion the gate compares against:
-      # `imports-map.{json,md}` is the committed answer and `verify-imports-map.mjs` is the
-      # independent reader that checks it. `verify-imports-map.mjs` regenerating or re-measuring
-      # itself would be a gate that cannot fail, so editing the criterion has to trigger the gate
-      # that judges it -- an edit here is exactly the case where nothing else in the build would
-      # notice a mistake. The gate itself runs in the reusable workflow, after the bridge is
-      # built, so the module it judges is the one this run produced.
+      # The glue identity gate: `imports-map.{json,md}` is the criterion the gate compares against, so
+      # an edit to either must trigger the gate that judges it.
       - 'ports/artemis/harness/glue/**'
-      # The `package-dir` closure. `@online-gal/runtime-artemis` is now packed into a published
-      # tarball by this workflow, so an edit to the package or to either dependency it vendors
-      # changes the released bytes. Judged by "is it inside the published artifact", not "does it get
-      # compiled": the earlier `8845051` BOM sweep touched only files outside every artifact's
-      # closure and correctly triggered no run, whereas `src/` edits are all shipped -- `src/` is
-      # in the tarball because every exports map routes `types` to source, and because GPL-3.0
-      # §5(b) requires the corresponding source to travel with the work. `pnpm-lock.yaml` is in the
-      # list for the same reason it is in ONS's: the tarball's `dist/` is compiled by the TypeScript
-      # version the lockfile pins.
+      # The `package-dir` closure. These paths decide what the packed tarball ships.
       - '.github/scripts/make-package.mjs'
       - 'packages/runtime-artemis/**'
       - 'packages/engine-api/**'
@@ -104,17 +33,15 @@ on:
       - 'pnpm-lock.yaml'
       - 'LICENSE'
       - 'THIRD_PARTY_NOTICES.md'
-      # NOT 'ports/lib/engine-artifacts.json'. That file records what the publish step
-      # produced -- it is an output of this pipeline, not an input to it. Listing it means
-      # every hash update, which is a one-line edit, rebuilds every engine.
+      # NOT 'ports/lib/engine-artifacts.json': that file is an output of the publish step, so listing
+      # it would rebuild every engine on each hash update.
   pull_request:
     paths:
       - '.github/scripts/build-artemis-bridge.sh'
       - 'ports/artemis/src/**'
       - 'ports/artemis/reverse/**'
-      # Same reason as `push`, and the stronger one here: on a pull request the committed table
-      # arrives together with whatever edit made it stale, so a run is the only thing that can
-      # tell the author their two files disagree with each other.
+      # On a pull request the committed table arrives with whatever edit made it stale, so a run is
+      # the only thing that can show the author their two files disagree.
       - 'ports/artemis/harness/glue/**'
       - '.github/scripts/make-package.mjs'
       - 'packages/runtime-artemis/**'
@@ -127,11 +54,13 @@ on:
         required: false
         type: boolean
         default: false
+      # Kept with one option so a saved dispatch that still spells `sync` fails Actions validation
+      # against a known input. No job reads this value; the build script refuses `sync` separately.
       flavour:
-        description: 'Which official module to rebuild from'
+        description: 'Which official module to rebuild from (asyncify only; sync is retired)'
         required: false
         type: choice
-        options: [asyncify, sync]
+        options: [asyncify]
         default: asyncify
       game_tree:
         description: 'Path to an extracted game tree for the real-game test (blank = skip it)'
@@ -152,18 +81,19 @@ permissions:
   contents: write
 
 jobs:
-  # The wabt build and the transpile are the same for both flavours and cost ten minutes; the fork
-  # below is only about which module is fed in, and the reusable workflow takes the flavour as an
-  # input because the transpile's expected hash differs per flavour.
+  # ONE module is rebuilt here, and the SDK vendor tree ships exactly one build of it:
+  # `ports/artemis/vendor/artemis-sdk/WebAssembly/asyncify/artemis.wasm`. The `sync` fork is retired
+  # (its rewrite lives in an untracked `.ref/` tree), so this job does not read the `flavour` input
+  # at all: the version, the release tag, the build script's `BRIDGE_FLAVOUR`, and the glue the
+  # import-map gate compares against are all constants of this build now.
   bridge:
     uses: ./.github/workflows/build-wasm-reusable.yml
     with:
       engine: artemis-bridge
       build-script: .github/scripts/build-artemis-bridge.sh
-      # The bridge's inputs are all in-repo: the vendored SDK module and the rewrite under
-      # `ports/artemis/src`. There is no upstream checkout to fetch, so the clone step is skipped.
-      # `artemis-compat` is named only so the pins file and the drift check have one place that
-      # answers which upstream this artifact tracks.
+      # The bridge's inputs are all in-repo, so there is no upstream checkout to fetch and the clone
+      # step is skipped. `artemis-compat` is named only so the pins file and the drift check have one
+      # place answering which upstream this artifact tracks.
       upstream-repository: https://github.com/Weiss-UltimateSavior/artemis-compat.git
       upstream-branch: main
       upstream-commit: ${{ inputs.upstream_commit || '9f622629f595db85e6f76c45c06edde29d7d9961' }}
@@ -173,62 +103,28 @@ jobs:
       artifact-name: wasm-artemis-bridge
       artifact-dir: dist/artemis-bridge/build
       artifact-files: bridge.wasm
-      version: bridge-${{ inputs.flavour || 'asyncify' }}-9f62262
-      release-tag: engine-artemis-bridge-${{ inputs.flavour || 'asyncify' }}-9f62262
-      # The build script reads BRIDGE_FLAVOUR to pick which vendored module to transpile, and the
-      # expected-transpile assertion inside it is per-flavour -- so the input has to reach the script
-      # or a `sync` run would silently produce an `asyncify` module under a sync manifest.
-      build-env: BRIDGE_FLAVOUR=${{ inputs.flavour || 'asyncify' }}
-      # Same licensing posture as the host build had, and for the same reason: the module is derived
-      # from the proprietary SDK's binary. That host build is retired now; this is the only Artemis
-      # form that ships, and it is gated the same way.
+      # The release an operator expects, spelled as the asyncify runs always have.
+      version: bridge-asyncify-9f62262
+      release-tag: engine-artemis-bridge-asyncify-9f62262
+      # States that this job builds the asyncify module; the input above is not forwarded here.
+      build-env: BRIDGE_FLAVOUR=asyncify
+      # The module derives from the proprietary SDK's binary, so publishing needs the same opt-in.
       publish: ${{ (inputs.publish || vars.ARTEMIS_PUBLISH_ARTIFACTS == 'true') && github.event_name != 'pull_request' }}
-      # The runtime package, packed by THIS job (the `bridge` job, which `uses` the reusable
-      # workflow). The `real-game` job below has `needs: bridge` and is skipped unless a game tree is
-      # supplied, and that is irrelevant here: `real-game` is a *consumer* of the bridge job's
-      # artifact, not a producer of the package. Every packaging step lives inside the reusable
-      # workflow's single `build` job, so the tarball exists whether `real-game` runs, is skipped, or
-      # is still waiting.
-      #
-      # NO `--assets-from`, for the same reason krkr has none. This engine is a wasm *module* loaded
-      # by URL (`bridge.wasm`), and the package resolves it from a caller-supplied location rather
-      # than from an `assets/` directory beside the module -- there is no `assets/` concept in
-      # `@online-gal/runtime-artemis` to satisfy. Passing this job's `artifact-dir`
-      # (`dist/artemis-bridge/build`) would drop `bridge.wasm` into `assets/` where nothing reads it.
-      # The engine module keeps its existing route: the `wasm-artemis-bridge` artifact and, when
-      # this engine is cleared to publish, the `engine-artemis-bridge-<flavour>-<commit>` release.
-      #
-      # NOTE on what the tarball contains: `@online-gal/runtime-artemis` vendors its closure
-      # (engine-api, vfs) from the working tree, and the package's `src/` ships because every
-      # exports map in this repository routes `types` to source and GPL-3.0 §5(b) requires the
-      # corresponding source to travel with the work. If `packages/runtime-artemis/src/host/`
-      # carries work in progress, it is inside the tarball -- a package is a snapshot of the tree at
-      # the packed commit, and hiding part of `src/` would make the §5(b) obligation false.
-      #
-      # The closure is vendored, so a change to engine-api or vfs makes this published tarball stale
-      # and requires a version bump.
+      # `--assets-from` copies THIS run's `bridge.wasm` into `<package>/assets/`. No code under
+      # `src/` resolves that path or reads the file implicitly -- the caller hands the module to
+      # `createArtemisBootTable` -- so the asset is a convenience for a consumer that wants these
+      # bytes, and browser deploys still serve the module by URL. Having the bytes present is not a
+      # claim that the packaged runtime boots a real game; that is the `real-game` job's question.
       package-dir: packages/runtime-artemis
-      # The committed import map in ports/artemis/harness/glue/ is a claim about this module's
-      # import surface, byte for byte: every impl offset in it is an index into the glue named
-      # here. Naming the glue makes the reusable workflow regenerate the table from THIS run's
-      # `bridge.wasm` and compare it with the committed file, so the claim is checked by the build
-      # that produced the module instead of only by whoever ran the checker locally.
-      #
-      # Asyncify only, and that is the point rather than a limitation: a `sync` build is a
-      # different module against a different glue, and the generator will not even emit a table
-      # for it (measured -- two rows have no citation in the sync glue), so there is nothing to
-      # compare and a forced comparison would fail a run for a difference that is not drift.
-      #
-      # The truthy value is on the `&&` side on purpose. Actions has no ternary, and the usual
-      # `cond && '' || path` spelling does not do what it looks like: an empty string is falsy,
-      # so that expression returns the path for BOTH flavours and a sync run would be gated
-      # against a table that does not describe it. `cond && path || ''` returns '' for sync.
-      glue-import-map: ${{ (inputs.flavour || 'asyncify') == 'asyncify' && 'ports/artemis/vendor/artemis-sdk/WebAssembly/asyncify/artemis.js' || '' }}
+      # At most one `package-dir` may set this true. Here the files only have to be present for a
+      # caller that supplies the module.
+      package-engine-assets: true
+      # Makes the reusable workflow regenerate the glue import map from THIS run's `bridge.wasm` and
+      # diff it against the committed table, so the claim is checked by the build that produced the
+      # module. Unconditional, because there is one flavour.
+      glue-import-map: ports/artemis/vendor/artemis-sdk/WebAssembly/asyncify/artemis.js
 
-  # The real-game test is a separate job because it needs a display-driving Chrome and a game tree,
-  # and a failure there means something different from a failure in the structural gates: the module
-  # is shaped correctly but renders wrong. Keeping it separate is what makes that distinction
-  # visible in the checks list.
+  # Separate from the gates above so a wrong render is distinguishable from a wrong ABI shape.
   real-game:
     needs: bridge
     if: inputs.game_tree != ''
@@ -242,8 +138,7 @@ jobs:
         with:
           node-version: '22'
 
-      # `real-game-test.mjs` drives Chrome over CDP and needs the puppeteer-managed browser. It is
-      # installed here rather than as a repo dependency because nothing else needs it.
+      # Installed here rather than as a repo dependency because nothing else needs it.
       - name: Install the browser driver
         run: |
           set -eu
@@ -258,23 +153,18 @@ jobs:
       - name: Run the real-game frame comparison
         run: |
           set -eu
-          # The artifact keeps every file's path relative to the repository root: the reusable
-          # workflow uploads `<artifact-dir>/*` beside `manifest.json`, so the module arrives at
-          # candidate/dist/artemis-bridge/build/bridge.wasm rather than candidate/bridge.wasm.
-          # Resolve it instead of hard-coding the build script's output directory here.
-          # This job is skipped unless a game tree is supplied, so the resolution below is not
-          # exercised by an ordinary push: check it against a downloaded artifact when changing it.
+          # The artifact keeps each file's path relative to the repository root, so resolve the
+          # module rather than hard-coding the build script's output directory. This job is skipped
+          # unless a game tree is supplied, so check this against a downloaded artifact when changing
+          # it. The wait is pinned to the tool's own default so a change to that default cannot
+          # silently shorten the frame budget.
           engine="$(find candidate -name bridge.wasm -print -quit)"
           test -n "$engine" || { echo "::error::bridge.wasm is missing from the artifact"; exit 1; }
           echo "## engine: $engine"
-          # A cold boot streams ~18 MB through one wasm thread and needs well over 90 s before the
-          # first frame: pin the wait so the check cannot mistake loading for a broken module.
-          # The asyncify route also wants the deployer's hash list: without it the module stops
-          # after the first few files and the check reports a module that never reached a frame.
           node ports/artemis/tools/real-game-test.mjs \
             --game "${{ inputs.game_tree }}" \
             --engine "$engine" \
-            --flavour "${{ inputs.flavour || 'asyncify' }}" \
+            --flavour asyncify \
             --hashlist \
             --wait 240000 \
             --json-out real-game-result.json

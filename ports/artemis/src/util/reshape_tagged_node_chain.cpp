@@ -1,8 +1,23 @@
+// reshape_tagged_node_chain.cpp -- reshapes a tagged node in place, dispatching on its tag to the matching node reshape..
+//
+// ReshapeTaggedNodeChain -- reshapes a tagged node in place, dispatching on its tag to the matching node reshape.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 301149-301149 (f783); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Reshape helpers -- one per element kind, driven along the chain in turn.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
 void ReshapePowerOfTwoNode(EngineContext* ctx, uint32_t state, uint32_t node);
 void ReshapeCountedArrayNode(EngineContext* ctx, uint32_t state, uint32_t node);
@@ -12,261 +27,446 @@ void ReshapeInlinePairNode(EngineContext* ctx, uint32_t state, uint32_t node);
 
 namespace {
 
-// The tag the nested chain step is driven with.
-constexpr uint32_t kReshapeTaggedNodeChainNested = 0xFFFFFFFDu;
-constexpr uint32_t kReshapeTaggedNodeChainSaveFrameBytes = 32u;
-constexpr uint32_t kReshapeTaggedNodeChainResumeWordBytes = 4u;
+constexpr uint32_t kF783ConstFFFFFFFD = 0xFFFFFFFDu;  // 
+constexpr uint32_t kF783SaveFrameBytes = 32u;
+constexpr uint32_t kF783ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Walks the chain of elements hanging off one node and reshapes every element
-// in place, picking the reshape that matches the element's kind.  A running
-// pass advances one element per round; a rewinding pass replays the single
-// reshape named by its resume code instead.
 uint32_t ReshapeTaggedNodeChain(EngineContext* ctx, uint32_t state, uint32_t node, uint32_t tag) {
-  uint32_t scratch = 0u;       // kind byte, element address, reallocation size
-  uint32_t elem = 0u;          // the element currently being reshaped
-  uint32_t frame_base = 0u;    // where a suspended call left its frame
-  uint32_t resume_code = 0u;   // which reshape a rewinding pass replays
-  uint32_t tag_differs = 0u;   // element tag byte differs from the state's
-  uint32_t table = 0u;         // the element table held in the state
-  uint32_t flag_mask = 0u;     // masked state flags compared against the tag
-  uint32_t result = 0u;        // the node handed back once the walk finishes
-  uint32_t call_result = 0u;   // what a resumable call returned
-  uint32_t suspend_code = 0u;  // resume word pushed when a call suspends
-  uint32_t tmp = 0u;
-  uint32_t tmp2 = 0u;
-  uint32_t tmp3 = 0u;
   EnterFrame();
-  // Rewinding: pop this step's saved frame and restore the live words.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    tmp = ReturnFrameSp(ctx);
-    tmp2 = ReturnFrameSp(ctx);
-    tmp2 = LoadU32(ctx, tmp2);
-    tmp3 = kReshapeTaggedNodeChainSaveFrameBytes;
-    tmp2 -= tmp3;
-    StoreU32(ctx, tmp, tmp2);
-    frame_base = ReturnFrameSp(ctx);
-    frame_base = LoadU32(ctx, frame_base);
-    state = LoadU32(ctx, frame_base);
-    tag = LoadU32(ctx, frame_base + 8u);
-    scratch = LoadU32(ctx, frame_base + 12u);
-    elem = LoadU32(ctx, frame_base + 16u);
-    tag_differs = LoadU32(ctx, frame_base + 20u);
-    table = LoadU32(ctx, frame_base + 24u);
-    flag_mask = LoadU32(ctx, frame_base + 28u);
-    node = LoadU32(ctx, frame_base + 4u);
+  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF783SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 8u);
+    tag = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l3 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l4 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l7 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l8 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 28u);
+    l9 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 4u);
+    node = i0;
   }
-  // Rewinding: drop the pushed resume word and reload the resume code.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    tmp = ReturnFrameSp(ctx);
-    tmp2 = ReturnFrameSp(ctx);
-    tmp2 = LoadU32(ctx, tmp2);
-    tmp3 = kReshapeTaggedNodeChainResumeWordBytes;
-    tmp2 -= tmp3;
-    StoreU32(ctx, tmp, tmp2);
-    tmp = ReturnFrameSp(ctx);
-    tmp = LoadU32(ctx, tmp);
-    tmp = LoadU32(ctx, tmp);
-    resume_code = tmp;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF783ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l6 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    elem = LoadU32(ctx, node);
-    scratch = (elem == 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = node;
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    i0 = !(i0);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (scratch != 0u) {
-      goto chain_end;
-    }
-    table = LoadU32(ctx, state + 16u);
-    scratch = LoadU8(ctx, table + 20u);
-    flag_mask = scratch ^ 3u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l3;
+    if (i0) {goto running_exit;}
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l8 = i0;
+    i0 = LoadU8(ctx, i0 + 20u);
+    l3 = i0;
+    i1 = 3u;
+    i0 ^= i1;
+    l9 = i0;
   }
-  for (;;) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      if (tag == 0u) {
-        break;
+  loop_6: 
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = tag;
+      i0 = !(i0);
+      if (i0) {goto running_exit;}
+      i0 = l4;
+      i0 = LoadU8(ctx, i0 + 4u);
+      i1 = 8u;
+      i0 = i0 == i1;
+      l3 = i0;
+    }
+    i0 = l3;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = l3;
+      i1 = l4;
+      i2 = 104u;
+      i1 += i2;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      l3 = i0;
+      i0 = l6;
+      i0 = !(i0);
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = state;
+        i1 = l3;
+        i2 = kF783ConstFFFFFFFD;
+        i0 = ReshapeTaggedNodeChain(ctx, i0, i1, i2);
+        l5 = i0;
+        i0 = 0u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+        i0 = l5;
+      } else {
+        i0 = l3;
       }
-      scratch = (LoadU8(ctx, elem + 4u) == 8u);
+      l3 = i0;
     }
-    if ((scratch != 0u) | (ResumePhase(ctx) == kResumeRewinding)) {
-      // Keep the restored argument while rewinding, take the element's inline
-      // array otherwise.
-      scratch = (ResumePhase(ctx) != 0u) ? scratch : (elem + 104u);
-      if ((ResumePhase(ctx) == kResumeRunning) | (resume_code == 0u)) {
-        call_result = ReshapeTaggedNodeChain(ctx, state, scratch, kReshapeTaggedNodeChainNested);
-        suspend_code = 0u;
-        if (ResumePhase(ctx) == kResumeSuspended) {
-          goto save_suspend_frame;
-        }
-        scratch = call_result;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l9;
+      i1 = l4;
+      i1 = LoadU8(ctx, i1 + 5u);
+      l3 = i1;
+      i2 = 3u;
+      i1 ^= i2;
+      i0 &= i1;
+      l7 = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l7;
+      if (i0) {
+        i0 = l4;
+        i1 = l3;
+        i2 = 248u;
+        i1 &= i2;
+        l3 = i1;
+        i2 = l8;
+        i2 = LoadU8(ctx, i2 + 20u);
+        i3 = 3u;
+        i2 &= i3;
+        i1 |= i2;
+        StoreU8(ctx, i0 + 5u, i1);
+        i0 = l4;
+        node = i0;
+        goto block_12;
       }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      scratch = LoadU8(ctx, elem + 5u);
-      tag_differs = flag_mask & (scratch ^ 3u);
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      if (tag_differs != 0u) {
-        scratch = (scratch & 248u) | (LoadU8(ctx, table + 20u) & 3u);
-        StoreU8(ctx, elem + 5u, scratch);
-        node = elem;
-        goto element_done;
+      i0 = node;
+      i1 = l4;
+      i1 = LoadU32(ctx, i1);
+      StoreU32(ctx, i0, i1);
+      i0 = l4;
+      i1 = l8;
+      i1 = LoadU32(ctx, i1 + 28u);
+      i0 = i0 == i1;
+      if (i0) {
+        i0 = l8;
+        i1 = l4;
+        i1 = LoadU32(ctx, i1);
+        StoreU32(ctx, i0 + 28u, i1);
       }
-      tmp = LoadU32(ctx, elem);
-      StoreU32(ctx, node, tmp);
-      tmp = LoadU32(ctx, table + 28u);
-      if (elem == tmp) {
-        tmp2 = LoadU32(ctx, elem);
-        StoreU32(ctx, table + 28u, tmp2);
+      i0 = l4;
+      i0 = LoadU8(ctx, i0 + 4u);
+      i1 = 4u;
+      i0 -= i1;
+      l3 = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l3;
+      switch (i0) {
+        case 0: goto block_17;
+        case 1: goto block_19;
+        case 2: goto block_21;
+        case 3: goto block_16;
+        case 4: goto block_18;
+        case 5: goto block_23;
+        case 6: goto block_20;
+        default: goto block_12;
       }
-      scratch = LoadU8(ctx, elem + 4u) - 4u;
+      block_23:;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      switch (scratch) {
-        case 0u: goto reshape_6;
-        case 1u: goto reshape_4;
-        case 2u: goto reshape_2;
-        case 3u: goto reshape_7;
-        case 4u: goto reshape_5;
-        case 5u: goto reshape_1;
-        case 6u: goto reshape_3;
-        default: goto element_done;
-      }
+    i0 = l6;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = l4;
+      ReshapeFieldRecordNode(ctx, i0, i1);
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-  reshape_1:;
-    if ((ResumePhase(ctx) == kResumeRunning) | (resume_code == 1u)) {
-      ReshapeFieldRecordNode(ctx, state, elem);
-      suspend_code = 1u;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto save_suspend_frame;
-      }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {goto block_12;}
+    block_21:;
+    i0 = l6;
+    i1 = 2u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = l4;
+      ReshapeHeaderVariantNode(ctx, i0, i1);
+      i0 = 2u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      goto element_done;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {goto block_12;}
+    block_20:;
+    i0 = l6;
+    i1 = 3u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = l4;
+      ReshapeInlinePairNode(ctx, i0, i1);
+      i0 = 3u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-  reshape_2:;
-    if ((ResumePhase(ctx) == kResumeRunning) | (resume_code == 2u)) {
-      ReshapeHeaderVariantNode(ctx, state, elem);
-      suspend_code = 2u;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto save_suspend_frame;
-      }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {goto block_12;}
+    block_19:;
+    i0 = l6;
+    i1 = 4u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = l4;
+      ReshapePowerOfTwoNode(ctx, i0, i1);
+      i0 = 4u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      goto element_done;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {goto block_12;}
+    block_18:;
+    i0 = l6;
+    i1 = 5u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = l4;
+      ReshapeCountedArrayNode(ctx, i0, i1);
+      i0 = 5u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-  reshape_3:;
-    if ((ResumePhase(ctx) == kResumeRunning) | (resume_code == 3u)) {
-      ReshapeInlinePairNode(ctx, state, elem);
-      suspend_code = 3u;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto save_suspend_frame;
-      }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {goto block_12;}
+    block_17:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 16u);
+      l3 = i0;
+      i0 = LoadU32(ctx, i0 + 4u);
+      i1 = 1u;
+      i0 -= i1;
+      l7 = i0;
+      i0 = l3;
+      i1 = l7;
+      StoreU32(ctx, i0 + 4u, i1);
+      i0 = l4;
+      i0 = LoadU32(ctx, i0 + 12u);
+      i1 = 17u;
+      i0 += i1;
+      l3 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      goto element_done;
+    i0 = l6;
+    i1 = 6u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = l4;
+      i2 = l3;
+      i3 = 0u;
+      i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+      l5 = i0;
+      i0 = 6u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l5;
+      l4 = i0;
     }
-  reshape_4:;
-    if ((ResumePhase(ctx) == kResumeRunning) | (resume_code == 4u)) {
-      ReshapePowerOfTwoNode(ctx, state, elem);
-      suspend_code = 4u;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto save_suspend_frame;
-      }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {goto block_12;}
+    block_16:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      i0 = LoadU32(ctx, i0 + 16u);
+      i1 = 24u;
+      i0 += i1;
+      l3 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      goto element_done;
+    i0 = l6;
+    i1 = 7u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = l4;
+      i2 = l3;
+      i3 = 0u;
+      i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+      i0 = 7u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-  reshape_5:;
-    if ((ResumePhase(ctx) == kResumeRunning) | (resume_code == 5u)) {
-      ReshapeCountedArrayNode(ctx, state, elem);
-      suspend_code = 5u;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto save_suspend_frame;
-      }
+    block_12:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = tag;
+      i1 = 1u;
+      i0 -= i1;
+      tag = i0;
+      i0 = node;
+      i0 = LoadU32(ctx, i0);
+      l4 = i0;
+      if (i0) {goto loop_6;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      goto element_done;
-    }
-  reshape_6:;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      scratch = LoadU32(ctx, state + 16u);
-      tmp = LoadU32(ctx, scratch + 4u) - 1u;
-      StoreU32(ctx, scratch + 4u, tmp);
-      scratch = LoadU32(ctx, elem + 12u) + 17u;
-    }
-    if ((ResumePhase(ctx) == kResumeRunning) | (resume_code == 6u)) {
-      call_result = ReallocateBlock(ctx, state, elem, scratch, 0u);
-      suspend_code = 6u;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto save_suspend_frame;
-      }
-      elem = call_result;
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      goto element_done;
-    }
-  reshape_7:;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      scratch = LoadU32(ctx, elem + 16u) + 24u;
-    }
-    if ((ResumePhase(ctx) == kResumeRunning) | (resume_code == 7u)) {
-      ReallocateBlock(ctx, state, elem, scratch, 0u);
-      suspend_code = 7u;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto save_suspend_frame;
-      }
-    }
-  element_done:;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      tag -= 1u;
-      elem = LoadU32(ctx, node);
-      if (elem != 0u) {
-        continue;
-      }
-    }
-    break;
-  }
-chain_end:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    result = node;
-    goto frame_stored;
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = node;
+    goto func_exit;
   }
   TrapUnreachable();
-save_suspend_frame:;
-  // A call suspended: store the resume word, push it, then hand the live
-  // words to the frame above the stack pointer.
-  tmp = ReturnFrameSp(ctx);
-  tmp = LoadU32(ctx, tmp);
-  StoreU32(ctx, tmp, suspend_code);
-  tmp = ReturnFrameSp(ctx);
-  tmp2 = ReturnFrameSp(ctx);
-  tmp2 = LoadU32(ctx, tmp2);
-  tmp3 = kReshapeTaggedNodeChainResumeWordBytes;
-  tmp2 += tmp3;
-  StoreU32(ctx, tmp, tmp2);
-  tmp = ReturnFrameSp(ctx);
-  tmp = LoadU32(ctx, tmp);
-  frame_base = tmp;
-  tmp2 = state;
-  StoreU32(ctx, frame_base, tmp2);
-  StoreU32(ctx, frame_base + 4u, node);
-  StoreU32(ctx, frame_base + 8u, tag);
-  StoreU32(ctx, frame_base + 12u, scratch);
-  StoreU32(ctx, frame_base + 16u, elem);
-  StoreU32(ctx, frame_base + 20u, tag_differs);
-  StoreU32(ctx, frame_base + 24u, table);
-  StoreU32(ctx, frame_base + 28u, flag_mask);
-  tmp = ReturnFrameSp(ctx);
-  tmp2 = ReturnFrameSp(ctx);
-  tmp2 = LoadU32(ctx, tmp2);
-  tmp3 = kReshapeTaggedNodeChainSaveFrameBytes;
-  tmp2 += tmp3;
-  StoreU32(ctx, tmp, tmp2);
-  result = 0u;
-frame_stored:;
+  spill_frame:;
+  l5 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l5;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF783ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l5 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l5;
+  i1 = node;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l5;
+  i1 = tag;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l5;
+  i1 = l3;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l5;
+  i1 = l4;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l5;
+  i1 = l7;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = l5;
+  i1 = l8;
+  StoreU32(ctx, i0 + 24u, i1);
+  i0 = l5;
+  i1 = l9;
+  StoreU32(ctx, i0 + 28u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 32u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return result;
+  return i0;
 }
-}  // namespace artc
+}

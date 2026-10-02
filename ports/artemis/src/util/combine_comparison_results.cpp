@@ -1,243 +1,338 @@
+// combine_comparison_results.cpp -- merges the two operand results of a three-way comparison into one value..
+//
+// CombineComparisonResults -- merges the two operand results of a three-way comparison into one value.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 123668-123668 (f246); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
+// Forward declarations -- batch-mates and registered callees.
 uint32_t FillBytes(EngineContext* ctx, uint32_t dst, uint32_t value, uint32_t length);
 uint32_t MatchCStringPrefix(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
 namespace {
-// The adjustment that reserves the scratch frame on the guest stack.
-constexpr uint32_t kCombineComparisonResultsFrameAdjust = 0xFFFFFFC0u;
-constexpr uint32_t kCombineComparisonResultsSaveFrameBytes = 24u;
-constexpr uint32_t kCombineComparisonResultsResumeWordBytes = 4u;
+
+constexpr uint32_t kF246ConstFFFFFFC0 = 0xFFFFFFC0u;  // 
+constexpr uint32_t kF246SaveFrameBytes = 24u;
+constexpr uint32_t kF246ResumeWordBytes = 4u;
+
 }  // namespace
 
-// Merges the two operand results of a three-way comparison into one value. It
-// fills a scratch frame, asks the host to insert the left operand, and then
-// picks the result out of the frame according to the comparison's outcome word.
-uint32_t CombineComparisonResults(EngineContext* ctx, uint32_t left, uint32_t right,
-                                  uint32_t result, uint32_t box) {
+uint32_t CombineComparisonResults(EngineContext* ctx, uint32_t left, uint32_t right, uint32_t result, uint32_t box) {
   EnterFrame();
-  uint32_t top = 0u;
-  uint32_t arg = 0u;
-  uint32_t third = 0u;
-  uint32_t fourth = 0u;
-  uint32_t fifth = 0u;
-  uint32_t sixth = 0u;
-  uint32_t seventh = 0u;
-  // The scratch frame, the restored word, and the boxed member.
-  uint32_t frame = 0u;
-  // The frame base, and the left operand's string.
-  uint32_t hold = 0u;
-  // The left operand's body, and the word the spill stages.
-  uint32_t off = 0u;
-  // The await code a suspend was resumed with.
-  uint32_t await_code = 0u;
-
-  if (ResumePhase(ctx) == 2u) {
-    top = ReturnFrameSp(ctx);
-    arg = ReturnFrameSp(ctx);
-    arg = LoadU32(ctx, arg);
-    arg = arg - kCombineComparisonResultsSaveFrameBytes;
-    StoreU32(ctx, top, arg);
-    top = ReturnFrameSp(ctx);
-    top = LoadU32(ctx, top);
-    hold = top;
-    left = LoadU32(ctx, hold);
-    right = LoadU32(ctx, hold + 4u);
-    result = LoadU32(ctx, hold + 8u);
-    box = LoadU32(ctx, hold + 12u);
-    frame = LoadU32(ctx, hold + 16u);
-    hold = LoadU32(ctx, hold + 20u);
+  uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u; uint32_t i6 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF246SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
+    i0 = LoadU32(ctx, i0);
+    left = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 4u);
+    right = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 8u);
+    result = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 12u);
+    box = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l4 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l5 = i0;
   }
-  if (ResumePhase(ctx) == 2u) {
-    top = ReturnFrameSp(ctx);
-    arg = ReturnFrameSp(ctx);
-    arg = LoadU32(ctx, arg);
-    arg = arg - kCombineComparisonResultsResumeWordBytes;
-    StoreU32(ctx, top, arg);
-    top = ReturnFrameSp(ctx);
-    top = LoadU32(ctx, top);
-    await_code = LoadU32(ctx, top);
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF246ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l7 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    top = GuestStackSp(ctx);
-    arg = kCombineComparisonResultsFrameAdjust;
-    top = top + arg;
-    frame = top;
-    GuestStackSp(ctx) = top;
-    top = LoadU32(ctx, left);
-    off = top;
-    arg = 4u;
-    top = top - arg;
-    hold = LoadU32(ctx, top);
-    top = off;
-    arg = 8u;
-    top = top - arg;
-    off = LoadU32(ctx, top);
-    StoreU32(ctx, frame + 20u, box);
-    StoreU32(ctx, frame + 16u, right);
-    StoreU32(ctx, frame + 12u, left);
-    StoreU32(ctx, frame + 8u, result);
-    right = 0u;
-    top = frame + 24u;
-    arg = 0u;
-    third = 39u;
-    box = FillBytes(ctx, top, arg, third);
-    top = MatchCStringPrefix(ctx, hold, result, 0u);
-    result = top;
-    left = left + off;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = GuestStackSp(ctx);
+    i1 = kF246ConstFFFFFFC0;
+    i0 += i1;
+    l4 = i0;
+    GuestStackSp(ctx) = i0;
+    i0 = left;
+    i0 = LoadU32(ctx, i0);
+    l6 = i0;
+    i1 = 4u;
+    i0 -= i1;
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
+    i0 = l6;
+    i1 = 8u;
+    i0 -= i1;
+    i0 = LoadU32(ctx, i0);
+    l6 = i0;
+    i0 = l4;
+    i1 = box;
+    StoreU32(ctx, i0 + 20u, i1);
+    i0 = l4;
+    i1 = right;
+    StoreU32(ctx, i0 + 16u, i1);
+    i0 = l4;
+    i1 = left;
+    StoreU32(ctx, i0 + 12u, i1);
+    i0 = l4;
+    i1 = result;
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = 0u;
+    right = i0;
+    i0 = l4;
+    i1 = 24u;
+    i0 += i1;
+    i1 = 0u;
+    i2 = 39u;
+    i0 = FillBytes(ctx, i0, i1, i2);
+    box = i0;
+    i0 = l5;
+    i1 = result;
+    i2 = 0u;
+    i0 = MatchCStringPrefix(ctx, i0, i1, i2);
+    result = i0;
+    i0 = left;
+    i1 = l6;
+    i0 += i1;
+    left = i0;
   }
-  top = result;
-  arg = ResumePhase(ctx);
-  arg = arg == 2u;
-  top = top | arg;
-  if (top != 0u) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, frame + 56u, 1u);
-      top = LoadU32(ctx, hold);
-      result = LoadU32(ctx, top + 20u);
-      right = frame + 8u;
+  i0 = result;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      i1 = 1u;
+      StoreU32(ctx, i0 + 56u, i1);
+      i0 = l5;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 20u);
+      result = i0;
+      i0 = l4;
+      i1 = 8u;
+      i0 += i1;
+      right = i0;
     }
-    if (await_code == 0u || ResumePhase(ctx) == kResumeRunning) {
-      top = hold;
-      arg = right;
-      third = left;
-      fourth = left;
-      fifth = 1u;
-      sixth = 0u;
-      seventh = result;
-      CallTableT15(ctx, seventh, top, arg, third, fourth, fifth, sixth);
+    i0 = l7;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l5;
+      i1 = right;
+      i2 = left;
+      i3 = left;
+      i4 = 1u;
+      i5 = 0u;
+      i6 = result;
+      CallTableT15(ctx, i6, i0, i1, i2, i3, i4, i5);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
       SyncMemoryBase(ctx);
 #endif
-      top = 0u;
-      arg = ResumePhase(ctx);
-      arg = arg == kResumeSuspended;
-      if (arg != 0u) {
-        goto save_frame;
-      }
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      top = LoadU32(ctx, frame + 32u);
-      arg = 1u;
-      top = top == arg;
-      third = left;
-      fourth = 0u;
-      top = top ? third : fourth;
-      right = top;
-      goto unwind;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = left;
+      i1 = 0u;
+      i2 = l4;
+      i2 = LoadU32(ctx, i2 + 32u);
+      i3 = 1u;
+      i2 = i2 == i3;
+      i0 = i2 ? i0 : i1;
+      right = i0;
+      goto running_exit;
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    top = LoadU32(ctx, hold);
-    box = LoadU32(ctx, top + 24u);
-    result = frame + 8u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 24u);
+    box = i0;
+    i0 = l4;
+    i1 = 8u;
+    i0 += i1;
+    result = i0;
   }
-  if (await_code == 1u || ResumePhase(ctx) == kResumeRunning) {
-    top = hold;
-    arg = result;
-    third = left;
-    fourth = 1u;
-    fifth = 0u;
-    sixth = box;
-    CallTableT11(ctx, sixth, top, arg, third, fourth, fifth);
+  i0 = l7;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l5;
+    i1 = result;
+    i2 = left;
+    i3 = 1u;
+    i4 = 0u;
+    i5 = box;
+    CallTableT11(ctx, i5, i0, i1, i2, i3, i4);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    top = 1u;
-    arg = ResumePhase(ctx);
-    arg = arg == kResumeSuspended;
-    if (arg != 0u) {
-      goto save_frame;
-    }
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    top = LoadU32(ctx, frame + 44u);
-    if (top == 0u) {
-      // No operand went missing, so the result is one of the three operands.
-      top = LoadU32(ctx, frame + 28u);
-      arg = LoadU32(ctx, frame + 40u);
-      third = 1u;
-      arg = arg == third;
-      top = arg ? top : 0u;
-      arg = LoadU32(ctx, frame + 36u);
-      third = 1u;
-      arg = arg == third;
-      top = arg ? top : 0u;
-      arg = LoadU32(ctx, frame + 48u);
-      third = 1u;
-      arg = arg == third;
-      top = arg ? top : 0u;
-      right = top;
-      goto unwind;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 44u);
+    switch (i0) {
+      case 0: goto block_13;
+      case 1: goto block_12;
+      default: goto running_exit;
     }
-    if (top == 1u) {
-      top = LoadU32(ctx, frame + 32u);
-      arg = 1u;
-      top = top != arg;
-      if (top != 0u) {
-        if (LoadU32(ctx, frame + 48u) != 0u) {
-          goto unwind;
-        }
-        top = LoadU32(ctx, frame + 36u);
-        arg = 1u;
-        top = top != arg;
-        if (top != 0u) {
-          goto unwind;
-        }
-        top = LoadU32(ctx, frame + 40u);
-        arg = 1u;
-        top = top != arg;
-        if (top != 0u) {
-          goto unwind;
-        }
-      }
-      right = LoadU32(ctx, frame + 24u);
-    } else {
-      goto unwind;
+    block_13:;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 28u);
+    i1 = 0u;
+    i2 = l4;
+    i2 = LoadU32(ctx, i2 + 40u);
+    i3 = 1u;
+    i2 = i2 == i3;
+    i0 = i2 ? i0 : i1;
+    i1 = 0u;
+    i2 = l4;
+    i2 = LoadU32(ctx, i2 + 36u);
+    i3 = 1u;
+    i2 = i2 == i3;
+    i0 = i2 ? i0 : i1;
+    i1 = 0u;
+    i2 = l4;
+    i2 = LoadU32(ctx, i2 + 48u);
+    i3 = 1u;
+    i2 = i2 == i3;
+    i0 = i2 ? i0 : i1;
+    right = i0;
+    goto running_exit;
+    block_12:;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 32u);
+    i1 = 1u;
+    i0 = i0 != i1;
+    if (i0) {
+      i0 = l4;
+      i0 = LoadU32(ctx, i0 + 48u);
+      if (i0) {goto running_exit;}
+      i0 = l4;
+      i0 = LoadU32(ctx, i0 + 36u);
+      i1 = 1u;
+      i0 = i0 != i1;
+      if (i0) {goto running_exit;}
+      i0 = l4;
+      i0 = LoadU32(ctx, i0 + 40u);
+      i1 = 1u;
+      i0 = i0 != i1;
+      if (i0) {goto running_exit;}
     }
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 24u);
+    right = i0;
   }
-unwind:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    top = frame;
-    arg = kCombineComparisonResultsFrameAdjust;
-    top = top - arg;
-    GuestStackSp(ctx) = top;
-    top = right;
-    LeaveFrame();
-    return top;
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    i1 = kF246ConstFFFFFFC0;
+    i0 -= i1;
+    GuestStackSp(ctx) = i0;
+    i0 = right;
+    goto func_exit;
   }
   TrapUnreachable();
-save_frame:;
-  // Push the word naming the call in flight, then the save frame; a rewind
-  // reads them back in that order.
-  off = top;
-  top = ReturnFrameSp(ctx);
-  top = LoadU32(ctx, top);
-  StoreU32(ctx, top, off);
-  top = ReturnFrameSp(ctx);
-  arg = ReturnFrameSp(ctx);
-  arg = LoadU32(ctx, arg);
-  arg = arg + kCombineComparisonResultsResumeWordBytes;
-  StoreU32(ctx, top, arg);
-  top = ReturnFrameSp(ctx);
-  top = LoadU32(ctx, top);
-  off = top;
-  StoreU32(ctx, off, left);
-  StoreU32(ctx, off + 4u, right);
-  StoreU32(ctx, off + 8u, result);
-  StoreU32(ctx, off + 12u, box);
-  StoreU32(ctx, off + 16u, frame);
-  StoreU32(ctx, off + 20u, hold);
-  top = ReturnFrameSp(ctx);
-  arg = ReturnFrameSp(ctx);
-  arg = LoadU32(ctx, arg);
-  arg = arg + kCombineComparisonResultsSaveFrameBytes;
-  StoreU32(ctx, top, arg);
-  top = 0u;
+  spill_frame:;
+  l6 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l6;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF246ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l6 = i0;
+  i1 = left;
+  StoreU32(ctx, i0, i1);
+  i0 = l6;
+  i1 = right;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l6;
+  i1 = result;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l6;
+  i1 = box;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l6;
+  i1 = l4;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l6;
+  i1 = l5;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 24u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return top;
+  return i0;
 }
-
-}  // namespace artc
+}

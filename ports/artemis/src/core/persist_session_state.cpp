@@ -1,8 +1,23 @@
+// persist_session_state.cpp -- saves the session: it sequences the autosave.dat write and drives the onClickWaitIn and onClickWaitOut Lua callbacks..
+//
+// PersistSessionState -- saves the session: it sequences the autosave.dat write and drives the onClickWaitIn and onClickWaitOut Lua callbacks.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 212336-212336 (f533); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- the registered callees this step drives.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);
@@ -14,648 +29,1434 @@ void FormatLuaTagFilterLine(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32
 
 namespace {
 
-// Message ids, the pending-throw word and the frame sizes this step uses.
-constexpr uint32_t kPersistMsgAutosaveDat = 0xAFAF2u;       // autosave.dat
-constexpr uint32_t kPersistMsgWaitOut = 0xB4ACBu;           // [Lua] onClickWaitOut %s: %s
-constexpr uint32_t kPersistMsgWaitIn = 0xB4AE7u;            // [Lua] onClickWaitIn %s: %s
-constexpr uint32_t kPersistMsgAssertCondition = 0xB5E31u;   // px != 0
-constexpr uint32_t kPersistMsgAssertFile = 0xB5E39u;        // boost/smart_ptr/shared_ptr.hpp
-constexpr uint32_t kPersistMsgAssertName = 0xB5E71u;        // operator->
-constexpr uint32_t kPersistThrowWord = 0xD015Cu;
-constexpr uint32_t kPersistRecordFlags = 0x80000010u;
-constexpr uint32_t kPersistScratchBase = 0xFFFFFFC0u;
-constexpr uint32_t kPersistIndexMax = 0xFFFFFFFFu;
-constexpr uint32_t kPersistSaveFrameBytes = 24u;
-constexpr uint32_t kPersistResumeWordBytes = 4u;
-constexpr uint32_t kPersistStackBytes = 80u;
-constexpr uint32_t kPersistModeOffset = 2876u;
+constexpr uint32_t kF533MsgAutosaveDat = 0xAFAF2u;  // autosave.dat
+constexpr uint32_t kF533MsgLuaOnclickwaitoutSS = 0xB4ACBu;  // [Lua] onClickWaitOut %s: %s
+constexpr uint32_t kF533MsgLuaOnclickwaitinSS = 0xB4AE7u;  // [Lua] onClickWaitIn %s: %s
+constexpr uint32_t kF533MsgPx = 0xB5E31u;  // px != 0
+constexpr uint32_t kF533MsgBoostBoostSmartPtr = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
+constexpr uint32_t kF533MsgOperator = 0xB5E71u;  // operator->
+constexpr uint32_t kF533ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF533Const80000010 = 0x80000010u;  // 
+constexpr uint32_t kF533ConstFFFFFFC0 = 0xFFFFFFC0u;  // 
+constexpr uint32_t kF533ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF533SaveFrameBytes = 24u;
+constexpr uint32_t kF533ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Saves the session: the autosave write plus the onClickWaitIn and
-// onClickWaitOut Lua callbacks, in the order the step's mode selects.  Each
-// host call can suspend the step, so its entry gate replays that call from
-// the resume code the suspended pass stored.  `session` and `state` also
-// serve as scratch registers, exactly as the step's own frame does.
-void PersistSessionState(EngineContext* ctx, uint32_t session, uint32_t state) {
+void PersistSessionState(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  uint32_t frame = 0u;
-  uint32_t latch = 0u;
-  uint32_t flag = 0u;
-  uint32_t object = 0u;
-  uint32_t result = 0u;
-  uint32_t resume_code = 0u;
-  uint32_t value = 0u;
-  uint32_t operand1 = 0u;
-  uint32_t operand2 = 0u;
-  uint64_t zero64 = 0;
-
-  // Resume codes -- the call each gate replays on a rewinding pass.
-  constexpr uint32_t kAssertHead = 0u;
-  constexpr uint32_t kAssertGate = 1u;
-  constexpr uint32_t kCallWaitOut = 2u;
-  constexpr uint32_t kAssertPath = 3u;
-  constexpr uint32_t kDispatchWaitOut = 4u;
-  constexpr uint32_t kAssertResult = 5u;
-  constexpr uint32_t kFormatWaitOut = 6u;
-  constexpr uint32_t kApplyEvents = 7u;
-  constexpr uint32_t kCallWaitIn = 8u;
-  constexpr uint32_t kAssertRetry = 9u;
-  constexpr uint32_t kDispatchWaitIn = 10u;
-  constexpr uint32_t kAssertRelease = 11u;
-  constexpr uint32_t kFormatWaitIn = 12u;
-  constexpr uint32_t kAssertSave = 13u;
-  constexpr uint32_t kAllocName = 14u;
-  constexpr uint32_t kAssertRecord = 15u;
-  constexpr uint32_t kFormatRecord = 16u;
-  constexpr uint32_t kAssertFormat = 17u;
-  constexpr uint32_t kAssertEvent = 18u;
-  constexpr uint32_t kFormatEvent = 19u;
-  constexpr uint32_t kPanicHandoff = 20u;
-
-  // The two pops that a rewinding pass performs: the first rewinds the saved
-  // frame pointer past the register block and restores the registers, the
-  // second takes the resume code off the same frame.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kPersistSaveFrameBytes);
-    result = LoadU32(ctx, ReturnFrameSp(ctx));
-    session = LoadU32(ctx, result);
-    frame = LoadU32(ctx, result + 8u);
-    latch = LoadU32(ctx, result + 12u);
-    flag = LoadU32(ctx, result + 16u);
-    object = LoadU32(ctx, result + 20u);
-    state = LoadU32(ctx, result + 4u);
+  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+  uint64_t j1 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF533SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l6 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l2 = i0;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l3 = i0;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l4 = i0;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l5 = i0;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0 + 4u);
+    b = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kPersistResumeWordBytes);
-    resume_code = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF533ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l7 = i0;
   }
-
-  // Carve the step's work area out of the guest stack and read the mode word
-  // that tells whether there is anything left to save.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    frame = GuestStackSp(ctx) - kPersistStackBytes;
-    GuestStackSp(ctx) = frame;
-    latch = LoadU32(ctx, session + kPersistModeOffset);
-    flag = static_cast<uint32_t>(latch == 13u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = GuestStackSp(ctx);
+    i1 = 80u;
+    i0 -= i1;
+    l2 = i0;
+    GuestStackSp(ctx) = i0;
+    i0 = a;
+    i1 = 2876u;
+    i0 += i1;
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i1 = 13u;
+    i0 = i0 == i1;
+    l4 = i0;
   }
-  // Mode 13 means the session was already saved.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (flag) { goto dispatch_done; }
-    StoreU32(ctx, session + kPersistModeOffset, state);
-    StoreU32(ctx, session + 2880u, latch);
-    flag = static_cast<uint32_t>(state != 1u);
-    object = LoadU32(ctx, session + 8u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    if (i0) {goto block_7;}
+    i0 = a;
+    i1 = b;
+    StoreU32(ctx, i0 + 2876u, i1);
+    i0 = a;
+    i1 = 2880u;
+    i0 += i1;
+    i1 = l3;
+    StoreU32(ctx, i0, i1);
+    i0 = b;
+    i1 = 1u;
+    i0 = i0 != i1;
+    l4 = i0;
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l5 = i0;
   }
-  // Decide between the destroy path (the object is gone) and the wait path.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (flag) { goto path_gate; }
-    flag = static_cast<uint32_t>(LoadU8(ctx, session + 34u) == 0u);
-    if (flag) { goto path_gate; }
-    if (object) { goto destroy_await; }
-    StoreU32(ctx, kPersistThrowWord, 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    if (i0) {goto block_16;}
+    i0 = a;
+    i0 = LoadU8(ctx, i0 + 34u);
+    i0 = !(i0);
+    l4 = i0;
+    if (i0) {goto block_16;}
+    i0 = l5;
+    if (i0) {goto block_15;}
+    i0 = kF533ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAssertHead) : 1u) {
-    HostFailAssertion(ctx, 857u, kPersistMsgAssertCondition, kPersistMsgAssertFile, 734u, kPersistMsgAssertName);
-    value = kAssertHead;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  i0 = l7;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = 857u;
+    i1 = kF533MsgPx;
+    i2 = kF533MsgBoostBoostSmartPtr;
+    i3 = 734u;
+    i4 = kF533MsgOperator;
+    HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    session = LoadU32(ctx, kPersistThrowWord);
-    StoreU32(ctx, kPersistThrowWord, 0u);
-    session = static_cast<uint32_t>(session != 1u);
-    if (session) { goto unreachable_trap; }
-    goto throw_unwind;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF533ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = kF533ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = a;
+    i1 = 1u;
+    i0 = i0 != i1;
+    a = i0;
+    if (i0) {goto block_6;}
+    goto block_5;
   }
-
-  // The wait path: a null object jumps straight to the tail, otherwise the
-  // waiting callback is taken from the object's own vtable slot 28.
-  path_gate:;
-  flag = ResumePhase(ctx) ? flag : static_cast<uint32_t>(object == 0u);
-  if (flag || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, kPersistThrowWord, 0u);
+  block_16:;
+  i0 = l4;
+  i1 = l5;
+  i1 = !(i1);
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  l4 = i0;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF533ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAssertGate) : 1u) {
-      HostFailAssertion(ctx, 857u, kPersistMsgAssertCondition, kPersistMsgAssertFile, 734u, kPersistMsgAssertName);
-      value = kAssertGate;
-      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    i0 = l7;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 857u;
+      i1 = kF533MsgPx;
+      i2 = kF533MsgBoostBoostSmartPtr;
+      i3 = 734u;
+      i4 = kF533MsgOperator;
+      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      session = LoadU32(ctx, kPersistThrowWord);
-      StoreU32(ctx, kPersistThrowWord, 0u);
-      session = static_cast<uint32_t>(session != 1u);
-      if (session) { goto unreachable_trap; }
-      goto throw_unwind;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF533ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF533ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      a = i0;
+      if (i0) {goto block_6;}
+      goto block_5;
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    flag = LoadU32(ctx, LoadU32(ctx, object) + 28u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 28u);
+    l4 = i0;
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kCallWaitOut) : 1u) {
-    CallTableT0(ctx, flag, object, 0u);
+  i0 = l7;
+  i1 = 2u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l5;
+    i1 = 0u;
+    i2 = l4;
+    CallTableT0(ctx, i2, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    value = kCallWaitOut;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    i0 = 2u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  // Dispatch the mode: the switch picks the sub-step and every unlisted mode
-  // is a no-op for this pass.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    switch (state) {
-      case 0: goto mode_zero;
-      case 1: goto destroy_path;
-      case 3: goto autosave_path;
-      case 5: goto event_path;
-      case 6: goto record_filter_path;
-      case 14: goto null_object_path;
-      default: goto dispatch_done;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = b;
+    switch (i0) {
+      case 0: goto block_27;
+      case 1: goto block_14;
+      case 2: goto block_7;
+      case 3: goto block_13;
+      case 4: goto block_7;
+      case 5: goto block_9;
+      case 6: goto block_12;
+      case 7: goto block_7;
+      case 8: goto block_7;
+      case 9: goto block_7;
+      case 10: goto block_7;
+      case 11: goto block_7;
+      case 12: goto block_7;
+      case 13: goto block_7;
+      case 14: goto block_11;
+      default: goto block_7;
     }
-  mode_zero:;
-    state = static_cast<uint32_t>(latch != 1u);
+    block_27:;
+    i0 = l3;
+    i1 = 1u;
+    i0 = i0 != i1;
+    b = i0;
   }
-  // Mode 0: the availability byte at +14391 decides whether the save can
-  // start; a negative length means the path field itself holds the value.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (state) { goto mode_zero_tail; }
-    state = LoadS8(ctx, session + 14391u);
-    latch = static_cast<uint32_t>(static_cast<int32_t>(state) <= static_cast<int32_t>(kPersistIndexMax));
-    value = latch ? LoadU32(ctx, session + 14384u) : (state & 255u);
-    state = static_cast<uint32_t>(value == 0u);
-    if (state) { goto mode_zero_tail; }
-    state = LoadU32(ctx, session + 136u);
-    latch = static_cast<uint32_t>(state == 0u);
-  }
-  if (latch || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, kPersistThrowWord, 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = b;
+    if (i0) {goto block_28;}
+    i0 = a;
+    i1 = 14391u;
+    i0 += i1;
+    i0 = LoadS8(ctx, i0);
+    b = i0;
+    i1 = kF533ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    l3 = i0;
+    if (i0) {
+      i0 = a;
+      i1 = 14384u;
+      i0 += i1;
+      i0 = LoadU32(ctx, i0);
+      goto block_31;
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAssertPath) : 1u) {
-      HostFailAssertion(ctx, 857u, kPersistMsgAssertCondition, kPersistMsgAssertFile, 734u, kPersistMsgAssertName);
-      value = kAssertPath;
-      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      session = LoadU32(ctx, kPersistThrowWord);
-      StoreU32(ctx, kPersistThrowWord, 0u);
-      session = static_cast<uint32_t>(session != 1u);
-      if (session) { goto unreachable_trap; }
-      goto throw_unwind;
-    }
+    i0 = b;
+    i1 = 255u;
+    i0 &= i1;
+    block_31:;
+    i0 = !(i0);
+    b = i0;
+    if (i0) {goto block_28;}
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 136u);
+    b = i0;
+    i0 = !(i0);
+    l3 = i0;
   }
-  // Build the record the dispatch call takes: the flag word, the state and
-  // the scratch pointer live at +68, +64 of the work area.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU64(ctx, frame + 68u, zero64);
-    StoreU32(ctx, kPersistThrowWord, 0u);
-    StoreU32(ctx, frame + 64u, (frame - kPersistScratchBase) | 4u);
-    latch = state;
-    flag = frame - kPersistScratchBase;
-    state = session + 14380u;
-  }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kDispatchWaitOut) : 1u) {
-    result = HostDispatchInvoke(ctx, 2595u, latch, state, flag);
-    value = kDispatchWaitOut;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-    object = result;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    latch = LoadU32(ctx, kPersistThrowWord);
-    StoreU32(ctx, kPersistThrowWord, 0u);
-    if (latch == 1u) { goto throw_exit; }
-    value = frame - kPersistScratchBase;
-    operand1 = LoadU32(ctx, frame + 68u);
-    flag = operand1;
-    ReleaseNodeTree(ctx, value, operand1);
-    if (object == 0u) { goto mode_zero_tail; }
-    object = LoadU32(ctx, session + 136u);
-    flag = static_cast<uint32_t>(object == 0u);
-    value = LoadS8(ctx, state + 11u);
-    if (static_cast<uint32_t>(static_cast<int32_t>(value) <= static_cast<int32_t>(kPersistIndexMax))) {
-      value = LoadU32(ctx, state);
-      latch = value;
-    } else {
-      latch = state;
+  i0 = l3;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF533ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-  }
-  if (flag || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, kPersistThrowWord, 0u);
+    i0 = l7;
+    i1 = 3u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 857u;
+      i1 = kF533MsgPx;
+      i2 = kF533MsgBoostBoostSmartPtr;
+      i3 = 734u;
+      i4 = kF533MsgOperator;
+      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+      i0 = 3u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAssertResult) : 1u) {
-      HostFailAssertion(ctx, 857u, kPersistMsgAssertCondition, kPersistMsgAssertFile, 734u, kPersistMsgAssertName);
-      value = kAssertResult;
-      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      session = LoadU32(ctx, kPersistThrowWord);
-      StoreU32(ctx, kPersistThrowWord, 0u);
-      session = static_cast<uint32_t>(session != 1u);
-      if (session) { goto unreachable_trap; }
-      goto throw_unwind;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF533ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF533ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      a = i0;
+      if (i0) {goto block_6;}
+      goto block_5;
     }
   }
-  // The wait out call takes the string the object owns: the length byte at
-  // +15 selects the inline buffer at +4 or the pointer field.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    flag = object + 4u;
-    if (static_cast<uint32_t>(static_cast<int32_t>(LoadS8(ctx, object + 15u)) <= static_cast<int32_t>(kPersistIndexMax))) {
-      flag = LoadU32(ctx, object + 4u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    j1 = 0ull;
+    StoreU64(ctx, i0 + 68u, j1);
+    i0 = kF533ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l2;
+    i1 = l2;
+    i2 = kF533ConstFFFFFFC0;
+    i1 -= i2;
+    i2 = 4u;
+    i1 |= i2;
+    StoreU32(ctx, i0 + 64u, i1);
+    i0 = b;
+    l3 = i0;
+    i0 = l2;
+    i1 = kF533ConstFFFFFFC0;
+    i0 -= i1;
+    l4 = i0;
+    i0 = a;
+    i1 = 14380u;
+    i0 += i1;
+    b = i0;
+  }
+  i0 = l7;
+  i1 = 4u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = 2595u;
+    i1 = l3;
+    i2 = b;
+    i3 = l4;
+    i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
+    l6 = i0;
+    i0 = 4u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l6;
+    l5 = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF533ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = kF533ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l3;
+    i1 = 1u;
+    i0 = i0 == i1;
+    if (i0) {goto running_exit;}
+    i0 = l2;
+    i1 = kF533ConstFFFFFFC0;
+    i0 -= i1;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 68u);
+    l4 = i1;
+    ReleaseNodeTree(ctx, i0, i1);
+    i0 = l5;
+    i0 = !(i0);
+    l3 = i0;
+    if (i0) {goto block_28;}
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 136u);
+    l5 = i0;
+    i0 = !(i0);
+    l4 = i0;
+    i0 = b;
+    i0 = LoadS8(ctx, i0 + 11u);
+    i1 = kF533ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {
+      i0 = b;
+      i0 = LoadU32(ctx, i0);
+      goto block_40;
     }
-    StoreU32(ctx, frame + 20u, flag);
-    StoreU32(ctx, frame + 16u, latch);
-    latch = frame + 16u;
+    i0 = b;
+    block_40:;
+    l3 = i0;
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFormatWaitOut) : 1u) {
-    FormatLuaTagFilterLine(ctx, session, 1u, kPersistMsgWaitOut, latch);
-    value = kFormatWaitOut;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-  }
-  // The wait out callback returns the object into an empty state, so its
-  // string is released here.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    value = LoadS8(ctx, session + 14391u);
-    latch = static_cast<uint32_t>(static_cast<int32_t>(value) <= static_cast<int32_t>(kPersistIndexMax));
-    if (latch) {
-      StoreU8(ctx, LoadU32(ctx, session + 14380u), 0u);
-      state = session + 14384u;
-      StoreU32(ctx, state, 0u);
-      goto mode_zero_tail;
+  i0 = l4;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF533ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    StoreU8(ctx, state + 11u, 0u);
-    StoreU8(ctx, state, 0u);
+    i0 = l7;
+    i1 = 5u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 857u;
+      i1 = kF533MsgPx;
+      i2 = kF533MsgBoostBoostSmartPtr;
+      i3 = 734u;
+      i4 = kF533MsgOperator;
+      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+      i0 = 5u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF533ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF533ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      a = i0;
+      if (i0) {goto block_6;}
+      goto block_5;
+    }
   }
-
-  mode_zero_tail:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU64(ctx, session + 2768u, zero64);
-    state = session + 2792u;
-    StoreU8(ctx, state, 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    i1 = 4u;
+    i0 += i1;
+    l4 = i0;
+    i0 = l5;
+    i0 = LoadS8(ctx, i0 + 15u);
+    i1 = kF533ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {
+      i0 = l5;
+      i0 = LoadU32(ctx, i0 + 4u);
+      l4 = i0;
+    }
+    i0 = l2;
+    i1 = l4;
+    StoreU32(ctx, i0 + 20u, i1);
+    i0 = l2;
+    i1 = l3;
+    StoreU32(ctx, i0 + 16u, i1);
+    i0 = l2;
+    i1 = 16u;
+    i0 += i1;
+    l3 = i0;
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kApplyEvents) : 1u) {
-    ApplyEventRecordTable(ctx, session);
-    value = kApplyEvents;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  i0 = l7;
+  i1 = 6u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = 1u;
+    i2 = kF533MsgLuaOnclickwaitoutSS;
+    i3 = l3;
+    FormatLuaTagFilterLine(ctx, i0, i1, i2, i3);
+    i0 = 6u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) { goto dispatch_done; }
-
-  // Mode 2: the waiting object is destroyed with the second vtable call.
-  destroy_await:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    state = LoadU32(ctx, LoadU32(ctx, object) + 28u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadS8(ctx, i0 + 14391u);
+    i1 = kF533ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    l3 = i0;
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 14380u);
+      i1 = 0u;
+      StoreU8(ctx, i0, i1);
+      i0 = a;
+      i1 = 14384u;
+      i0 += i1;
+      b = i0;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      goto block_28;
+    }
+    i0 = b;
+    i1 = 0u;
+    StoreU8(ctx, i0 + 11u, i1);
+    i0 = b;
+    i1 = 0u;
+    StoreU8(ctx, i0, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kCallWaitIn) : 1u) {
-    CallTableT0(ctx, state, object, 1u);
+  block_28:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = 2768u;
+    i0 += i1;
+    j1 = 0ull;
+    StoreU64(ctx, i0, j1);
+    i0 = a;
+    i1 = 2792u;
+    i0 += i1;
+    b = i0;
+    i1 = 0u;
+    StoreU8(ctx, i0, i1);
+  }
+  i0 = l7;
+  i1 = 7u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    ApplyEventRecordTable(ctx, i0);
+    i0 = 7u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {goto block_7;}
+  block_15:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 28u);
+    b = i0;
+  }
+  i0 = l7;
+  i1 = 8u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l5;
+    i1 = 1u;
+    i2 = b;
+    CallTableT0(ctx, i2, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    value = kCallWaitIn;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    i0 = 8u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-
-  // Mode 1: release the object the session still holds.  The length byte at
-  // +14379 selects between the inline path and the owned pointer.
-  destroy_path:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    state = LoadS8(ctx, session + 14379u);
-    if (static_cast<uint32_t>(static_cast<int32_t>(state) <= static_cast<int32_t>(kPersistIndexMax))) {
-      value = LoadU32(ctx, session + 14372u);
-      state = static_cast<uint32_t>(value == 0u);
+  block_14:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = 14379u;
+    i0 += i1;
+    i0 = LoadS8(ctx, i0);
+    b = i0;
+    i1 = kF533ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {
+      i0 = a;
+      i1 = 14372u;
+      i0 += i1;
+      i0 = LoadU32(ctx, i0);
+      goto block_57;
+    }
+    i0 = b;
+    i1 = 255u;
+    i0 &= i1;
+    block_57:;
+    i0 = !(i0);
+    b = i0;
+    if (i0) {goto block_13;}
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 136u);
+    b = i0;
+    i0 = !(i0);
+    l3 = i0;
+  }
+  i0 = l3;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF533ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+    }
+    i0 = l7;
+    i1 = 9u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 857u;
+      i1 = kF533MsgPx;
+      i2 = kF533MsgBoostBoostSmartPtr;
+      i3 = 734u;
+      i4 = kF533MsgOperator;
+      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+      i0 = 9u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF533ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF533ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      a = i0;
+      if (i0) {goto block_6;}
+      goto block_5;
+    }
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    j1 = 0ull;
+    StoreU64(ctx, i0 + 68u, j1);
+    i0 = kF533ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l2;
+    i1 = l2;
+    i2 = kF533ConstFFFFFFC0;
+    i1 -= i2;
+    i2 = 4u;
+    i1 |= i2;
+    StoreU32(ctx, i0 + 64u, i1);
+    i0 = b;
+    l3 = i0;
+    i0 = l2;
+    i1 = kF533ConstFFFFFFC0;
+    i0 -= i1;
+    l4 = i0;
+    i0 = a;
+    i1 = 14368u;
+    i0 += i1;
+    b = i0;
+  }
+  i0 = l7;
+  i1 = 10u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = 2595u;
+    i1 = l3;
+    i2 = b;
+    i3 = l4;
+    i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
+    l6 = i0;
+    i0 = 10u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l6;
+    l5 = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF533ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = kF533ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l3;
+    i1 = 1u;
+    i0 = i0 == i1;
+    if (i0) {goto running_exit;}
+    i0 = l2;
+    i1 = kF533ConstFFFFFFC0;
+    i0 -= i1;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 68u);
+    ReleaseNodeTree(ctx, i0, i1);
+    i0 = l5;
+    i0 = !(i0);
+    if (i0) {goto block_13;}
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 136u);
+    l5 = i0;
+    i0 = !(i0);
+    l4 = i0;
+    i0 = b;
+    i0 = LoadS8(ctx, i0 + 11u);
+    i1 = kF533ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {
+      i0 = b;
+      i0 = LoadU32(ctx, i0);
+      goto block_66;
+    }
+    i0 = b;
+    block_66:;
+    l3 = i0;
+  }
+  i0 = l4;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF533ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+    }
+    i0 = l7;
+    i1 = 11u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 857u;
+      i1 = kF533MsgPx;
+      i2 = kF533MsgBoostBoostSmartPtr;
+      i3 = 734u;
+      i4 = kF533MsgOperator;
+      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+      i0 = 11u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF533ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF533ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      a = i0;
+      if (i0) {goto block_6;}
+      goto block_5;
+    }
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    i1 = 4u;
+    i0 += i1;
+    l4 = i0;
+    i0 = l2;
+    i1 = l5;
+    i1 = LoadS8(ctx, i1 + 15u);
+    i2 = kF533ConstFFFFFFFF;
+    i1 = (uint32_t)((int32_t)i1 <= (int32_t)i2);
+    if (i1) {
+      i1 = l5;
+      i1 = LoadU32(ctx, i1 + 4u);
     } else {
-      state = static_cast<uint32_t>((state & 255u) == 0u);
+      i1 = l4;
     }
-    if (state) { goto autosave_path; }
-    state = LoadU32(ctx, session + 136u);
-    latch = static_cast<uint32_t>(state == 0u);
+    StoreU32(ctx, i0 + 4u, i1);
+    i0 = l2;
+    i1 = l3;
+    StoreU32(ctx, i0, i1);
   }
-  if (latch || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, kPersistThrowWord, 0u);
-    }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAssertRetry) : 1u) {
-      HostFailAssertion(ctx, 857u, kPersistMsgAssertCondition, kPersistMsgAssertFile, 734u, kPersistMsgAssertName);
-      value = kAssertRetry;
-      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      session = LoadU32(ctx, kPersistThrowWord);
-      StoreU32(ctx, kPersistThrowWord, 0u);
-      session = static_cast<uint32_t>(session != 1u);
-      if (session) { goto unreachable_trap; }
-      goto throw_unwind;
-    }
+  i0 = l7;
+  i1 = 12u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = 1u;
+    i2 = kF533MsgLuaOnclickwaitinSS;
+    i3 = l2;
+    FormatLuaTagFilterLine(ctx, i0, i1, i2, i3);
+    i0 = 12u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  // The wait in dispatch takes the string the session owns.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU64(ctx, frame + 68u, zero64);
-    StoreU32(ctx, kPersistThrowWord, 0u);
-    StoreU32(ctx, frame + 64u, (frame - kPersistScratchBase) | 4u);
-    latch = state;
-    flag = frame - kPersistScratchBase;
-    state = session + 14368u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadS8(ctx, i0 + 14379u);
+    i1 = kF533ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 14368u);
+      i1 = 0u;
+      StoreU8(ctx, i0, i1);
+      i0 = a;
+      i1 = 14372u;
+      i0 += i1;
+      b = i0;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      goto block_13;
+    }
+    i0 = b;
+    i1 = 0u;
+    StoreU8(ctx, i0 + 11u, i1);
+    i0 = b;
+    i1 = 0u;
+    StoreU8(ctx, i0, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kDispatchWaitIn) : 1u) {
-    result = HostDispatchInvoke(ctx, 2595u, latch, state, flag);
-    value = kDispatchWaitIn;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-    object = result;
+  block_13:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU8(ctx, i0 + 48u);
+    if (i0) {
+      i0 = a;
+      i0 = LoadU8(ctx, i0 + 49u);
+      if (i0) {goto block_7;}
+      i0 = a;
+      i0 = LoadU8(ctx, i0 + 50u);
+      if (i0) {goto block_7;}
+    }
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 13212u);
+    if (i0) {goto block_7;}
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 128u);
+    l5 = i0;
+    i0 = !(i0);
+    b = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    latch = LoadU32(ctx, kPersistThrowWord);
-    StoreU32(ctx, kPersistThrowWord, 0u);
-    if (latch == 1u) { goto throw_exit; }
-    value = frame - kPersistScratchBase;
-    operand1 = LoadU32(ctx, frame + 68u);
-    flag = operand1;
-    ReleaseNodeTree(ctx, value, operand1);
-    if (object == 0u) { goto autosave_path; }
-    object = LoadU32(ctx, session + 136u);
-    flag = static_cast<uint32_t>(object == 0u);
-    value = LoadS8(ctx, state + 11u);
-    if (static_cast<uint32_t>(static_cast<int32_t>(value) <= static_cast<int32_t>(kPersistIndexMax))) {
-      value = LoadU32(ctx, state);
-      latch = value;
-    } else {
-      latch = state;
+  i0 = b;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF533ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-  }
-  if (flag || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, kPersistThrowWord, 0u);
+    i0 = l7;
+    i1 = 13u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 857u;
+      i1 = kF533MsgPx;
+      i2 = kF533MsgBoostBoostSmartPtr;
+      i3 = 734u;
+      i4 = kF533MsgOperator;
+      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+      i0 = 13u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAssertRelease) : 1u) {
-      HostFailAssertion(ctx, 857u, kPersistMsgAssertCondition, kPersistMsgAssertFile, 734u, kPersistMsgAssertName);
-      value = kAssertRelease;
-      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      session = LoadU32(ctx, kPersistThrowWord);
-      StoreU32(ctx, kPersistThrowWord, 0u);
-      session = static_cast<uint32_t>(session != 1u);
-      if (session) { goto unreachable_trap; }
-      goto throw_unwind;
-    }
-  }
-  // The wait in call takes the same string, this time by value.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    flag = object + 4u;
-    operand1 = static_cast<uint32_t>(static_cast<int32_t>(LoadS8(ctx, object + 15u)) <= static_cast<int32_t>(kPersistIndexMax));
-    if (operand1) {
-      operand1 = LoadU32(ctx, object + 4u);
-    } else {
-      operand1 = flag;
-    }
-    StoreU32(ctx, frame + 4u, operand1);
-    StoreU32(ctx, frame, latch);
-  }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFormatWaitIn) : 1u) {
-    FormatLuaTagFilterLine(ctx, session, 1u, kPersistMsgWaitIn, frame);
-    value = kFormatWaitIn;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    value = LoadS8(ctx, session + 14379u);
-    if (static_cast<uint32_t>(static_cast<int32_t>(value) <= static_cast<int32_t>(kPersistIndexMax))) {
-      StoreU8(ctx, LoadU32(ctx, session + 14368u), 0u);
-      state = session + 14372u;
-      StoreU32(ctx, state, 0u);
-      goto autosave_path;
-    }
-    StoreU8(ctx, state + 11u, 0u);
-    StoreU8(ctx, state, 0u);
-  }
-
-  // Mode 3: write the autosave record.  The record is skipped when the
-  // session is already live or has a pending event table.
-  autosave_path:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (LoadU8(ctx, session + 48u)) {
-      if (LoadU8(ctx, session + 49u)) { goto dispatch_done; }
-      if (LoadU8(ctx, session + 50u)) { goto dispatch_done; }
-    }
-    if (LoadU32(ctx, session + 13212u)) { goto dispatch_done; }
-    object = LoadU32(ctx, session + 128u);
-    state = static_cast<uint32_t>(object == 0u);
-  }
-  if (state || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, kPersistThrowWord, 0u);
-    }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAssertSave) : 1u) {
-      HostFailAssertion(ctx, 857u, kPersistMsgAssertCondition, kPersistMsgAssertFile, 734u, kPersistMsgAssertName);
-      value = kAssertSave;
-      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      session = LoadU32(ctx, kPersistThrowWord);
-      StoreU32(ctx, kPersistThrowWord, 0u);
-      session = static_cast<uint32_t>(session != 1u);
-      if (session) { goto unreachable_trap; }
-      goto throw_unwind;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF533ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF533ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      a = i0;
+      if (i0) {goto block_6;}
+      goto block_5;
     }
   }
-  // The record name is "autosave.dat" (12 bytes) or empty, and `state` is
-  // the flag that says whether the record was live.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    operand2 = LoadU32(ctx, session + 2956u);
-    state = static_cast<uint32_t>(operand2 == 2u);
-    session = state ? 12u : 0u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = 12u;
+    i1 = 0u;
+    i2 = a;
+    i2 = LoadU32(ctx, i2 + 2956u);
+    b = i2;
+    i3 = 2u;
+    i2 = i2 == i3;
+    i0 = i2 ? i0 : i1;
+    a = i0;
+    i0 = b;
+    i1 = 2u;
+    i0 = i0 == i1;
+    b = i0;
   }
-  if (state || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAllocName) : 1u) {
-      result = AllocateStringBuffer(ctx, 16u);
-      value = kAllocName;
-      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-      state = result;
+  i0 = b;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = l7;
+    i1 = 14u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 16u;
+      i0 = AllocateStringBuffer(ctx, i0);
+      l6 = i0;
+      i0 = 14u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l6;
+      b = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, frame + 56u, kPersistRecordFlags);
-      StoreU32(ctx, frame + 48u, state);
-      StoreU32(ctx, frame + 52u, session);
-      CopyBytes(ctx, state, kPersistMsgAutosaveDat, session);
-      goto autosave_result;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l2;
+      i1 = kF533Const80000010;
+      StoreU32(ctx, i0 + 56u, i1);
+      i0 = l2;
+      i1 = b;
+      StoreU32(ctx, i0 + 48u, i1);
+      i0 = l2;
+      i1 = a;
+      StoreU32(ctx, i0 + 52u, i1);
+      i0 = b;
+      i1 = kF533MsgAutosaveDat;
+      i2 = a;
+      i0 = CopyBytes(ctx, i0, i1, i2);
+      goto block_84;
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, frame + 59u, session);
-    state = frame + 48u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i1 = a;
+    StoreU8(ctx, i0 + 59u, i1);
+    i0 = l2;
+    i1 = 48u;
+    i0 += i1;
+    b = i0;
   }
-
-  autosave_result:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, session + state, 0u);
-    StoreU32(ctx, kPersistThrowWord, 0u);
-    session = frame + 48u;
+  block_84:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = b;
+    i0 += i1;
+    i1 = 0u;
+    StoreU8(ctx, i0, i1);
+    i0 = kF533ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l2;
+    i1 = 48u;
+    i0 += i1;
+    a = i0;
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAssertRecord) : 1u) {
-    HostFailAssertion(ctx, 2600u, object, session, 0u, 0u);
-    value = kAssertRecord;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  i0 = l7;
+  i1 = 15u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = 2600u;
+    i1 = l5;
+    i2 = a;
+    i3 = 0u;
+    i4 = 0u;
+    HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+    i0 = 15u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  // If the record was never live, drop the string it owns; otherwise fall
-  // through to the event tables.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    session = LoadU32(ctx, kPersistThrowWord);
-    StoreU32(ctx, kPersistThrowWord, 0u);
-    session = static_cast<uint32_t>(session != 1u);
-    if (session) {
-      value = LoadS8(ctx, frame + 59u);
-      session = static_cast<uint32_t>(static_cast<int32_t>(value) > static_cast<int32_t>(kPersistIndexMax));
-      if (session) { goto dispatch_done; }
-      session = LoadU32(ctx, frame + 48u);
-      DeallocateRawBlock(ctx, session);
-      goto dispatch_done;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF533ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = kF533ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = a;
+    i1 = 1u;
+    i0 = i0 != i1;
+    if (i0) {
+      i0 = l2;
+      i0 = LoadS8(ctx, i0 + 59u);
+      i1 = kF533ConstFFFFFFFF;
+      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+      a = i0;
+      if (i0) {goto block_7;}
+      i0 = l2;
+      i0 = LoadU32(ctx, i0 + 48u);
+      a = i0;
+      DeallocateRawBlock(ctx, i0);
+      goto block_7;
     }
-    session = HostRet0(ctx);
-    HostTempRet0(ctx);
-    value = LoadS8(ctx, frame + 59u);
-    state = static_cast<uint32_t>(static_cast<int32_t>(value) > static_cast<int32_t>(kPersistIndexMax));
-    if (state) { goto catch_cleanup; }
-    value = LoadU32(ctx, frame + 48u);
-    DeallocateRawBlock(ctx, value);
-    HostOsRelease(ctx, session);
+    i0 = HostRet0(ctx);
+    a = i0;
+    i0 = HostTempRet0(ctx);
+    i0 = l2;
+    i0 = LoadS8(ctx, i0 + 59u);
+    i1 = kF533ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+    b = i0;
+    if (i0) {goto block_10;}
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 48u);
+    DeallocateRawBlock(ctx, i0);
+    i0 = a;
+    HostOsRelease(ctx, i0);
     TrapUnreachable();
   }
-
-  // Mode 6: format the event filter line into the session's own buffer.
-  record_filter_path:;
-  state = ResumePhase(ctx) ? state : session + 14116u;
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFormatRecord) : 1u) {
-    result = FormatLuaEventFilterLine(ctx, session, state);
-    value = kFormatRecord;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-    session = result;
+  block_12:;
+  i0 = b;
+  i1 = a;
+  i2 = 14116u;
+  i1 += i2;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  b = i0;
+  i0 = l7;
+  i1 = 16u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = b;
+    i0 = FormatLuaEventFilterLine(ctx, i0, i1);
+    l6 = i0;
+    i0 = 16u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l6;
+    a = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) { goto dispatch_done; }
-
-  // Mode 14: the session no longer owns an event buffer.
-  null_object_path:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    session = LoadU32(ctx, session + 128u);
-    state = static_cast<uint32_t>(session == 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {goto block_7;}
+  block_11:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 128u);
+    a = i0;
+    i0 = !(i0);
+    b = i0;
   }
-  if (state || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, kPersistThrowWord, 0u);
+  i0 = b;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF533ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAssertFormat) : 1u) {
-      HostFailAssertion(ctx, 857u, kPersistMsgAssertCondition, kPersistMsgAssertFile, 734u, kPersistMsgAssertName);
-      value = kAssertFormat;
-      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    i0 = l7;
+    i1 = 17u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 857u;
+      i1 = kF533MsgPx;
+      i2 = kF533MsgBoostBoostSmartPtr;
+      i3 = 734u;
+      i4 = kF533MsgOperator;
+      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+      i0 = 17u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      session = LoadU32(ctx, kPersistThrowWord);
-      StoreU32(ctx, kPersistThrowWord, 0u);
-      session = static_cast<uint32_t>(session != 1u);
-      if (session) { goto unreachable_trap; }
-      goto throw_unwind;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF533ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF533ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      a = i0;
+      if (i0) {goto block_6;}
+      goto block_5;
     }
   }
-  // Apply the event table the session holds, then release it.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, frame + 32u, 0u);
-    StoreU8(ctx, frame + 43u, 0u);
-    StoreU32(ctx, kPersistThrowWord, 0u);
-    state = frame + 32u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i1 = 0u;
+    StoreU8(ctx, i0 + 32u, i1);
+    i0 = l2;
+    i1 = 0u;
+    StoreU8(ctx, i0 + 43u, i1);
+    i0 = kF533ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l2;
+    i1 = 32u;
+    i0 += i1;
+    b = i0;
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAssertEvent) : 1u) {
-    HostFailAssertion(ctx, 2600u, session, state, 0u, 1u);
-    value = kAssertEvent;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  i0 = l7;
+  i1 = 18u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = 2600u;
+    i1 = a;
+    i2 = b;
+    i3 = 0u;
+    i4 = 1u;
+    HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+    i0 = 18u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    session = LoadU32(ctx, kPersistThrowWord);
-    StoreU32(ctx, kPersistThrowWord, 0u);
-    session = static_cast<uint32_t>(session != 1u);
-    if (session) {
-      value = LoadS8(ctx, frame + 43u);
-      session = static_cast<uint32_t>(static_cast<int32_t>(value) > static_cast<int32_t>(kPersistIndexMax));
-      if (session) { goto dispatch_done; }
-      session = LoadU32(ctx, frame + 32u);
-      DeallocateRawBlock(ctx, session);
-      goto dispatch_done;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF533ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = kF533ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = a;
+    i1 = 1u;
+    i0 = i0 != i1;
+    if (i0) {
+      i0 = l2;
+      i0 = LoadS8(ctx, i0 + 43u);
+      i1 = kF533ConstFFFFFFFF;
+      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+      a = i0;
+      if (i0) {goto block_7;}
+      i0 = l2;
+      i0 = LoadU32(ctx, i0 + 32u);
+      a = i0;
+      DeallocateRawBlock(ctx, i0);
+      goto block_7;
     }
-    session = HostRet0(ctx);
-    HostTempRet0(ctx);
-    value = LoadS8(ctx, frame + 43u);
-    state = static_cast<uint32_t>(static_cast<int32_t>(value) > static_cast<int32_t>(kPersistIndexMax));
-    if (state) { goto catch_cleanup; }
-    state = LoadU32(ctx, frame + 32u);
-    DeallocateRawBlock(ctx, state);
+    i0 = HostRet0(ctx);
+    a = i0;
+    i0 = HostTempRet0(ctx);
+    i0 = l2;
+    i0 = LoadS8(ctx, i0 + 43u);
+    i1 = kF533ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+    b = i0;
+    if (i0) {goto block_10;}
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 32u);
+    b = i0;
+    DeallocateRawBlock(ctx, i0);
   }
-
-  // Unwinding path: release the caught value and stop the pass.
-  catch_cleanup:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    HostOsRelease(ctx, session);
+  block_10:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    HostOsRelease(ctx, i0);
     TrapUnreachable();
   }
-
-  // Mode 5: format the event filter line into a freshly built buffer.
-  event_path:;
-  state = ResumePhase(ctx) ? state : session + 14028u;
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFormatEvent) : 1u) {
-    result = FormatLuaEventFilterLine(ctx, session, state);
-    value = kFormatEvent;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-    session = result;
+  block_9:;
+  i0 = b;
+  i1 = a;
+  i2 = 14028u;
+  i1 += i2;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  b = i0;
+  i0 = l7;
+  i1 = 19u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = b;
+    i0 = FormatLuaEventFilterLine(ctx, i0, i1);
+    l6 = i0;
+    i0 = 19u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l6;
+    a = i0;
   }
-
-  // Every mode that has nothing left to do unwinds the work area and leaves.
-  dispatch_done:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    GuestStackSp(ctx) = frame + kPersistStackBytes;
-    goto exit_frame;
+  block_7:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i1 = 80u;
+    i0 += i1;
+    GuestStackSp(ctx) = i0;
+    goto func_exit;
   }
-  unreachable_trap:;
-  if (ResumePhase(ctx) == kResumeRunning) {
+  block_6:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
     TrapUnreachable();
   }
-  // The step threw: hand the caught value to the registered handler.
-  throw_unwind:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    session = FindMatchingCatch(ctx, 0u);
-    HostTempRet0(ctx);
+  block_5:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = 0u;
+    i0 = FindMatchingCatch(ctx, i0);
+    a = i0;
+    i0 = HostTempRet0(ctx);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kPanicHandoff) : 1u) {
-    Panic(ctx, session);
-    value = kPanicHandoff;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  i0 = l7;
+  i1 = 20u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    Panic(ctx, i0);
+    i0 = 20u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
     TrapUnreachable();
   }
-
-  // The dispatch call threw: release the node tree the work area holds.
-  throw_exit:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    session = HostRet0(ctx);
-    HostTempRet0(ctx);
-    value = frame - kPersistScratchBase;
-    operand1 = LoadU32(ctx, frame + 68u);
-    ReleaseNodeTree(ctx, value, operand1);
-    HostOsRelease(ctx, session);
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = HostRet0(ctx);
+    a = i0;
+    i0 = HostTempRet0(ctx);
+    i0 = l2;
+    i1 = kF533ConstFFFFFFC0;
+    i0 -= i1;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 68u);
+    ReleaseNodeTree(ctx, i0, i1);
+    i0 = a;
+    HostOsRelease(ctx, i0);
     TrapUnreachable();
   }
-  goto exit_frame;
-
-  // Park the step: store the resume code and the live registers on the saved
-  // frame, then return to the driver.  The stores must keep this order.
-  suspend_point:;
-  result = value;
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), result);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kPersistResumeWordBytes);
-  result = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, result, session);
-  StoreU32(ctx, result + 4u, state);
-  StoreU32(ctx, result + 8u, frame);
-  StoreU32(ctx, result + 12u, latch);
-  StoreU32(ctx, result + 16u, flag);
-  StoreU32(ctx, result + 20u, object);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kPersistSaveFrameBytes);
-
-  exit_frame:;
+  goto func_exit;
+  spill_frame:;
+  l6 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l6;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF533ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l6 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l6;
+  i1 = b;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l6;
+  i1 = l2;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l6;
+  i1 = l3;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l6;
+  i1 = l4;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l6;
+  i1 = l5;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 24u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-}  // namespace artc
+}

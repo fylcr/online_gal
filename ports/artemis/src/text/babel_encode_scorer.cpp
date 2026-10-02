@@ -1,82 +1,100 @@
+// babel_encode_scorer.cpp -- babel.cpp's encode_scorer: the byte buffer is walked against every known encoding mode (EUC / Shift-JIS / Shift_JIS / UTF-8), the first byte is scored against the mode and the answer is written through the result record, with the compiled-in babel.cpp asserts..
+//
+// Babel::ScoreEncoding -- babel.cpp's encode_scorer: the byte buffer is walked against every known encoding mode (EUC / Shift-JIS / Shift_JIS / UTF-8), the first byte is scored against the mode and the answer is written through the result record, with the compiled-in babel.cpp asserts.
+//
+// The step is a plain call: the body holds no suspend point, so the
+// frame pair is bookkeeping only. Judgment order is untouched -- the
+// goto graph is the generated driver's own flattening, renamed labels
+// only.
+//
+// src: artemis.wasm2c.c 765455-765455 (f1674); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations for the callees this step calls.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 uint32_t CompareBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t MemChr(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
-namespace Babel {
-// Babel::ScoreEncoding -- the encode scorer: the byte buffer is walked against
-// every known encoding mode (EUC / Shift-JIS / Shift_JIS / UTF-8) and each
-// candidate is scored so the caller can pick the best decode.
+namespace {
 
+constexpr uint32_t kF1674MsgContribsBabelBabelCpp = 0x2F8DCu;  // ../../../Contribs/babel/babel.cpp
+constexpr uint32_t kF1674Const2F910 = 0x2F910u;  // 
+constexpr uint32_t kF1674MsgUtf = 0x2FB8Bu;  // UTF-8
+constexpr uint32_t kF1674MsgShiftJis = 0x2FB91u;  // Shift_JIS
+constexpr uint32_t kF1674MsgShiftJisX = 0x2FB9Bu;  // shift_jis
+constexpr uint32_t kF1674MsgShiftJisXX = 0x2FBA5u;  // Shift-JIS
+constexpr uint32_t kF1674MsgShiftJisXXX = 0x2FBAFu;  // shift-jis
+constexpr uint32_t kF1674Const2FBB9 = 0x2FBB9u;  // 
+constexpr uint32_t kF1674Const2FBBD = 0x2FBBDu;  // 
+constexpr uint32_t kF1674Const303A0 = 0x303A0u;  // 
+constexpr uint32_t kF1674MsgIndex = 0x304A0u;  // 0 <= index
+constexpr uint32_t kF1674MsgOperator = 0x304ABu;  // operator[]
+constexpr uint32_t kF1674Const304C0 = 0x304C0u;  // 
+constexpr uint32_t kF1674Const305C0 = 0x305C0u;  // 
+constexpr uint32_t kF1674MsgEncodeScorerFirstByte = 0x309E0u;  // encode_scorer::first_byte == mode
+constexpr uint32_t kF1674MsgScanChar = 0x30A02u;  // scan_char
+constexpr uint32_t kF1674Const30A10 = 0x30A10u;  // 
+constexpr uint32_t kF1674MsgMode = 0x30B10u;  // mode < 0
+constexpr uint32_t kF1674ConstC87BC = 0xC87BCu;  // 
+constexpr uint32_t kF1674ConstC87C0 = 0xC87C0u;  // 
+constexpr uint32_t kF1674ConstC87C4 = 0xC87C4u;  // 
+constexpr uint32_t kF1674ConstC87E0 = 0xC87E0u;  // 
+constexpr uint32_t kF1674ConstC87E4 = 0xC87E4u;  // 
+constexpr uint32_t kF1674ConstC87EB = 0xC87EBu;  // 
+constexpr uint32_t kF1674ConstC87EC = 0xC87ECu;  // 
+constexpr uint32_t kF1674ConstC87F0 = 0xC87F0u;  // 
+constexpr uint32_t kF1674ConstC87F7 = 0xC87F7u;  // 
+constexpr uint32_t kF1674ConstC87F8 = 0xC87F8u;  // 
+constexpr uint32_t kF1674ConstC87FC = 0xC87FCu;  // 
+constexpr uint32_t kF1674ConstC8803 = 0xC8803u;  // 
+constexpr uint32_t kF1674ConstC8810 = 0xC8810u;  // 
+constexpr uint32_t kF1674ConstC8814 = 0xC8814u;  // 
+constexpr uint32_t kF1674ConstC881B = 0xC881Bu;  // 
+constexpr uint32_t kF1674ConstC881C = 0xC881Cu;  // 
+constexpr uint32_t kF1674ConstC8820 = 0xC8820u;  // 
+constexpr uint32_t kF1674ConstC8827 = 0xC8827u;  // 
+constexpr uint32_t kF1674ConstC8828 = 0xC8828u;  // 
+constexpr uint32_t kF1674ConstC882C = 0xC882Cu;  // 
+constexpr uint32_t kF1674ConstC8833 = 0xC8833u;  // 
+constexpr uint32_t kF1674ConstC8834 = 0xC8834u;  // 
+constexpr uint32_t kF1674ConstC8838 = 0xC8838u;  // 
+constexpr uint32_t kF1674ConstC883F = 0xC883Fu;  // 
+constexpr uint32_t kF1674ConstC8840 = 0xC8840u;  // 
+constexpr uint32_t kF1674ConstC8844 = 0xC8844u;  // 
+constexpr uint32_t kF1674ConstC884B = 0xC884Bu;  // 
+constexpr uint32_t kF1674ConstC884C = 0xC884Cu;  // 
+constexpr uint32_t kF1674ConstC8850 = 0xC8850u;  // 
+constexpr uint32_t kF1674ConstC8857 = 0xC8857u;  // 
+constexpr uint32_t kF1674ConstC8858 = 0xC8858u;  // 
+constexpr uint32_t kF1674ConstC885C = 0xC885Cu;  // 
+constexpr uint32_t kF1674ConstC8863 = 0xC8863u;  // 
+constexpr uint32_t kF1674ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF1674ConstFFFFFF = 0xFFFFFFu;  // 
+constexpr uint32_t kF1674Const3FFFFFC = 0x3FFFFFCu;  // 
+constexpr uint32_t kF1674Const53494A53 = 0x53494A53u;  // 
+constexpr uint32_t kF1674Const73696A73 = 0x73696A73u;  // 
+constexpr uint32_t kF1674ConstFFF9F6C6 = 0xFFF9F6C6u;  // 
+constexpr uint32_t kF1674ConstFFFFFF8F = 0xFFFFFF8Fu;  // 
+constexpr uint32_t kF1674ConstFFFFFFFC = 0xFFFFFFFCu;  // 
+constexpr uint32_t kF1674ConstFFFFFFFE = 0xFFFFFFFEu;  // 
+constexpr uint32_t kF1674ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF1674ResumeWordBytes = 4u;
+constexpr uint32_t kF1674ResumeDeallocateRawBlock00 = 0u;
+constexpr uint32_t kF1674ResumeDeallocateRawBlock01 = 1u;
+
+}  // namespace
+
+namespace Babel {
 void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t out) {
   EnterFrame();
-  constexpr uint32_t kMsgContribsBabelBabelCpp = 0x2F8DCu;  // ../../../Contribs/babel/babel.cpp
-  constexpr uint32_t kData2F910 = 0x2F910u;
-  constexpr uint32_t kMsgUtf = 0x2FB8Bu;  // UTF-8
-  constexpr uint32_t kMsgShiftJis = 0x2FB91u;  // Shift_JIS
-  constexpr uint32_t kMsgShiftJisX = 0x2FB9Bu;  // shift_jis
-  constexpr uint32_t kMsgShiftJisXX = 0x2FBA5u;  // Shift-JIS
-  constexpr uint32_t kMsgShiftJisXXX = 0x2FBAFu;  // shift-jis
-  constexpr uint32_t kData2FBB9 = 0x2FBB9u;
-  constexpr uint32_t kData2FBBD = 0x2FBBDu;
-  constexpr uint32_t kData303A0 = 0x303A0u;
-  constexpr uint32_t kMsgIndex = 0x304A0u;  // 0 <= index
-  constexpr uint32_t kMsgOperator = 0x304ABu;  // operator[]
-  constexpr uint32_t kData304C0 = 0x304C0u;
-  constexpr uint32_t kData305C0 = 0x305C0u;
-  constexpr uint32_t kMsgEncodeScorerFirstByte = 0x309E0u;  // encode_scorer::first_byte == mode
-  constexpr uint32_t kMsgScanChar = 0x30A02u;  // scan_char
-  constexpr uint32_t kData30A10 = 0x30A10u;
-  constexpr uint32_t kMsgMode = 0x30B10u;  // mode < 0
-  constexpr uint32_t kDataC87BC = 0xC87BCu;
-  constexpr uint32_t kDataC87C0 = 0xC87C0u;
-  constexpr uint32_t kDataC87C4 = 0xC87C4u;
-  constexpr uint32_t kDataC87E0 = 0xC87E0u;
-  constexpr uint32_t kDataC87E4 = 0xC87E4u;
-  constexpr uint32_t kDataC87EB = 0xC87EBu;
-  constexpr uint32_t kDataC87EC = 0xC87ECu;
-  constexpr uint32_t kDataC87F0 = 0xC87F0u;
-  constexpr uint32_t kDataC87F7 = 0xC87F7u;
-  constexpr uint32_t kDataC87F8 = 0xC87F8u;
-  constexpr uint32_t kDataC87FC = 0xC87FCu;
-  constexpr uint32_t kDataC8803 = 0xC8803u;
-  constexpr uint32_t kDataC8810 = 0xC8810u;
-  constexpr uint32_t kDataC8814 = 0xC8814u;
-  constexpr uint32_t kDataC881B = 0xC881Bu;
-  constexpr uint32_t kDataC881C = 0xC881Cu;
-  constexpr uint32_t kDataC8820 = 0xC8820u;
-  constexpr uint32_t kDataC8827 = 0xC8827u;
-  constexpr uint32_t kDataC8828 = 0xC8828u;
-  constexpr uint32_t kDataC882C = 0xC882Cu;
-  constexpr uint32_t kDataC8833 = 0xC8833u;
-  constexpr uint32_t kDataC8834 = 0xC8834u;
-  constexpr uint32_t kDataC8838 = 0xC8838u;
-  constexpr uint32_t kDataC883F = 0xC883Fu;
-  constexpr uint32_t kDataC8840 = 0xC8840u;
-  constexpr uint32_t kDataC8844 = 0xC8844u;
-  constexpr uint32_t kDataC884B = 0xC884Bu;
-  constexpr uint32_t kDataC884C = 0xC884Cu;
-  constexpr uint32_t kDataC8850 = 0xC8850u;
-  constexpr uint32_t kDataC8857 = 0xC8857u;
-  constexpr uint32_t kDataC8858 = 0xC8858u;
-  constexpr uint32_t kDataC885C = 0xC885Cu;
-  constexpr uint32_t kDataC8863 = 0xC8863u;
-  constexpr uint32_t kDataFFFFFF = 0xFFFFFFu;
-  constexpr uint32_t kData3FFFFFC = 0x3FFFFFCu;
-  constexpr uint32_t kData53494A53 = 0x53494A53u;
-  constexpr uint32_t kData73696A73 = 0x73696A73u;
-  constexpr uint32_t kDataFFF9F6C6 = 0xFFF9F6C6u;
-  constexpr uint32_t kDataFFFFFF8F = 0xFFFFFF8Fu;
-  constexpr uint32_t kDataFFFFFFFC = 0xFFFFFFFCu;
-  constexpr uint32_t kDataFFFFFFFE = 0xFFFFFFFEu;
-  constexpr uint32_t kDataFFFFFFFF = 0xFFFFFFFFu;
-  constexpr uint32_t kResumeWordBytes = 4u;
-  constexpr uint32_t kResumeStepDeallocateRawBlock0 = 0u;
-  constexpr uint32_t kResumeStepDeallocateRawBlock1 = 1u;
   uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l14 = 0u; uint32_t l15 = 0u; uint32_t l16 = 0u; uint32_t l17 = 0u; uint32_t l18 = 0u; uint32_t l19 = 0u; uint32_t l20 = 0u; uint32_t l21 = 0u; uint32_t l22 = 0u; uint32_t l23 = 0u; uint32_t l24 = 0u; uint32_t l25 = 0u; uint32_t l26 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
   uint64_t j1 = 0;
@@ -177,7 +195,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kResumeWordBytes;
+    i2 = kF1674ResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -228,7 +246,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = data;
       j1 = 4294967296ull;
       StoreU64(ctx, i0, j1);
-      goto exit_path;
+      goto running_exit;
     }
     i0 = l15;
     i1 = 0u;
@@ -249,7 +267,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF1674ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -267,9 +285,9 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i5 = length;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l9 = i0;
-      i0 = kResumeStepDeallocateRawBlock0;
+      i0 = kF1674ResumeDeallocateRawBlock00;
       i1 = ResumePhase(ctx);
-      i2 = kResumeStepDeallocateRawBlock1;
+      i2 = kF1674ResumeDeallocateRawBlock01;
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
       i0 = l9;
@@ -279,10 +297,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     if (i0) {
       i0 = length;
     } else {
-      i0 = kDataD015C;
+      i0 = kF1674ConstD015C;
       i0 = LoadU32(ctx, i0);
       length = i0;
-      i0 = kDataD015C;
+      i0 = kF1674ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = length;
@@ -291,7 +309,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       if (i0) {goto block_8;}
       i0 = l15;
       i0 = LoadS8(ctx, i0 + 27u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF1674ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l15;
@@ -315,7 +333,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1674ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l11;
@@ -341,9 +359,9 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i5 = length;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l9 = i0;
-    i0 = kResumeStepDeallocateRawBlock1;
+    i0 = kF1674ResumeDeallocateRawBlock01;
     i1 = ResumePhase(ctx);
-    i2 = kResumeStepDeallocateRawBlock1;
+    i2 = kF1674ResumeDeallocateRawBlock01;
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l9;
@@ -352,10 +370,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1674ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF1674ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -373,7 +391,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = out;
       i0 = LoadU32(ctx, i0);
       l8 = i0;
-      i0 = kDataC8827;
+      i0 = kF1674ConstC8827;
       i0 = LoadU8(ctx, i0);
       l4 = i0;
       i1 = 24u;
@@ -383,7 +401,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i1 = 0u;
       i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
       l6 = i0;
-      i0 = kDataC8820;
+      i0 = kF1674ConstC8820;
       i0 = LoadU32(ctx, i0);
       i1 = l4;
       i2 = l6;
@@ -411,9 +429,9 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
         i1 = l10;
         i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
         if (i0) {goto block_20;}
-        i0 = kDataC881C;
+        i0 = kF1674ConstC881C;
         i0 = LoadU32(ctx, i0);
-        i1 = kDataC881C;
+        i1 = kF1674ConstC881C;
         i2 = l6;
         i0 = i2 ? i0 : i1;
         l13 = i0;
@@ -473,7 +491,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       j1 = 42949672970ull;
       StoreU64(ctx, i0, j1);
       i0 = l7;
-      i1 = kDataFFFFFFFF;
+      i1 = kF1674ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       if (i0) {goto block_5;}
       i0 = l8;
@@ -482,9 +500,9 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     }
     goto block_8;
     block_20:;
-    i0 = kDataC882C;
+    i0 = kF1674ConstC882C;
     i0 = LoadU32(ctx, i0);
-    i1 = kDataC8833;
+    i1 = kF1674ConstC8833;
     i1 = LoadU8(ctx, i1);
     l3 = i1;
     i2 = l3;
@@ -502,9 +520,9 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i1 = l10;
       i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
       if (i0) {goto block_25;}
-      i0 = kDataC8828;
+      i0 = kF1674ConstC8828;
       i0 = LoadU32(ctx, i0);
-      i1 = kDataC8828;
+      i1 = kF1674ConstC8828;
       i2 = l3;
       i0 = i2 ? i0 : i1;
       l13 = i0;
@@ -564,16 +582,16 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     j1 = 47244640267ull;
     StoreU64(ctx, i0, j1);
     i0 = l7;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     if (i0) {goto block_5;}
     i0 = l8;
     DeallocateRawBlock(ctx, i0);
     goto block_5;
     block_25:;
-    i0 = kDataC8838;
+    i0 = kF1674ConstC8838;
     i0 = LoadU32(ctx, i0);
-    i1 = kDataC883F;
+    i1 = kF1674ConstC883F;
     i1 = LoadU8(ctx, i1);
     l3 = i1;
     i2 = l3;
@@ -591,9 +609,9 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i1 = l10;
       i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
       if (i0) {goto block_29;}
-      i0 = kDataC8834;
+      i0 = kF1674ConstC8834;
       i0 = LoadU32(ctx, i0);
-      i1 = kDataC8834;
+      i1 = kF1674ConstC8834;
       i2 = l3;
       i0 = i2 ? i0 : i1;
       l13 = i0;
@@ -653,16 +671,16 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     j1 = 30064771079ull;
     StoreU64(ctx, i0, j1);
     i0 = l7;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     if (i0) {goto block_5;}
     i0 = l8;
     DeallocateRawBlock(ctx, i0);
     goto block_5;
     block_29:;
-    i0 = kDataC8844;
+    i0 = kF1674ConstC8844;
     i0 = LoadU32(ctx, i0);
-    i1 = kDataC884B;
+    i1 = kF1674ConstC884B;
     i1 = LoadU8(ctx, i1);
     l3 = i1;
     i2 = l3;
@@ -680,9 +698,9 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i1 = l10;
       i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
       if (i0) {goto block_33;}
-      i0 = kDataC8840;
+      i0 = kF1674ConstC8840;
       i0 = LoadU32(ctx, i0);
-      i1 = kDataC8840;
+      i1 = kF1674ConstC8840;
       i2 = l3;
       i0 = i2 ? i0 : i1;
       l13 = i0;
@@ -742,14 +760,14 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     j1 = 34359738376ull;
     StoreU64(ctx, i0, j1);
     i0 = l7;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     if (i0) {goto block_5;}
     i0 = l8;
     DeallocateRawBlock(ctx, i0);
     goto block_5;
     block_33:;
-    i0 = kDataC8857;
+    i0 = kF1674ConstC8857;
     i0 = LoadU8(ctx, i0);
     l3 = i0;
     i1 = 24u;
@@ -759,7 +777,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = 0u;
     i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
     l6 = i0;
-    i0 = kDataC8850;
+    i0 = kF1674ConstC8850;
     i0 = LoadU32(ctx, i0);
     i1 = l3;
     i2 = l6;
@@ -771,9 +789,9 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
       l10 = i0;
       if (i0) {goto block_37;}
-      i0 = kDataC884C;
+      i0 = kF1674ConstC884C;
       i0 = LoadU32(ctx, i0);
-      i1 = kDataC884C;
+      i1 = kF1674ConstC884C;
       i2 = l6;
       i0 = i2 ? i0 : i1;
       l10 = i0;
@@ -831,7 +849,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     j1 = 38654705673ull;
     StoreU64(ctx, i0, j1);
     i0 = l7;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     if (i0) {goto block_5;}
     i0 = l8;
@@ -839,7 +857,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     goto block_5;
     block_37:;
     i0 = l7;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l8;
@@ -859,7 +877,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = 24u;
     i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
     l5 = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = length;
@@ -919,7 +937,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = l6;
     i0 -= i1;
     out = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_42;}
     i0 = out;
@@ -943,7 +961,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     goto block_5;
     block_42:;
     i0 = l5;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = length;
@@ -958,7 +976,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i0 = length;
     block_49:;
     out = i0;
-    i0 = kDataC87EB;
+    i0 = kF1674ConstC87EB;
     i0 = LoadU8(ctx, i0);
     l6 = i0;
     i1 = 24u;
@@ -968,7 +986,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = 0u;
     i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
     l7 = i0;
-    i0 = kDataC87E4;
+    i0 = kF1674ConstC87E4;
     i0 = LoadU32(ctx, i0);
     i1 = l6;
     i2 = l7;
@@ -984,9 +1002,9 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = l3;
     i0 += i1;
     l8 = i0;
-    i0 = kDataC87E0;
+    i0 = kF1674ConstC87E0;
     i0 = LoadU32(ctx, i0);
-    i1 = kDataC87E0;
+    i1 = kF1674ConstC87E0;
     i2 = l7;
     i0 = i2 ? i0 : i1;
     l10 = i0;
@@ -1038,12 +1056,12 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i0 = l3;
     i1 = out;
     i0 -= i1;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 != i1;
     if (i0) {goto block_52;}
     block_53:;
     i0 = l5;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = length;
@@ -1058,7 +1076,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i0 = length;
     block_56:;
     out = i0;
-    i0 = kDataC87F7;
+    i0 = kF1674ConstC87F7;
     i0 = LoadU8(ctx, i0);
     l6 = i0;
     i1 = 24u;
@@ -1068,7 +1086,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = 0u;
     i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
     l7 = i0;
-    i0 = kDataC87F0;
+    i0 = kF1674ConstC87F0;
     i0 = LoadU32(ctx, i0);
     i1 = l6;
     i2 = l7;
@@ -1084,9 +1102,9 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = l3;
     i0 += i1;
     l8 = i0;
-    i0 = kDataC87EC;
+    i0 = kF1674ConstC87EC;
     i0 = LoadU32(ctx, i0);
-    i1 = kDataC87EC;
+    i1 = kF1674ConstC87EC;
     i2 = l7;
     i0 = i2 ? i0 : i1;
     l10 = i0;
@@ -1138,12 +1156,12 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i0 = l3;
     i1 = out;
     i0 -= i1;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 != i1;
     if (i0) {goto block_52;}
     block_58:;
     i0 = l5;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = length;
@@ -1158,7 +1176,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i0 = length;
     block_61:;
     out = i0;
-    i0 = kDataC8803;
+    i0 = kF1674ConstC8803;
     i0 = LoadU8(ctx, i0);
     l6 = i0;
     i1 = 24u;
@@ -1168,7 +1186,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = 0u;
     i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
     l7 = i0;
-    i0 = kDataC87FC;
+    i0 = kF1674ConstC87FC;
     i0 = LoadU32(ctx, i0);
     i1 = l6;
     i2 = l7;
@@ -1185,9 +1203,9 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = l3;
     i0 += i1;
     l8 = i0;
-    i0 = kDataC87F8;
+    i0 = kF1674ConstC87F8;
     i0 = LoadU32(ctx, i0);
-    i1 = kDataC87F8;
+    i1 = kF1674ConstC87F8;
     i2 = l7;
     i0 = i2 ? i0 : i1;
     l10 = i0;
@@ -1239,7 +1257,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i0 = l3;
     i1 = out;
     i0 -= i1;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_51;}
     block_52:;
@@ -1259,9 +1277,9 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     l5 = i0;
     i0 = !(i0);
     if (i0) {goto block_6;}
-    i0 = kDataC885C;
+    i0 = kF1674ConstC885C;
     i0 = LoadU32(ctx, i0);
-    i1 = kDataC8863;
+    i1 = kF1674ConstC8863;
     i1 = LoadU8(ctx, i1);
     l3 = i1;
     i2 = l3;
@@ -1279,9 +1297,9 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i0 = l4;
     l7 = i0;
     i0 = l7;
-    i1 = kDataC8858;
+    i1 = kF1674ConstC8858;
     i1 = LoadU32(ctx, i1);
-    i2 = kDataC8858;
+    i2 = kF1674ConstC8858;
     i3 = l3;
     i1 = i3 ? i1 : i2;
     l4 = i1;
@@ -1337,12 +1355,12 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i1 = l3;
       i0 -= i1;
       out = i0;
-      i1 = kDataFFFFFFFF;
+      i1 = kF1674ConstFFFFFFFF;
       i0 = i0 == i1;
       if (i0) {goto block_6;}
       i0 = l11;
       i1 = out;
-      i2 = kDataFFFFFFFC;
+      i2 = kF1674ConstFFFFFFFC;
       i1 &= i2;
       l3 = i1;
       i2 = 256u;
@@ -1391,7 +1409,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
           l10 = i0;
           i0 = l6;
           l13 = i0;
-          i0 = kDataD015C;
+          i0 = kF1674ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = out;
@@ -1411,7 +1429,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
           l9 = i0;
           i0 = 2u;
           i1 = ResumePhase(ctx);
-          i2 = kResumeStepDeallocateRawBlock1;
+          i2 = kF1674ResumeDeallocateRawBlock01;
           i1 = i1 == i2;
           if (i1) {goto spill_frame;}
           i0 = l9;
@@ -1420,10 +1438,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF1674ConstD015C;
           i0 = LoadU32(ctx, i0);
           l4 = i0;
-          i0 = kDataD015C;
+          i0 = kF1674ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -1474,7 +1492,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
               i0 = 1u;
               l14 = i0;
               i0 = l11;
-              i1 = kData303A0;
+              i1 = kF1674Const303A0;
               i0 += i1;
               i0 = LoadU8(ctx, i0);
               out = i0;
@@ -1486,7 +1504,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
               i0 = 0u;
               l14 = i0;
               i0 = 0u;
-              i1 = kDataC87BC;
+              i1 = kF1674ConstC87BC;
               i1 = LoadU32(ctx, i1);
               i1 = LoadU32(ctx, i1);
               out = i1;
@@ -1523,7 +1541,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
               l4 = i0;
               goto block_87;
               block_94:;
-              i0 = kDataD015C;
+              i0 = kF1674ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
             }
@@ -1535,10 +1553,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = i2 ? i0 : i1;
             if (i0) {
               i0 = 857u;
-              i1 = kMsgEncodeScorerFirstByte;
-              i2 = kMsgContribsBabelBabelCpp;
+              i1 = kF1674MsgEncodeScorerFirstByte;
+              i2 = kF1674MsgContribsBabelBabelCpp;
               i3 = 3976u;
-              i4 = kMsgScanChar;
+              i4 = kF1674MsgScanChar;
               HostFailAssertion(ctx, i0, i1, i2, i3, i4);
               i0 = 3u;
               i1 = ResumePhase(ctx);
@@ -1549,10 +1567,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF1674ConstD015C;
               i0 = LoadU32(ctx, i0);
               data = i0;
-              i0 = kDataD015C;
+              i0 = kF1674ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = data;
@@ -1567,7 +1585,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = !(i0);
             if (i0) {
               i0 = l11;
-              i1 = kData30A10;
+              i1 = kF1674Const30A10;
               i0 += i1;
               i0 = LoadU8(ctx, i0);
               out = i0;
@@ -1587,7 +1605,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
                 i1 <<= (i2 & 31);
                 i0 |= i1;
                 l4 = i0;
-                i1 = kDataFFFFFFFF;
+                i1 = kF1674ConstFFFFFFFF;
                 i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
                 out = i0;
               }
@@ -1600,7 +1618,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
                 i0 = ResumePhase(ctx);
                 i0 = !(i0);
                 if (i0) {
-                  i0 = kDataD015C;
+                  i0 = kF1674ConstD015C;
                   i1 = 0u;
                   StoreU32(ctx, i0, i1);
                 }
@@ -1612,10 +1630,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
                 i0 = i2 ? i0 : i1;
                 if (i0) {
                   i0 = 857u;
-                  i1 = kMsgIndex;
-                  i2 = kMsgContribsBabelBabelCpp;
+                  i1 = kF1674MsgIndex;
+                  i2 = kF1674MsgContribsBabelBabelCpp;
                   i3 = 157u;
-                  i4 = kMsgOperator;
+                  i4 = kF1674MsgOperator;
                   HostFailAssertion(ctx, i0, i1, i2, i3, i4);
                   i0 = 4u;
                   i1 = ResumePhase(ctx);
@@ -1626,10 +1644,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
                 i0 = ResumePhase(ctx);
                 i0 = !(i0);
                 if (i0) {
-                  i0 = kDataD015C;
+                  i0 = kF1674ConstD015C;
                   i0 = LoadU32(ctx, i0);
                   data = i0;
-                  i0 = kDataD015C;
+                  i0 = kF1674ConstD015C;
                   i1 = 0u;
                   StoreU32(ctx, i0, i1);
                   i0 = data;
@@ -1651,10 +1669,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
                 i1 = 65535u;
                 i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
                 if (i0) {goto block_110;}
-                i0 = kDataC87BC;
+                i0 = kF1674ConstC87BC;
                 i0 = LoadU32(ctx, i0);
                 i1 = l10;
-                i2 = kDataFFFFFF;
+                i2 = kF1674ConstFFFFFF;
                 i1 &= i2;
                 i2 = 2u;
                 i1 <<= (i2 & 31);
@@ -1737,7 +1755,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = 1u;
             l5 = i0;
             i0 = l11;
-            i1 = kData304C0;
+            i1 = kF1674Const304C0;
             i0 += i1;
             i0 = LoadU8(ctx, i0);
             out = i0;
@@ -1745,18 +1763,18 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = 0u;
             l5 = i0;
             i0 = l6;
-            i1 = kDataFFFFFF8F;
+            i1 = kF1674ConstFFFFFF8F;
             i0 = i0 != i1;
             out = i0;
             if (i0) {goto block_114;}
-            i0 = kDataFFFFFFFE;
+            i0 = kF1674ConstFFFFFFFE;
             l5 = i0;
             i0 = 143u;
             out = i0;
             goto block_113;
             block_119:;
             i0 = l6;
-            i1 = kDataFFFFFFFF;
+            i1 = kF1674ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             out = i0;
             if (i0) {goto block_115;}
@@ -1766,7 +1784,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i1 <<= (i2 & 31);
             i0 |= i1;
             out = i0;
-            i1 = kDataFFFFFFFF;
+            i1 = kF1674ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             l6 = i0;
           }
@@ -1779,7 +1797,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF1674ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
             }
@@ -1791,10 +1809,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = i2 ? i0 : i1;
             if (i0) {
               i0 = 857u;
-              i1 = kMsgIndex;
-              i2 = kMsgContribsBabelBabelCpp;
+              i1 = kF1674MsgIndex;
+              i2 = kF1674MsgContribsBabelBabelCpp;
               i3 = 157u;
-              i4 = kMsgOperator;
+              i4 = kF1674MsgOperator;
               HostFailAssertion(ctx, i0, i1, i2, i3, i4);
               i0 = 5u;
               i1 = ResumePhase(ctx);
@@ -1805,10 +1823,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF1674ConstD015C;
               i0 = LoadU32(ctx, i0);
               data = i0;
-              i0 = kDataD015C;
+              i0 = kF1674ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = data;
@@ -1831,10 +1849,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             l10 = i0;
             if (i0) {goto block_126;}
-            i0 = kDataC87C0;
+            i0 = kF1674ConstC87C0;
             i0 = LoadU32(ctx, i0);
             i1 = l8;
-            i2 = kDataFFFFFF;
+            i2 = kF1674ConstFFFFFF;
             i1 &= i2;
             i2 = 2u;
             i1 <<= (i2 & 31);
@@ -1877,7 +1895,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
           i0 = !(i0);
           if (i0) {
             i0 = l5;
-            i1 = kDataFFFFFFFF;
+            i1 = kF1674ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             out = i0;
             if (i0) {goto block_115;}
@@ -1924,7 +1942,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
               i0 = l11;
               i1 = 2u;
               i0 <<= (i1 & 31);
-              i1 = kData305C0;
+              i1 = kF1674Const305C0;
               i0 += i1;
               i0 = LoadU32(ctx, i0);
               l6 = i0;
@@ -1939,7 +1957,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
               i1 = l6;
               i2 = 2u;
               i1 <<= (i2 & 31);
-              i2 = kData2F910;
+              i2 = kF1674Const2F910;
               i1 += i2;
               i1 = LoadU32(ctx, i1);
               i0 &= i1;
@@ -1960,7 +1978,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF1674ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
             }
@@ -1972,10 +1990,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = i2 ? i0 : i1;
             if (i0) {
               i0 = 857u;
-              i1 = kMsgMode;
-              i2 = kMsgContribsBabelBabelCpp;
+              i1 = kF1674MsgMode;
+              i2 = kF1674MsgContribsBabelBabelCpp;
               i3 = 4064u;
-              i4 = kMsgScanChar;
+              i4 = kF1674MsgScanChar;
               HostFailAssertion(ctx, i0, i1, i2, i3, i4);
               i0 = 6u;
               i1 = ResumePhase(ctx);
@@ -1986,10 +2004,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF1674ConstD015C;
               i0 = LoadU32(ctx, i0);
               data = i0;
-              i0 = kDataD015C;
+              i0 = kF1674ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = data;
@@ -2030,7 +2048,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
               goto block_129;
             }
             i0 = l6;
-            i1 = kDataFFFFFFFF;
+            i1 = kF1674ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             l7 = i0;
           }
@@ -2043,7 +2061,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF1674ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
             }
@@ -2055,10 +2073,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = i2 ? i0 : i1;
             if (i0) {
               i0 = 857u;
-              i1 = kMsgIndex;
-              i2 = kMsgContribsBabelBabelCpp;
+              i1 = kF1674MsgIndex;
+              i2 = kF1674MsgContribsBabelBabelCpp;
               i3 = 157u;
-              i4 = kMsgOperator;
+              i4 = kF1674MsgOperator;
               HostFailAssertion(ctx, i0, i1, i2, i3, i4);
               i0 = 7u;
               i1 = ResumePhase(ctx);
@@ -2069,10 +2087,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF1674ConstD015C;
               i0 = LoadU32(ctx, i0);
               data = i0;
-              i0 = kDataD015C;
+              i0 = kF1674ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = data;
@@ -2095,10 +2113,10 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             l10 = i0;
             if (i0) {goto block_146;}
-            i0 = kDataC87C4;
+            i0 = kF1674ConstC87C4;
             i0 = LoadU32(ctx, i0);
             i1 = l13;
-            i2 = kData3FFFFFC;
+            i2 = kF1674Const3FFFFFC;
             i1 &= i2;
             i0 += i1;
             i0 = LoadU32(ctx, i0);
@@ -2249,7 +2267,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = length;
       i0 = LoadS8(ctx, i0 + 11u);
       out = i0;
-      i1 = kDataFFFFFFFF;
+      i1 = kF1674ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = length;
@@ -2265,7 +2283,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 &= i1;
       l3 = i0;
       block_157:;
-      i0 = kDataC881B;
+      i0 = kF1674ConstC881B;
       i0 = LoadU8(ctx, i0);
       out = i0;
       i1 = 24u;
@@ -2275,7 +2293,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i1 = 0u;
       i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
       l5 = i0;
-      i0 = kDataC8814;
+      i0 = kF1674ConstC8814;
       i0 = LoadU32(ctx, i0);
       i1 = out;
       i2 = l5;
@@ -2290,9 +2308,9 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
         i1 = l3;
         i0 += i1;
         l4 = i0;
-        i0 = kDataC8810;
+        i0 = kF1674ConstC8810;
         i0 = LoadU32(ctx, i0);
-        i1 = kDataC8810;
+        i1 = kF1674ConstC8810;
         i2 = l5;
         i0 = i2 ? i0 : i1;
         l5 = i0;
@@ -2343,7 +2361,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
         i0 = l3;
         i1 = length;
         i0 -= i1;
-        i1 = kDataFFFFFFFF;
+        i1 = kF1674ConstFFFFFFFF;
         i0 = i0 == i1;
         if (i0) {goto block_66;}
       }
@@ -2358,19 +2376,19 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     if (i0) {
       i0 = l24;
       i1 = l12;
-      i2 = kDataFFF9F6C6;
+      i2 = kF1674ConstFFF9F6C6;
       i1 *= i2;
       i0 += i1;
       out = i0;
       i0 = l20;
       i1 = l17;
-      i2 = kDataFFF9F6C6;
+      i2 = kF1674ConstFFF9F6C6;
       i1 *= i2;
       i0 += i1;
       l3 = i0;
       i1 = l23;
       i2 = l18;
-      i3 = kDataFFF9F6C6;
+      i3 = kF1674ConstFFF9F6C6;
       i2 *= i3;
       i1 += i2;
       l4 = i1;
@@ -2387,7 +2405,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 &= i1;
       l7 = i0;
       i0 = l8;
-      i1 = kDataFFFFFFFF;
+      i1 = kF1674ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = length;
@@ -2443,11 +2461,11 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = out;
       i1 = l4;
       i0 -= i1;
-      i1 = kDataFFFFFFFF;
+      i1 = kF1674ConstFFFFFFFF;
       i0 = i0 == i1;
       if (i0) {goto block_67;}
       i0 = l8;
-      i1 = kDataFFFFFFFF;
+      i1 = kF1674ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = length;
@@ -2505,12 +2523,12 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = out;
       i1 = l4;
       i0 -= i1;
-      i1 = kDataFFFFFFFF;
+      i1 = kF1674ConstFFFFFFFF;
       i0 = i0 != i1;
       if (i0) {goto block_168;}
       block_169:;
       i0 = l8;
-      i1 = kDataFFFFFFFF;
+      i1 = kF1674ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = length;
@@ -2564,7 +2582,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = out;
       i1 = length;
       i0 -= i1;
-      i1 = kDataFFFFFFFF;
+      i1 = kF1674ConstFFFFFFFF;
       i0 = i0 == i1;
       length = i0;
       if (i0) {goto block_70;}
@@ -2674,7 +2692,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
   i0 = !(i0);
   if (i0) {
     i0 = l8;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = length;
@@ -2730,7 +2748,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i0 = out;
     i1 = l4;
     i0 -= i1;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_183;}
     i0 = data;
@@ -2739,7 +2757,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     goto block_5;
     block_183:;
     i0 = l8;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = length;
@@ -2774,7 +2792,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = !(i0);
       if (i0) {goto block_191;}
       i0 = out;
-      i1 = kMsgUtf;
+      i1 = kF1674MsgUtf;
       i2 = 5u;
       i0 = CompareBytes(ctx, i0, i1, i2);
       i0 = !(i0);
@@ -2802,7 +2820,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i0 -= i1;
     l13 = i0;
     i0 = l8;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = length;
@@ -2832,7 +2850,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
         i0 = !(i0);
         if (i0) {goto block_200;}
         i0 = out;
-        i1 = kMsgShiftJis;
+        i1 = kF1674MsgShiftJis;
         i2 = 9u;
         i0 = CompareBytes(ctx, i0, i1, i2);
         if (i0) {
@@ -2856,11 +2874,11 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i1 = l6;
       i0 -= i1;
       l4 = i0;
-      i1 = kDataFFFFFFFF;
+      i1 = kF1674ConstFFFFFFFF;
       i0 = i0 != i1;
       if (i0) {goto block_199;}
       block_200:;
-      i0 = kDataFFFFFFFF;
+      i0 = kF1674ConstFFFFFFFF;
       l4 = i0;
       block_199:;
       i0 = l3;
@@ -2882,7 +2900,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
         i0 = !(i0);
         if (i0) {goto block_196;}
         i0 = out;
-        i1 = kMsgShiftJisX;
+        i1 = kF1674MsgShiftJisX;
         i2 = 9u;
         i0 = CompareBytes(ctx, i0, i1, i2);
         i0 = !(i0);
@@ -2928,7 +2946,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = !(i0);
       if (i0) {goto block_205;}
       i0 = l3;
-      i1 = kMsgShiftJis;
+      i1 = kF1674MsgShiftJis;
       i2 = 9u;
       i0 = CompareBytes(ctx, i0, i1, i2);
       if (i0) {
@@ -2952,11 +2970,11 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = length;
     i0 -= i1;
     l4 = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 != i1;
     if (i0) {goto block_204;}
     block_205:;
-    i0 = kDataFFFFFFFF;
+    i0 = kF1674ConstFFFFFFFF;
     l4 = i0;
     block_204:;
     i0 = l8;
@@ -2984,7 +3002,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = !(i0);
       if (i0) {goto block_194;}
       i0 = l3;
-      i1 = kMsgShiftJisX;
+      i1 = kF1674MsgShiftJisX;
       i2 = 9u;
       i0 = CompareBytes(ctx, i0, i1, i2);
       i0 = !(i0);
@@ -3009,7 +3027,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = l6;
     i0 -= i1;
     out = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_196;}
     i0 = out;
@@ -3020,7 +3038,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i3 = i3 < i4;
     i1 = i3 ? i1 : i2;
     i2 = l4;
-    i3 = kDataFFFFFFFF;
+    i3 = kF1674ConstFFFFFFFF;
     i2 = i2 == i3;
     i0 = i2 ? i0 : i1;
     l4 = i0;
@@ -3045,7 +3063,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       if (i0) {goto block_209;}
       i0 = out;
       i0 = LoadU32(ctx, i0);
-      i1 = kData73696A73;
+      i1 = kF1674Const73696A73;
       i0 = i0 != i1;
       if (i0) {
         i0 = l11;
@@ -3068,7 +3086,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = l6;
     i0 -= i1;
     out = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_209;}
     i0 = out;
@@ -3079,7 +3097,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i3 = i3 < i4;
     i1 = i3 ? i1 : i2;
     i2 = l4;
-    i3 = kDataFFFFFFFF;
+    i3 = kF1674ConstFFFFFFFF;
     i2 = i2 == i3;
     i0 = i2 ? i0 : i1;
     l4 = i0;
@@ -3103,7 +3121,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = !(i0);
       if (i0) {goto block_212;}
       i0 = out;
-      i1 = kMsgShiftJisXX;
+      i1 = kF1674MsgShiftJisXX;
       i2 = 9u;
       i0 = CompareBytes(ctx, i0, i1, i2);
       if (i0) {
@@ -3127,7 +3145,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = l6;
     i0 -= i1;
     out = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_212;}
     i0 = out;
@@ -3138,7 +3156,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i3 = i3 < i4;
     i1 = i3 ? i1 : i2;
     i2 = l4;
-    i3 = kDataFFFFFFFF;
+    i3 = kF1674ConstFFFFFFFF;
     i2 = i2 == i3;
     i0 = i2 ? i0 : i1;
     l4 = i0;
@@ -3162,7 +3180,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = !(i0);
       if (i0) {goto block_215;}
       i0 = out;
-      i1 = kMsgShiftJisXXX;
+      i1 = kF1674MsgShiftJisXXX;
       i2 = 9u;
       i0 = CompareBytes(ctx, i0, i1, i2);
       if (i0) {
@@ -3186,7 +3204,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = l6;
     i0 -= i1;
     out = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_215;}
     i0 = out;
@@ -3197,7 +3215,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i3 = i3 < i4;
     i1 = i3 ? i1 : i2;
     i2 = l4;
-    i3 = kDataFFFFFFFF;
+    i3 = kF1674ConstFFFFFFFF;
     i2 = i2 == i3;
     i0 = i2 ? i0 : i1;
     l4 = i0;
@@ -3220,7 +3238,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       if (i0) {goto block_193;}
       i0 = out;
       i0 = LoadU32(ctx, i0);
-      i1 = kData53494A53;
+      i1 = kF1674Const53494A53;
       i0 = i0 != i1;
       if (i0) {
         i0 = l11;
@@ -3243,7 +3261,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = l6;
     i0 -= i1;
     out = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_193;}
     i0 = out;
@@ -3254,7 +3272,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i3 = i3 < i4;
     i1 = i3 ? i1 : i2;
     i2 = l4;
-    i3 = kDataFFFFFFFF;
+    i3 = kF1674ConstFFFFFFFF;
     i2 = i2 == i3;
     i0 = i2 ? i0 : i1;
     l4 = i0;
@@ -3268,7 +3286,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = length;
     i0 -= i1;
     l3 = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_194;}
     i0 = l3;
@@ -3279,7 +3297,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i3 = i3 < i4;
     i1 = i3 ? i1 : i2;
     i2 = l4;
-    i3 = kDataFFFFFFFF;
+    i3 = kF1674ConstFFFFFFFF;
     i2 = i2 == i3;
     i0 = i2 ? i0 : i1;
     l4 = i0;
@@ -3310,7 +3328,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       if (i0) {goto block_220;}
       i0 = l3;
       i0 = LoadU32(ctx, i0);
-      i1 = kData73696A73;
+      i1 = kF1674Const73696A73;
       i0 = i0 != i1;
       if (i0) {
         i0 = out;
@@ -3333,7 +3351,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = length;
     i0 -= i1;
     l3 = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_220;}
     i0 = l3;
@@ -3344,7 +3362,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i3 = i3 < i4;
     i1 = i3 ? i1 : i2;
     i2 = l4;
-    i3 = kDataFFFFFFFF;
+    i3 = kF1674ConstFFFFFFFF;
     i2 = i2 == i3;
     i0 = i2 ? i0 : i1;
     l4 = i0;
@@ -3374,7 +3392,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = !(i0);
       if (i0) {goto block_223;}
       i0 = l3;
-      i1 = kMsgShiftJisXX;
+      i1 = kF1674MsgShiftJisXX;
       i2 = 9u;
       i0 = CompareBytes(ctx, i0, i1, i2);
       if (i0) {
@@ -3398,7 +3416,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = length;
     i0 -= i1;
     l3 = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_223;}
     i0 = l3;
@@ -3409,7 +3427,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i3 = i3 < i4;
     i1 = i3 ? i1 : i2;
     i2 = l4;
-    i3 = kDataFFFFFFFF;
+    i3 = kF1674ConstFFFFFFFF;
     i2 = i2 == i3;
     i0 = i2 ? i0 : i1;
     l4 = i0;
@@ -3439,7 +3457,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = !(i0);
       if (i0) {goto block_226;}
       i0 = l3;
-      i1 = kMsgShiftJisXXX;
+      i1 = kF1674MsgShiftJisXXX;
       i2 = 9u;
       i0 = CompareBytes(ctx, i0, i1, i2);
       if (i0) {
@@ -3463,7 +3481,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = length;
     i0 -= i1;
     l3 = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_226;}
     i0 = l3;
@@ -3474,7 +3492,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i3 = i3 < i4;
     i1 = i3 ? i1 : i2;
     i2 = l4;
-    i3 = kDataFFFFFFFF;
+    i3 = kF1674ConstFFFFFFFF;
     i2 = i2 == i3;
     i0 = i2 ? i0 : i1;
     l4 = i0;
@@ -3505,7 +3523,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       if (i0) {goto block_193;}
       i0 = l3;
       i0 = LoadU32(ctx, i0);
-      i1 = kData53494A53;
+      i1 = kF1674Const53494A53;
       i0 = i0 != i1;
       if (i0) {
         i0 = out;
@@ -3528,7 +3546,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = length;
     i0 -= i1;
     out = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_193;}
     i0 = out;
@@ -3539,18 +3557,18 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i3 = i3 < i4;
     i1 = i3 ? i1 : i2;
     i2 = l4;
-    i3 = kDataFFFFFFFF;
+    i3 = kF1674ConstFFFFFFFF;
     i2 = i2 == i3;
     i0 = i2 ? i0 : i1;
     l4 = i0;
     block_193:;
-    i0 = kDataFFFFFFFF;
+    i0 = kF1674ConstFFFFFFFF;
     i1 = l13;
     i2 = l10;
     i0 = i2 ? i0 : i1;
     l11 = i0;
     i0 = l8;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = length;
@@ -3581,7 +3599,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
         i0 = !(i0);
         if (i0) {goto block_236;}
         i0 = out;
-        i1 = kData2FBB9;
+        i1 = kF1674Const2FBB9;
         i2 = 3u;
         i0 = CompareBytes(ctx, i0, i1, i2);
         if (i0) {
@@ -3605,11 +3623,11 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i1 = l3;
       i0 -= i1;
       l5 = i0;
-      i1 = kDataFFFFFFFF;
+      i1 = kF1674ConstFFFFFFFF;
       i0 = i0 != i1;
       if (i0) {goto block_235;}
       block_236:;
-      i0 = kDataFFFFFFFF;
+      i0 = kF1674ConstFFFFFFFF;
       l5 = i0;
       block_235:;
       i0 = length;
@@ -3629,7 +3647,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
         i0 = !(i0);
         if (i0) {goto block_231;}
         i0 = length;
-        i1 = kData2FBBD;
+        i1 = kF1674Const2FBBD;
         i2 = 3u;
         i0 = CompareBytes(ctx, i0, i1, i2);
         i0 = !(i0);
@@ -3675,7 +3693,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = !(i0);
       if (i0) {goto block_241;}
       i0 = out;
-      i1 = kData2FBB9;
+      i1 = kF1674Const2FBB9;
       i2 = 3u;
       i0 = CompareBytes(ctx, i0, i1, i2);
       if (i0) {
@@ -3699,11 +3717,11 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = length;
     i0 -= i1;
     l5 = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 != i1;
     if (i0) {goto block_240;}
     block_241:;
-    i0 = kDataFFFFFFFF;
+    i0 = kF1674ConstFFFFFFFF;
     l5 = i0;
     block_240:;
     i0 = l8;
@@ -3722,7 +3740,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = l3;
     i0 -= i1;
     length = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_231;}
     i0 = length;
@@ -3733,7 +3751,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i3 = i3 < i4;
     i1 = i3 ? i1 : i2;
     i2 = l5;
-    i3 = kDataFFFFFFFF;
+    i3 = kF1674ConstFFFFFFFF;
     i2 = i2 == i3;
     i0 = i2 ? i0 : i1;
     l5 = i0;
@@ -3756,7 +3774,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
       i0 = !(i0);
       if (i0) {goto block_231;}
       i0 = out;
-      i1 = kData2FBBD;
+      i1 = kF1674Const2FBBD;
       i2 = 3u;
       i0 = CompareBytes(ctx, i0, i1, i2);
       if (i0) {
@@ -3780,7 +3798,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i1 = length;
     i0 -= i1;
     length = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_231;}
     i0 = length;
@@ -3791,17 +3809,17 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i3 = i3 < i4;
     i1 = i3 ? i1 : i2;
     i2 = l5;
-    i3 = kDataFFFFFFFF;
+    i3 = kF1674ConstFFFFFFFF;
     i2 = i2 == i3;
     i0 = i2 ? i0 : i1;
     l5 = i0;
     block_231:;
     i0 = l11;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_250;}
     i0 = l4;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 != i1;
     i1 = 0u;
     i2 = l4;
@@ -3810,7 +3828,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i0 = i2 ? i0 : i1;
     if (i0) {goto block_249;}
     i0 = l5;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 != i1;
     i1 = 0u;
     i2 = l5;
@@ -3824,12 +3842,12 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     goto block_5;
     block_250:;
     i0 = l4;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_248;}
     block_249:;
     i0 = l5;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 != i1;
     i1 = 0u;
     i2 = l4;
@@ -3843,7 +3861,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     goto block_5;
     block_248:;
     i0 = l5;
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = i0 == i1;
     if (i0) {goto block_246;}
     block_247:;
@@ -3876,7 +3894,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
     i0 = HostTempRet0(ctx);
     i0 = l15;
     i0 = LoadS8(ctx, i0 + 27u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l15;
@@ -3907,14 +3925,14 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
   if (i0) {
     i0 = l15;
     i0 = LoadS8(ctx, i0 + 27u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF1674ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     i0 = l15;
     i0 = LoadU32(ctx, i0 + 16u);
     DeallocateRawBlock(ctx, i0);
   }
-  exit_path:;
+  running_exit:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
@@ -3933,7 +3951,7 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kResumeWordBytes;
+  i2 = kF1674ResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
@@ -4023,4 +4041,4 @@ void ScoreEncoding(EngineContext* ctx, uint32_t data, uint32_t length, uint32_t 
   LeaveFrame();
 }
 }
-}  // namespace artc
+}

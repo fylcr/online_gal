@@ -1,74 +1,156 @@
+// format_traceback_slot_entry.cpp -- formats a traceback slot entry: one frame's source position is appended to the traceback..
+//
+// FormatTracebackSlotEntry -- formats a traceback slot entry: one frame's source position is appended to the traceback.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 2758254-2758254 (f5733); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Makes room in the table's array part when it is full.
+// Forward declarations -- batch-mates and registered callees.
 void EnsureTableArrayRoom(EngineContext* ctx, uint32_t a);
 uint32_t FormatNumber(EngineContext* ctx, uint32_t state, uint32_t value, uint32_t options);
 
-// Appends one traceback frame's source position to the traceback: makes room in the
-// slot table's array part when it is full, then formats the position into it.
-// Returns nothing. Suspendable -- both steps can suspend.
-void FormatTracebackSlotEntry(EngineContext* ctx, uint32_t state, uint32_t value, uint32_t options) {
-  EnterFrame();
-  // Which call site suspended this body; zero is the room-making below, one the
-  // number format.
-  uint32_t resume_point = 0u;
-  // The word the suspend path saves (below).
-  uint32_t resume_at = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 12-byte frame the suspend path saved.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 12u);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    state = LoadU32(ctx, frame);
-    value = LoadU32(ctx, frame + 4u);
-    options = LoadU32(ctx, frame + 8u);
-  }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume point pushed with that frame.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
-  }
-  // The array part is full once its live count has reached its limit. A rewinding
-  // pass owes this step whatever the counters say, so it always takes it.
-  bool array_full = ResumePhase(ctx) == kResumeRewinding;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    uint32_t const array = LoadU32(ctx, state + 16u);
-    array_full = LoadU32(ctx, array + 68u) >= LoadU32(ctx, array + 64u);
-  }
-  if (array_full) {
-    // A rewind makes room unless its resume point says the call already ran; a
-    // running pass always does.
-    if (ResumePhase(ctx) == kResumeRunning || !resume_point) {
-      EnsureTableArrayRoom(ctx, state);
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        resume_at = 0u;
-        goto spill_point;
-      }
-    }
-  }
-  // The format runs at resume point one, and on every running pass.
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
-    FormatNumber(ctx, state, value, options);
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      resume_at = 1u;
-      goto spill_point;
-    }
-  }
-  LeaveFrame();
-  return;
-spill_point:;
-  // Suspend: push the resume point, then the 12-byte frame holding all three
-  // parameters.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_at);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
-  uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, saved_frame, state);
-  StoreU32(ctx, saved_frame + 4u, value);
-  StoreU32(ctx, saved_frame + 8u, options);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 12u);
-  LeaveFrame();
-  return;
-}
+namespace {
 
-}  // namespace artc
+constexpr uint32_t kF5733SaveFrameBytes = 12u;
+constexpr uint32_t kF5733ResumeWordBytes = 4u;
+
+}  // namespace
+
+void FormatTracebackSlotEntry(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
+  EnterFrame();
+  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5733SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    c = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = c;
+    i0 = LoadU32(ctx, i0 + 4u);
+    b = i0;
+    i0 = c;
+    i0 = LoadU32(ctx, i0 + 8u);
+    c = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5733ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+  }
+  i0 = ResumePhase(ctx);
+  if (i0) {
+    i0 = l4;
+  } else {
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l4 = i0;
+    i0 = LoadU32(ctx, i0 + 68u);
+    l5 = i0;
+    i0 = l5;
+    i1 = l4;
+    i1 = LoadU32(ctx, i1 + 64u);
+    i0 = i0 >= i1;
+  }
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = l3;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = a;
+      EnsureTableArrayRoom(ctx, i0);
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+  }
+  i0 = l3;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = b;
+    i2 = c;
+    i0 = FormatNumber(ctx, i0, i1, i2);
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+  }
+  goto func_exit;
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF5733ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = b;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = c;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 12u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
+  LeaveFrame();
+}
+}

@@ -1,8 +1,23 @@
+// apply_auto_mode_status.cpp -- applies the auto-mode status: the auto-read flag is written into the status slot and the layer state follows it..
+//
+// ApplyAutoModeStatus -- applies the auto-mode status: the auto-read flag is written into the status slot and the layer state follows it.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 283946-283946 (f744); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations of the callees below.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);
@@ -11,964 +26,1932 @@ void UnorderedInsertBucketNode(EngineContext* ctx, uint32_t a, uint32_t b, uint3
 
 namespace {
 
-// The five words the failure report carries: the leading word, the "px != 0"
-// expression, its boost source file, the line and the enclosing function.
-constexpr uint32_t kApplyAutoModeStatusAssertLead = 857u;
-constexpr uint32_t kApplyAutoModeStatusNullCheckAddr = 0xB5E31u;
-constexpr uint32_t kApplyAutoModeStatusSharedPtrPathAddr = 0xB5E39u;
-constexpr uint32_t kApplyAutoModeStatusAssertLine = 734u;
-constexpr uint32_t kApplyAutoModeStatusAssertFuncAddr = 0xB5E71u;
-// The name of the status the record below is built from, in the three pieces
-// that are copied into it, and the empty tag every bucket insert is handed.
-constexpr uint32_t kApplyAutoModeStatusNameAddr = 0xB4A1Cu;
-constexpr uint32_t kApplyAutoModeStatusNameMidAddr = 0xB4A24u;
-constexpr uint32_t kApplyAutoModeStatusNameTailAddr = 0xB4A2Cu;
-constexpr uint32_t kApplyAutoModeStatusEmptyTagAddr = 0xB5E30u;
-// The word and the empty string the invoke bridge is called with.
-constexpr uint32_t kApplyAutoModeStatusInvokeArgAddr = 0xAF3EDu;
-// The engine's pending-throw latch, cleared before every bridge call that can
-// raise and read back once it returns; and the all-ones word the record's
-// signed length field is compared against.
-constexpr uint32_t kApplyAutoModeStatusThrowLatch = 0xD015Cu;
-constexpr uint32_t kApplyAutoModeStatusSentinel = 0xFFFFFFFFu;
-// The 64-bit initializer written into the record's second word.
-constexpr uint64_t kApplyAutoModeStatusRecordInit = 9223372174293729297ull;
+constexpr uint32_t kF744ConstAF3ED = 0xAF3EDu;  // 
+constexpr uint32_t kF744MsgSStatusAutomode = 0xB4A1Cu;  // s.status.automode
+constexpr uint32_t kF744ConstB4A24 = 0xB4A24u;  // 
+constexpr uint32_t kF744ConstB4A2C = 0xB4A2Cu;  // 
+constexpr uint32_t kF744ConstB5E30 = 0xB5E30u;  // 
+constexpr uint32_t kF744MsgPx = 0xB5E31u;  // px != 0
+constexpr uint32_t kF744MsgBoostBoostSmartPtr = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
+constexpr uint32_t kF744MsgOperator = 0xB5E71u;  // operator->
+constexpr uint32_t kF744ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF744ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF744SaveFrameBytes = 28u;
+constexpr uint32_t kF744ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Applies the auto-mode status: the new flag is written into the object's status
-// slot and the layer state follows it. The body is suspendable -- a rewinding
-// pass restores the seven slots below from the frame it pushed and replays the
-// one call its resume code names.
-void ApplyAutoModeStatus(EngineContext* ctx, uint32_t object, uint32_t status, uint32_t holder) {
+void ApplyAutoModeStatus(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   EnterFrame();
-  uint32_t const kSaveFrameBytes = 28u;
-  uint32_t const kResumeWordBytes = 4u;
-  // The codes the thirty-three call sites below spill.
-  uint32_t const kFirstInsertCall = 0u;
-  uint32_t const kSecondInsertCall = 1u;
-  uint32_t const kFirstInvokeCall = 2u;
-  uint32_t const kFirstAssertCall = 3u;
-  uint32_t const kSecondAssertCall = 4u;
-  uint32_t const kThirdInsertCall = 5u;
-  uint32_t const kFirstStepCall = 6u;
-  uint32_t const kFirstScheduleCall = 7u;
-  uint32_t const kFirstPairRelease = 8u;
-  uint32_t const kSecondPairRelease = 9u;
-  uint32_t const kThirdPairRelease = 10u;
-  uint32_t const kFourthPairRelease = 11u;
-  uint32_t const kThirdAssertCall = 12u;
-  uint32_t const kFirstAllocateCall = 13u;
-  uint32_t const kFirstDispatchCall = 14u;
-  uint32_t const kFirstFormatCall = 15u;
-  uint32_t const kFourthInsertCall = 16u;
-  uint32_t const kSecondInvokeCall = 17u;
-  uint32_t const kFourthAssertCall = 18u;
-  uint32_t const kFifthAssertCall = 19u;
-  uint32_t const kFifthInsertCall = 20u;
-  uint32_t const kSecondStepCall = 21u;
-  uint32_t const kSecondScheduleCall = 22u;
-  uint32_t const kFifthPairRelease = 23u;
-  uint32_t const kSixthPairRelease = 24u;
-  uint32_t const kSeventhPairRelease = 25u;
-  uint32_t const kEighthPairRelease = 26u;
-  uint32_t const kSixthAssertCall = 27u;
-  uint32_t const kSecondAllocateCall = 28u;
-  uint32_t const kSecondDispatchCall = 29u;
-  uint32_t const kSecondFormatCall = 30u;
-  uint32_t const kFirstHandoffCall = 31u;
-  uint32_t const kSecondHandoffCall = 32u;
-  // The frame saves one word per slot below, so each slot keeps a single name
-  // across the whole walk even where a later region reuses it: object, status
-  // and holder are the call's own arguments, and resume_code, carry, stack_slot,
-  // scratch and slot_ptr are the walk's. The status slot starts as the flag the
-  // call applies and is reused as the owner pair it unwinds afterwards.
-  uint32_t resume_code = 0u;
-  uint32_t carry = 0u;
-  uint32_t stack_slot = 0u;
-  uint32_t scratch = 0u;
-  uint32_t slot_ptr = 0u;
-  uint32_t call_result = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 28-byte frame the suspend path pushed and rebuild the
-    // seven saved slots from it.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    object = LoadU32(ctx, frame);
-    status = LoadU32(ctx, frame + 4u);
-    holder = LoadU32(ctx, frame + 8u);
-    carry = LoadU32(ctx, frame + 12u);
-    stack_slot = LoadU32(ctx, frame + 16u);
-    scratch = LoadU32(ctx, frame + 20u);
-    slot_ptr = LoadU32(ctx, frame + 24u);
+  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
+  uint64_t j1 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF744SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l6 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0 + 8u);
+    c = i0;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l3 = i0;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l4 = i0;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l5 = i0;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l8 = i0;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0 + 4u);
+    b = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // The second pop names the call that was in flight. The two pops stay
-    // separate -- one region is read back at a time.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
-    resume_code = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF744ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l7 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // A 32-byte guest-stack record carries the status name and its two argument
-    // words to the calls below.
-    stack_slot = GuestStackSp(ctx) - 32u;
-    GuestStackSp(ctx) = stack_slot;
-    carry = static_cast<uint32_t>(status == 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = GuestStackSp(ctx);
+    i1 = 32u;
+    i0 -= i1;
+    l4 = i0;
+    GuestStackSp(ctx) = i0;
+    i0 = b;
+    i0 = !(i0);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Nothing to apply when the flag is clear, there is no layer pointer and the
-    // object's flag byte is already clear; and nothing to do when the recorded
-    // flag is the one being passed.
-    if (status != 0u && holder == 0u && LoadU8(ctx, object + 34u) == 0u) {
-      goto finish;
-    }
-    if (LoadU8(ctx, object + 35u) == status) {
-      goto finish;
-    }
-    StoreU8(ctx, object + 35u, status);
-    holder = object + 13308u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l3;
+    if (i0) {goto block_11;}
+    i0 = c;
+    if (i0) {goto block_11;}
+    i0 = a;
+    i0 = LoadU8(ctx, i0 + 34u);
+    i0 = !(i0);
+    if (i0) {goto block_9;}
+    block_11:;
+    i0 = a;
+    i0 = LoadU8(ctx, i0 + 35u);
+    i1 = b;
+    i0 = i0 == i1;
+    if (i0) {goto block_9;}
+    i0 = a;
+    i1 = b;
+    StoreU8(ctx, i0 + 35u, i1);
+    i0 = a;
+    i1 = 13308u;
+    i0 += i1;
+    c = i0;
   }
-  if (status || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The holder is parked in the record's last word and the object's own word
-      // at +36 becomes the first argument of the insert below.
-      StoreU32(ctx, stack_slot + 24u, holder);
-      carry = stack_slot + 24u;
-      scratch = stack_slot + 16u;
-      status = object + 36u;
+  i0 = b;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      i1 = c;
+      StoreU32(ctx, i0 + 24u, i1);
+      i0 = l4;
+      i1 = 24u;
+      i0 += i1;
+      l3 = i0;
+      i0 = l4;
+      i1 = 16u;
+      i0 += i1;
+      l5 = i0;
+      i0 = a;
+      i1 = 36u;
+      i0 += i1;
+      b = i0;
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstInsertCall) : 1u) {
-      UnorderedInsertBucketNode(ctx, stack_slot, status, holder, kApplyAutoModeStatusEmptyTagAddr, carry, scratch);
-      resume_code = kFirstInsertCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
+    i0 = l7;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l4;
+      i1 = b;
+      i2 = c;
+      i3 = kF744ConstB5E30;
+      i4 = l3;
+      i5 = l5;
+      UnorderedInsertBucketNode(ctx, i0, i1, i2, i3, i4, i5);
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU8(ctx, i0 + 32u);
+      i0 = !(i0);
+      l3 = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l3;
+      if (i0) {goto block_16;}
+      i0 = l4;
+      i1 = c;
+      StoreU32(ctx, i0 + 24u, i1);
+      i0 = l4;
+      i1 = 16u;
+      i0 += i1;
+      l5 = i0;
+      i0 = l4;
+      i1 = 24u;
+      i0 += i1;
+      l3 = i0;
+    }
+    i0 = l7;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l4;
+      i1 = b;
+      i2 = c;
+      i3 = kF744ConstB5E30;
+      i4 = l3;
+      i5 = l5;
+      UnorderedInsertBucketNode(ctx, i0, i1, i2, i3, i4, i5);
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      i0 = LoadU32(ctx, i0);
+      l3 = i0;
+      i0 = LoadU32(ctx, i0 + 40u);
+      l8 = i0;
+      i0 = l3;
+      i0 = LoadU8(ctx, i0 + 47u);
+      l5 = i0;
+      i1 = 24u;
+      i0 <<= (i1 & 31);
+      i1 = 24u;
+      i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
+      i1 = 0u;
+      i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+      l6 = i0;
+      i0 = l8;
+      i1 = l5;
+      i2 = l6;
+      i0 = i2 ? i0 : i1;
+      i0 = !(i0);
+      l5 = i0;
+    }
+    i0 = l5;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF744ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+        i0 = l3;
+        i1 = 36u;
+        i0 += i1;
+        l3 = i0;
+      }
+      i0 = l7;
+      i1 = 2u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = 1354u;
+        i1 = l3;
+        i2 = 0u;
+        i3 = kF744ConstFFFFFFFF;
+        i4 = kF744ConstAF3ED;
+        i5 = 0u;
+        i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
+        l6 = i0;
+        i0 = 2u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+        i0 = l6;
+        l3 = i0;
+      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF744ConstD015C;
+        i0 = LoadU32(ctx, i0);
+        l5 = i0;
+        i0 = kF744ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+        i0 = l5;
+        i1 = 1u;
+        i0 = i0 == i1;
+        l5 = i0;
+        if (i0) {goto block_6;}
+        i0 = l3;
+        i0 = !(i0);
+        l3 = i0;
+        if (i0) {goto block_16;}
       }
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The entry that came back is asked whether it is still unset.
-      carry = static_cast<uint32_t>(LoadU8(ctx, LoadU32(ctx, stack_slot) + 32u) == 0u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 16u);
+      l3 = i0;
+      i0 = !(i0);
+      l5 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // Already set: the pair release chain below is skipped.
-      if (carry) {
-        goto pair_release_done;
+    i0 = l5;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF744ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
       }
-      StoreU32(ctx, stack_slot + 24u, holder);
-      scratch = stack_slot + 16u;
-      carry = stack_slot + 24u;
-    }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondInsertCall) : 1u) {
-      UnorderedInsertBucketNode(ctx, stack_slot, status, holder, kApplyAutoModeStatusEmptyTagAddr, carry, scratch);
-      resume_code = kSecondInsertCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
+      i0 = l7;
+      i1 = 3u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = 857u;
+        i1 = kF744MsgPx;
+        i2 = kF744MsgBoostBoostSmartPtr;
+        i3 = 734u;
+        i4 = kF744MsgOperator;
+        HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+        i0 = 3u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
       }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The record's byte at +47 is a signed count: a negative one selects the
-      // field at +40, and the result is tested for zero.
-      carry = LoadU32(ctx, stack_slot);
-      slot_ptr = LoadU32(ctx, carry + 40u);
-      scratch = LoadU8(ctx, carry + 47u);
-      call_result = static_cast<uint32_t>(static_cast<int8_t>(scratch) < 0);
-      scratch = static_cast<uint32_t>((call_result ? slot_ptr : scratch) == 0u);
-    }
-    if (scratch || ResumePhase(ctx) == kResumeRewinding) {
-      if (ResumePhase(ctx) == kResumeRunning) {
-        StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-        carry = carry + 36u;
-      }
-      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstInvokeCall) : 1u) {
-        call_result = HostInvokeIiiiii(ctx, 1354u, carry, 0u, kApplyAutoModeStatusSentinel,
-                                       kApplyAutoModeStatusInvokeArgAddr, 0u);
-        carry = call_result;
-        resume_code = kFirstInvokeCall;
-        if (ResumePhase(ctx) == kResumeSuspended) {
-          goto suspend_point;
-        }
-      }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        // The invoke raised: hand the in-flight exception over. A zero result
-        // means the entry is gone, so the pair release chain is skipped.
-        scratch = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-        StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-        scratch = static_cast<uint32_t>(scratch == 1u);
-        if (scratch) {
-          goto catch_path;
-        }
-        carry = static_cast<uint32_t>(carry == 0u);
-        if (carry) {
-          goto pair_release_done;
-        }
-      }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      carry = LoadU32(ctx, object + 16u);
-      scratch = static_cast<uint32_t>(carry == 0u);
-    }
-    if (scratch || ResumePhase(ctx) == kResumeRewinding) {
-      if (ResumePhase(ctx) == kResumeRunning) {
-        StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-      }
-      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstAssertCall) : 1u) {
-        HostFailAssertion(ctx, kApplyAutoModeStatusAssertLead, kApplyAutoModeStatusNullCheckAddr,
-                          kApplyAutoModeStatusSharedPtrPathAddr, kApplyAutoModeStatusAssertLine,
-                          kApplyAutoModeStatusAssertFuncAddr);
-        resume_code = kFirstAssertCall;
-        if (ResumePhase(ctx) == kResumeSuspended) {
-          goto suspend_point;
-        }
-      }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        object = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-        StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-        object = static_cast<uint32_t>(object != 1u);
-        if (object) {
-          goto no_throw_path;
-        }
-        goto handoff_path;
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF744ConstD015C;
+        i0 = LoadU32(ctx, i0);
+        a = i0;
+        i0 = kF744ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+        i0 = a;
+        i1 = 1u;
+        i0 = i0 != i1;
+        a = i0;
+        if (i0) {goto block_5;}
+        goto running_exit;
       }
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      carry = LoadU32(ctx, carry + 24u);
-      scratch = static_cast<uint32_t>(carry == 0u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l3;
+      i0 = LoadU32(ctx, i0 + 24u);
+      l3 = i0;
+      i0 = !(i0);
+      l5 = i0;
     }
-    if (scratch || ResumePhase(ctx) == kResumeRewinding) {
-      if (ResumePhase(ctx) == kResumeRunning) {
-        StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
+    i0 = l5;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF744ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
       }
-      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondAssertCall) : 1u) {
-        HostFailAssertion(ctx, kApplyAutoModeStatusAssertLead, kApplyAutoModeStatusNullCheckAddr,
-                          kApplyAutoModeStatusSharedPtrPathAddr, kApplyAutoModeStatusAssertLine,
-                          kApplyAutoModeStatusAssertFuncAddr);
-        resume_code = kSecondAssertCall;
-        if (ResumePhase(ctx) == kResumeSuspended) {
-          goto suspend_point;
-        }
+      i0 = l7;
+      i1 = 4u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = 857u;
+        i1 = kF744MsgPx;
+        i2 = kF744MsgBoostBoostSmartPtr;
+        i3 = 734u;
+        i4 = kF744MsgOperator;
+        HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+        i0 = 4u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
       }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        object = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-        StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-        object = static_cast<uint32_t>(object != 1u);
-        if (object) {
-          goto no_throw_path;
-        }
-        goto handoff_path;
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF744ConstD015C;
+        i0 = LoadU32(ctx, i0);
+        a = i0;
+        i0 = kF744ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+        i0 = a;
+        i1 = 1u;
+        i0 = i0 != i1;
+        a = i0;
+        if (i0) {goto block_5;}
+        goto running_exit;
       }
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, stack_slot + 24u, holder);
-      slot_ptr = stack_slot + 16u;
-      scratch = stack_slot + 24u;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      i1 = c;
+      StoreU32(ctx, i0 + 24u, i1);
+      i0 = l4;
+      i1 = 16u;
+      i0 += i1;
+      l8 = i0;
+      i0 = l4;
+      i1 = 24u;
+      i0 += i1;
+      l5 = i0;
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kThirdInsertCall) : 1u) {
-      UnorderedInsertBucketNode(ctx, stack_slot, status, holder, kApplyAutoModeStatusEmptyTagAddr, scratch, slot_ptr);
-      resume_code = kThirdInsertCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
+    i0 = l7;
+    i1 = 5u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l4;
+      i1 = b;
+      i2 = c;
+      i3 = kF744ConstB5E30;
+      i4 = l5;
+      i5 = l8;
+      UnorderedInsertBucketNode(ctx, i0, i1, i2, i3, i4, i5);
+      i0 = 5u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // Run the layer's row call: the record is the first argument, the object's
-      // own word at +36 the second.
-      holder = LoadU32(ctx, LoadU32(ctx, carry) + 304u);
-      status = LoadU32(ctx, stack_slot) + 36u;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l3;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 304u);
+      c = i0;
+      i0 = l4;
+      i0 = LoadU32(ctx, i0);
+      i1 = 36u;
+      i0 += i1;
+      b = i0;
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstStepCall) : 1u) {
-      CallTableT5(ctx, holder, stack_slot, carry, status);
+    i0 = l7;
+    i1 = 6u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l4;
+      i1 = l3;
+      i2 = b;
+      i3 = c;
+      CallTableT5(ctx, i3, i0, i1, i2);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
       SyncMemoryBase(ctx);
 #endif
-      resume_code = kFirstStepCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
+      i0 = 6u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The record's first word is the object the row call answered with; when
-      // there is one, the pair it points at is unwound, otherwise the walk moves
-      // on with a null holder.
-      status = LoadU32(ctx, stack_slot + 4u);
-      carry = 0u;
-      holder = LoadU32(ctx, stack_slot);
-      scratch = static_cast<uint32_t>(holder == 0u);
-      if (scratch) {
-        holder = carry;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      i0 = LoadU32(ctx, i0 + 4u);
+      b = i0;
+      i0 = 0u;
+      l3 = i0;
+      i0 = l4;
+      i0 = LoadU32(ctx, i0);
+      c = i0;
+      i0 = !(i0);
+      l5 = i0;
+      if (i0) {
+        i0 = l3;
       } else {
-        holder = LoadU32(ctx, LoadU32(ctx, holder) - 152u) + holder;
+        i0 = c;
+        i0 = LoadU32(ctx, i0);
+        i1 = 152u;
+        i0 -= i1;
+        i0 = LoadU32(ctx, i0);
+        i1 = c;
+        i0 += i1;
       }
-      carry = static_cast<uint32_t>(holder == 0u);
+      c = i0;
+      i0 = !(i0);
+      l3 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // A null holder has nothing to schedule.
-      if (carry) {
-        goto owner_pair_path;
-      }
-      carry = LoadU32(ctx, LoadU32(ctx, holder) + 124u);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l3;
+      if (i0) {goto block_43;}
+      i0 = c;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 124u);
+      l3 = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstScheduleCall) : 1u) {
-      HostOsSchedule(ctx, carry, holder, 1u);
-      resume_code = kFirstScheduleCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
+    i0 = l7;
+    i1 = 7u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l3;
+      i1 = c;
+      i2 = 1u;
+      HostOsSchedule(ctx, i0, i1, i2);
+      i0 = 7u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF744ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      c = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = c;
+      i1 = 1u;
+      i0 = i0 != i1;
+      c = i0;
+      if (i0) {goto block_43;}
+      i0 = HostRet0(ctx);
+      a = i0;
+      i0 = HostTempRet0(ctx);
+      i0 = b;
+      i0 = !(i0);
+      if (i0) {goto block_7;}
+      i0 = b;
+      i1 = b;
+      i1 = LoadU32(ctx, i1 + 4u);
+      c = i1;
+      i2 = 1u;
+      i1 -= i2;
+      l3 = i1;
+      StoreU32(ctx, i0 + 4u, i1);
+      i0 = c;
+      i1 = 1u;
+      i0 = i0 != i1;
+      if (i0) {goto block_7;}
+      i0 = b;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 8u);
+      c = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+    }
+    i0 = l7;
+    i1 = 8u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = c;
+      i1 = b;
+      HostReleaseSlotPair(ctx, i0, i1);
+      i0 = 8u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF744ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      c = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = c;
+      i1 = 1u;
+      i0 = i0 != i1;
+      c = i0;
+    }
+    i0 = c;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = b;
+        i1 = b;
+        i1 = LoadU32(ctx, i1 + 8u);
+        c = i1;
+        i2 = 1u;
+        i1 -= i2;
+        l3 = i1;
+        StoreU32(ctx, i0 + 8u, i1);
+        i0 = c;
+        i1 = 1u;
+        i0 = i0 != i1;
+        if (i0) {goto block_7;}
+        i0 = b;
+        i0 = LoadU32(ctx, i0);
+        i0 = LoadU32(ctx, i0 + 12u);
+        c = i0;
+        i0 = kF744ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+      }
+      i0 = l7;
+      i1 = 9u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = c;
+        i1 = b;
+        HostReleaseSlotPair(ctx, i0, i1);
+        i0 = 9u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF744ConstD015C;
+        i0 = LoadU32(ctx, i0);
+        b = i0;
+        i0 = kF744ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+        i0 = b;
+        i1 = 1u;
+        i0 = i0 != i1;
+        b = i0;
+        if (i0) {goto block_7;}
       }
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // A raised schedule goes to the owner pair path below; otherwise the
-      // object's own pair is stepped down here.
-      holder = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-      holder = static_cast<uint32_t>(holder != 1u);
-      if (holder) {
-        goto owner_pair_path;
-      }
-      object = HostRet0(ctx);
-      (void)HostTempRet0(ctx);
-      if (status == 0u) {
-        goto os_release_path;
-      }
-      holder = LoadU32(ctx, status + 4u);
-      carry = holder - 1u;
-      StoreU32(ctx, status + 4u, carry);
-      if (holder != 1u) {
-        goto os_release_path;
-      }
-      holder = LoadU32(ctx, LoadU32(ctx, status) + 8u);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {goto running_exit;}
+    block_43:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = b;
+      i0 = !(i0);
+      c = i0;
+      if (i0) {goto block_16;}
+      i0 = b;
+      i1 = b;
+      i1 = LoadU32(ctx, i1 + 4u);
+      c = i1;
+      i2 = 1u;
+      i1 -= i2;
+      l3 = i1;
+      StoreU32(ctx, i0 + 4u, i1);
+      i0 = c;
+      i1 = 1u;
+      i0 = i0 != i1;
+      c = i0;
+      if (i0) {goto block_16;}
+      i0 = b;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 8u);
+      c = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstPairRelease) : 1u) {
-      HostReleaseSlotPair(ctx, holder, status);
-      resume_code = kFirstPairRelease;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
+    i0 = l7;
+    i1 = 10u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = c;
+      i1 = b;
+      HostReleaseSlotPair(ctx, i0, i1);
+      i0 = 10u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF744ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      c = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = c;
+      i1 = 1u;
+      i0 = i0 == i1;
+      if (i0) {goto running_exit;}
+      i0 = b;
+      i1 = b;
+      i1 = LoadU32(ctx, i1 + 8u);
+      c = i1;
+      i2 = 1u;
+      i1 -= i2;
+      l3 = i1;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = c;
+      i1 = 1u;
+      i0 = i0 != i1;
+      c = i0;
+      if (i0) {goto block_16;}
+      i0 = b;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 12u);
+      c = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+    }
+    i0 = l7;
+    i1 = 11u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = c;
+      i1 = b;
+      HostReleaseSlotPair(ctx, i0, i1);
+      i0 = 11u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF744ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      b = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = b;
+      i1 = 1u;
+      i0 = i0 == i1;
+      b = i0;
+      if (i0) {goto running_exit;}
+    }
+    block_16:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 112u);
+      c = i0;
+      i0 = !(i0);
+      b = i0;
+    }
+    i0 = b;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF744ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+      }
+      i0 = l7;
+      i1 = 12u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = 857u;
+        i1 = kF744MsgPx;
+        i2 = kF744MsgBoostBoostSmartPtr;
+        i3 = 734u;
+        i4 = kF744MsgOperator;
+        HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+        i0 = 12u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF744ConstD015C;
+        i0 = LoadU32(ctx, i0);
+        a = i0;
+        i0 = kF744ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+        i0 = a;
+        i1 = 1u;
+        i0 = i0 != i1;
+        a = i0;
+        if (i0) {goto block_5;}
+        goto running_exit;
       }
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      holder = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-      holder = static_cast<uint32_t>(holder != 1u);
+    i0 = l7;
+    i1 = 13u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 32u;
+      i0 = AllocateStringBuffer(ctx, i0);
+      l6 = i0;
+      i0 = 13u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l6;
+      b = i0;
     }
-    if (holder || ResumePhase(ctx) == kResumeRewinding) {
-      if (ResumePhase(ctx) == kResumeRunning) {
-        holder = LoadU32(ctx, status + 8u);
-        carry = holder - 1u;
-        StoreU32(ctx, status + 8u, carry);
-        if (holder != 1u) {
-          goto os_release_path;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      i1 = b;
+      StoreU32(ctx, i0, i1);
+      i0 = l4;
+      j1 = 9223372174293729297ull;
+      StoreU64(ctx, i0 + 4u, j1);
+      i0 = b;
+      i1 = 0u;
+      StoreU8(ctx, i0 + 17u, i1);
+      i0 = b;
+      i1 = kF744ConstB4A2C;
+      i1 = LoadU8(ctx, i1);
+      l3 = i1;
+      StoreU8(ctx, i0 + 16u, i1);
+      i0 = b;
+      i1 = kF744ConstB4A24;
+      j1 = LoadU64(ctx, i1);
+      StoreU64(ctx, i0 + 8u, j1);
+      i0 = b;
+      i1 = kF744MsgSStatusAutomode;
+      j1 = LoadU64(ctx, i1);
+      StoreU64(ctx, i0, j1);
+      i0 = c;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 20u);
+      b = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+    }
+    i0 = l7;
+    i1 = 14u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = b;
+      i1 = c;
+      i2 = l4;
+      i3 = 1u;
+      i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
+      l6 = i0;
+      i0 = 14u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l6;
+      b = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF744ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      b = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = b;
+      i1 = 1u;
+      i0 = i0 != i1;
+      b = i0;
+    }
+    i0 = b;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = l4;
+        i0 = LoadS8(ctx, i0 + 11u);
+        i1 = kF744ConstFFFFFFFF;
+        i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+        if (i0) {
+          i0 = l4;
+          i0 = LoadU32(ctx, i0);
+          DeallocateRawBlock(ctx, i0);
         }
-        holder = LoadU32(ctx, LoadU32(ctx, status) + 12u);
-        StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
+        i0 = a;
+        i1 = 13764u;
+        i0 += i1;
+        b = i0;
       }
-      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondPairRelease) : 1u) {
-        HostReleaseSlotPair(ctx, holder, status);
-        resume_code = kSecondPairRelease;
-        if (ResumePhase(ctx) == kResumeSuspended) {
-          goto suspend_point;
-        }
+      i0 = l7;
+      i1 = 15u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = a;
+        i1 = b;
+        i0 = FormatLuaEventFilterLine(ctx, i0, i1);
+        l6 = i0;
+        i0 = 15u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+        i0 = l6;
+        a = i0;
       }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        status = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-        StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-        status = static_cast<uint32_t>(status != 1u);
-        if (status) {
-          goto os_release_path;
-        }
-      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {goto block_9;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      goto handoff_path;
-    }
-  owner_pair_path:;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The owner pair is unwound here instead, the same way.
-      holder = static_cast<uint32_t>(status == 0u);
-      if (holder) {
-        goto pair_release_done;
-      }
-      holder = LoadU32(ctx, status + 4u);
-      carry = holder - 1u;
-      StoreU32(ctx, status + 4u, carry);
-      holder = static_cast<uint32_t>(holder != 1u);
-      if (holder) {
-        goto pair_release_done;
-      }
-      holder = LoadU32(ctx, LoadU32(ctx, status) + 8u);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-    }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kThirdPairRelease) : 1u) {
-      HostReleaseSlotPair(ctx, holder, status);
-      resume_code = kThirdPairRelease;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      holder = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-      if (holder == 1u) {
-        goto handoff_path;
-      }
-      holder = LoadU32(ctx, status + 8u);
-      carry = holder - 1u;
-      StoreU32(ctx, status + 8u, carry);
-      holder = static_cast<uint32_t>(holder != 1u);
-      if (holder) {
-        goto pair_release_done;
-      }
-      holder = LoadU32(ctx, LoadU32(ctx, status) + 12u);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-    }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFourthPairRelease) : 1u) {
-      HostReleaseSlotPair(ctx, holder, status);
-      resume_code = kFourthPairRelease;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      status = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-      status = static_cast<uint32_t>(status == 1u);
-      if (status) {
-        goto handoff_path;
-      }
-    }
-  pair_release_done:;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The layer pointer on the object has to be there, or the null check
-      // below has to trip.
-      holder = LoadU32(ctx, object + 112u);
-      status = static_cast<uint32_t>(holder == 0u);
-    }
-    if (status || ResumePhase(ctx) == kResumeRewinding) {
-      if (ResumePhase(ctx) == kResumeRunning) {
-        StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-      }
-      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kThirdAssertCall) : 1u) {
-        HostFailAssertion(ctx, kApplyAutoModeStatusAssertLead, kApplyAutoModeStatusNullCheckAddr,
-                          kApplyAutoModeStatusSharedPtrPathAddr, kApplyAutoModeStatusAssertLine,
-                          kApplyAutoModeStatusAssertFuncAddr);
-        resume_code = kThirdAssertCall;
-        if (ResumePhase(ctx) == kResumeSuspended) {
-          goto suspend_point;
-        }
-      }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        object = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-        StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-        object = static_cast<uint32_t>(object != 1u);
-        if (object) {
-          goto no_throw_path;
-        }
-        goto handoff_path;
-      }
-    }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstAllocateCall) : 1u) {
-      call_result = AllocateStringBuffer(ctx, 32u);
-      status = call_result;
-      resume_code = kFirstAllocateCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The fresh buffer becomes a record holding the status name and the parked
-      // arguments, and the layer's word at +20 becomes the call index.
-      StoreU32(ctx, stack_slot, status);
-      StoreU64(ctx, stack_slot + 4u, kApplyAutoModeStatusRecordInit);
-      StoreU8(ctx, status + 17u, 0u);
-      carry = LoadU8(ctx, kApplyAutoModeStatusNameTailAddr);
-      StoreU8(ctx, status + 16u, carry);
-      StoreU64(ctx, status + 8u, LoadU64(ctx, kApplyAutoModeStatusNameMidAddr));
-      StoreU64(ctx, status, LoadU64(ctx, kApplyAutoModeStatusNameAddr));
-      status = LoadU32(ctx, LoadU32(ctx, holder) + 20u);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-    }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstDispatchCall) : 1u) {
-      call_result = HostDispatchInvoke(ctx, status, holder, stack_slot, 1u);
-      status = call_result;
-      resume_code = kFirstDispatchCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      status = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-      status = static_cast<uint32_t>(status != 1u);
-    }
-    if (status || ResumePhase(ctx) == kResumeRewinding) {
-      if (ResumePhase(ctx) == kResumeRunning) {
-        // A record whose signed length field is not negative had a buffer to
-        // release, and the object's own word at +13764 becomes the argument of
-        // the line call below.
-        if (static_cast<int32_t>(LoadS8(ctx, stack_slot + 11u)) <= static_cast<int32_t>(kApplyAutoModeStatusSentinel)) {
-          DeallocateRawBlock(ctx, LoadU32(ctx, stack_slot));
-        }
-        status = object + 13764u;
-      }
-      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstFormatCall) : 1u) {
-        call_result = FormatLuaEventFilterLine(ctx, object, status);
-        object = call_result;
-        resume_code = kFirstFormatCall;
-        if (ResumePhase(ctx) == kResumeSuspended) {
-          goto suspend_point;
-        }
-      }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        goto finish;
-      }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The line call's answer is in the runner's return slot; the record's
-      // buffer is released and the object handed over to the OS release bridge.
-      object = HostRet0(ctx);
-      (void)HostTempRet0(ctx);
-      if (static_cast<int32_t>(LoadS8(ctx, stack_slot + 11u)) > static_cast<int32_t>(kApplyAutoModeStatusSentinel)) {
-        goto os_release_path;
-      }
-      DeallocateRawBlock(ctx, LoadU32(ctx, stack_slot));
-      HostOsRelease(ctx, object);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = HostRet0(ctx);
+      a = i0;
+      i0 = HostTempRet0(ctx);
+      i0 = l4;
+      i0 = LoadS8(ctx, i0 + 11u);
+      i1 = kF744ConstFFFFFFFF;
+      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+      if (i0) {goto block_7;}
+      i0 = l4;
+      i0 = LoadU32(ctx, i0);
+      DeallocateRawBlock(ctx, i0);
+      i0 = a;
+      HostOsRelease(ctx, i0);
       TrapUnreachable();
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The status flag is clear: the same record is built once more, against the
-    // object's own word at +36.
-    StoreU32(ctx, stack_slot + 24u, holder);
-    carry = object + 36u;
-    scratch = stack_slot + 16u;
-    status = stack_slot + 24u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    i1 = c;
+    StoreU32(ctx, i0 + 24u, i1);
+    i0 = a;
+    i1 = 36u;
+    i0 += i1;
+    l3 = i0;
+    i0 = l4;
+    i1 = 16u;
+    i0 += i1;
+    l5 = i0;
+    i0 = l4;
+    i1 = 24u;
+    i0 += i1;
+    b = i0;
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFourthInsertCall) : 1u) {
-    UnorderedInsertBucketNode(ctx, stack_slot, carry, holder, kApplyAutoModeStatusEmptyTagAddr, status, scratch);
-    resume_code = kFourthInsertCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
+  i0 = l7;
+  i1 = 16u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l4;
+    i1 = l3;
+    i2 = c;
+    i3 = kF744ConstB5E30;
+    i4 = b;
+    i5 = l5;
+    UnorderedInsertBucketNode(ctx, i0, i1, i2, i3, i4, i5);
+    i0 = 16u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    i0 = LoadU32(ctx, i0);
+    b = i0;
+    i0 = LoadU32(ctx, i0 + 40u);
+    l8 = i0;
+    i0 = b;
+    i0 = LoadU8(ctx, i0 + 47u);
+    l5 = i0;
+    i1 = 24u;
+    i0 <<= (i1 & 31);
+    i1 = 24u;
+    i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
+    i1 = 0u;
+    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+    l6 = i0;
+    i0 = l8;
+    i1 = l5;
+    i2 = l6;
+    i0 = i2 ? i0 : i1;
+    i0 = !(i0);
+    l5 = i0;
+  }
+  i0 = l5;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = b;
+      i1 = 36u;
+      i0 += i1;
+      b = i0;
+    }
+    i0 = l7;
+    i1 = 17u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 1354u;
+      i1 = b;
+      i2 = 0u;
+      i3 = kF744ConstFFFFFFFF;
+      i4 = kF744ConstAF3ED;
+      i5 = 0u;
+      i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
+      l6 = i0;
+      i0 = 17u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l6;
+      b = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF744ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      l5 = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = l5;
+      i1 = 1u;
+      i0 = i0 == i1;
+      l5 = i0;
+      if (i0) {goto running_exit;}
+      i0 = b;
+      i0 = !(i0);
+      b = i0;
+      if (i0) {goto block_77;}
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    status = LoadU32(ctx, stack_slot);
-    slot_ptr = LoadU32(ctx, status + 40u);
-    scratch = LoadU8(ctx, status + 47u);
-    call_result = static_cast<uint32_t>(static_cast<int8_t>(scratch) < 0);
-    scratch = static_cast<uint32_t>((call_result ? slot_ptr : scratch) == 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 16u);
+    b = i0;
+    i0 = !(i0);
+    l5 = i0;
   }
-  if (scratch || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-      status = status + 36u;
+  i0 = l5;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondInvokeCall) : 1u) {
-      call_result = HostInvokeIiiiii(ctx, 1354u, status, 0u, kApplyAutoModeStatusSentinel,
-                                     kApplyAutoModeStatusInvokeArgAddr, 0u);
-      status = call_result;
-      resume_code = kSecondInvokeCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
+    i0 = l7;
+    i1 = 18u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 857u;
+      i1 = kF744MsgPx;
+      i2 = kF744MsgBoostBoostSmartPtr;
+      i3 = 734u;
+      i4 = kF744MsgOperator;
+      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+      i0 = 18u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      scratch = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-      scratch = static_cast<uint32_t>(scratch == 1u);
-      if (scratch) {
-        goto handoff_path;
-      }
-      status = static_cast<uint32_t>(status == 0u);
-      if (status) {
-        goto second_pair_release_done;
-      }
-    }
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    status = LoadU32(ctx, object + 16u);
-    scratch = static_cast<uint32_t>(status == 0u);
-  }
-  if (scratch || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-    }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFourthAssertCall) : 1u) {
-      HostFailAssertion(ctx, kApplyAutoModeStatusAssertLead, kApplyAutoModeStatusNullCheckAddr,
-                        kApplyAutoModeStatusSharedPtrPathAddr, kApplyAutoModeStatusAssertLine,
-                        kApplyAutoModeStatusAssertFuncAddr);
-      resume_code = kFourthAssertCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      object = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-      object = static_cast<uint32_t>(object != 1u);
-      if (object) {
-        goto no_throw_path;
-      }
-      goto handoff_path;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF744ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      a = i0;
+      if (i0) {goto block_5;}
+      goto running_exit;
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    status = LoadU32(ctx, status + 24u);
-    scratch = static_cast<uint32_t>(status == 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = b;
+    i0 = LoadU32(ctx, i0 + 24u);
+    b = i0;
+    i0 = !(i0);
+    l5 = i0;
   }
-  if (scratch || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
+  i0 = l5;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFifthAssertCall) : 1u) {
-      HostFailAssertion(ctx, kApplyAutoModeStatusAssertLead, kApplyAutoModeStatusNullCheckAddr,
-                        kApplyAutoModeStatusSharedPtrPathAddr, kApplyAutoModeStatusAssertLine,
-                        kApplyAutoModeStatusAssertFuncAddr);
-      resume_code = kFifthAssertCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
+    i0 = l7;
+    i1 = 19u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 857u;
+      i1 = kF744MsgPx;
+      i2 = kF744MsgBoostBoostSmartPtr;
+      i3 = 734u;
+      i4 = kF744MsgOperator;
+      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+      i0 = 19u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      object = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-      object = static_cast<uint32_t>(object != 1u);
-      if (object) {
-        goto no_throw_path;
-      }
-      goto handoff_path;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF744ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      a = i0;
+      if (i0) {goto block_5;}
+      goto running_exit;
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, stack_slot + 24u, holder);
-    slot_ptr = stack_slot + 16u;
-    scratch = stack_slot + 24u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    i1 = c;
+    StoreU32(ctx, i0 + 24u, i1);
+    i0 = l4;
+    i1 = 16u;
+    i0 += i1;
+    l8 = i0;
+    i0 = l4;
+    i1 = 24u;
+    i0 += i1;
+    l5 = i0;
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFifthInsertCall) : 1u) {
-    UnorderedInsertBucketNode(ctx, stack_slot, carry, holder, kApplyAutoModeStatusEmptyTagAddr, scratch, slot_ptr);
-    resume_code = kFifthInsertCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
+  i0 = l7;
+  i1 = 20u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l4;
+    i1 = l3;
+    i2 = c;
+    i3 = kF744ConstB5E30;
+    i4 = l5;
+    i5 = l8;
+    UnorderedInsertBucketNode(ctx, i0, i1, i2, i3, i4, i5);
+    i0 = 20u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    carry = LoadU32(ctx, LoadU32(ctx, status) + 304u);
-    holder = LoadU32(ctx, stack_slot) + 36u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = b;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 304u);
+    l3 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0);
+    i1 = 36u;
+    i0 += i1;
+    c = i0;
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondStepCall) : 1u) {
-    CallTableT5(ctx, carry, stack_slot, status, holder);
+  i0 = l7;
+  i1 = 21u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l4;
+    i1 = b;
+    i2 = c;
+    i3 = l3;
+    CallTableT5(ctx, i3, i0, i1, i2);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    resume_code = kSecondStepCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
+    i0 = 21u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    status = LoadU32(ctx, stack_slot + 4u);
-    carry = 0u;
-    holder = LoadU32(ctx, stack_slot);
-    if (holder) {
-      holder = LoadU32(ctx, LoadU32(ctx, holder) - 152u) + holder;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 4u);
+    b = i0;
+    i0 = 0u;
+    l3 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0);
+    c = i0;
+    if (i0) {
+      i0 = c;
+      i0 = LoadU32(ctx, i0);
+      i1 = 152u;
+      i0 -= i1;
+      i0 = LoadU32(ctx, i0);
+      i1 = c;
+      i0 += i1;
     } else {
-      holder = carry;
+      i0 = l3;
     }
-    carry = static_cast<uint32_t>(holder == 0u);
+    c = i0;
+    i0 = !(i0);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (carry) {
-      goto second_owner_pair_path;
-    }
-    carry = LoadU32(ctx, LoadU32(ctx, holder) + 124u);
-    StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l3;
+    if (i0) {goto block_102;}
+    i0 = c;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 124u);
+    l3 = i0;
+    i0 = kF744ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondScheduleCall) : 1u) {
-    HostOsSchedule(ctx, carry, holder, 0u);
-    resume_code = kSecondScheduleCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
+  i0 = l7;
+  i1 = 22u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l3;
+    i1 = c;
+    i2 = 0u;
+    HostOsSchedule(ctx, i0, i1, i2);
+    i0 = 22u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    holder = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-    StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-    holder = static_cast<uint32_t>(holder != 1u);
-    if (holder) {
-      goto second_owner_pair_path;
-    }
-    object = HostRet0(ctx);
-    (void)HostTempRet0(ctx);
-    if (status == 0u) {
-      goto os_release_path;
-    }
-    holder = LoadU32(ctx, status + 4u);
-    StoreU32(ctx, status + 4u, holder - 1u);
-    if (holder != 1u) {
-      goto os_release_path;
-    }
-    holder = LoadU32(ctx, LoadU32(ctx, status) + 8u);
-    StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF744ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    c = i0;
+    i0 = kF744ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = c;
+    i1 = 1u;
+    i0 = i0 != i1;
+    c = i0;
+    if (i0) {goto block_102;}
+    i0 = HostRet0(ctx);
+    a = i0;
+    i0 = HostTempRet0(ctx);
+    i0 = b;
+    i0 = !(i0);
+    if (i0) {goto block_7;}
+    i0 = b;
+    i1 = b;
+    i1 = LoadU32(ctx, i1 + 4u);
+    c = i1;
+    i2 = 1u;
+    i1 -= i2;
+    StoreU32(ctx, i0 + 4u, i1);
+    i0 = c;
+    i1 = 1u;
+    i0 = i0 != i1;
+    if (i0) {goto block_7;}
+    i0 = b;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 8u);
+    c = i0;
+    i0 = kF744ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFifthPairRelease) : 1u) {
-    HostReleaseSlotPair(ctx, holder, status);
-    resume_code = kFifthPairRelease;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
+  i0 = l7;
+  i1 = 23u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = c;
+    i1 = b;
+    HostReleaseSlotPair(ctx, i0, i1);
+    i0 = 23u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    holder = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-    StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-    holder = static_cast<uint32_t>(holder != 1u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF744ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    c = i0;
+    i0 = kF744ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = c;
+    i1 = 1u;
+    i0 = i0 != i1;
+    c = i0;
   }
-  if (holder || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      holder = LoadU32(ctx, status + 8u);
-      StoreU32(ctx, status + 8u, holder - 1u);
-      if (holder != 1u) {
-        goto os_release_path;
-      }
-      holder = LoadU32(ctx, LoadU32(ctx, status) + 12u);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
+  i0 = c;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = b;
+      i1 = b;
+      i1 = LoadU32(ctx, i1 + 8u);
+      c = i1;
+      i2 = 1u;
+      i1 -= i2;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = c;
+      i1 = 1u;
+      i0 = i0 != i1;
+      if (i0) {goto block_7;}
+      i0 = b;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 12u);
+      c = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSixthPairRelease) : 1u) {
-      HostReleaseSlotPair(ctx, holder, status);
-      resume_code = kSixthPairRelease;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
+    i0 = l7;
+    i1 = 24u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = c;
+      i1 = b;
+      HostReleaseSlotPair(ctx, i0, i1);
+      i0 = 24u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      status = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-      status = static_cast<uint32_t>(status != 1u);
-      if (status) {
-        goto os_release_path;
-      }
-    }
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    goto handoff_path;
-  }
-second_owner_pair_path:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    holder = static_cast<uint32_t>(status == 0u);
-    if (holder) {
-      goto second_pair_release_done;
-    }
-    holder = LoadU32(ctx, status + 4u);
-    StoreU32(ctx, status + 4u, holder - 1u);
-    holder = static_cast<uint32_t>(holder != 1u);
-    if (holder) {
-      goto second_pair_release_done;
-    }
-    holder = LoadU32(ctx, LoadU32(ctx, status) + 8u);
-    StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-  }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSeventhPairRelease) : 1u) {
-    HostReleaseSlotPair(ctx, holder, status);
-    resume_code = kSeventhPairRelease;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    holder = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-    StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-    if (holder == 1u) {
-      goto handoff_path;
-    }
-    holder = LoadU32(ctx, status + 8u);
-    StoreU32(ctx, status + 8u, holder - 1u);
-    holder = static_cast<uint32_t>(holder != 1u);
-    if (holder) {
-      goto second_pair_release_done;
-    }
-    holder = LoadU32(ctx, LoadU32(ctx, status) + 12u);
-    StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-  }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kEighthPairRelease) : 1u) {
-    HostReleaseSlotPair(ctx, holder, status);
-    resume_code = kEighthPairRelease;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    status = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-    StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-    status = static_cast<uint32_t>(status == 1u);
-    if (status) {
-      goto handoff_path;
-    }
-  }
-second_pair_release_done:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    holder = LoadU32(ctx, object + 112u);
-    status = static_cast<uint32_t>(holder == 0u);
-  }
-  if (status || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-    }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSixthAssertCall) : 1u) {
-      HostFailAssertion(ctx, kApplyAutoModeStatusAssertLead, kApplyAutoModeStatusNullCheckAddr,
-                        kApplyAutoModeStatusSharedPtrPathAddr, kApplyAutoModeStatusAssertLine,
-                        kApplyAutoModeStatusAssertFuncAddr);
-      resume_code = kSixthAssertCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      object = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-      StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-      object = static_cast<uint32_t>(object != 1u);
-      if (object) {
-        goto no_throw_path;
-      }
-      goto handoff_path;
-    }
-  }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondAllocateCall) : 1u) {
-    call_result = AllocateStringBuffer(ctx, 32u);
-    status = call_result;
-    resume_code = kSecondAllocateCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF744ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      b = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = b;
+      i1 = 1u;
+      i0 = i0 != i1;
+      b = i0;
+      if (i0) {goto block_7;}
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, stack_slot, status);
-    StoreU64(ctx, stack_slot + 4u, kApplyAutoModeStatusRecordInit);
-    StoreU8(ctx, status + 17u, 0u);
-    StoreU8(ctx, status + 16u, LoadU8(ctx, kApplyAutoModeStatusNameTailAddr));
-    StoreU64(ctx, status + 8u, LoadU64(ctx, kApplyAutoModeStatusNameMidAddr));
-    StoreU64(ctx, status, LoadU64(ctx, kApplyAutoModeStatusNameAddr));
-    status = LoadU32(ctx, LoadU32(ctx, holder) + 20u);
-    StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {goto running_exit;}
+  block_102:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = b;
+    i0 = !(i0);
+    c = i0;
+    if (i0) {goto block_77;}
+    i0 = b;
+    i1 = b;
+    i1 = LoadU32(ctx, i1 + 4u);
+    c = i1;
+    i2 = 1u;
+    i1 -= i2;
+    StoreU32(ctx, i0 + 4u, i1);
+    i0 = c;
+    i1 = 1u;
+    i0 = i0 != i1;
+    c = i0;
+    if (i0) {goto block_77;}
+    i0 = b;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 8u);
+    c = i0;
+    i0 = kF744ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondDispatchCall) : 1u) {
-    call_result = HostDispatchInvoke(ctx, status, holder, stack_slot, 0u);
-    status = call_result;
-    resume_code = kSecondDispatchCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
+  i0 = l7;
+  i1 = 25u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = c;
+    i1 = b;
+    HostReleaseSlotPair(ctx, i0, i1);
+    i0 = 25u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF744ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    c = i0;
+    i0 = kF744ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = c;
+    i1 = 1u;
+    i0 = i0 == i1;
+    if (i0) {goto running_exit;}
+    i0 = b;
+    i1 = b;
+    i1 = LoadU32(ctx, i1 + 8u);
+    c = i1;
+    i2 = 1u;
+    i1 -= i2;
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = c;
+    i1 = 1u;
+    i0 = i0 != i1;
+    c = i0;
+    if (i0) {goto block_77;}
+    i0 = b;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 12u);
+    c = i0;
+    i0 = kF744ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+  }
+  i0 = l7;
+  i1 = 26u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = c;
+    i1 = b;
+    HostReleaseSlotPair(ctx, i0, i1);
+    i0 = 26u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF744ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    b = i0;
+    i0 = kF744ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = b;
+    i1 = 1u;
+    i0 = i0 == i1;
+    b = i0;
+    if (i0) {goto running_exit;}
+  }
+  block_77:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 112u);
+    c = i0;
+    i0 = !(i0);
+    b = i0;
+  }
+  i0 = b;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+    }
+    i0 = l7;
+    i1 = 27u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 857u;
+      i1 = kF744MsgPx;
+      i2 = kF744MsgBoostBoostSmartPtr;
+      i3 = 734u;
+      i4 = kF744MsgOperator;
+      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+      i0 = 27u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF744ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF744ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      a = i0;
+      if (i0) {goto block_5;}
+      goto running_exit;
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    status = LoadU32(ctx, kApplyAutoModeStatusThrowLatch);
-    StoreU32(ctx, kApplyAutoModeStatusThrowLatch, 0u);
-    if (status == 1u) {
-      goto answer_path;
-    }
-    // A record whose signed length field is not negative had a buffer to
-    // release. Then the object's five flag bytes decide whether the status word
-    // at +2768 is cleared, and its word at +13808 becomes the next argument.
-    if (static_cast<int32_t>(LoadS8(ctx, stack_slot + 11u)) <= static_cast<int32_t>(kApplyAutoModeStatusSentinel)) {
-      DeallocateRawBlock(ctx, LoadU32(ctx, stack_slot));
-    }
-    if (LoadU8(ctx, object + 2772u) != 0u) {
-      goto status_clear_done;
-    }
-    if (LoadU8(ctx, object + 2773u) != 0u) {
-      goto status_clear_done;
-    }
-    if (LoadU8(ctx, object + 2774u) != 0u) {
-      goto status_clear_done;
-    }
-    if (LoadU8(ctx, object + 2775u) != 0u) {
-      goto status_clear_done;
-    }
-    if (LoadU8(ctx, object + 2792u) != 0u) {
-      goto status_clear_done;
-    }
-    StoreU32(ctx, object + 2768u, 0u);
-  status_clear_done:;
-    status = object + 13808u;
+  i0 = l7;
+  i1 = 28u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = 32u;
+    i0 = AllocateStringBuffer(ctx, i0);
+    l6 = i0;
+    i0 = 28u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l6;
+    b = i0;
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondFormatCall) : 1u) {
-    call_result = FormatLuaEventFilterLine(ctx, object, status);
-    object = call_result;
-    resume_code = kSecondFormatCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    i1 = b;
+    StoreU32(ctx, i0, i1);
+    i0 = l4;
+    j1 = 9223372174293729297ull;
+    StoreU64(ctx, i0 + 4u, j1);
+    i0 = b;
+    i1 = 0u;
+    StoreU8(ctx, i0 + 17u, i1);
+    i0 = b;
+    i1 = kF744ConstB4A2C;
+    i1 = LoadU8(ctx, i1);
+    StoreU8(ctx, i0 + 16u, i1);
+    i0 = b;
+    i1 = kF744ConstB4A24;
+    j1 = LoadU64(ctx, i1);
+    StoreU64(ctx, i0 + 8u, j1);
+    i0 = b;
+    i1 = kF744MsgSStatusAutomode;
+    j1 = LoadU64(ctx, i1);
+    StoreU64(ctx, i0, j1);
+    i0 = c;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 20u);
+    b = i0;
+    i0 = kF744ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+  }
+  i0 = l7;
+  i1 = 29u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = b;
+    i1 = c;
+    i2 = l4;
+    i3 = 0u;
+    i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
+    l6 = i0;
+    i0 = 29u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l6;
+    b = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF744ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    b = i0;
+    i0 = kF744ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = b;
+    i1 = 1u;
+    i0 = i0 == i1;
+    if (i0) {goto block_8;}
+    i0 = l4;
+    i0 = LoadS8(ctx, i0 + 11u);
+    i1 = kF744ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {
+      i0 = l4;
+      i0 = LoadU32(ctx, i0);
+      DeallocateRawBlock(ctx, i0);
     }
+    i0 = a;
+    i1 = 2772u;
+    i0 += i1;
+    i0 = LoadU8(ctx, i0);
+    if (i0) {goto block_129;}
+    i0 = a;
+    i1 = 2773u;
+    i0 += i1;
+    i0 = LoadU8(ctx, i0);
+    if (i0) {goto block_129;}
+    i0 = a;
+    i1 = 2774u;
+    i0 += i1;
+    i0 = LoadU8(ctx, i0);
+    if (i0) {goto block_129;}
+    i0 = a;
+    i1 = 2775u;
+    i0 += i1;
+    i0 = LoadU8(ctx, i0);
+    if (i0) {goto block_129;}
+    i0 = a;
+    i1 = 2792u;
+    i0 += i1;
+    i0 = LoadU8(ctx, i0);
+    if (i0) {goto block_129;}
+    i0 = a;
+    i1 = 2768u;
+    i0 += i1;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    block_129:;
+    i0 = a;
+    i1 = 13808u;
+    i0 += i1;
+    b = i0;
   }
-finish:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    GuestStackSp(ctx) = stack_slot + 32u;
-    goto exit_path;
+  i0 = l7;
+  i1 = 30u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = b;
+    i0 = FormatLuaEventFilterLine(ctx, i0, i1);
+    l6 = i0;
+    i0 = 30u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l6;
+    a = i0;
   }
-answer_path:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The dispatch raised: the answer is taken from the runner's return slot and
-    // the record's buffer released.
-    object = HostRet0(ctx);
-    (void)HostTempRet0(ctx);
-    if (static_cast<int32_t>(LoadS8(ctx, stack_slot + 11u)) > static_cast<int32_t>(kApplyAutoModeStatusSentinel)) {
-      goto os_release_path;
-    }
-    DeallocateRawBlock(ctx, LoadU32(ctx, stack_slot));
+  block_9:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    i1 = 32u;
+    i0 += i1;
+    GuestStackSp(ctx) = i0;
+    goto func_exit;
   }
-os_release_path:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    HostOsRelease(ctx, object);
+  block_8:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = HostRet0(ctx);
+    a = i0;
+    i0 = HostTempRet0(ctx);
+    i0 = l4;
+    i0 = LoadS8(ctx, i0 + 11u);
+    i1 = kF744ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+    if (i0) {goto block_7;}
+    i0 = l4;
+    i0 = LoadU32(ctx, i0);
+    DeallocateRawBlock(ctx, i0);
+  }
+  block_7:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    HostOsRelease(ctx, i0);
     TrapUnreachable();
   }
-catch_path:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Ask the engine which catch the in-flight exception matches -- there is no
-    // type filter at this site -- and let the bridge read the runner's return
-    // slot.
-    object = FindMatchingCatch(ctx, 0u);
-    (void)HostTempRet0(ctx);
+  block_6:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = 0u;
+    i0 = FindMatchingCatch(ctx, i0);
+    a = i0;
+    i0 = HostTempRet0(ctx);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstHandoffCall) : 1u) {
-    Panic(ctx, object);
-    resume_code = kFirstHandoffCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
+  i0 = l7;
+  i1 = 31u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    Panic(ctx, i0);
+    i0 = 31u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-no_throw_path:;
-  if (ResumePhase(ctx) == kResumeRunning) {
+  block_5:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
     TrapUnreachable();
   }
-handoff_path:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    object = FindMatchingCatch(ctx, 0u);
-    (void)HostTempRet0(ctx);
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = 0u;
+    i0 = FindMatchingCatch(ctx, i0);
+    a = i0;
+    i0 = HostTempRet0(ctx);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondHandoffCall) : 1u) {
-    Panic(ctx, object);
-    resume_code = kSecondHandoffCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
+  i0 = l7;
+  i1 = 32u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    Panic(ctx, i0);
+    i0 = 32u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
     TrapUnreachable();
   }
-  goto exit_path;
-suspend_point:;
-  {
-    // Suspend: push the code naming the call in flight, step past it, then push
-    // the 28-byte frame a rewinding pass reads back. The stack pointer lives in
-    // the word the frame pointer itself names, so every push is a
-    // read-modify-write of that word.
-    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    StoreU32(ctx, frame, object);
-    StoreU32(ctx, frame + 4u, status);
-    StoreU32(ctx, frame + 8u, holder);
-    StoreU32(ctx, frame + 12u, carry);
-    StoreU32(ctx, frame + 16u, stack_slot);
-    StoreU32(ctx, frame + 20u, scratch);
-    StoreU32(ctx, frame + 24u, slot_ptr);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
-  }
-exit_path:;
+  goto func_exit;
+  spill_frame:;
+  l6 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l6;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF744ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l6 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l6;
+  i1 = b;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l6;
+  i1 = c;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l6;
+  i1 = l3;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l6;
+  i1 = l4;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l6;
+  i1 = l5;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = l6;
+  i1 = l8;
+  StoreU32(ctx, i0 + 24u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 28u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

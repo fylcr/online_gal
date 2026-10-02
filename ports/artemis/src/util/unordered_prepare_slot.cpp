@@ -1,175 +1,272 @@
+// unordered_prepare_slot.cpp -- prepares an unordered-map slot for insertion, growing the buckets when the load factor demands it..
+//
+// UnorderedPrepareSlot -- prepares an unordered-map slot for insertion, growing the buckets when the load factor demands it.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 459903-459903 (f1071); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations of callees defined elsewhere in the tree.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 
 namespace {
 
-constexpr uint32_t kUnorderedPrepareSlotMsgBuckets = 0x8FAFCu;      // buckets_
-constexpr uint32_t kUnorderedPrepareSlotMsgBoostHeader = 0x8FB05u;  // unordered/detail/implementation.hpp
-constexpr uint32_t kUnorderedPrepareSlotMsgGetBucket = 0x8FB48u;    // get_bucket
-constexpr uint32_t kUnorderedPrepareSlotPendingException = 0xD015Cu;
-constexpr uint32_t kUnorderedPrepareSlotBucketMask = 0x7FFFFFFFu;
-constexpr uint32_t kUnorderedPrepareSlotSignedLimit = 0xFFFFFFFFu;  // -1 as the signed bound tested below
-constexpr uint32_t kUnorderedPrepareSlotSaveFrameBytes = 16u;
-constexpr uint32_t kUnorderedPrepareSlotResumeWordBytes = 4u;
+constexpr uint32_t kF1071MsgBuckets = 0x8FAFCu;  // buckets_
+constexpr uint32_t kF1071MsgBoostBoostUnorderedDetail = 0x8FB05u;  // ../../../../boost_1_66_0/boost/unordered/detail/implementation.hpp
+constexpr uint32_t kF1071MsgGetBucket = 0x8FB48u;  // get_bucket
+constexpr uint32_t kF1071ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF1071Const7FFFFFFF = 0x7FFFFFFFu;  // 
+constexpr uint32_t kF1071ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF1071SaveFrameBytes = 16u;
+constexpr uint32_t kF1071ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Prepares an unordered-map slot for insertion: grows the bucket table when the
-// scheduler asks for it, splices the key into its chain, and bumps the element
-// count; a table that cannot be queried fails the boost assertion instead.
 uint32_t UnorderedPrepareSlot(EngineContext* ctx, uint32_t map, uint32_t key, uint32_t hash) {
-  uint32_t count = 0u;         // element count plus the new key
-  uint32_t status = 0u;        // exception slot read back after the grow
-  uint32_t bucket_count = 0u;  // buckets the table holds
-  uint32_t bucket = 0u;        // bucket index for the key's hash
-  uint32_t slot = 0u;          // chain address of that bucket
-  uint32_t node = 0u;          // chain node living there, if any
-  uint32_t other_slot = 0u;    // chain address rebuilt from the bucket count
-  uint32_t next_node = 0u;     // node that address points at
-  uint32_t resume_code = 0u;   // which call a rewinding pass replays
-  uint32_t frame_base = 0u;    // where a suspended call left its frame
-  uint32_t suspend_code = 0u;  // resume word pushed when a call suspends
-  uint32_t result = 0u;        // slot address handed back to the caller
-  uint32_t tmp = 0u;
-  uint32_t tmp2 = 0u;
   EnterFrame();
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    tmp = ReturnFrameSp(ctx);
-    tmp2 = ReturnFrameSp(ctx);
-    tmp2 = LoadU32(ctx, tmp2);
-    tmp2 -= kUnorderedPrepareSlotSaveFrameBytes;
-    StoreU32(ctx, tmp, tmp2);
-    frame_base = ReturnFrameSp(ctx);
-    frame_base = LoadU32(ctx, frame_base);
-    map = LoadU32(ctx, frame_base);
-    key = LoadU32(ctx, frame_base + 4u);
-    hash = LoadU32(ctx, frame_base + 8u);
-    count = LoadU32(ctx, frame_base + 12u);
+  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1071SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = LoadU32(ctx, i0);
+    map = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 4u);
+    key = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 8u);
+    hash = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    tmp = ReturnFrameSp(ctx);
-    tmp2 = ReturnFrameSp(ctx);
-    tmp2 = LoadU32(ctx, tmp2);
-    tmp2 -= kUnorderedPrepareSlotResumeWordBytes;
-    StoreU32(ctx, tmp, tmp2);
-    tmp = ReturnFrameSp(ctx);
-    tmp = LoadU32(ctx, tmp);
-    tmp = LoadU32(ctx, tmp);
-    resume_code = tmp;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1071ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    count = LoadU32(ctx, map + 8u);
-    StoreU32(ctx, kUnorderedPrepareSlotPendingException, 0u);
-    count += 1u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = map;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l3 = i0;
+    i0 = kF1071ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l3;
+    i1 = 1u;
+    i0 += i1;
+    l3 = i0;
   }
-  if ((resume_code == 0u) | (ResumePhase(ctx) == kResumeRunning)) {
-    HostOsSchedule(ctx, 1784u, map, count);
-    suspend_code = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto save_suspend_frame;
-    }
+  i0 = l4;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = 1784u;
+    i1 = map;
+    i2 = l3;
+    HostOsSchedule(ctx, i0, i1, i2);
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    status = LoadU32(ctx, kUnorderedPrepareSlotPendingException);
-    StoreU32(ctx, kUnorderedPrepareSlotPendingException, 0u);
-    if (status != 1u) {
-      bucket_count = LoadU32(ctx, map + 4u);
-      bucket = REM_U(hash, bucket_count);
-      hash = LoadU32(ctx, map + 20u);
-      if (hash == 0u) {
-        goto fail_assert;
-      }
-      tmp = bucket & kUnorderedPrepareSlotBucketMask;
-      StoreU32(ctx, key + 4u, tmp);
-      slot = bucket << (2u & 31u);
-      slot += hash;
-      node = LoadU32(ctx, slot);
-      if (node == 0u) {
-        // Empty bucket: splice the key between the two chains of the table.
-        other_slot = bucket_count << (2u & 31u);
-        other_slot += hash;
-        next_node = LoadU32(ctx, other_slot);
-        if (next_node != 0u) {
-          tmp = LoadU32(ctx, next_node + 4u);
-          tmp = tmp << (2u & 31u);
-          tmp += hash;
-          StoreU32(ctx, tmp, key);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF1071ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = kF1071ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l3;
+    i1 = 1u;
+    i0 = i0 != i1;
+    if (i0) {
+      i0 = hash;
+      i1 = map;
+      i1 = LoadU32(ctx, i1 + 4u);
+      l4 = i1;
+      i0 = REM_U(i0, i1);
+      l3 = i0;
+      i0 = map;
+      i0 = LoadU32(ctx, i0 + 20u);
+      hash = i0;
+      i0 = !(i0);
+      if (i0) {goto block_6;}
+      i0 = key;
+      i1 = l3;
+      i2 = kF1071Const7FFFFFFF;
+      i1 &= i2;
+      StoreU32(ctx, i0 + 4u, i1);
+      i0 = l3;
+      i1 = 2u;
+      i0 <<= (i1 & 31);
+      i1 = hash;
+      i0 += i1;
+      l5 = i0;
+      i0 = LoadU32(ctx, i0);
+      l3 = i0;
+      i0 = !(i0);
+      if (i0) {
+        i0 = l4;
+        i1 = 2u;
+        i0 <<= (i1 & 31);
+        i1 = hash;
+        i0 += i1;
+        l3 = i0;
+        i0 = LoadU32(ctx, i0);
+        l4 = i0;
+        if (i0) {
+          i0 = l4;
+          i0 = LoadU32(ctx, i0 + 4u);
+          i1 = 2u;
+          i0 <<= (i1 & 31);
+          i1 = hash;
+          i0 += i1;
+          i1 = key;
+          StoreU32(ctx, i0, i1);
         }
-        StoreU32(ctx, slot, other_slot);
-        tmp = LoadU32(ctx, other_slot);
-        StoreU32(ctx, key, tmp);
-        StoreU32(ctx, other_slot, key);
-        goto finish_insert;
+        i0 = l5;
+        i1 = l3;
+        StoreU32(ctx, i0, i1);
+        i0 = key;
+        i1 = l3;
+        i1 = LoadU32(ctx, i1);
+        StoreU32(ctx, i0, i1);
+        i0 = l3;
+        i1 = key;
+        StoreU32(ctx, i0, i1);
+        goto block_8;
       }
-      tmp = LoadU32(ctx, node);
-      StoreU32(ctx, key, tmp);
-      tmp = LoadU32(ctx, slot);
-      StoreU32(ctx, tmp, key);
-    finish_insert:;
-      tmp = LoadU32(ctx, map + 8u);
-      tmp += 1u;
-      StoreU32(ctx, map + 8u, tmp);
-      result = key;
-      goto frame_stored;
+      i0 = key;
+      i1 = l3;
+      i1 = LoadU32(ctx, i1);
+      StoreU32(ctx, i0, i1);
+      i0 = l5;
+      i0 = LoadU32(ctx, i0);
+      i1 = key;
+      StoreU32(ctx, i0, i1);
+      block_8:;
+      i0 = map;
+      i1 = map;
+      i1 = LoadU32(ctx, i1 + 8u);
+      i2 = 1u;
+      i1 += i2;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = key;
+      goto func_exit;
     }
-    // The grow failed: release whatever the key still owns, then the map.
-    map = HostRet0(ctx);
-    HostTempRet0(ctx);
-    if (key != 0u) {
-      tmp = LoadS8(ctx, key + 31u);
-      tmp2 = kUnorderedPrepareSlotSignedLimit;
-      tmp = (uint32_t)((int32_t)tmp <= (int32_t)tmp2);
-      if (tmp != 0u) {
-        tmp = LoadU32(ctx, key + 20u);
-        DeallocateRawBlock(ctx, tmp);
+    i0 = HostRet0(ctx);
+    map = i0;
+    i0 = HostTempRet0(ctx);
+    i0 = key;
+    if (i0) {
+      i0 = key;
+      i0 = LoadS8(ctx, i0 + 31u);
+      i1 = kF1071ConstFFFFFFFF;
+      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+      if (i0) {
+        i0 = key;
+        i0 = LoadU32(ctx, i0 + 20u);
+        DeallocateRawBlock(ctx, i0);
       }
-      tmp = LoadS8(ctx, key + 19u);
-      tmp2 = kUnorderedPrepareSlotSignedLimit;
-      tmp = (uint32_t)((int32_t)tmp <= (int32_t)tmp2);
-      if (tmp != 0u) {
-        tmp = LoadU32(ctx, key + 8u);
-        DeallocateRawBlock(ctx, tmp);
+      i0 = key;
+      i0 = LoadS8(ctx, i0 + 19u);
+      i1 = kF1071ConstFFFFFFFF;
+      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+      if (i0) {
+        i0 = key;
+        i0 = LoadU32(ctx, i0 + 8u);
+        DeallocateRawBlock(ctx, i0);
       }
-      DeallocateRawBlock(ctx, key);
+      i0 = key;
+      DeallocateRawBlock(ctx, i0);
     }
-    HostOsRelease(ctx, map);
+    i0 = map;
+    HostOsRelease(ctx, i0);
     TrapUnreachable();
-  fail_assert:;
-    HostAssertFail(ctx, kUnorderedPrepareSlotMsgBuckets, kUnorderedPrepareSlotMsgBoostHeader,
-                   2956u, kUnorderedPrepareSlotMsgGetBucket);
+    block_6:;
+    i0 = kF1071MsgBuckets;
+    i1 = kF1071MsgBoostBoostUnorderedDetail;
+    i2 = 2956u;
+    i3 = kF1071MsgGetBucket;
+    HostAssertFail(ctx, i0, i1, i2, i3);
     TrapUnreachable();
   }
   TrapUnreachable();
-save_suspend_frame:;
-  // A call suspended: push the resume word, then save the live words in the
-  // frame above the stack pointer.
-  tmp = ReturnFrameSp(ctx);
-  tmp = LoadU32(ctx, tmp);
-  StoreU32(ctx, tmp, suspend_code);
-  tmp = ReturnFrameSp(ctx);
-  tmp2 = ReturnFrameSp(ctx);
-  tmp2 = LoadU32(ctx, tmp2);
-  tmp2 += kUnorderedPrepareSlotResumeWordBytes;
-  StoreU32(ctx, tmp, tmp2);
-  tmp = ReturnFrameSp(ctx);
-  tmp = LoadU32(ctx, tmp);
-  frame_base = tmp;
-  StoreU32(ctx, frame_base, map);
-  StoreU32(ctx, frame_base + 4u, key);
-  StoreU32(ctx, frame_base + 8u, hash);
-  StoreU32(ctx, frame_base + 12u, count);
-  tmp = ReturnFrameSp(ctx);
-  tmp2 = ReturnFrameSp(ctx);
-  tmp2 = LoadU32(ctx, tmp2);
-  tmp2 += kUnorderedPrepareSlotSaveFrameBytes;
-  StoreU32(ctx, tmp, tmp2);
-  result = 0u;
-frame_stored:;
+  spill_frame:;
+  l4 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l4;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF1071ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l4 = i0;
+  i1 = map;
+  StoreU32(ctx, i0, i1);
+  i0 = l4;
+  i1 = key;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l4;
+  i1 = hash;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l4;
+  i1 = l3;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 16u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return result;
+  return i0;
 }
-}  // namespace artc
+}

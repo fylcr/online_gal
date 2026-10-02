@@ -1,83 +1,165 @@
+// step_invoke_value_entry.cpp -- advances one entry of an invoke queue, running the value call it describes..
+//
+// StepInvokeValueEntry -- advances one entry of an invoke queue, running the value call it describes.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 2755859-2755859 (f5716); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// The value stack this step grows.
-void ResizeValueStack(EngineContext* ctx, uint32_t state, uint32_t count);
-// Checks one argument's type, refusing a mismatch.
+// Forward declarations -- batch-mates and registered callees.
+void ResizeValueStack(EngineContext* ctx, uint32_t a0, uint32_t a1);
 void CheckArgumentType(EngineContext* ctx, uint32_t value, uint32_t expected, uint32_t index);
-// Advances the table iterator and answers the entry it lands on.
 uint32_t AdvanceTableIterator(EngineContext* ctx, uint32_t state, uint32_t table);
 
-// Advances one entry of an invoke queue: the value is type-checked, the value
-// stack grown, and the table iterator stepped on. Answers 1, or 2 when the
-// queue's current entry is still pending; a suspended pass answers 0. Suspendable,
-// so the state and the current entry travel through the return frame.
+namespace {
+
+constexpr uint32_t kF5716SaveFrameBytes = 8u;
+constexpr uint32_t kF5716ResumeWordBytes = 4u;
+
+}  // namespace
+
 uint32_t StepInvokeValueEntry(EngineContext* ctx, uint32_t state) {
   EnterFrame();
-  // The queue entry the step is on, and the resume point this pass is at.
-  uint32_t entry = 0u;
-  uint32_t resume_point = 0u;
-  uint32_t result = 0u;
-  // The resume point the suspend path saves (below).
-  uint32_t resume_at = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 8-byte frame the suspend path saved.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 8u);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    state = LoadU32(ctx, frame);
-    entry = LoadU32(ctx, frame + 4u);
+  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5716SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume point pushed with that frame.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5716ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
   }
-  // The first call is replayed only at resume point zero.
-  if (resume_point == 0u || ResumePhase(ctx) == kResumeRewinding) {
-    CheckArgumentType(ctx, state, 1u, 5u);
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      resume_at = 0u;
-      goto spill_point;
-    }
+  i0 = l3;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = 1u;
+    i2 = 5u;
+    CheckArgumentType(ctx, i0, i1, i2);
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    ResizeValueStack(ctx, state, 2u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = state;
+    i1 = 2u;
+    ResizeValueStack(ctx, i0, i1);
   }
-  // The second call is replayed only at resume point one.
-  if (resume_point == 1u || ResumePhase(ctx) == kResumeRewinding) {
-    entry = AdvanceTableIterator(ctx, state, 1u);
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      resume_at = 1u;
-      goto spill_point;
-    }
+  i0 = l3;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = 1u;
+    i0 = AdvanceTableIterator(ctx, i0, i1);
+    l1 = i0;
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l1;
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (entry) {
-      // The queue still holds the entry it was on.
-      result = 2u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    if (i0) {
+      i0 = 2u;
     } else {
-      entry = LoadU32(ctx, state + 8u);
-      // The zeroing store lands on the entry just read, not on the queue field.
-      StoreU32(ctx, entry + 8u, 0u);
-      StoreU32(ctx, state + 8u, entry + 16u);
-      result = 1u;
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l2 = i0;
+      i1 = 0u;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = state;
+      i1 = l2;
+      i2 = 16u;
+      i1 += i2;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = 1u;
     }
-    LeaveFrame();
-    return result;
+    goto func_exit;
   }
   TrapUnreachable();
-spill_point:;
-  // Suspend: push the resume point, then the 8-byte frame holding the state and
-  // the entry the rewinding pop restores.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_at);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
-  uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, saved_frame, state);
-  StoreU32(ctx, saved_frame + 4u, entry);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 8u);
+  spill_frame:;
+  l1 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l1;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF5716ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l1 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l1;
+  i1 = l2;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 8u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return 0u;
+  return i0;
 }
-
-}  // namespace artc
+}

@@ -1,14 +1,28 @@
+// close_function_scope.cpp -- the function-scope teardown: closes the open upvalues, restores the scope chain, clears the local and upvalue flag bytes, and flushes the proto and string slots the function left behind..
+//
+// CloseFunctionScope -- the function-scope teardown: closes the open upvalues, restores the scope chain, clears the local and upvalue flag bytes, and flushes the proto and string slots the function left behind.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 487980-489073 (f1125); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations of the callees below.
+// Forward declarations -- batch-mates and registered callees.
 void ResizeTableArray(EngineContext* ctx, uint32_t a, uint32_t b);
 void ClearLocalFlags(EngineContext* ctx, uint32_t a);
 void ClearUpvalueFlags(EngineContext* ctx, uint32_t a);
 void InvokeMetaField(EngineContext* ctx, uint32_t a);
-uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size,
-                         uint32_t new_size);
+uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
 void ClearFlagsRecursive(EngineContext* ctx, uint32_t state, uint32_t node);
 uint32_t FetchMetamethod(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 uint32_t LoadProtoSlot(EngineContext* ctx, uint32_t a);
@@ -16,527 +30,1085 @@ uint32_t ReshapeTaggedNodeChain(EngineContext* ctx, uint32_t state, uint32_t nod
 
 namespace {
 
-// The tag the closing chain is reshaped with, and the all-ones word the block
-// slot mask is built from.
-constexpr uint32_t kCloseFunctionScopeTag = 0xFFFFFFFDu;
-constexpr uint32_t kCloseFunctionScopeAllOnes = 0xFFFFFFFFu;
+constexpr uint32_t kF1125ConstFFFFFFFD = 0xFFFFFFFDu;  // 
+constexpr uint32_t kF1125ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF1125SaveFrameBytes = 32u;
+constexpr uint32_t kF1125ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Closes the function scope: runs the pending close metamethods, unwinds the
-// open-upvalue and local chains, drops the scopes it held and releases the
-// blocks it no longer needs. Returns the stage code the teardown is resumed at.
-// The body is suspendable -- a rewinding pass restores the slots below from the
-// frame it pushed and replays the one call its resume code names.
 uint32_t CloseFunctionScope(EngineContext* ctx, uint32_t state) {
   EnterFrame();
-  uint32_t const kSaveFrameBytes = 32u;
-  uint32_t const kResumeWordBytes = 4u;
-  uint32_t const kSlotWordBytes = 4u;
-  uint32_t const kScopeProtoCall = 0u;
-  uint32_t const kFirstChainProtoCall = 1u;
-  uint32_t const kSecondChainProtoCall = 2u;
-  uint32_t const kThirdChainProtoCall = 3u;
-  uint32_t const kTotalProtoCall = 4u;
-  uint32_t const kFirstReshapeCall = 5u;
-  uint32_t const kSecondReshapeCall = 6u;
-  uint32_t const kResizeTableCall = 7u;
-  uint32_t const kReallocateCall = 8u;
-  uint32_t const kInvokeMetaCall = 9u;
-  uint32_t const kStageTwoCode = 10u;
-  uint32_t const kStageThreeCode = 400u;
-  uint32_t const kStageFourCode = 100u;
-  uint32_t cursor = 0u;
-  uint32_t func_state = 0u;
-  uint32_t scratch = 0u;
-  uint32_t work = 0u;
-  uint32_t value = 0u;
-  uint32_t total = 0u;
-  uint32_t extra = 0u;
-  uint32_t result = 0u;
-  uint32_t resume_code = 0u;
-  // Rewinding: pop the 32-byte frame the suspend path pushed and rebuild the
-  // eight slots it saved.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    state = LoadU32(ctx, frame);
-    cursor = LoadU32(ctx, frame + 4u);
-    func_state = LoadU32(ctx, frame + 8u);
-    scratch = LoadU32(ctx, frame + 12u);
-    work = LoadU32(ctx, frame + 16u);
-    value = LoadU32(ctx, frame + 20u);
-    total = LoadU32(ctx, frame + 24u);
-    extra = LoadU32(ctx, frame + 28u);
+  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+      l9 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1125SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l2 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l3 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l5 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l6 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l7 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 28u);
+    l9 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // The second pop names the call that was in flight when the frame was pushed.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
-    resume_code = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1125ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l8 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    func_state = LoadU32(ctx, state + 16u);
-    scratch = LoadU8(ctx, func_state + 21u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l2 = i0;
+    i0 = LoadU8(ctx, i0 + 21u);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    switch (scratch) {
-      case 0: goto clear_upvalues;
-      case 1: goto open_upvalues;
-      case 2: goto stage_two;
-      case 3: goto stage_three;
-      case 4: goto stage_four;
-      default: goto return_step;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l3;
+    switch (i0) {
+      case 0: goto block_10;
+      case 1: goto block_9;
+      case 2: goto block_7;
+      case 3: goto block_6;
+      case 4: goto block_5;
+      default: goto running_exit;
     }
-  clear_upvalues:;
-    ClearUpvalueFlags(ctx, state);
-    result = 0u;
-    goto exit_path;
-  open_upvalues:;
-    cursor = LoadU32(ctx, func_state + 36u);
+    block_10:;
+    i0 = state;
+    ClearUpvalueFlags(ctx, i0);
+    i0 = 0u;
+    goto func_exit;
+    block_9:;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 36u);
+    l1 = i0;
   }
-  if (cursor || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kScopeProtoCall) : 1u) {
-      uint32_t const proto = LoadProtoSlot(ctx, func_state);
-      resume_code = kScopeProtoCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
+  i0 = l1;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = l8;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l2;
+      i0 = LoadProtoSlot(ctx, i0);
+      l4 = i0;
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l4;
+      state = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = state;
+      goto func_exit;
+    }
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 140u);
+    l1 = i0;
+    i1 = l2;
+    i2 = 120u;
+    i1 += i2;
+    l3 = i1;
+    i0 = i0 == i1;
+    l5 = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    if (i0) {goto block_15;}
+    loop_17: 
+      i0 = l1;
+      i0 = LoadU8(ctx, i0 + 5u);
+      i1 = 7u;
+      i0 &= i1;
+      if (i0) {goto block_18;}
+      i0 = l1;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l6 = i0;
+      i0 = LoadU32(ctx, i0 + 8u);
+      i1 = 4u;
+      i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+      if (i0) {goto block_18;}
+      i0 = l6;
+      i0 = LoadU32(ctx, i0);
+      l6 = i0;
+      i0 = LoadU8(ctx, i0 + 5u);
+      i1 = 3u;
+      i0 &= i1;
+      i0 = !(i0);
+      if (i0) {goto block_18;}
+      i0 = l2;
+      i1 = l6;
+      ClearFlagsRecursive(ctx, i0, i1);
+      block_18:;
+      i0 = l3;
+      i1 = l1;
+      i1 = LoadU32(ctx, i1 + 20u);
+      l1 = i1;
+      i0 = i0 != i1;
+      l5 = i0;
+      if (i0) {goto loop_17;}
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 36u);
+    i0 = !(i0);
+    l1 = i0;
+    if (i0) {goto block_15;}
+  }
+  loop_19: 
+    i0 = l8;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l2;
+      i0 = LoadProtoSlot(ctx, i0);
+      l4 = i0;
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l4;
+      l1 = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l2;
+      i0 = LoadU32(ctx, i0 + 36u);
+      l1 = i0;
+      if (i0) {goto loop_19;}
+    }
+  block_15:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 44u);
+    l1 = i0;
+    i0 = l2;
+    i1 = 0u;
+    StoreU32(ctx, i0 + 44u, i1);
+    i0 = l2;
+    i1 = l1;
+    StoreU32(ctx, i0 + 36u, i1);
+    i0 = state;
+    i0 = LoadU8(ctx, i0 + 5u);
+    i1 = 3u;
+    i0 &= i1;
+    if (i0) {
+      i0 = l2;
+      i1 = state;
+      ClearFlagsRecursive(ctx, i0, i1);
+    }
+    i0 = l2;
+    ClearLocalFlags(ctx, i0);
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 36u);
+    l1 = i0;
+  }
+  i0 = l1;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    loop_25: 
+      i0 = l8;
+      i1 = 2u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = l2;
+        i0 = LoadProtoSlot(ctx, i0);
+        l4 = i0;
+        i0 = 2u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+        i0 = l4;
+        l1 = i0;
       }
-      state = proto;
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      result = state;
-      goto exit_path;
-    }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 36u);
+        l1 = i0;
+        if (i0) {goto loop_25;}
+      }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    cursor = LoadU32(ctx, func_state + 140u);
-    scratch = func_state + 120u;
-    work = static_cast<uint32_t>(cursor == scratch);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 40u);
+    l1 = i0;
+    i0 = l2;
+    i1 = 0u;
+    StoreU32(ctx, i0 + 40u, i1);
+    i0 = l2;
+    i1 = l1;
+    StoreU32(ctx, i0 + 36u, i1);
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (work != 0u) {
-      goto walk_done;
+  i0 = l1;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    loop_30: 
+      i0 = l8;
+      i1 = 3u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = l2;
+        i0 = LoadProtoSlot(ctx, i0);
+        l4 = i0;
+        i0 = 3u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+        i0 = l4;
+        l1 = i0;
+      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 36u);
+        l1 = i0;
+        if (i0) {goto loop_30;}
+      }
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l7 = i0;
+    i0 = LoadU32(ctx, i0 + 112u);
+    l3 = i0;
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    if (i0) {
+      loop_35: 
+        i0 = l1;
+        i0 = LoadU8(ctx, i0 + 5u);
+        l6 = i0;
+        i1 = 8u;
+        i0 &= i1;
+        i0 = !(i0);
+        i1 = 0u;
+        i2 = l6;
+        i3 = 3u;
+        i2 &= i3;
+        i0 = i2 ? i0 : i1;
+        i0 = !(i0);
+        l5 = i0;
+        if (i0) {
+          i0 = l1;
+          l3 = i0;
+          goto block_36;
+        }
+        i0 = l1;
+        i0 = LoadU32(ctx, i0 + 8u);
+        l5 = i0;
+        i0 = !(i0);
+        if (i0) {goto block_39;}
+        i0 = l5;
+        i0 = LoadU8(ctx, i0 + 6u);
+        i1 = 4u;
+        i0 &= i1;
+        if (i0) {goto block_39;}
+        i0 = l5;
+        i1 = 2u;
+        i2 = state;
+        i2 = LoadU32(ctx, i2 + 16u);
+        i2 = LoadU32(ctx, i2 + 196u);
+        i0 = FetchMetamethod(ctx, i0, i1, i2);
+        l5 = i0;
+        if (i0) {goto block_38;}
+        i0 = l1;
+        i0 = LoadU8(ctx, i0 + 5u);
+        l6 = i0;
+        block_39:;
+        i0 = l1;
+        i1 = l6;
+        i2 = 8u;
+        i1 |= i2;
+        StoreU8(ctx, i0 + 5u, i1);
+        i0 = l1;
+        l3 = i0;
+        goto block_36;
+        block_38:;
+        i0 = l1;
+        i1 = l1;
+        i1 = LoadU8(ctx, i1 + 5u);
+        i2 = 8u;
+        i1 |= i2;
+        StoreU8(ctx, i0 + 5u, i1);
+        i0 = l1;
+        i0 = LoadU32(ctx, i0 + 16u);
+        l6 = i0;
+        i0 = l3;
+        i1 = l1;
+        i1 = LoadU32(ctx, i1);
+        StoreU32(ctx, i0, i1);
+        i0 = l6;
+        i1 = l9;
+        i0 += i1;
+        i1 = 24u;
+        i0 += i1;
+        l9 = i0;
+        i0 = l7;
+        i0 = LoadU32(ctx, i0 + 48u);
+        l6 = i0;
+        i0 = !(i0);
+        l5 = i0;
+        if (i0) {
+          i0 = l1;
+          i1 = l1;
+          StoreU32(ctx, i0, i1);
+          goto block_40;
+        }
+        i0 = l1;
+        i1 = l6;
+        i1 = LoadU32(ctx, i1);
+        StoreU32(ctx, i0, i1);
+        i0 = l7;
+        i0 = LoadU32(ctx, i0 + 48u);
+        l5 = i0;
+        i1 = l1;
+        StoreU32(ctx, i0, i1);
+        block_40:;
+        i0 = l7;
+        i1 = l1;
+        StoreU32(ctx, i0 + 48u, i1);
+        block_36:;
+        i0 = l3;
+        i0 = LoadU32(ctx, i0);
+        l1 = i0;
+        if (i0) {goto loop_35;}
     }
-    do {
-      if ((LoadU8(ctx, cursor + 5u) & 7u) == 0u) {
-        value = LoadU32(ctx, cursor + 8u);
-        if (static_cast<int32_t>(LoadU32(ctx, value + 8u)) >= 4) {
-          value = LoadU32(ctx, value);
-          if ((LoadU8(ctx, value + 5u) & 3u) != 0u) {
-            ClearFlagsRecursive(ctx, func_state, value);
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 48u);
+    l1 = i0;
+    if (i0) {
+      loop_43: 
+        i0 = l1;
+        i0 = LoadU32(ctx, i0);
+        l1 = i0;
+        i0 = LoadU8(ctx, i0 + 5u);
+        i1 = 248u;
+        i0 &= i1;
+        l3 = i0;
+        i1 = l2;
+        i1 = LoadU8(ctx, i1 + 20u);
+        i2 = 3u;
+        i1 &= i2;
+        i0 |= i1;
+        state = i0;
+        i0 = l1;
+        i1 = state;
+        StoreU8(ctx, i0 + 5u, i1);
+        i0 = l2;
+        i1 = l1;
+        ClearFlagsRecursive(ctx, i0, i1);
+        i0 = l1;
+        i1 = l2;
+        i1 = LoadU32(ctx, i1 + 48u);
+        i0 = i0 != i1;
+        if (i0) {goto loop_43;}
+    }
+    i0 = 0u;
+    l7 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 36u);
+    state = i0;
+  }
+  i0 = state;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    loop_45: 
+      i0 = l8;
+      i1 = 4u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = l2;
+        i0 = LoadProtoSlot(ctx, i0);
+        l4 = i0;
+        i0 = 4u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+        i0 = l4;
+        state = i0;
+      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = state;
+        i1 = l7;
+        i0 += i1;
+        l7 = i0;
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 36u);
+        state = i0;
+        if (i0) {goto loop_45;}
+      }
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 44u);
+    l3 = i0;
+    if (i0) {
+      loop_50: 
+        i0 = l3;
+        i0 = LoadU32(ctx, i0 + 28u);
+        l1 = i0;
+        i0 = !(i0);
+        if (i0) {goto block_51;}
+        i0 = l3;
+        i0 = LoadU8(ctx, i0 + 5u);
+        i1 = 16u;
+        i0 &= i1;
+        i0 = !(i0);
+        if (i0) {goto block_51;}
+        loop_52: 
+          i0 = l3;
+          i0 = LoadU32(ctx, i0 + 12u);
+          i1 = l1;
+          i2 = 1u;
+          i1 -= i2;
+          l1 = i1;
+          i2 = 4u;
+          i1 <<= (i2 & 31);
+          i0 += i1;
+          state = i0;
+          i0 = LoadU32(ctx, i0 + 8u);
+          l6 = i0;
+          i1 = 4u;
+          i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+          if (i0) {goto block_53;}
+          i0 = l6;
+          i1 = 4u;
+          i0 = i0 == i1;
+          if (i0) {
+            i0 = state;
+            i0 = LoadU32(ctx, i0);
+            state = i0;
+            i0 = LoadU8(ctx, i0 + 5u);
+            i1 = 252u;
+            i0 &= i1;
+            l5 = i0;
+            i0 = state;
+            i1 = l5;
+            StoreU8(ctx, i0 + 5u, i1);
+            goto block_53;
           }
-        }
-      }
-      uint32_t const next = LoadU32(ctx, cursor + 20u);
-      cursor = next;
-      work = static_cast<uint32_t>(scratch != next);
-    } while (work != 0u);
-    cursor = static_cast<uint32_t>(LoadU32(ctx, func_state + 36u) == 0u);
-    if (cursor != 0u) {
-      goto walk_done;
-    }
-  }
-  while (true) {
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstChainProtoCall) : 1u) {
-      uint32_t const proto = LoadProtoSlot(ctx, func_state);
-      resume_code = kFirstChainProtoCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
-      cursor = proto;
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      cursor = LoadU32(ctx, func_state + 36u);
-      if (cursor != 0u) {
-        continue;
-      }
-    }
-    break;
-  }
-  // Merge point: every open-upvalue chain has been released.
-  walk_done:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    cursor = LoadU32(ctx, func_state + 44u);
-    StoreU32(ctx, func_state + 44u, 0u);
-    StoreU32(ctx, func_state + 36u, cursor);
-    if ((LoadU8(ctx, state + 5u) & 3u) != 0u) {
-      ClearFlagsRecursive(ctx, func_state, state);
-    }
-    ClearLocalFlags(ctx, func_state);
-    cursor = LoadU32(ctx, func_state + 36u);
-  }
-  if (cursor || ResumePhase(ctx) == kResumeRewinding) {
-    while (true) {
-      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondChainProtoCall) : 1u) {
-        uint32_t const proto = LoadProtoSlot(ctx, func_state);
-        resume_code = kSecondChainProtoCall;
-        if (ResumePhase(ctx) == kResumeSuspended) {
-          goto suspend_point;
-        }
-        cursor = proto;
-      }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        cursor = LoadU32(ctx, func_state + 36u);
-        if (cursor != 0u) {
-          continue;
-        }
-      }
-      break;
-    }
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    cursor = LoadU32(ctx, func_state + 40u);
-    StoreU32(ctx, func_state + 40u, 0u);
-    StoreU32(ctx, func_state + 36u, cursor);
-  }
-  if (cursor || ResumePhase(ctx) == kResumeRewinding) {
-    while (true) {
-      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kThirdChainProtoCall) : 1u) {
-        uint32_t const proto = LoadProtoSlot(ctx, func_state);
-        resume_code = kThirdChainProtoCall;
-        if (ResumePhase(ctx) == kResumeSuspended) {
-          goto suspend_point;
-        }
-        cursor = proto;
-      }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        cursor = LoadU32(ctx, func_state + 36u);
-        if (cursor != 0u) {
-          continue;
-        }
-      }
-      break;
-    }
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    total = LoadU32(ctx, state + 16u);
-    scratch = LoadU32(ctx, total + 112u);
-    cursor = LoadU32(ctx, scratch);
-    if (cursor != 0u) {
-      do {
-        // A node needs closing only when it carries a kind flag and is not
-        // already marked as closing.
-        value = LoadU8(ctx, cursor + 5u);
-        work = static_cast<uint32_t>((value & 3u) == 0u || (value & 8u) != 0u);
-        if (work != 0u) {
-          scratch = cursor;
-          goto node_done;
-        }
-        work = LoadU32(ctx, cursor + 8u);
-        if (work == 0u) {
-          goto no_close_meta;
-        }
-        if ((LoadU8(ctx, work + 6u) & 4u) != 0u) {
-          goto no_close_meta;
-        }
-        work = FetchMetamethod(ctx, work, 2u, LoadU32(ctx, LoadU32(ctx, state + 16u) + 196u));
-        if (work != 0u) {
-          goto close_node;
-        }
-      no_close_meta:;
-        value = LoadU8(ctx, cursor + 5u);
-        StoreU8(ctx, cursor + 5u, value | 8u);
-        scratch = cursor;
-        goto node_done;
-      close_node:;
-        // Close it now: mark it, unlink it from the chain and account for its size.
-        StoreU8(ctx, cursor + 5u, LoadU8(ctx, cursor + 5u) | 8u);
-        value = LoadU32(ctx, cursor + 16u);
-        StoreU32(ctx, scratch, LoadU32(ctx, cursor));
-        extra = extra + value + 24u;
-        value = LoadU32(ctx, total + 48u);
-        work = static_cast<uint32_t>(value == 0u);
-        if (work != 0u) {
-          StoreU32(ctx, cursor, cursor);
-        } else {
-          StoreU32(ctx, cursor, LoadU32(ctx, value));
-          work = LoadU32(ctx, total + 48u);
-          StoreU32(ctx, work, cursor);
-        }
-        StoreU32(ctx, total + 48u, cursor);
-      node_done:;
-        cursor = LoadU32(ctx, scratch);
-      } while (cursor != 0u);
-    }
-    cursor = LoadU32(ctx, func_state + 48u);
-    while (cursor != 0u) {
-      cursor = LoadU32(ctx, cursor);
-      scratch = LoadU8(ctx, cursor + 5u) & 248u;
-      state = scratch | (LoadU8(ctx, func_state + 20u) & 3u);
-      StoreU8(ctx, cursor + 5u, state);
-      ClearFlagsRecursive(ctx, func_state, cursor);
-      if (cursor == LoadU32(ctx, func_state + 48u)) {
-        break;
-      }
-    }
-    total = 0u;
-    state = LoadU32(ctx, func_state + 36u);
-  }
-  if (state || ResumePhase(ctx) == kResumeRewinding) {
-    while (true) {
-      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kTotalProtoCall) : 1u) {
-        uint32_t const proto = LoadProtoSlot(ctx, func_state);
-        resume_code = kTotalProtoCall;
-        if (ResumePhase(ctx) == kResumeSuspended) {
-          goto suspend_point;
-        }
-        state = proto;
-      }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        total = state + total;
-        state = LoadU32(ctx, func_state + 36u);
-        if (state != 0u) {
-          continue;
-        }
-      }
-      break;
-    }
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    scratch = LoadU32(ctx, func_state + 44u);
-    if (scratch != 0u) {
-      do {
-        cursor = LoadU32(ctx, scratch + 28u);
-        if (cursor == 0u) {
-          goto close_slots;
-        }
-        if ((LoadU8(ctx, scratch + 5u) & 16u) == 0u) {
-          goto close_slots;
-        }
-        // Close the slots the scope still holds, newest first.
-        do {
-          cursor = cursor - 1u;
-          state = LoadU32(ctx, scratch + 12u) + (cursor << 4u);
-          value = LoadU32(ctx, state + 8u);
-          if (static_cast<int32_t>(value) >= 4) {
-            if (value == 4u) {
-              state = LoadU32(ctx, state);
-              work = LoadU8(ctx, state + 5u) & 252u;
-              StoreU8(ctx, state + 5u, work);
-            } else {
-              work = LoadU8(ctx, LoadU32(ctx, state) + 5u);
-              if ((work & 3u) != 0u || (value == 7u && (work & 8u) != 0u)) {
-                StoreU32(ctx, state + 8u, 0u);
-              }
-            }
+          i0 = state;
+          i0 = LoadU32(ctx, i0);
+          i0 = LoadU8(ctx, i0 + 5u);
+          l5 = i0;
+          i1 = 3u;
+          i0 &= i1;
+          i0 = !(i0);
+          if (i0) {
+            i0 = l6;
+            i1 = 7u;
+            i0 = i0 != i1;
+            if (i0) {goto block_53;}
+            i0 = l5;
+            i1 = 8u;
+            i0 &= i1;
+            i0 = !(i0);
+            if (i0) {goto block_53;}
           }
-        } while (cursor != 0u);
-      close_slots:;
-        state = (kCloseFunctionScopeAllOnes << (LoadU8(ctx, scratch + 7u) & 31u)) ^
-                kCloseFunctionScopeAllOnes;
-        do {
-          cursor = state;
-          state = LoadU32(ctx, scratch + 16u) + (cursor << 5u);
-          value = LoadU32(ctx, state + 8u);
-          if (value == 0u) {
-            goto next_block_slot;
+          i0 = state;
+          i1 = 0u;
+          StoreU32(ctx, i0 + 8u, i1);
+          block_53:;
+          i0 = l1;
+          if (i0) {goto loop_52;}
+        block_51:;
+        i0 = kF1125ConstFFFFFFFF;
+        i1 = l3;
+        i1 = LoadU8(ctx, i1 + 7u);
+        i0 <<= (i1 & 31);
+        i1 = kF1125ConstFFFFFFFF;
+        i0 ^= i1;
+        state = i0;
+        loop_56: 
+          i0 = l3;
+          i0 = LoadU32(ctx, i0 + 16u);
+          i1 = state;
+          l1 = i1;
+          i2 = 5u;
+          i1 <<= (i2 & 31);
+          i0 += i1;
+          state = i0;
+          i0 = LoadU32(ctx, i0 + 8u);
+          l6 = i0;
+          i0 = !(i0);
+          if (i0) {goto block_57;}
+          i0 = state;
+          i0 = LoadU32(ctx, i0 + 24u);
+          l5 = i0;
+          i1 = 4u;
+          i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+          if (i0) {goto block_59;}
+          i0 = l5;
+          i1 = 4u;
+          i0 = i0 == i1;
+          if (i0) {
+            i0 = state;
+            i0 = LoadU32(ctx, i0 + 16u);
+            l6 = i0;
+            i0 = LoadU8(ctx, i0 + 5u);
+            i1 = 252u;
+            i0 &= i1;
+            l5 = i0;
+            i0 = l6;
+            i1 = l5;
+            StoreU8(ctx, i0 + 5u, i1);
+            i0 = state;
+            i0 = LoadU32(ctx, i0 + 8u);
+            l6 = i0;
+            goto block_59;
           }
-          work = LoadU32(ctx, state + 24u);
-          if (static_cast<int32_t>(work) < 4) {
-            goto check_block_value;
+          i0 = state;
+          i0 = LoadU32(ctx, i0 + 16u);
+          i0 = LoadU8(ctx, i0 + 5u);
+          i1 = 3u;
+          i0 &= i1;
+          if (i0) {goto block_58;}
+          block_59:;
+          i0 = l6;
+          i1 = 4u;
+          i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+          if (i0) {goto block_57;}
+          i0 = l6;
+          i1 = 4u;
+          i0 = i0 == i1;
+          if (i0) {
+            i0 = state;
+            i0 = LoadU32(ctx, i0);
+            state = i0;
+            i0 = LoadU8(ctx, i0 + 5u);
+            i1 = 252u;
+            i0 &= i1;
+            l5 = i0;
+            i0 = state;
+            i1 = l5;
+            StoreU8(ctx, i0 + 5u, i1);
+            goto block_57;
           }
-          if (work == 4u) {
-            value = LoadU32(ctx, state + 16u);
-            work = LoadU8(ctx, value + 5u) & 252u;
-            StoreU8(ctx, value + 5u, work);
-            value = LoadU32(ctx, state + 8u);
-            goto check_block_value;
-          }
-          if ((LoadU8(ctx, LoadU32(ctx, state + 16u) + 5u) & 3u) != 0u) {
-            goto clear_block_slot;
-          }
-        check_block_value:;
-          if (static_cast<int32_t>(value) < 4) {
-            goto next_block_slot;
-          }
-          if (value == 4u) {
-            state = LoadU32(ctx, state);
-            work = LoadU8(ctx, state + 5u) & 252u;
-            StoreU8(ctx, state + 5u, work);
-            goto next_block_slot;
-          }
-          work = LoadU8(ctx, LoadU32(ctx, state) + 5u);
-          if ((work & 3u) == 0u && (value != 7u || (work & 8u) == 0u)) {
-            goto next_block_slot;
-          }
-        clear_block_slot:;
-          StoreU32(ctx, state + 8u, 0u);
-          if (static_cast<int32_t>(LoadU32(ctx, state + 24u)) >= 4) {
-            StoreU32(ctx, state + 24u, 11u);
-          }
-        next_block_slot:;
-          state = cursor - 1u;
-        } while (cursor != 0u);
-        scratch = LoadU32(ctx, scratch + 24u);
-      } while (scratch != 0u);
+          i0 = state;
+          i0 = LoadU32(ctx, i0);
+          i0 = LoadU8(ctx, i0 + 5u);
+          l5 = i0;
+          i1 = 3u;
+          i0 &= i1;
+          if (i0) {goto block_58;}
+          i0 = l6;
+          i1 = 7u;
+          i0 = i0 != i1;
+          if (i0) {goto block_57;}
+          i0 = l5;
+          i1 = 8u;
+          i0 &= i1;
+          i0 = !(i0);
+          if (i0) {goto block_57;}
+          block_58:;
+          i0 = state;
+          i1 = 0u;
+          StoreU32(ctx, i0 + 8u, i1);
+          i0 = state;
+          i0 = LoadU32(ctx, i0 + 24u);
+          i1 = 4u;
+          i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+          if (i0) {goto block_57;}
+          i0 = state;
+          i1 = 11u;
+          StoreU32(ctx, i0 + 24u, i1);
+          block_57:;
+          i0 = l1;
+          i1 = 1u;
+          i0 -= i1;
+          state = i0;
+          i0 = l1;
+          if (i0) {goto loop_56;}
+        i0 = l3;
+        i0 = LoadU32(ctx, i0 + 24u);
+        l3 = i0;
+        if (i0) {goto loop_50;}
     }
-    StoreU32(ctx, func_state + 24u, 0u);
-    StoreU8(ctx, func_state + 21u, 2u);
-    StoreU32(ctx, func_state + 32u, func_state + 28u);
-    StoreU8(ctx, func_state + 20u, LoadU8(ctx, func_state + 20u) ^ 3u);
-    StoreU32(ctx, func_state + 72u,
-             LoadU32(ctx, func_state + 68u) - (total + extra));
-    result = 0u;
-    goto exit_path;
+    i0 = l2;
+    i1 = 0u;
+    StoreU32(ctx, i0 + 24u, i1);
+    i0 = l2;
+    i1 = 2u;
+    StoreU8(ctx, i0 + 21u, i1);
+    i0 = l2;
+    i1 = l2;
+    i2 = 28u;
+    i1 += i2;
+    StoreU32(ctx, i0 + 32u, i1);
+    i0 = l2;
+    i1 = l2;
+    i1 = LoadU8(ctx, i1 + 20u);
+    i2 = 3u;
+    i1 ^= i2;
+    StoreU8(ctx, i0 + 20u, i1);
+    i0 = l2;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 68u);
+    i2 = l7;
+    i3 = l9;
+    i2 += i3;
+    i1 -= i2;
+    StoreU32(ctx, i0 + 72u, i1);
+    i0 = 0u;
+    goto func_exit;
   }
-  stage_two:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    cursor = LoadU32(ctx, func_state + 24u);
-    StoreU32(ctx, func_state + 24u, cursor + 1u);
-    scratch = LoadU32(ctx, func_state + 68u);
-    value = LoadU32(ctx, func_state);
-    cursor = value + (cursor << 2u);
+  block_7:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 24u);
+    l1 = i1;
+    i2 = 1u;
+    i1 += i2;
+    StoreU32(ctx, i0 + 24u, i1);
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 68u);
+    l3 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
+    i1 = l1;
+    i2 = 2u;
+    i1 <<= (i2 & 31);
+    i0 += i1;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstReshapeCall) : 1u) {
-    uint32_t const reshaped = ReshapeTaggedNodeChain(ctx, state, cursor, kCloseFunctionScopeTag);
-    resume_code = kFirstReshapeCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
+  i0 = l8;
+  i1 = 5u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = l1;
+    i2 = kF1125ConstFFFFFFFD;
+    i0 = ReshapeTaggedNodeChain(ctx, i0, i1, i2);
+    l4 = i0;
+    i0 = 5u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l4;
+    state = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 24u);
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 8u);
+    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
+    if (i0) {
+      i0 = l2;
+      i1 = 3u;
+      StoreU8(ctx, i0 + 21u, i1);
     }
-    state = reshaped;
+    i0 = l2;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 72u);
+    i2 = l2;
+    i2 = LoadU32(ctx, i2 + 68u);
+    i3 = l3;
+    i2 -= i3;
+    i1 += i2;
+    StoreU32(ctx, i0 + 72u, i1);
+    i0 = 10u;
+    goto func_exit;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (static_cast<int32_t>(LoadU32(ctx, func_state + 24u)) >=
-        static_cast<int32_t>(LoadU32(ctx, func_state + 8u))) {
-      StoreU8(ctx, func_state + 21u, 3u);
+  block_6:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 68u);
+    l6 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 32u);
+    l1 = i0;
+  }
+  i0 = l8;
+  i1 = 6u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = l1;
+    i2 = 40u;
+    i0 = ReshapeTaggedNodeChain(ctx, i0, i1, i2);
+    l4 = i0;
+    i0 = 6u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l4;
+    l1 = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i1 = l1;
+    StoreU32(ctx, i0 + 32u, i1);
+    i0 = l1;
+    i0 = LoadU32(ctx, i0);
+    i0 = !(i0);
+    l1 = i0;
+  }
+  i0 = l1;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 16u);
+      l1 = i0;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l3 = i0;
+      i1 = kF1125ResumeWordBytes;
+      i0 = I32_DIV_S(i0, i1);
+      l9 = i0;
+      i0 = l3;
+      i1 = 65u;
+      i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+      l5 = i0;
     }
-    StoreU32(ctx, func_state + 72u,
-             LoadU32(ctx, func_state + 72u) + (LoadU32(ctx, func_state + 68u) - scratch));
-    result = kStageTwoCode;
-    goto exit_path;
-  }
-  stage_three:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    value = LoadU32(ctx, func_state + 68u);
-    cursor = LoadU32(ctx, func_state + 32u);
-  }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondReshapeCall) : 1u) {
-    uint32_t const reshaped = ReshapeTaggedNodeChain(ctx, state, cursor, 40u);
-    resume_code = kSecondReshapeCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l5;
+      if (i0) {goto block_72;}
+      i0 = l9;
+      i1 = l1;
+      i1 = LoadU32(ctx, i1 + 4u);
+      i0 = i0 <= i1;
+      l5 = i0;
+      if (i0) {goto block_72;}
+      i0 = l3;
+      i1 = 1u;
+      i0 >>= (i1 & 31);
+      l3 = i0;
     }
-    cursor = reshaped;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, func_state + 32u, cursor);
-    cursor = static_cast<uint32_t>(LoadU32(ctx, cursor) == 0u);
-  }
-  if (cursor || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      cursor = LoadU32(ctx, state + 16u);
-      scratch = LoadU32(ctx, cursor + 8u);
-      extra = I32_DIV_S(scratch, kSlotWordBytes);
-      work = static_cast<uint32_t>(static_cast<int32_t>(scratch) < 65);
+    i0 = l8;
+    i1 = 7u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = l3;
+      ResizeTableArray(ctx, i0, i1);
+      i0 = 7u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      if (work != 0u) {
-        goto size_ready;
+    block_72:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l1;
+      i0 = LoadU32(ctx, i0 + 60u);
+      l3 = i0;
+      i1 = 65u;
+      i0 = i0 >= i1;
+      l5 = i0;
+    }
+    i0 = l5;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = state;
+        l5 = i0;
+        i0 = l1;
+        i0 = LoadU32(ctx, i0 + 52u);
+        l7 = i0;
+        i0 = l3;
+        i1 = 1u;
+        i0 >>= (i1 & 31);
+        state = i0;
       }
-      work = static_cast<uint32_t>(extra <= LoadU32(ctx, cursor + 4u));
-      if (work != 0u) {
-        goto size_ready;
+      i0 = l8;
+      i1 = 8u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = l5;
+        i1 = l7;
+        i2 = l3;
+        i3 = state;
+        i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+        l4 = i0;
+        i0 = 8u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+        i0 = l4;
+        l3 = i0;
       }
-      scratch = scratch >> 1u;
-    }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kResizeTableCall) : 1u) {
-      ResizeTableArray(ctx, state, scratch);
-      resume_code = kResizeTableCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
-    }
-    // Merge point: the slot table is either resized or already large enough.
-    size_ready:;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      scratch = LoadU32(ctx, cursor + 60u);
-      work = static_cast<uint32_t>(scratch >= 65u);
-    }
-    if (work || ResumePhase(ctx) == kResumeRewinding) {
-      if (ResumePhase(ctx) == kResumeRunning) {
-        work = state;
-        total = LoadU32(ctx, cursor + 52u);
-        state = scratch >> 1u;
-      }
-      if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kReallocateCall) : 1u) {
-        uint32_t const block = ReallocateBlock(ctx, work, total, scratch, state);
-        resume_code = kReallocateCall;
-        if (ResumePhase(ctx) == kResumeSuspended) {
-          goto suspend_point;
-        }
-        scratch = block;
-      }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        StoreU32(ctx, cursor + 60u, state);
-        StoreU32(ctx, cursor + 52u, scratch);
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = l1;
+        i1 = state;
+        StoreU32(ctx, i0 + 60u, i1);
+        i0 = l1;
+        i1 = l3;
+        StoreU32(ctx, i0 + 52u, i1);
       }
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU8(ctx, func_state + 21u, 4u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l2;
+      i1 = 4u;
+      StoreU8(ctx, i0 + 21u, i1);
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, func_state + 72u,
-             LoadU32(ctx, func_state + 72u) + (LoadU32(ctx, func_state + 68u) - value));
-    result = kStageThreeCode;
-    goto exit_path;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 72u);
+    i2 = l2;
+    i2 = LoadU32(ctx, i2 + 68u);
+    i3 = l6;
+    i2 -= i3;
+    i1 += i2;
+    StoreU32(ctx, i0 + 72u, i1);
+    i0 = 400u;
+    goto func_exit;
   }
-  stage_four:;
-  // A resumed pass keeps the list head it saved; the running pass reads it back.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    scratch = LoadU32(ctx, func_state + 48u);
+  block_5:;
+  i0 = ResumePhase(ctx);
+  if (i0) {
+    i0 = l3;
+  } else {
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 48u);
   }
-  if (scratch || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kInvokeMetaCall) : 1u) {
-      InvokeMetaField(ctx, state);
-      resume_code = kInvokeMetaCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = l8;
+    i1 = 9u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      InvokeMetaField(ctx, i0);
+      i0 = 9u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      cursor = kStageFourCode;
-      state = LoadU32(ctx, func_state + 72u);
-      if (state < kStageFourCode + 1u) {
-        goto return_step;
-      }
-      StoreU32(ctx, func_state + 72u, state - kStageFourCode);
-      result = kStageFourCode;
-      goto exit_path;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = 100u;
+      l1 = i0;
+      i0 = l2;
+      i0 = LoadU32(ctx, i0 + 72u);
+      state = i0;
+      i1 = 101u;
+      i0 = i0 < i1;
+      if (i0) {goto running_exit;}
+      i0 = l2;
+      i1 = state;
+      i2 = 100u;
+      i1 -= i2;
+      StoreU32(ctx, i0 + 72u, i1);
+      i0 = 100u;
+      goto func_exit;
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, func_state + 76u, 0u);
-    StoreU8(ctx, func_state + 21u, 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i1 = 0u;
+    StoreU32(ctx, i0 + 76u, i1);
+    i0 = l2;
+    i1 = 0u;
+    StoreU8(ctx, i0 + 21u, i1);
   }
-  // Merge point: the teardown reports the cursor it stopped at.
-  return_step:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    result = cursor;
-    goto exit_path;
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    goto func_exit;
   }
   TrapUnreachable();
-suspend_point:;
-  {
-    // Suspend: push the code naming the call in flight, step past it, then push
-    // the 32-byte frame a rewinding pass reads back. The stack pointer lives in
-    // the word the frame pointer itself names, so every push is a
-    // read-modify-write of that word.
-    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    StoreU32(ctx, frame, state);
-    StoreU32(ctx, frame + 4u, cursor);
-    StoreU32(ctx, frame + 8u, func_state);
-    StoreU32(ctx, frame + 12u, scratch);
-    StoreU32(ctx, frame + 16u, work);
-    StoreU32(ctx, frame + 20u, value);
-    StoreU32(ctx, frame + 24u, total);
-    StoreU32(ctx, frame + 28u, extra);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
-  }
-exit_path:;
+  spill_frame:;
+  l4 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l4;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF1125ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l4 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l4;
+  i1 = l1;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l4;
+  i1 = l2;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l4;
+  i1 = l3;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l4;
+  i1 = l5;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l4;
+  i1 = l6;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = l4;
+  i1 = l7;
+  StoreU32(ctx, i0 + 24u, i1);
+  i0 = l4;
+  i1 = l9;
+  StoreU32(ctx, i0 + 28u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 32u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return result;
+  return i0;
 }
-}  // namespace artc
+}

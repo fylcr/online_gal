@@ -1,90 +1,197 @@
+// set_table_array_element.cpp -- the array-part write: the key is pushed, the field is set through the shared writer, and a number value is boxed into the value record on the way out..
+//
+// SetTableArrayElement -- the array-part write: the key is pushed, the field is set through the shared writer, and a number value is boxed into the value record on the way out.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 2757260-2757432 (f5726); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- the key pusher and the field writer.
-void PushTableField(EngineContext* ctx, uint32_t state, uint32_t index, uint32_t key);
-void SetTableField(EngineContext* ctx, uint32_t state, uint32_t index, uint32_t key);
+// Forward declarations -- batch-mates and registered callees.
+void PushTableField(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
+void SetTableField(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 
-// Writes the array part's element at an index: the key is pushed, the field set
-// through the shared writer, and a number value boxed into a value record. The
-// step is suspendable, so each call spills the frame and is replayed on resume.
+namespace {
+
+constexpr uint32_t kF5726SaveFrameBytes = 12u;
+constexpr uint32_t kF5726ResumeWordBytes = 4u;
+
+}  // namespace
+
 void SetTableArrayElement(EngineContext* ctx, uint32_t state, uint32_t table, uint32_t index) {
   EnterFrame();
-  uint32_t const kSaveFrameBytes = 12u;
-  uint32_t const kResumeWordBytes = 4u;
-  uint32_t frame = 0u;
-  uint32_t resume_word = 0u;
-  // The value record a boxed number is written into; on a resume its saved top
-  // is what the gate below goes by.
-  uint32_t number_record = 0u;
-  uint32_t call_code = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 12-byte parameter frame and restore it in the order the
-    // suspend path wrote it -- the state, the table, the index.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
-    frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    state = LoadU32(ctx, frame);
-    table = LoadU32(ctx, frame + 4u);
-    index = LoadU32(ctx, frame + 8u);
+  uint32_t l3 = 0u; uint32_t l4 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  double d1 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5726SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    index = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = index;
+    i0 = LoadU32(ctx, i0 + 4u);
+    table = i0;
+    i0 = index;
+    i0 = LoadU32(ctx, i0 + 8u);
+    index = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: the second pop names the call that was in flight. The two pops
-    // stay separate -- one region is read back at a time.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
-    resume_word = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5726ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
   }
-  // Running: only a non-negative array index proceeds; a resumed step goes by
-  // the value-record top its frame kept instead.
-  uint32_t const index_in_range = static_cast<uint32_t>(static_cast<int32_t>(index) >= 0);
-  uint32_t const ready = ResumePhase(ctx) ? number_record : index_in_range;
-  if (ready != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      if (table + 9999u <= 9999u) {
-        // A small table number is a pseudo-index: rebase it onto the array part.
-        const uint32_t used = LoadU32(ctx, state + 8u) - LoadU32(ctx, state + 12u);
-        table += static_cast<uint32_t>(static_cast<int32_t>(used) >> 4u) + 1u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  i1 = l4;
+  i2 = index;
+  i3 = 0u;
+  i2 = (uint32_t)((int32_t)i2 >= (int32_t)i3);
+  i3 = ResumePhase(ctx);
+  i1 = i3 ? i1 : i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = state;
+      i1 = table;
+      i2 = 9999u;
+      i1 += i2;
+      i2 = 9999u;
+      i1 = i1 <= i2;
+      if (i1) {
+        i1 = state;
+        i1 = LoadU32(ctx, i1 + 8u);
+        i2 = state;
+        i2 = LoadU32(ctx, i2 + 12u);
+        i1 -= i2;
+        i2 = 4u;
+        i1 = (uint32_t)((int32_t)i1 >> (i2 & 31));
+        i2 = table;
+        i1 += i2;
+        i2 = 1u;
+        i1 += i2;
+        table = i1;
       }
-      PushTableField(ctx, state, table, 0u);
+      i1 = table;
+      i2 = 0u;
+      PushTableField(ctx, i0, i1, i2);
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_word == 0u) : 1u) {
-      SetTableField(ctx, state, table, index);
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        call_code = 0u;
-        goto suspend_frame;
-      }
+    i0 = l3;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = table;
+      i2 = index;
+      SetTableField(ctx, i0, i1, i2);
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // Box the index as a number: the tag first, the double in the record, then
-      // the top advances a whole 16-byte record.
-      number_record = LoadU32(ctx, state + 8u);
-      StoreU32(ctx, number_record + 8u, 3u);
-      StoreF64(ctx, number_record, static_cast<double>(static_cast<int32_t>(index)));
-      // The top has to be re-read here: the tag store above went to the record,
-      // not to the state, so this still names the record just boxed.
-      StoreU32(ctx, state + 8u, LoadU32(ctx, state + 8u) + 16u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l4 = i0;
+      i1 = 3u;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = l4;
+      i1 = index;
+      d1 = (double)(int32_t)(i1);
+      StoreF64(ctx, i0, d1);
+      i0 = state;
+      i1 = state;
+      i1 = LoadU32(ctx, i1 + 8u);
+      i2 = 16u;
+      i1 += i2;
+      StoreU32(ctx, i0 + 8u, i1);
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_word == 1u) : 1u) {
-      SetTableField(ctx, state, table, 0u);
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        call_code = 1u;
-        goto suspend_frame;
-      }
+    i0 = l3;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = table;
+      i2 = 0u;
+      SetTableField(ctx, i0, i1, i2);
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
   }
-  LeaveFrame();
-  return;
-suspend_frame:
-  // Suspended: park the word naming the call above the frame, step past it, then
-  // write the parameter frame a rewind pass reads back.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), call_code);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
-  frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, frame, state);
-  StoreU32(ctx, frame + 4u, table);
-  StoreU32(ctx, frame + 8u, index);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
+  goto func_exit;
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF5726ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = table;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = index;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 12u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

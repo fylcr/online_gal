@@ -1,271 +1,447 @@
+// declare_local_variable.cpp -- reserves a local slot, records its name and resets its compile-time flags..
+//
+// DeclareLocalVariable -- reserves a local slot, records its name and resets its compile-time flags.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 187356-187356 (f442); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Builds one of the parser's diagnostic texts in the guest's string pool, and
-// answers with the string it stands for.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t FormatPushString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-// Records an error against the lexer state.
 void LexError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-// Notes one entry in the parser's list of named locals.
 void StoreListEntry(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-// Grows one of the parser's arrays, answering with the block it moved to.
 uint32_t GrowArray(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f);
 
 namespace {
 
-// The function record the state names, and the fields this step reads out of it
-// or out of the prototype it belongs to.
-constexpr uint32_t kDeclareLocalVariableFunctionOffset = 48u;
-constexpr uint32_t kDeclareLocalVariableCountOffset = 48u;
-constexpr uint32_t kDeclareLocalVariableAdditionOffset = 50u;
-constexpr uint32_t kDeclareLocalVariableElementsOffset = 52u;
-constexpr uint32_t kDeclareLocalVariableArrayOffset = 24u;
-constexpr uint32_t kDeclareLocalVariableCapacityOffset = 56u;
-constexpr uint32_t kDeclareLocalVariableParentOffset = 60u;
-constexpr uint32_t kDeclareLocalVariableHomeOffset = 16u;
-constexpr uint32_t kDeclareLocalVariableNamesOffset = 12u;
-constexpr uint32_t kDeclareLocalVariableSlotMapOffset = 172u;
-constexpr uint32_t kDeclareLocalVariableFlagOffset = 5u;
-
-// How many local slots a function may declare, and the two flags a name record
-// has to carry before the local is noted down as named.
-constexpr uint32_t kDeclareLocalVariableSlotLimit = 200u;
-constexpr uint32_t kDeclareLocalVariableNameFlags = 3u;
-constexpr uint32_t kDeclareLocalVariableOwnerFlag = 4u;
-
-// One slot of the locals array takes twelve bytes, and the array never grows
-// past the parser's own maximum.
-constexpr uint32_t kDeclareLocalVariableSlotSize = 12u;
-constexpr uint32_t kDeclareLocalVariableArrayLimit = 32767u;
-
-// The four texts this body reports with.
-constexpr uint32_t kDeclareLocalVariableMainText = 0x2B6C0u;  // main function has more than %d %s
-constexpr uint32_t kDeclareLocalVariableLineText = 0x2B6E2u;  // function at line %d has more than %d %s
-constexpr uint32_t kDeclareLocalVariableLocalsText = 0x2B70Fu;  // local variables
-constexpr uint32_t kDeclareLocalVariableTooManyText = 0x2B71Fu;  // too many local variables
-
-// The suspend frame: the words this body saves, the resume word pushed with
-// them, and the numbers that name the call a frame suspended in.
-constexpr uint32_t kDeclareLocalVariableSaveFrameBytes = 44u;
-constexpr uint32_t kDeclareLocalVariableResumeWordBytes = 4u;
-constexpr uint32_t kDeclareLocalVariableMainTextCall = 0u;
-constexpr uint32_t kDeclareLocalVariableLineTextCall = 1u;
-constexpr uint32_t kDeclareLocalVariableErrorCall = 2u;
-constexpr uint32_t kDeclareLocalVariableGrowCall = 3u;
+constexpr uint32_t kF442MsgMainFunctionHasMore = 0x2B6C0u;  // main function has more than %d %s
+constexpr uint32_t kF442MsgFunctionAtLineD = 0x2B6E2u;  // function at line %d has more than %d %s
+constexpr uint32_t kF442MsgLocalVariables = 0x2B70Fu;  // local variables
+constexpr uint32_t kF442MsgTooManyLocalVariables = 0x2B71Fu;  // too many local variables
+constexpr uint32_t kF442SaveFrameBytes = 44u;
+constexpr uint32_t kF442ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Reserves one local slot for the function the state names, records the name
-// against it, and reports through the parser's own texts when the function has
-// more locals than a function may declare.
 void DeclareLocalVariable(EngineContext* ctx, uint32_t state, uint32_t name, uint32_t slot) {
   EnterFrame();
-  // The suspend frame base: a rewind pops it and the suspend path writes its
-  // eleven words into it.
-  uint32_t frame = 0u;
-  // What a built string or a grown array answered with.
-  uint32_t call_answer = 0u;
-  // The call a rewinding pass re-issues, and the number a spilling pass saves.
-  uint32_t resume_point = 0u;
-  uint32_t resume_code = 0u;
-  // The count of locals already declared, then the array of slots, then the
-  // entry the loop below walks: one cell, because the suspend frame carries it
-  // in one word.
-  uint32_t cursor = 0u;
-  // The function's record and the prototype above it.
-  uint32_t func = 0u;
-  uint32_t proto = 0u;
-  // The array of local slots, and how many entries it holds.
-  uint32_t array = 0u;
-  uint32_t entries = 0u;
-  // The address of the array's capacity word.
-  uint32_t capacity_addr = 0u;
-  // The record one of the diagnostic texts is built from, then whether the
-  // second text is owed at all.
-  uint32_t work = 0u;
-  uint32_t second_report = 0u;
-  // Whether this call has more locals than the limit allows.
-  uint32_t too_many = 0u;
-  // The thirty-two bytes of argument record the texts are built from, reserved
-  // on the guest stack.
-  uint32_t arg_record = 0u;
-
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 44-byte frame and read its words back in the saved
-    // order.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kDeclareLocalVariableSaveFrameBytes);
-    frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    state = LoadU32(ctx, frame);
-    slot = LoadU32(ctx, frame + 8u);
-    cursor = LoadU32(ctx, frame + 12u);
-    work = LoadU32(ctx, frame + 16u);
-    array = LoadU32(ctx, frame + 20u);
-    proto = LoadU32(ctx, frame + 24u);
-    arg_record = LoadU32(ctx, frame + 28u);
-    func = LoadU32(ctx, frame + 32u);
-    entries = LoadU32(ctx, frame + 36u);
-    capacity_addr = LoadU32(ctx, frame + 40u);
-    name = LoadU32(ctx, frame + 4u);
+  uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
+      l11 = 0, l12 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF442SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 8u);
+    slot = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l4 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l5 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l6 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l7 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 28u);
+    l8 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 32u);
+    l9 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 36u);
+    l10 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 40u);
+    l12 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 4u);
+    name = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume word pushed with that frame. It names the call
-    // that was in flight, so only that call is issued again.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kDeclareLocalVariableResumeWordBytes);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF442ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l11 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The argument record for the texts lives on the guest stack, and the
-    // function's own record says whether one more local still fits.
-    arg_record = GuestStackSp(ctx) - 32u;
-    GuestStackSp(ctx) = arg_record;
-    func = LoadU32(ctx, state + kDeclareLocalVariableFunctionOffset);
-    work = func;
-    too_many = static_cast<uint32_t>(static_cast<int32_t>(
-                   LoadU8(ctx, func + kDeclareLocalVariableAdditionOffset) + slot) >=
-               static_cast<int32_t>(kDeclareLocalVariableSlotLimit));
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = GuestStackSp(ctx);
+    i1 = 32u;
+    i0 -= i1;
+    l8 = i0;
+    GuestStackSp(ctx) = i0;
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 48u);
+    l9 = i0;
+    l5 = i0;
+    i0 = LoadU8(ctx, i0 + 50u);
+    i1 = slot;
+    i0 += i1;
+    i1 = 200u;
+    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
+    l4 = i0;
   }
-  if (static_cast<uint32_t>(ResumePhase(ctx) == kResumeRewinding) | too_many) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The prototype records whether the function is still inside its own body,
-      // and the record the text is built from.
-      proto = LoadU32(ctx, LoadU32(ctx, func) + kDeclareLocalVariableParentOffset);
-      second_report = static_cast<uint32_t>(proto == 0u);
-      cursor = LoadU32(ctx, func + kDeclareLocalVariableHomeOffset);
+  i0 = l4;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l9;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 60u);
+      l7 = i0;
+      i0 = !(i0);
+      l5 = i0;
+      i0 = l9;
+      i0 = LoadU32(ctx, i0 + 16u);
+      l4 = i0;
     }
-    if (static_cast<uint32_t>(ResumePhase(ctx) == kResumeRewinding) | second_report) {
-      if (ResumePhase(ctx) == kResumeRunning) {
-        // The main body's own report: "main function has more than %d %s".
-        StoreU32(ctx, arg_record + 4u, kDeclareLocalVariableLocalsText);
-        StoreU32(ctx, arg_record, kDeclareLocalVariableSlotLimit);
+    i0 = l5;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = l8;
+        i1 = kF442MsgLocalVariables;
+        StoreU32(ctx, i0 + 4u, i1);
+        i0 = l8;
+        i1 = 200u;
+        StoreU32(ctx, i0, i1);
       }
-      if (ResumePhase(ctx) == kResumeRunning || resume_point == kDeclareLocalVariableMainTextCall) {
-        call_answer = FormatPushString(ctx, cursor, kDeclareLocalVariableMainText, arg_record);
-        resume_code = kDeclareLocalVariableMainTextCall;
-        if (ResumePhase(ctx) == kResumeSuspended) {
-          goto suspend_point;
-        }
-        cursor = call_answer;
+      i0 = l11;
+      i0 = !(i0);
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = l4;
+        i1 = kF442MsgMainFunctionHasMore;
+        i2 = l8;
+        i0 = FormatPushString(ctx, i0, i1, i2);
+        l3 = i0;
+        i0 = 0u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+        i0 = l3;
+        l4 = i0;
       }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        goto second_report_done;
-      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {goto block_7;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // A nested body's report: "function at line %d has more than %d %s".
-      StoreU32(ctx, arg_record + 24u, kDeclareLocalVariableLocalsText);
-      StoreU32(ctx, arg_record + 20u, kDeclareLocalVariableSlotLimit);
-      StoreU32(ctx, arg_record + 16u, proto);
-      work = arg_record + 16u;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l8;
+      i1 = kF442MsgLocalVariables;
+      StoreU32(ctx, i0 + 24u, i1);
+      i0 = l8;
+      i1 = 200u;
+      StoreU32(ctx, i0 + 20u, i1);
+      i0 = l8;
+      i1 = l7;
+      StoreU32(ctx, i0 + 16u, i1);
+      i0 = l8;
+      i1 = 16u;
+      i0 += i1;
+      l5 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == kDeclareLocalVariableLineTextCall) {
-      call_answer = FormatPushString(ctx, cursor, kDeclareLocalVariableLineText, work);
-      resume_code = kDeclareLocalVariableLineTextCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
-      cursor = call_answer;
+    i0 = l11;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l4;
+      i1 = kF442MsgFunctionAtLineD;
+      i2 = l5;
+      i0 = FormatPushString(ctx, i0, i1, i2);
+      l3 = i0;
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l3;
+      l4 = i0;
     }
-  second_report_done:;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      work = LoadU32(ctx, func + kDeclareLocalVariableNamesOffset);
+    block_7:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l9;
+      i0 = LoadU32(ctx, i0 + 12u);
+      l5 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == kDeclareLocalVariableErrorCall) {
-      LexError(ctx, work, cursor, 0u);
-      resume_code = kDeclareLocalVariableErrorCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
+    i0 = l11;
+    i1 = 2u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l5;
+      i1 = l4;
+      i2 = 0u;
+      LexError(ctx, i0, i1, i2);
+      i0 = 2u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    // A running pass takes the record the state holds; a rewinding pass keeps
-    // the one the frame restored.
-    work = ResumePhase(ctx) ? work : LoadU32(ctx, state + kDeclareLocalVariableFunctionOffset);
+    i0 = ResumePhase(ctx);
+    if (i0) {
+      i0 = l5;
+    } else {
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 48u);
+    }
+    l5 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The locals array the prototype owns, and whether it already holds more
-    // entries than the function has declared.
-    proto = LoadU32(ctx, work);
-    cursor = LoadU32(ctx, proto + kDeclareLocalVariableCapacityOffset);
-    too_many = static_cast<uint32_t>(static_cast<int32_t>(cursor) >
-                                     static_cast<int32_t>(LoadS16(ctx, work + kDeclareLocalVariableCountOffset)));
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    i0 = LoadU32(ctx, i0);
+    l7 = i0;
+    i0 = LoadU32(ctx, i0 + 56u);
+    l4 = i0;
+    i1 = l5;
+    i1 = LoadS16(ctx, i1 + 48u);
+    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+    l6 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (too_many) {
-      // The array already has room for one more slot.
-      array = LoadU32(ctx, proto + kDeclareLocalVariableArrayOffset);
-      goto array_ready;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l6;
+    if (i0) {
+      i0 = l7;
+      i0 = LoadU32(ctx, i0 + 24u);
+      l6 = i0;
+      goto block_17;
     }
-    // No room: the parser's array grower takes the old block, the address of its
-    // capacity word, the record the entries are held for, and the slot size.
-    entries = LoadU32(ctx, proto + kDeclareLocalVariableArrayOffset);
-    capacity_addr = proto + kDeclareLocalVariableCapacityOffset;
-    array = LoadU32(ctx, state + kDeclareLocalVariableElementsOffset);
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l10 = i0;
+    i0 = l7;
+    i1 = 56u;
+    i0 += i1;
+    l12 = i0;
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 52u);
+    l6 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == kDeclareLocalVariableGrowCall) {
-    call_answer = GrowArray(ctx, array, entries, capacity_addr, kDeclareLocalVariableSlotSize,
-                            kDeclareLocalVariableArrayLimit, kDeclareLocalVariableTooManyText);
-    resume_code = kDeclareLocalVariableGrowCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    array = call_answer;
+  i0 = l11;
+  i1 = 3u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l6;
+    i1 = l10;
+    i2 = l12;
+    i3 = 12u;
+    i4 = 32767u;
+    i5 = kF442MsgTooManyLocalVariables;
+    i0 = GrowArray(ctx, i0, i1, i2, i3, i4, i5);
+    l3 = i0;
+    i0 = 3u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    l6 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The grown block takes the old one's place, and every slot the growth added
-    // is cleared before the new local goes in.
-    StoreU32(ctx, proto + kDeclareLocalVariableArrayOffset, array);
-    entries = LoadU32(ctx, proto + kDeclareLocalVariableCapacityOffset);
-    if (static_cast<int32_t>(entries) <= static_cast<int32_t>(cursor)) {
-      goto array_ready;
-    }
-    do {
-      StoreU32(ctx, cursor * kDeclareLocalVariableSlotSize + array, 0u);
-      cursor += 1u;
-    } while (entries != cursor);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l7;
+    i1 = l6;
+    StoreU32(ctx, i0 + 24u, i1);
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 56u);
+    l10 = i0;
+    i1 = l4;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {goto block_17;}
+    loop_22: 
+      i0 = l4;
+      i1 = 12u;
+      i0 *= i1;
+      i1 = l6;
+      i0 += i1;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = l10;
+      i1 = l4;
+      i2 = 1u;
+      i1 += i2;
+      l4 = i1;
+      i0 = i0 != i1;
+      if (i0) {goto loop_22;}
   }
-array_ready:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The new slot takes the name, and a name whose flags say so is noted down
-    // in the parser's list of named locals as well.
-    cursor = LoadS16(ctx, work + kDeclareLocalVariableCountOffset);
-    StoreU32(ctx, cursor * kDeclareLocalVariableSlotSize + array, name);
-    if ((LoadU8(ctx, name + kDeclareLocalVariableFlagOffset) & kDeclareLocalVariableNameFlags) != 0u &&
-        (LoadU8(ctx, proto + kDeclareLocalVariableFlagOffset) & kDeclareLocalVariableOwnerFlag) != 0u) {
-      StoreListEntry(ctx, LoadU32(ctx, state + kDeclareLocalVariableElementsOffset), proto, name);
-      cursor = LoadU16(ctx, work + kDeclareLocalVariableCountOffset);
-    }
-    // One more local is declared, and the slot map takes the name's number.
-    StoreU16(ctx, work + kDeclareLocalVariableCountOffset, cursor + 1u);
-    StoreU16(ctx, func + ((slot + LoadU8(ctx, func + kDeclareLocalVariableAdditionOffset)) << 1u) +
-                          kDeclareLocalVariableSlotMapOffset,
-             cursor);
-    GuestStackSp(ctx) = arg_record + 32u;
+  block_17:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    i0 = LoadS16(ctx, i0 + 48u);
+    l4 = i0;
+    i1 = 12u;
+    i0 *= i1;
+    i1 = l6;
+    i0 += i1;
+    i1 = name;
+    StoreU32(ctx, i0, i1);
+    i0 = name;
+    i0 = LoadU8(ctx, i0 + 5u);
+    i1 = 3u;
+    i0 &= i1;
+    i0 = !(i0);
+    if (i0) {goto block_24;}
+    i0 = l7;
+    i0 = LoadU8(ctx, i0 + 5u);
+    i1 = 4u;
+    i0 &= i1;
+    i0 = !(i0);
+    if (i0) {goto block_24;}
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 52u);
+    i1 = l7;
+    i2 = name;
+    StoreListEntry(ctx, i0, i1, i2);
+    i0 = l5;
+    i0 = LoadU16(ctx, i0 + 48u);
+    l4 = i0;
+    block_24:;
+    i0 = l5;
+    i1 = l4;
+    i2 = 1u;
+    i1 += i2;
+    StoreU16(ctx, i0 + 48u, i1);
+    i0 = l9;
+    i1 = slot;
+    i2 = l9;
+    i2 = LoadU8(ctx, i2 + 50u);
+    i1 += i2;
+    i2 = 1u;
+    i1 <<= (i2 & 31);
+    i0 += i1;
+    i1 = l4;
+    StoreU16(ctx, i0 + 172u, i1);
+    i0 = l8;
+    i1 = 32u;
+    i0 += i1;
+    GuestStackSp(ctx) = i0;
   }
-  LeaveFrame();
-  return;
-suspend_point:;
-  // Push the resume word naming the call that was in flight, then the frame the
-  // rewind pops; the words are saved in the order that pop reads them.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-           LoadU32(ctx, ReturnFrameSp(ctx)) + kDeclareLocalVariableResumeWordBytes);
-  frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, frame, state);
-  StoreU32(ctx, frame + 4u, name);
-  StoreU32(ctx, frame + 8u, slot);
-  StoreU32(ctx, frame + 12u, cursor);
-  StoreU32(ctx, frame + 16u, work);
-  StoreU32(ctx, frame + 20u, array);
-  StoreU32(ctx, frame + 24u, proto);
-  StoreU32(ctx, frame + 28u, arg_record);
-  StoreU32(ctx, frame + 32u, func);
-  StoreU32(ctx, frame + 36u, entries);
-  StoreU32(ctx, frame + 40u, capacity_addr);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-           LoadU32(ctx, ReturnFrameSp(ctx)) + kDeclareLocalVariableSaveFrameBytes);
+  goto func_exit;
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF442ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = name;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = slot;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l3;
+  i1 = l4;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l3;
+  i1 = l5;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l3;
+  i1 = l6;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = l3;
+  i1 = l7;
+  StoreU32(ctx, i0 + 24u, i1);
+  i0 = l3;
+  i1 = l8;
+  StoreU32(ctx, i0 + 28u, i1);
+  i0 = l3;
+  i1 = l9;
+  StoreU32(ctx, i0 + 32u, i1);
+  i0 = l3;
+  i1 = l10;
+  StoreU32(ctx, i0 + 36u, i1);
+  i0 = l3;
+  i1 = l12;
+  StoreU32(ctx, i0 + 40u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 44u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

@@ -1,44 +1,100 @@
+// clear_upvalue_flags.cpp -- clears the upvalue flags: every upvalue's cached flag is reset..
+//
+// ClearUpvalueFlags -- clears the upvalue flags: every upvalue's cached flag is reset.
+//
+// The step is a plain call: the body holds no suspend point, so the
+// frame pair is bookkeeping only. Judgment order is untouched -- the
+// goto graph is the generated driver's own flattening, renamed labels
+// only.
+//
+// src: artemis.wasm2c.c 813595-813595 (f1732); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Clears the flags of one node and everything below it.
+// Forward declarations -- batch-mates and registered callees.
+void ClearLocalFlags(EngineContext* ctx, uint32_t a);
 void ClearFlagsRecursive(EngineContext* ctx, uint32_t state, uint32_t node);
 
-// Clears the flags of every local slot of one scope.
-void ClearLocalFlags(EngineContext* ctx, uint32_t state);
+namespace {
 
-// Clears the cached flags of the upvalues a closure holds: first the cell in its
-// own list, then the one in its shared list, each descending one step further
-// when that cell is still shared. The closure is marked as cleared afterwards.
-void ClearUpvalueFlags(EngineContext* ctx, uint32_t state) {
+
+}  // namespace
+
+void ClearUpvalueFlags(EngineContext* ctx, uint32_t a) {
   EnterFrame();
-  uint32_t const closure = LoadU32(ctx, state + 16u);
-  // The closure's own cached flag words go first.
-  StoreU32(ctx, closure + 44u, 0u);
-  StoreU64(ctx, closure + 36u, 0ull);
-  uint32_t upvalue = LoadU32(ctx, closure + 112u);
-  if ((LoadU8(ctx, upvalue + 5u) & 3u) != 0u) {
-    ClearFlagsRecursive(ctx, closure, upvalue);
-    upvalue = LoadU32(ctx, closure + 112u);  // the recursion may have replaced it
+  uint32_t l1 = 0u; uint32_t l2 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u;
+  uint64_t j1 = 0;
+  i0 = a;
+  i0 = LoadU32(ctx, i0 + 16u);
+  l1 = i0;
+  i1 = 0u;
+  StoreU32(ctx, i0 + 44u, i1);
+  i0 = l1;
+  j1 = 0ull;
+  StoreU64(ctx, i0 + 36u, j1);
+  i0 = l1;
+  i0 = LoadU32(ctx, i0 + 112u);
+  l2 = i0;
+  i0 = LoadU8(ctx, i0 + 5u);
+  i1 = 3u;
+  i0 &= i1;
+  if (i0) {
+    i0 = l1;
+    i1 = l2;
+    ClearFlagsRecursive(ctx, i0, i1);
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 112u);
+    l2 = i0;
   }
-  // Only a cell that is still shared is followed to its successor.
-  if (static_cast<int32_t>(LoadU32(ctx, upvalue + 80u)) >= 4) {
-    upvalue = LoadU32(ctx, upvalue + 72u);
-    if ((LoadU8(ctx, upvalue + 5u) & 3u) != 0u) {
-      ClearFlagsRecursive(ctx, closure, upvalue);
-    }
-  }
-  uint32_t const record = LoadU32(ctx, state + 16u);
-  if (static_cast<int32_t>(LoadU32(ctx, record + 104u)) >= 4) {
-    uint32_t const shared = LoadU32(ctx, record + 96u);
-    if ((LoadU8(ctx, shared + 5u) & 3u) != 0u) {
-      ClearFlagsRecursive(ctx, closure, shared);
-    }
-  }
-  ClearLocalFlags(ctx, closure);
-  StoreU8(ctx, closure + 21u, 1u);
+  i0 = l2;
+  i0 = LoadU32(ctx, i0 + 80u);
+  i1 = 4u;
+  i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+  if (i0) {goto spill_frame;}
+  i0 = l2;
+  i0 = LoadU32(ctx, i0 + 72u);
+  l2 = i0;
+  i0 = LoadU8(ctx, i0 + 5u);
+  i1 = 3u;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {goto spill_frame;}
+  i0 = l1;
+  i1 = l2;
+  ClearFlagsRecursive(ctx, i0, i1);
+  spill_frame:;
+  i0 = a;
+  i0 = LoadU32(ctx, i0 + 16u);
+  a = i0;
+  i0 = LoadU32(ctx, i0 + 104u);
+  i1 = 4u;
+  i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+  if (i0) {goto block_2;}
+  i0 = a;
+  i0 = LoadU32(ctx, i0 + 96u);
+  a = i0;
+  i0 = LoadU8(ctx, i0 + 5u);
+  i1 = 3u;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {goto block_2;}
+  i0 = l1;
+  i1 = a;
+  ClearFlagsRecursive(ctx, i0, i1);
+  block_2:;
+  i0 = l1;
+  ClearLocalFlags(ctx, i0);
+  i0 = l1;
+  i1 = 1u;
+  StoreU8(ctx, i0 + 21u, i1);
   LeaveFrame();
 }
-
-}  // namespace artc
+}

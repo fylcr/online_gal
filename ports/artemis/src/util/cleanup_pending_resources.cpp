@@ -1,8 +1,23 @@
+// cleanup_pending_resources.cpp -- the C++ unwind and guard cleanup: drives each pending destructor through the try/resume handoff on the asyncify throw slot, frees what the guards own, and releases the collectors the frame held..
+//
+// CleanupPendingResources -- the C++ unwind and guard cleanup: drives each pending destructor through the try/resume handoff on the asyncify throw slot, frees what the guards own, and releases the collectors the frame held.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 2251235-2252539 (f4082); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations of the callees below.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 uint32_t AllocateStringBuffer(EngineContext* ctx, uint32_t a0);
 uint32_t CopyBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
@@ -11,523 +26,1282 @@ void RaiseStringLengthError(EngineContext* ctx, uint32_t a);
 
 namespace {
 
-constexpr uint32_t kCleanupStringSlotAddr = 0xD015Cu;  // where a pending string is parked
-constexpr uint32_t kCleanupHeapFlag = 0x80000000u;  // marks a text whose storage is on the heap
-constexpr uint32_t kCleanupSizeMask = 0xFFFFFFF0u;  // rounds an allocation up to sixteen
-constexpr uint32_t kCleanupConstFFFFFFFF = 0xFFFFFFFFu;  // the -1 a clean sign byte holds
-constexpr uint32_t kCleanupSaveFrameBytes = 48u;  // the frame this step saves on suspend
-constexpr uint32_t kCleanupResumeWordBytes = 4u;  // the resume word above it
+constexpr uint32_t kF4082ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF4082Const80000000 = 0x80000000u;  // 
+constexpr uint32_t kF4082ConstFFFFFFF0 = 0xFFFFFFF0u;  // 
+constexpr uint32_t kF4082ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF4082SaveFrameBytes = 48u;
+constexpr uint32_t kF4082ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Splits the text that pending resources hold into the chunks the host call
-// takes: each chunk is copied into a buffer allocated for it, the call is
-// dispatched with that buffer, and the text left over is carried across the
-// suspension in the save frame. A text past its length limit raises the length
-// error, and a host call that failed releases its buffer and traps.
 void CleanupPendingResources(EngineContext* ctx, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4) {
   EnterFrame();
-  uint32_t frame = 0u;
-  uint32_t mark = 0u;
-  uint32_t split_at = 0u;
-  uint32_t resume_point = 0u;
-  uint32_t needle = 0u;
-  uint32_t scratch = 0u;
-  uint32_t text = 0u;
-  uint32_t alloc = 0u;
-  uint32_t hold = 0u;
-  uint32_t cursor = 0u;
-  // Rewind: drop the 48-byte frame, then the resume word above it.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kCleanupSaveFrameBytes);
-    frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    p0 = LoadU32(ctx, frame);
-    p2 = LoadU32(ctx, frame + 8u);
-    p3 = LoadU32(ctx, frame + 12u);
-    p4 = LoadU32(ctx, frame + 16u);
-    text = LoadU32(ctx, frame + 20u);
-    scratch = LoadU32(ctx, frame + 24u);
-    hold = LoadU32(ctx, frame + 28u);
-    cursor = LoadU32(ctx, frame + 32u);
-    mark = LoadU32(ctx, frame + 36u);
-    split_at = LoadU32(ctx, frame + 40u);
-    needle = LoadU32(ctx, frame + 44u);
-    p1 = LoadU32(ctx, frame + 4u);
+  uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  uint64_t j1 = 0;
+      l13 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF4082SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l7 = i0;
+    i0 = LoadU32(ctx, i0);
+    p0 = i0;
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 8u);
+    p2 = i0;
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 12u);
+    p3 = i0;
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 16u);
+    p4 = i0;
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l6 = i0;
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l5 = i0;
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 28u);
+    l8 = i0;
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 32u);
+    l9 = i0;
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 36u);
+    l10 = i0;
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 40u);
+    l11 = i0;
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 44u);
+    l13 = i0;
+    i0 = l7;
+    i0 = LoadU32(ctx, i0 + 4u);
+    p1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kCleanupResumeWordBytes);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF4082ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l12 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    text = GuestStackSp(ctx) - 16u;
-    GuestStackSp(ctx) = text;
-    StoreU32(ctx, text + 8u, 0u);
-    StoreU64(ctx, text, 0ull);
-    scratch = LoadU32(ctx, p1 + 4u);
-    hold = (scratch < LoadU32(ctx, p1 + 8u));
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = GuestStackSp(ctx);
+    i1 = 16u;
+    i0 -= i1;
+    l6 = i0;
+    GuestStackSp(ctx) = i0;
+    i0 = l6;
+    i1 = 0u;
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = l6;
+    j1 = 0ull;
+    StoreU64(ctx, i0, j1);
+    i0 = p1;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l5 = i0;
+    i1 = p1;
+    i1 = LoadU32(ctx, i1 + 8u);
+    i0 = i0 < i1;
+    l8 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (hold != 0u) {
-      StoreU64(ctx, scratch, LoadU64(ctx, text));
-      hold = LoadU32(ctx, text + 8u);
-      StoreU32(ctx, scratch + 8u, hold);
-      scratch = scratch + 12u;
-      StoreU32(ctx, p1 + 4u, scratch);
-      goto scan_text;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l8;
+    if (i0) {
+      i0 = l5;
+      i1 = l6;
+      j1 = LoadU64(ctx, i1);
+      StoreU64(ctx, i0, j1);
+      i0 = l5;
+      i1 = l6;
+      i1 = LoadU32(ctx, i1 + 8u);
+      l8 = i1;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = p1;
+      i1 = l5;
+      i2 = 12u;
+      i1 += i2;
+      l5 = i1;
+      StoreU32(ctx, i0 + 4u, i1);
+      goto block_8;
     }
-    StoreU32(ctx, kCleanupStringSlotAddr, 0u);
+    i0 = kF4082ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
-    HostOsSchedule(ctx, 1412u, p1, text);
-    resume_point = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+  i0 = l12;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = 1412u;
+    i1 = p1;
+    i2 = l6;
+    HostOsSchedule(ctx, i0, i1, i2);
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    scratch = LoadU32(ctx, kCleanupStringSlotAddr);
-    StoreU32(ctx, kCleanupStringSlotAddr, 0u);
-    if (scratch == 1u) goto host_result_top;
-    scratch = (static_cast<int32_t>(LoadS8(ctx, text + 11u)) >
-        static_cast<int32_t>(kCleanupConstFFFFFFFF));
-    if (scratch != 0u) goto scan_text;
-    scratch = LoadU32(ctx, text);
-    DeallocateRawBlock(ctx, scratch);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF4082ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
+    i0 = kF4082ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l5;
+    i1 = 1u;
+    i0 = i0 == i1;
+    if (i0) {goto block_7;}
+    i0 = l6;
+    i0 = LoadS8(ctx, i0 + 11u);
+    i1 = kF4082ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+    l5 = i0;
+    if (i0) {goto block_8;}
+    i0 = l6;
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
+    DeallocateRawBlock(ctx, i0);
   }
-  // An empty first byte means there is nothing to dispatch.
-  scan_text:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    hold = LoadU8(ctx, p0);
-    scratch = (hold == 0u);
+  block_8:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  i1 = 0u;
+  i2 = ResumePhase(ctx);
+  i2 = !(i2);
+  if (i2) {
+    i2 = p0;
+    i2 = LoadU8(ctx, i2);
+    l8 = i2;
+    i2 = !(i2);
+    l5 = i2;
   }
-  if (scratch != 0u && ResumePhase(ctx) == kResumeRunning) goto frame_cleanup;
-  // Walk the text one chunk at a time, looking for the byte that ends it.
-  walk_text:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    cursor = p0;
-    p0 = LoadS8(ctx, p3 + 11u);
-    scratch = (static_cast<int32_t>(p0) > static_cast<int32_t>(kCleanupConstFFFFFFFF));
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (scratch != 0u) {
-      mark = p0 & 255u;
-      p0 = 0u;
-      match_local_bytes:;
-      scratch = (p0 == mark);
-      if (scratch != 0u) goto chunk_exhausted;
-      scratch = p0 + p3;
-      p0 = p0 + 1u;
-      scratch = (LoadU8(ctx, scratch) != (hold & 255u));
-      if (scratch != 0u) goto match_local_bytes;
-      goto split_point;
+  i2 = l5;
+  i0 = i2 ? i0 : i1;
+  if (i0) {goto block_14;}
+  loop_17: 
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = p0;
+      l9 = i0;
+      i0 = p3;
+      i0 = LoadS8(ctx, i0 + 11u);
+      p0 = i0;
+      i1 = kF4082ConstFFFFFFFF;
+      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+      l5 = i0;
     }
-    alloc = LoadU32(ctx, p3);
-    mark = LoadU32(ctx, p3 + 4u);
-    p0 = 0u;
-    match_bytes:;
-    scratch = (p0 == mark);
-    if (scratch != 0u) goto chunk_exhausted;
-    scratch = p0 + alloc;
-    p0 = p0 + 1u;
-    needle = hold & 255u;
-    scratch = (needle != LoadU8(ctx, scratch));
-    if (scratch != 0u) goto match_bytes;
-    goto split_point;
-    chunk_exhausted:;
-    mark = cursor;
-    needle = hold & 255u;
-    p0 = (needle == 0u);
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (p0 != 0u) goto text_end;
-    p0 = (static_cast<int32_t>(LoadS8(ctx, p2 + 11u)) < 0 ? LoadU32(ctx, p2) : p2);
-    alloc = hold;
-    scratch = cursor;
-    compare_tail:;
-    mark = LoadU8(ctx, p0);
-    if (mark == 0u) {
-      mark = scratch;
-      goto text_end;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l5;
+      if (i0) {
+        i0 = p0;
+        i1 = 255u;
+        i0 &= i1;
+        l10 = i0;
+        i0 = 0u;
+        p0 = i0;
+        loop_24: 
+          i0 = p0;
+          i1 = l10;
+          i0 = i0 == i1;
+          l5 = i0;
+          if (i0) {goto block_22;}
+          i0 = p0;
+          i1 = p3;
+          i0 += i1;
+          l5 = i0;
+          i0 = p0;
+          i1 = 1u;
+          i0 += i1;
+          p0 = i0;
+          i0 = l5;
+          i0 = LoadU8(ctx, i0);
+          i1 = l8;
+          i2 = 255u;
+          i1 &= i2;
+          i0 = i0 != i1;
+          l5 = i0;
+          if (i0) {goto loop_24;}
+        goto block_20;
+      }
+      i0 = p3;
+      i0 = LoadU32(ctx, i0);
+      l7 = i0;
+      i0 = p3;
+      i0 = LoadU32(ctx, i0 + 4u);
+      l10 = i0;
+      i0 = 0u;
+      p0 = i0;
+      loop_25: 
+        i0 = p0;
+        i1 = l10;
+        i0 = i0 == i1;
+        l5 = i0;
+        if (i0) {goto block_22;}
+        i0 = p0;
+        i1 = l7;
+        i0 += i1;
+        l5 = i0;
+        i0 = p0;
+        i1 = 1u;
+        i0 += i1;
+        p0 = i0;
+        i0 = l8;
+        i1 = 255u;
+        i0 &= i1;
+        l13 = i0;
+        i1 = l5;
+        i1 = LoadU8(ctx, i1);
+        i0 = i0 != i1;
+        l5 = i0;
+        if (i0) {goto loop_25;}
+      goto block_20;
+      block_22:;
+      i0 = l9;
+      l10 = i0;
+      i0 = l8;
+      i1 = 255u;
+      i0 &= i1;
+      l13 = i0;
+      i0 = !(i0);
+      p0 = i0;
     }
-    mark = ((alloc & 255u) != mark);
-    if (mark != 0u) goto sequence_length;
-    p0 = p0 + 1u;
-    alloc = LoadU8(ctx, scratch + 1u);
-    mark = scratch + 1u;
-    scratch = mark;
-    if (alloc != 0u) goto compare_tail;
-    text_end:;
-    p0 = (split_at == 0u);
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (p0 != 0u) goto append_descriptor;
-    hold = cursor - split_at;
-    p0 = (hold >= kCleanupSizeMask);
-    if (p0 != 0u) goto raise_length;
-    p0 = (hold >= 11u);
-  }
-  if (p0 != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    p0 = ResumePhase(ctx) ? p0 : ((hold + 16u) & kCleanupSizeMask);
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
-      alloc = AllocateStringBuffer(ctx, p0);
-      resume_point = 1u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-      scratch = alloc;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = p0;
+      if (i0) {goto block_28;}
+      i0 = p2;
+      i0 = LoadU32(ctx, i0);
+      i1 = p2;
+      i2 = p2;
+      i2 = LoadS8(ctx, i2 + 11u);
+      i3 = 0u;
+      i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
+      i0 = i2 ? i0 : i1;
+      p0 = i0;
+      i0 = l8;
+      l7 = i0;
+      i0 = l9;
+      l5 = i0;
+      loop_29: 
+        i0 = p0;
+        i0 = LoadU8(ctx, i0);
+        l10 = i0;
+        i0 = !(i0);
+        if (i0) {
+          i0 = l5;
+          l10 = i0;
+          goto block_28;
+        }
+        i0 = l7;
+        i1 = 255u;
+        i0 &= i1;
+        i1 = l10;
+        i0 = i0 != i1;
+        l10 = i0;
+        if (i0) {goto block_26;}
+        i0 = p0;
+        i1 = 1u;
+        i0 += i1;
+        p0 = i0;
+        i0 = l5;
+        i0 = LoadU8(ctx, i0 + 1u);
+        l7 = i0;
+        i0 = l5;
+        i1 = 1u;
+        i0 += i1;
+        l10 = i0;
+        l5 = i0;
+        i0 = l7;
+        if (i0) {goto loop_29;}
+      block_28:;
+      i0 = l11;
+      i0 = !(i0);
+      p0 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      p0 = p0 | kCleanupHeapFlag;
-      StoreU32(ctx, text + 8u, p0);
-      StoreU32(ctx, text, scratch);
-      StoreU32(ctx, text + 4u, hold);
-      goto copy_chunk;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = p0;
+      if (i0) {goto block_35;}
+      i0 = l9;
+      i1 = l11;
+      i0 -= i1;
+      l8 = i0;
+      i1 = kF4082ConstFFFFFFF0;
+      i0 = i0 >= i1;
+      p0 = i0;
+      if (i0) {goto block_5;}
+      i0 = l8;
+      i1 = 11u;
+      i0 = i0 >= i1;
+      p0 = i0;
+    }
+    i0 = p0;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = p0;
+      i1 = l8;
+      i2 = 16u;
+      i1 += i2;
+      i2 = kF4082ConstFFFFFFF0;
+      i1 &= i2;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      p0 = i0;
+      i0 = l12;
+      i1 = 1u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = p0;
+        i0 = AllocateStringBuffer(ctx, i0);
+        l7 = i0;
+        i0 = 1u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+        i0 = l7;
+        l5 = i0;
+      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = l6;
+        i1 = p0;
+        i2 = kF4082Const80000000;
+        i1 |= i2;
+        p0 = i1;
+        StoreU32(ctx, i0 + 8u, i1);
+        i0 = l6;
+        i1 = l5;
+        StoreU32(ctx, i0, i1);
+        i0 = l6;
+        i1 = l8;
+        StoreU32(ctx, i0 + 4u, i1);
+        goto block_37;
+      }
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l6;
+      i1 = l8;
+      StoreU8(ctx, i0 + 11u, i1);
+      i0 = l6;
+      l5 = i0;
+      i0 = l8;
+      i0 = !(i0);
+      p0 = i0;
+      if (i0) {goto block_36;}
+    }
+    block_37:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l5;
+      i1 = l11;
+      i2 = l8;
+      i0 = CopyBytes(ctx, i0, i1, i2);
+      p0 = i0;
+    }
+    block_36:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l5;
+      i1 = l8;
+      i0 += i1;
+      i1 = 0u;
+      StoreU8(ctx, i0, i1);
+      i0 = p1;
+      i0 = LoadU32(ctx, i0 + 4u);
+      p0 = i0;
+      i0 = kF4082ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = p0;
+      i1 = 12u;
+      i0 -= i1;
+      l8 = i0;
+      i0 = l6;
+      i0 = LoadU32(ctx, i0);
+      i1 = l6;
+      i2 = l6;
+      i2 = LoadU8(ctx, i2 + 11u);
+      l5 = i2;
+      i3 = 24u;
+      i2 <<= (i3 & 31);
+      i3 = 24u;
+      i2 = (uint32_t)((int32_t)i2 >> (i3 & 31));
+      i3 = 0u;
+      i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
+      p0 = i2;
+      i0 = i2 ? i0 : i1;
+      l9 = i0;
+      i0 = l6;
+      i0 = LoadU32(ctx, i0 + 4u);
+      i1 = l5;
+      i2 = p0;
+      i0 = i2 ? i0 : i1;
+      p0 = i0;
+    }
+    i0 = l12;
+    i1 = 2u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 860u;
+      i1 = l8;
+      i2 = l9;
+      i3 = p0;
+      i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
+      l7 = i0;
+      i0 = 2u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l7;
+      p0 = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF4082ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      p0 = i0;
+      i0 = kF4082ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = p0;
+      i1 = 1u;
+      i0 = i0 == i1;
+      p0 = i0;
+      if (i0) {goto block_34;}
+      i0 = l6;
+      i0 = LoadS8(ctx, i0 + 11u);
+      i1 = kF4082ConstFFFFFFFF;
+      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+      p0 = i0;
+      if (i0) {goto block_35;}
+      i0 = l6;
+      i0 = LoadU32(ctx, i0);
+      p0 = i0;
+      DeallocateRawBlock(ctx, i0);
+    }
+    block_35:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l6;
+      i1 = 0u;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = l6;
+      j1 = 0ull;
+      StoreU64(ctx, i0, j1);
+      i0 = p1;
+      i0 = LoadU32(ctx, i0 + 4u);
+      p0 = i0;
+      i1 = p1;
+      i1 = LoadU32(ctx, i1 + 8u);
+      i0 = i0 >= i1;
+      l5 = i0;
+      if (i0) {goto block_33;}
+      i0 = p0;
+      i1 = l6;
+      j1 = LoadU64(ctx, i1);
+      StoreU64(ctx, i0, j1);
+      i0 = p0;
+      i1 = l6;
+      i1 = LoadU32(ctx, i1 + 8u);
+      l5 = i1;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = p1;
+      i1 = p0;
+      i2 = 12u;
+      i1 += i2;
+      p0 = i1;
+      StoreU32(ctx, i0 + 4u, i1);
+      goto block_32;
+    }
+    block_34:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = HostRet0(ctx);
+      p0 = i0;
+      i0 = HostTempRet0(ctx);
+      i0 = l6;
+      i0 = LoadS8(ctx, i0 + 11u);
+      i1 = kF4082ConstFFFFFFFF;
+      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+      if (i0) {goto block_6;}
+      goto running_exit;
+    }
+    block_33:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF4082ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+    }
+    i0 = l12;
+    i1 = 3u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 1412u;
+      i1 = p1;
+      i2 = l6;
+      HostOsSchedule(ctx, i0, i1, i2);
+      i0 = 3u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF4082ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      p0 = i0;
+      i0 = kF4082ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = p0;
+      i1 = 1u;
+      i0 = i0 == i1;
+      p0 = i0;
+      if (i0) {goto block_31;}
+      i0 = l6;
+      i0 = LoadS8(ctx, i0 + 11u);
+      i1 = kF4082ConstFFFFFFFF;
+      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+      p0 = i0;
+      if (i0) {goto block_32;}
+      i0 = l6;
+      i0 = LoadU32(ctx, i0);
+      p0 = i0;
+      DeallocateRawBlock(ctx, i0);
+    }
+    block_32:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l10;
+      i1 = 1u;
+      i0 -= i1;
+      l9 = i0;
+      i0 = 0u;
+      l11 = i0;
+      goto block_19;
+    }
+    block_31:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = HostRet0(ctx);
+      p0 = i0;
+      i0 = HostTempRet0(ctx);
+      i0 = l6;
+      i0 = LoadS8(ctx, i0 + 11u);
+      i1 = kF4082ConstFFFFFFFF;
+      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+      if (i0) {goto block_6;}
+      goto running_exit;
+    }
+    block_26:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l11;
+      i1 = l9;
+      i2 = l11;
+      i0 = i2 ? i0 : i1;
+      l11 = i0;
+      i0 = p4;
+      switch (i0) {
+        case 0: goto block_59;
+        case 1: goto block_58;
+        case 2: goto block_57;
+        default: goto block_19;
+      }
+      block_59:;
+      i0 = 1u;
+      p0 = i0;
+      i0 = l8;
+      i1 = 32u;
+      i0 ^= i1;
+      i1 = 255u;
+      i0 &= i1;
+      i1 = 161u;
+      i0 -= i1;
+      i1 = 60u;
+      i0 = i0 < i1;
+      l5 = i0;
+      if (i0) {goto block_56;}
+      goto block_19;
+      block_58:;
+      i0 = 1u;
+      p0 = i0;
+      i0 = l13;
+      i1 = 142u;
+      i0 = i0 == i1;
+      l5 = i0;
+      if (i0) {goto block_56;}
+      i0 = l8;
+      i1 = 95u;
+      i0 += i1;
+      i1 = 255u;
+      i0 &= i1;
+      i1 = 84u;
+      i0 = i0 < i1;
+      l5 = i0;
+      if (i0) {goto block_56;}
+      goto block_19;
+      block_57:;
+      i0 = 128u;
+      l5 = i0;
+      i0 = kF4082ConstFFFFFFFF;
+      p0 = i0;
+      i0 = l8;
+      i1 = 24u;
+      i0 <<= (i1 & 31);
+      i1 = 24u;
+      i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
+      l8 = i0;
+      i1 = 128u;
+      i0 &= i1;
+      i0 = !(i0);
+      l10 = i0;
+      if (i0) {goto block_19;}
+      loop_60: 
+        i0 = p0;
+        i1 = 1u;
+        i0 += i1;
+        p0 = i0;
+        i0 = l8;
+        i1 = l5;
+        i2 = 1u;
+        i1 = (uint32_t)((int32_t)i1 >> (i2 & 31));
+        l5 = i1;
+        i0 &= i1;
+        l10 = i0;
+        if (i0) {goto loop_60;}
+      block_56:;
+      i0 = p0;
+      i1 = l9;
+      i0 += i1;
+      l9 = i0;
+      goto block_19;
+    }
+    block_20:;
+    i0 = p0;
+    i1 = l11;
+    i1 = !(i1);
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    p0 = i0;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = p0;
+      if (i0) {goto block_62;}
+      i0 = l9;
+      i1 = l11;
+      i0 -= i1;
+      l8 = i0;
+      i1 = kF4082ConstFFFFFFF0;
+      i0 = i0 >= i1;
+      p0 = i0;
+      if (i0) {goto block_5;}
+      i0 = l8;
+      i1 = 11u;
+      i0 = i0 >= i1;
+      p0 = i0;
+    }
+    i0 = p0;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = p0;
+      i1 = l8;
+      i2 = 16u;
+      i1 += i2;
+      i2 = kF4082ConstFFFFFFF0;
+      i1 &= i2;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      p0 = i0;
+      i0 = l12;
+      i1 = 4u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = p0;
+        i0 = AllocateStringBuffer(ctx, i0);
+        l7 = i0;
+        i0 = 4u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+        i0 = l7;
+        l5 = i0;
+      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = l6;
+        i1 = p0;
+        i2 = kF4082Const80000000;
+        i1 |= i2;
+        p0 = i1;
+        StoreU32(ctx, i0 + 8u, i1);
+        i0 = l6;
+        i1 = l5;
+        StoreU32(ctx, i0, i1);
+        i0 = l6;
+        i1 = l8;
+        StoreU32(ctx, i0 + 4u, i1);
+        goto block_64;
+      }
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l6;
+      i1 = l8;
+      StoreU8(ctx, i0 + 11u, i1);
+      i0 = l6;
+      l5 = i0;
+      i0 = l8;
+      i0 = !(i0);
+      p0 = i0;
+      if (i0) {goto block_63;}
+    }
+    block_64:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l5;
+      i1 = l11;
+      i2 = l8;
+      i0 = CopyBytes(ctx, i0, i1, i2);
+      p0 = i0;
+    }
+    block_63:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l5;
+      i1 = l8;
+      i0 += i1;
+      i1 = 0u;
+      StoreU8(ctx, i0, i1);
+      i0 = p1;
+      i0 = LoadU32(ctx, i0 + 4u);
+      p0 = i0;
+      i0 = kF4082ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = p0;
+      i1 = 12u;
+      i0 -= i1;
+      l8 = i0;
+      i0 = l6;
+      i0 = LoadU32(ctx, i0);
+      i1 = l6;
+      i2 = l6;
+      i2 = LoadU8(ctx, i2 + 11u);
+      l5 = i2;
+      i3 = 24u;
+      i2 <<= (i3 & 31);
+      i3 = 24u;
+      i2 = (uint32_t)((int32_t)i2 >> (i3 & 31));
+      i3 = 0u;
+      i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
+      p0 = i2;
+      i0 = i2 ? i0 : i1;
+      l10 = i0;
+      i0 = l6;
+      i0 = LoadU32(ctx, i0 + 4u);
+      i1 = l5;
+      i2 = p0;
+      i0 = i2 ? i0 : i1;
+      p0 = i0;
+    }
+    i0 = l12;
+    i1 = 5u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 860u;
+      i1 = l8;
+      i2 = l10;
+      i3 = p0;
+      i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
+      l7 = i0;
+      i0 = 5u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l7;
+      p0 = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF4082ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      p0 = i0;
+      i0 = kF4082ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = p0;
+      i1 = 1u;
+      i0 = i0 == i1;
+      p0 = i0;
+      if (i0) {goto block_61;}
+      i0 = l6;
+      i0 = LoadS8(ctx, i0 + 11u);
+      i1 = kF4082ConstFFFFFFFF;
+      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+      p0 = i0;
+      if (i0) {goto block_62;}
+      i0 = l6;
+      i0 = LoadU32(ctx, i0);
+      p0 = i0;
+      DeallocateRawBlock(ctx, i0);
+    }
+    block_62:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l9;
+      i1 = l9;
+      i2 = 1u;
+      i1 += i2;
+      l5 = i1;
+      i2 = l9;
+      i2 = LoadU8(ctx, i2 + 1u);
+      i3 = 10u;
+      i2 = i2 == i3;
+      p0 = i2;
+      i0 = i2 ? i0 : i1;
+      l9 = i0;
+      i0 = 0u;
+      i1 = l5;
+      i2 = p0;
+      i0 = i2 ? i0 : i1;
+      l11 = i0;
+      goto block_19;
+    }
+    block_61:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = HostRet0(ctx);
+      p0 = i0;
+      i0 = HostTempRet0(ctx);
+      i0 = l6;
+      i0 = LoadS8(ctx, i0 + 11u);
+      i1 = kF4082ConstFFFFFFFF;
+      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+      if (i0) {goto block_6;}
+      goto running_exit;
+    }
+    block_19:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l9;
+      i1 = 1u;
+      i0 += i1;
+      p0 = i0;
+      i0 = l9;
+      i0 = LoadU8(ctx, i0 + 1u);
+      l8 = i0;
+      if (i0) {goto loop_17;}
+    }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l11;
+    i0 = !(i0);
+    p0 = i0;
+    if (i0) {goto block_14;}
+    i0 = l11;
+    i0 = StringLength(ctx, i0);
+    p2 = i0;
+    i1 = kF4082ConstFFFFFFF0;
+    i0 = i0 >= i1;
+    p0 = i0;
+    if (i0) {goto block_5;}
+    i0 = p2;
+    i1 = 11u;
+    i0 = i0 >= i1;
+    p0 = i0;
+  }
+  i0 = p0;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = p0;
+    i1 = p2;
+    i2 = 16u;
+    i1 += i2;
+    i2 = kF4082ConstFFFFFFF0;
+    i1 &= i2;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    p0 = i0;
+    i0 = l12;
+    i1 = 6u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = p0;
+      i0 = AllocateStringBuffer(ctx, i0);
+      l7 = i0;
+      i0 = 6u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l7;
+      l5 = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l6;
+      i1 = p0;
+      i2 = kF4082Const80000000;
+      i1 |= i2;
+      p0 = i1;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = l6;
+      i1 = l5;
+      StoreU32(ctx, i0, i1);
+      i0 = l6;
+      i1 = p2;
+      StoreU32(ctx, i0 + 4u, i1);
+      i0 = l6;
+      l8 = i0;
+      goto block_80;
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, text + 11u, hold);
-    scratch = text;
-    p0 = (hold == 0u);
-    if (p0 != 0u) goto copy_done;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l6;
+    i1 = p2;
+    StoreU8(ctx, i0 + 11u, i1);
+    i0 = l6;
+    l8 = i0;
+    i0 = l6;
+    l5 = i0;
+    i0 = p2;
+    i0 = !(i0);
+    p0 = i0;
+    if (i0) {goto block_79;}
   }
-  // Copy the chunk into the buffer, then terminate it.
-  copy_chunk:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    p0 = CopyBytes(ctx, scratch, split_at, hold);
+  block_80:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    i1 = l11;
+    i2 = p2;
+    i0 = CopyBytes(ctx, i0, i1, i2);
+    p0 = i0;
   }
-  copy_done:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, (scratch + hold), 0u);
-    p0 = LoadU32(ctx, p1 + 4u);
-    StoreU32(ctx, kCleanupStringSlotAddr, 0u);
-    hold = p0 - 12u;
-    scratch = LoadU8(ctx, text + 11u);
-    p0 = ((static_cast<int32_t>(scratch << (24u & 31)) >> (24u & 31)) < 0);
-    cursor = p0 ? LoadU32(ctx, text) : text;
-    p0 = p0 ? LoadU32(ctx, text + 4u) : scratch;
+  block_79:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = p2;
+    i1 = l5;
+    i0 += i1;
+    i1 = 0u;
+    StoreU8(ctx, i0, i1);
+    i0 = p1;
+    i0 = LoadU32(ctx, i0 + 4u);
+    p0 = i0;
+    i0 = l8;
+    i0 = LoadU8(ctx, i0 + 11u);
+    p1 = i0;
+    i0 = kF4082ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = p0;
+    i1 = 12u;
+    i0 -= i1;
+    p2 = i0;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0);
+    i1 = l6;
+    i2 = p1;
+    i3 = 24u;
+    i2 <<= (i3 & 31);
+    i3 = 24u;
+    i2 = (uint32_t)((int32_t)i2 >> (i3 & 31));
+    i3 = 0u;
+    i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
+    p0 = i2;
+    i0 = i2 ? i0 : i1;
+    p3 = i0;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0 + 4u);
+    i1 = p1;
+    i2 = p0;
+    i0 = i2 ? i0 : i1;
+    p0 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
-    alloc = HostDispatchInvoke(ctx, 860u, hold, cursor, p0);
-    resume_point = 2u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-    p0 = alloc;
+  i0 = l12;
+  i1 = 7u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = 860u;
+    i1 = p2;
+    i2 = p3;
+    i3 = p0;
+    i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
+    l7 = i0;
+    i0 = 7u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l7;
+    p0 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    p0 = LoadU32(ctx, kCleanupStringSlotAddr);
-    StoreU32(ctx, kCleanupStringSlotAddr, 0u);
-    p0 = (p0 == 1u);
-    if (p0 != 0u) goto host_result_dispatch;
-    p0 = (static_cast<int32_t>(LoadS8(ctx, text + 11u)) >
-        static_cast<int32_t>(kCleanupConstFFFFFFFF));
-    if (p0 != 0u) goto append_descriptor;
-    p0 = LoadU32(ctx, text);
-    DeallocateRawBlock(ctx, p0);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF4082ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    p0 = i0;
+    i0 = kF4082ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = p0;
+    i1 = 1u;
+    i0 = i0 == i1;
+    p0 = i0;
+    if (i0) {goto block_13;}
+    i0 = l8;
+    i0 = LoadS8(ctx, i0 + 11u);
+    i1 = kF4082ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+    p0 = i0;
+    if (i0) {goto block_14;}
+    i0 = l6;
+    i0 = LoadU32(ctx, i0);
+    p0 = i0;
+    DeallocateRawBlock(ctx, i0);
   }
-  // Append the chunk to the pending list, growing the list if it is full.
-  append_descriptor:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, text + 8u, 0u);
-    StoreU64(ctx, text, 0ull);
-    p0 = LoadU32(ctx, p1 + 4u);
-    scratch = (p0 >= LoadU32(ctx, p1 + 8u));
-    if (scratch != 0u) goto schedule_after_copy;
-    StoreU64(ctx, p0, LoadU64(ctx, text));
-    scratch = LoadU32(ctx, text + 8u);
-    StoreU32(ctx, p0 + 8u, scratch);
-    p0 = p0 + 12u;
-    StoreU32(ctx, p1 + 4u, p0);
-    goto continue_scan;
+  block_14:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l6;
+    i1 = 16u;
+    i0 += i1;
+    GuestStackSp(ctx) = i0;
+    goto func_exit;
   }
-  host_result_dispatch:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    p0 = HostRet0(ctx);
-    HostTempRet0(ctx);
-    if (static_cast<int32_t>(LoadS8(ctx, text + 11u)) >
-        static_cast<int32_t>(kCleanupConstFFFFFFFF)) goto release_and_trap;
-    goto finished;
+  block_13:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = HostRet0(ctx);
+    p0 = i0;
+    i0 = HostTempRet0(ctx);
+    i0 = l8;
+    i0 = LoadS8(ctx, i0 + 11u);
+    i1 = kF4082ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+    if (i0) {goto block_6;}
+    i0 = l6;
+    i0 = LoadU32(ctx, i0);
+    DeallocateRawBlock(ctx, i0);
+    goto block_6;
   }
-  schedule_after_copy:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, kCleanupStringSlotAddr, 0u);
+  block_7:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = HostRet0(ctx);
+    p0 = i0;
+    i0 = HostTempRet0(ctx);
+    i0 = l6;
+    i0 = LoadS8(ctx, i0 + 11u);
+    i1 = kF4082ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+    if (i0) {goto block_6;}
+    goto running_exit;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
-    HostOsSchedule(ctx, 1412u, p1, text);
-    resume_point = 3u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    p0 = LoadU32(ctx, kCleanupStringSlotAddr);
-    StoreU32(ctx, kCleanupStringSlotAddr, 0u);
-    p0 = (p0 == 1u);
-    if (p0 != 0u) goto host_result_schedule;
-    p0 = (static_cast<int32_t>(LoadS8(ctx, text + 11u)) >
-        static_cast<int32_t>(kCleanupConstFFFFFFFF));
-    if (p0 != 0u) goto continue_scan;
-    p0 = LoadU32(ctx, text);
-    DeallocateRawBlock(ctx, p0);
-  }
-  continue_scan:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    cursor = mark - 1u;
-    split_at = 0u;
-    goto advance_char;
-  }
-  host_result_schedule:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    p0 = HostRet0(ctx);
-    HostTempRet0(ctx);
-    if (static_cast<int32_t>(LoadS8(ctx, text + 11u)) >
-        static_cast<int32_t>(kCleanupConstFFFFFFFF)) goto release_and_trap;
-    goto finished;
-  }
-  sequence_length:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    split_at = split_at ? split_at : cursor;
-    // The lead byte of the character under the cursor says how long it runs.
-    switch (p4) {
-    case 0: goto one_byte;
-    case 1: goto two_byte;
-    case 2: goto multi_byte;
-    default: goto advance_char;
-    }
-    one_byte:;
-    p0 = 1u;
-    scratch = ((((hold ^ 32u) & 255u) - 161u) < 60u);
-    if (scratch != 0u) goto advance_count;
-    goto advance_char;
-    two_byte:;
-    p0 = 1u;
-    scratch = (needle == 142u);
-    if (scratch != 0u) goto advance_count;
-    scratch = (((hold + 95u) & 255u) < 84u);
-    if (scratch != 0u) goto advance_count;
-    goto advance_char;
-    multi_byte:;
-    scratch = 128u;
-    p0 = kCleanupConstFFFFFFFF;
-    hold = static_cast<uint32_t>(static_cast<int32_t>(hold << (24u & 31)) >> (24u & 31));
-    mark = ((hold & 128u) == 0u);
-    if (mark != 0u) goto advance_char;
-    measure_prefix:;
-    p0 = p0 + 1u;
-    scratch = static_cast<uint32_t>(static_cast<int32_t>(scratch) >> (1u & 31));
-    mark = hold & scratch;
-    if (mark != 0u) goto measure_prefix;
-    advance_count:;
-    cursor = p0 + cursor;
-    goto advance_char;
-  }
-  // The text before the split point is dispatched now; the rest waits.
-  split_point:;
-  p0 = ResumePhase(ctx) ? p0 : (split_at == 0u);
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (p0 != 0u) goto split_at_newline;
-    hold = cursor - split_at;
-    p0 = (hold >= kCleanupSizeMask);
-    if (p0 != 0u) goto raise_length;
-    p0 = (hold >= 11u);
-  }
-  if (p0 != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    p0 = ResumePhase(ctx) ? p0 : ((hold + 16u) & kCleanupSizeMask);
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
-      alloc = AllocateStringBuffer(ctx, p0);
-      resume_point = 4u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-      scratch = alloc;
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      p0 = p0 | kCleanupHeapFlag;
-      StoreU32(ctx, text + 8u, p0);
-      StoreU32(ctx, text, scratch);
-      StoreU32(ctx, text + 4u, hold);
-      goto copy_tail;
-    }
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, text + 11u, hold);
-    scratch = text;
-    p0 = (hold == 0u);
-    if (p0 != 0u) goto terminate_tail;
-  }
-  copy_tail:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    p0 = CopyBytes(ctx, scratch, split_at, hold);
-  }
-  terminate_tail:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, (scratch + hold), 0u);
-    p0 = LoadU32(ctx, p1 + 4u);
-    StoreU32(ctx, kCleanupStringSlotAddr, 0u);
-    hold = p0 - 12u;
-    scratch = LoadU8(ctx, text + 11u);
-    p0 = ((static_cast<int32_t>(scratch << (24u & 31)) >> (24u & 31)) < 0);
-    mark = p0 ? LoadU32(ctx, text) : text;
-    p0 = p0 ? LoadU32(ctx, text + 4u) : scratch;
-  }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
-    alloc = HostDispatchInvoke(ctx, 860u, hold, mark, p0);
-    resume_point = 5u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-    p0 = alloc;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    p0 = LoadU32(ctx, kCleanupStringSlotAddr);
-    StoreU32(ctx, kCleanupStringSlotAddr, 0u);
-    p0 = (p0 == 1u);
-    if (p0 != 0u) goto host_result_tail;
-    p0 = (static_cast<int32_t>(LoadS8(ctx, text + 11u)) >
-        static_cast<int32_t>(kCleanupConstFFFFFFFF));
-    if (p0 != 0u) goto split_at_newline;
-    p0 = LoadU32(ctx, text);
-    DeallocateRawBlock(ctx, p0);
-  }
-  split_at_newline:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    scratch = cursor + 1u;
-    p0 = (LoadU8(ctx, cursor + 1u) == 10u);
-    cursor = p0 ? cursor : scratch;
-    split_at = p0 ? 0u : scratch;
-    goto advance_char;
-  }
-  host_result_tail:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    p0 = HostRet0(ctx);
-    HostTempRet0(ctx);
-    if (static_cast<int32_t>(LoadS8(ctx, text + 11u)) >
-        static_cast<int32_t>(kCleanupConstFFFFFFFF)) goto release_and_trap;
-    goto finished;
-  }
-  advance_char:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    p0 = cursor + 1u;
-    hold = LoadU8(ctx, cursor + 1u);
-    if (hold != 0u) goto walk_text;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    p0 = (split_at == 0u);
-    if (p0 != 0u) goto frame_cleanup;
-    p2 = StringLength(ctx, split_at);
-    p0 = (p2 >= kCleanupSizeMask);
-    if (p0 != 0u) goto raise_length;
-    p0 = (p2 >= 11u);
-  }
-  if (p0 != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    p0 = ResumePhase(ctx) ? p0 : ((p2 + 16u) & kCleanupSizeMask);
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
-      alloc = AllocateStringBuffer(ctx, p0);
-      resume_point = 6u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-      scratch = alloc;
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      p0 = p0 | kCleanupHeapFlag;
-      StoreU32(ctx, text + 8u, p0);
-      StoreU32(ctx, text, scratch);
-      StoreU32(ctx, text + 4u, p2);
-      hold = text;
-      goto copy_tail_chunk;
-    }
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, text + 11u, p2);
-    hold = text;
-    scratch = text;
-    p0 = (p2 == 0u);
-    if (p0 != 0u) goto tail_ready;
-  }
-  copy_tail_chunk:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    p0 = CopyBytes(ctx, scratch, split_at, p2);
-  }
-  tail_ready:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, (p2 + scratch), 0u);
-    p0 = LoadU32(ctx, p1 + 4u);
-    p1 = LoadU8(ctx, hold + 11u);
-    StoreU32(ctx, kCleanupStringSlotAddr, 0u);
-    p2 = p0 - 12u;
-    p0 = ((static_cast<int32_t>(p1 << (24u & 31)) >> (24u & 31)) < 0);
-    p3 = p0 ? LoadU32(ctx, text) : text;
-    p0 = p0 ? LoadU32(ctx, text + 4u) : p1;
-  }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 7u) {
-    alloc = HostDispatchInvoke(ctx, 860u, p2, p3, p0);
-    resume_point = 7u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-    p0 = alloc;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    p0 = LoadU32(ctx, kCleanupStringSlotAddr);
-    StoreU32(ctx, kCleanupStringSlotAddr, 0u);
-    p0 = (p0 == 1u);
-    if (p0 != 0u) goto host_result_final;
-    p0 = (static_cast<int32_t>(LoadS8(ctx, hold + 11u)) >
-        static_cast<int32_t>(kCleanupConstFFFFFFFF));
-    if (p0 != 0u) goto frame_cleanup;
-    p0 = LoadU32(ctx, text);
-    DeallocateRawBlock(ctx, p0);
-  }
-  // Nothing left to dispatch: hand the scratch frame back.
-  frame_cleanup:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    GuestStackSp(ctx) = text + 16u;
-    goto exit_path;
-  }
-  host_result_final:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    p0 = HostRet0(ctx);
-    HostTempRet0(ctx);
-    if (static_cast<int32_t>(LoadS8(ctx, hold + 11u)) >
-        static_cast<int32_t>(kCleanupConstFFFFFFFF)) goto release_and_trap;
-    DeallocateRawBlock(ctx, LoadU32(ctx, text));
-    goto release_and_trap;
-  }
-  host_result_top:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    p0 = HostRet0(ctx);
-    HostTempRet0(ctx);
-    if (static_cast<int32_t>(LoadS8(ctx, text + 11u)) >
-        static_cast<int32_t>(kCleanupConstFFFFFFFF)) goto release_and_trap;
-    goto finished;
-  }
-  release_and_trap:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    HostOsRelease(ctx, p0);
+  block_6:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = p0;
+    HostOsRelease(ctx, i0);
     TrapUnreachable();
   }
-  // The text is past the length limit the count can hold.
-  raise_length:;
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 8u) {
-    RaiseStringLengthError(ctx, text);
-    resume_point = 8u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+  block_5:;
+  i0 = l12;
+  i1 = 8u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l6;
+    RaiseStringLengthError(ctx, i0);
+    i0 = 8u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
     TrapUnreachable();
   }
-  finished:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    DeallocateRawBlock(ctx, LoadU32(ctx, text));
-    HostOsRelease(ctx, p0);
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l6;
+    i0 = LoadU32(ctx, i0);
+    DeallocateRawBlock(ctx, i0);
+    i0 = p0;
+    HostOsRelease(ctx, i0);
     TrapUnreachable();
   }
-  goto exit_path;
-  suspend_point:;
-  // Suspend: push the resume point, then the 48-byte frame with the live state.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kCleanupResumeWordBytes);
-  frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, frame, p0);
-  StoreU32(ctx, frame + 4u, p1);
-  StoreU32(ctx, frame + 8u, p2);
-  StoreU32(ctx, frame + 12u, p3);
-  StoreU32(ctx, frame + 16u, p4);
-  StoreU32(ctx, frame + 20u, text);
-  StoreU32(ctx, frame + 24u, scratch);
-  StoreU32(ctx, frame + 28u, hold);
-  StoreU32(ctx, frame + 32u, cursor);
-  StoreU32(ctx, frame + 36u, mark);
-  StoreU32(ctx, frame + 40u, split_at);
-  StoreU32(ctx, frame + 44u, needle);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kCleanupSaveFrameBytes);
-  exit_path:;
+  goto func_exit;
+  spill_frame:;
+  l7 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l7;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF4082ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l7 = i0;
+  i1 = p0;
+  StoreU32(ctx, i0, i1);
+  i0 = l7;
+  i1 = p1;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l7;
+  i1 = p2;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l7;
+  i1 = p3;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l7;
+  i1 = p4;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l7;
+  i1 = l6;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = l7;
+  i1 = l5;
+  StoreU32(ctx, i0 + 24u, i1);
+  i0 = l7;
+  i1 = l8;
+  StoreU32(ctx, i0 + 28u, i1);
+  i0 = l7;
+  i1 = l9;
+  StoreU32(ctx, i0 + 32u, i1);
+  i0 = l7;
+  i1 = l10;
+  StoreU32(ctx, i0 + 36u, i1);
+  i0 = l7;
+  i1 = l11;
+  StoreU32(ctx, i0 + 40u, i1);
+  i0 = l7;
+  i1 = l13;
+  StoreU32(ctx, i0 + 44u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 48u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

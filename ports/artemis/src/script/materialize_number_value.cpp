@@ -1,113 +1,202 @@
+// materialize_number_value.cpp -- turns a numeric slot into a TValue the arithmetic path can use directly..
+//
+// MaterializeNumberValue -- turns a numeric slot into a TValue the arithmetic path can use directly.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 347946-347946 (f897); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Defined in another product.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t CoerceToNumber(EngineContext* ctx, uint32_t state, uint32_t value);
 
 namespace {
 
-// Suspended-frame words: state, slot, the value being built and the scratch block.
-constexpr uint32_t kMaterializeNumberSaveFrameBytes = 16u;
-constexpr uint32_t kMaterializeNumberResumeWordBytes = 4u;
+constexpr uint32_t kF897SaveFrameBytes = 16u;
+constexpr uint32_t kF897ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Turns the numeric value held by `slot` into a TValue the arithmetic path can
-// read directly, and returns the state to carry on from.  The CoerceToNumber
-// call is suspendable: the resume word names the call that was in flight, so a
-// rewound frame replays exactly that call.
 uint32_t MaterializeNumberValue(EngineContext* ctx, uint32_t state, uint32_t slot) {
   EnterFrame();
-  uint32_t result = 0u;
-  uint32_t scratch = 0u;
-  uint32_t resume_word = 0u;
-  uint32_t resume_code = 0u;
-  uint32_t step = 0u;
-  uint32_t value_slot = 0u;
-  uint32_t call_result = 0u;
-  double value = 0;
-
-  // Rewound frame: recover the arguments and the scratch block.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kMaterializeNumberSaveFrameBytes);
-    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    state = LoadU32(ctx, saved_frame);
-    slot = LoadU32(ctx, saved_frame + 4u);
-    value_slot = LoadU32(ctx, saved_frame + 8u);
-    scratch = LoadU32(ctx, saved_frame + 12u);
+  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; double l5 = 0;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
+  double d0 = 0; double d1 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF897SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 4u);
+    slot = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l4 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l2 = i0;
   }
-  // The word naming the call that was in flight.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kMaterializeNumberResumeWordBytes);
-    resume_word = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF897ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Reserve the scratch block the value is built in.
-    scratch = GuestStackSp(ctx) - 16u;
-    GuestStackSp(ctx) = scratch;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = GuestStackSp(ctx);
+    i1 = 16u;
+    i0 -= i1;
+    l2 = i0;
+    GuestStackSp(ctx) = i0;
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 8u);
+    i1 = 3u;
+    i0 -= i1;
+    l4 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    step = LoadU32(ctx, state + 8u) - 3u;
-    if (step == 1u) {
-      // The value sits in the scratch block; skip the frame being consumed.
-      value_slot = scratch + 8u;
-      state = LoadU32(ctx, state) + 16u;
-    } else if (step != 0u) {
-      goto keep_state;
-    } else {
-      // Nothing of this value is left to materialize.
-      goto running_done;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    switch (i0) {
+      case 0: goto running_exit;
+      case 1: goto block_7;
+      default: goto block_5;
     }
+    block_7:;
+    i0 = l2;
+    i1 = 8u;
+    i0 += i1;
+    l4 = i0;
+    i0 = state;
+    i0 = LoadU32(ctx, i0);
+    i1 = 16u;
+    i0 += i1;
+    state = i0;
   }
-  // Only replay the call when it is the one the resume word names.
-  if (ResumePhase(ctx) == kResumeRunning || resume_word == 0u) {
-    call_result = CoerceToNumber(ctx, state, value_slot);
-    resume_code = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    state = call_result;
+  i0 = l3;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = l4;
+    i0 = CoerceToNumber(ctx, i0, i1);
+    l3 = i0;
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    state = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (state == 0u) {
-      // The call reported nothing to materialize; leave the value alone.
-      goto keep_state;
-    }
-    value = LoadF64(ctx, scratch + 8u);
-    StoreU32(ctx, slot + 8u, 3u);
-    StoreF64(ctx, slot, value);
-    state = slot;
-    goto running_done;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = state;
+    i0 = !(i0);
+    state = i0;
+    if (i0) {goto block_5;}
+    i0 = l2;
+    d0 = LoadF64(ctx, i0 + 8u);
+    l5 = d0;
+    i0 = slot;
+    i1 = 3u;
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = slot;
+    d1 = l5;
+    StoreF64(ctx, i0, d1);
+    i0 = slot;
+    state = i0;
+    goto running_exit;
   }
-keep_state:;
-  // A running pass has no state left to report.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    state = 0u;
-  }
-running_done:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    GuestStackSp(ctx) = scratch + 16u;
-    result = state;
-    goto exit_path;
+  block_5:;
+  i0 = state;
+  i1 = 0u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  state = i0;
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i1 = 16u;
+    i0 += i1;
+    GuestStackSp(ctx) = i0;
+    i0 = state;
+    goto func_exit;
   }
   TrapUnreachable();
-suspend_point:;
-  {
-    // Push the word naming the call in flight, step past it, then the frame.
-    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kMaterializeNumberResumeWordBytes);
-    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    StoreU32(ctx, saved_frame, state);
-    StoreU32(ctx, saved_frame + 4u, slot);
-    StoreU32(ctx, saved_frame + 8u, value_slot);
-    StoreU32(ctx, saved_frame + 12u, scratch);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kMaterializeNumberSaveFrameBytes);
-    result = 0u;
-  }
-exit_path:;
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF897ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = slot;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = l4;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l3;
+  i1 = l2;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 16u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return result;
+  return i0;
 }
-
-}  // namespace artc
+}

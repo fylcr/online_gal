@@ -1,86 +1,180 @@
+// prepare_string_buffer.cpp -- makes the string buffer ready for the given size, switching to the external block past the inline threshold..
+//
+// PrepareStringBuffer -- makes the string buffer ready for the given size, switching to the external block past the inline threshold.
+//
+// The step is a plain call: the body holds no suspend point, so the
+// frame pair is bookkeeping only. Judgment order is untouched -- the
+// goto graph is the generated driver's own flattening, renamed labels
+// only.
+//
+// src: artemis.wasm2c.c 116393-116393 (f221); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Makes a string buffer ready to hold the requested byte count: a count that
-// still fits is repacked out of the buffer's own inline bytes, and a longer one
-// hands the buffer over to its external block. Answers the packed bytes, or
-// 0xFFFFFFFF once the buffer has been handed over.
+
+namespace {
+
+constexpr uint32_t kF221Const18AD0 = 0x18AD0u;  // 
+constexpr uint32_t kF221ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+
+}  // namespace
+
 uint32_t PrepareStringBuffer(EngineContext* ctx, uint32_t buffer, uint32_t size) {
   EnterFrame();
-  // One name per slot across every role it plays: the buffer's block word and
-  // later the pointer its inline bytes run from, the bit offset of that run,
-  // the wanted byte count and later the whole-word count, that count rounded up
-  // to words, the buffer's own data pointer, and the packed bytes with the mask
-  // they are taken with.
-  uint32_t block = 0u;
-  uint32_t inline_bytes = 0u;
-  uint32_t offset = 0u;
-  uint32_t wanted = 0u;
-  uint32_t words = 0u;
-  uint32_t rounded = 0u;
-  uint32_t inline_data = 0u;
-  uint32_t packed = 0u;
-  uint32_t mask = 0u;
-  if (size >= 33u) {
-    block = LoadU32(ctx, buffer + 16u);
-    goto use_external_block;
+  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  i0 = size;
+  i1 = 33u;
+  i0 = i0 >= i1;
+  if (i0) {
+    i0 = buffer;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l3 = i0;
+    goto block_0;
   }
-  offset = LoadU32(ctx, buffer + 4u);
-  wanted = offset + size;
-  inline_data = LoadU32(ctx, buffer);
-  block = LoadU32(ctx, buffer + 16u);
-  // An inline run that starts before the block's last word still has room to
-  // grow into; one that starts past its rounded word count does not.
-  if (static_cast<int32_t>(inline_data) < static_cast<int32_t>(block - 4u)) {
-    goto repack_inline;
-  }
-  rounded = static_cast<uint32_t>(static_cast<int32_t>(wanted + 7u) >> 3);
-  if (static_cast<int32_t>(inline_data) > static_cast<int32_t>(block - rounded)) {
-    goto use_external_block;
-  }
-  if (wanted == 0u) {
-    LeaveFrame();
-    return 0u;
-  }
- repack_inline:;
-  // The mask is indexed by the requested count and covers that many packed
-  // bytes, which are read back little-endian from the buffer's byte pointer.
-  mask = LoadU32(ctx, 0x18AD0u + (size << 2u));
-  inline_bytes = LoadU32(ctx, buffer + 12u);
-  packed = LoadU8(ctx, inline_bytes) >> (offset & 31u);
-  if (static_cast<int32_t>(wanted) < 9) {
-    goto store_layout;
-  }
-  packed |= LoadU8(ctx, inline_bytes + 1u) << ((8u - offset) & 31u);
-  if (static_cast<int32_t>(wanted) < 17) {
-    goto store_layout;
-  }
-  packed |= LoadU8(ctx, inline_bytes + 2u) << ((16u - offset) & 31u);
-  if (static_cast<int32_t>(wanted) < 25) {
-    goto store_layout;
-  }
-  packed |= LoadU8(ctx, inline_bytes + 3u) << ((24u - offset) & 31u);
-  if (offset == 0u) {
-    goto store_layout;
-  }
-  if (static_cast<int32_t>(wanted) < 33) {
-    goto store_layout;
-  }
-  packed |= LoadU8(ctx, inline_bytes + 4u) << ((32u - offset) & 31u);
- store_layout:;
-  StoreU32(ctx, buffer + 4u, wanted & 7u);
-  words = I32_DIV_S(wanted, 8u);
-  StoreU32(ctx, buffer, inline_data + words);
-  StoreU32(ctx, buffer + 12u, words + inline_bytes);
+  i0 = buffer;
+  i0 = LoadU32(ctx, i0 + 4u);
+  l4 = i0;
+  i1 = size;
+  i0 += i1;
+  l2 = i0;
+  i0 = buffer;
+  i0 = LoadU32(ctx, i0);
+  l5 = i0;
+  i1 = buffer;
+  i1 = LoadU32(ctx, i1 + 16u);
+  l3 = i1;
+  i2 = 4u;
+  i1 -= i2;
+  i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+  if (i0) {goto block_2;}
+  i0 = l5;
+  i1 = l3;
+  i2 = l2;
+  i3 = 7u;
+  i2 += i3;
+  i3 = 3u;
+  i2 = (uint32_t)((int32_t)i2 >> (i3 & 31));
+  i1 -= i2;
+  i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+  if (i0) {goto block_0;}
+  i0 = l2;
+  if (i0) {goto block_2;}
+  i0 = 0u;
+  goto func_exit;
+  block_2:;
+  i0 = size;
+  i1 = 2u;
+  i0 <<= (i1 & 31);
+  i1 = kF221Const18AD0;
+  i0 += i1;
+  i0 = LoadU32(ctx, i0);
+  l6 = i0;
+  i0 = buffer;
+  i0 = LoadU32(ctx, i0 + 12u);
+  l3 = i0;
+  i0 = LoadU8(ctx, i0);
+  i1 = l4;
+  i0 >>= (i1 & 31);
+  size = i0;
+  i0 = l2;
+  i1 = 9u;
+  i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+  if (i0) {goto block_3;}
+  i0 = l3;
+  i0 = LoadU8(ctx, i0 + 1u);
+  i1 = 8u;
+  i2 = l4;
+  i1 -= i2;
+  i0 <<= (i1 & 31);
+  i1 = size;
+  i0 |= i1;
+  size = i0;
+  i0 = l2;
+  i1 = 17u;
+  i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+  if (i0) {goto block_3;}
+  i0 = l3;
+  i0 = LoadU8(ctx, i0 + 2u);
+  i1 = 16u;
+  i2 = l4;
+  i1 -= i2;
+  i0 <<= (i1 & 31);
+  i1 = size;
+  i0 |= i1;
+  size = i0;
+  i0 = l2;
+  i1 = 25u;
+  i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+  if (i0) {goto block_3;}
+  i0 = l3;
+  i0 = LoadU8(ctx, i0 + 3u);
+  i1 = 24u;
+  i2 = l4;
+  i1 -= i2;
+  i0 <<= (i1 & 31);
+  i1 = size;
+  i0 |= i1;
+  size = i0;
+  i0 = l4;
+  i0 = !(i0);
+  if (i0) {goto block_3;}
+  i0 = l2;
+  i1 = 33u;
+  i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+  if (i0) {goto block_3;}
+  i0 = l3;
+  i0 = LoadU8(ctx, i0 + 4u);
+  i1 = 32u;
+  i2 = l4;
+  i1 -= i2;
+  i0 <<= (i1 & 31);
+  i1 = size;
+  i0 |= i1;
+  size = i0;
+  block_3:;
+  i0 = buffer;
+  i1 = l2;
+  i2 = 7u;
+  i1 &= i2;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = buffer;
+  i1 = l5;
+  i2 = l2;
+  i3 = 8u;
+  i2 = I32_DIV_S(i2, i3);
+  l2 = i2;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = buffer;
+  i1 = l2;
+  i2 = l3;
+  i1 += i2;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = size;
+  i1 = l6;
+  i0 &= i1;
+  goto func_exit;
+  block_0:;
+  i0 = buffer;
+  i1 = 1u;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = buffer;
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = buffer;
+  i1 = 0u;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = kF221ConstFFFFFFFF;
+  func_exit:;
   LeaveFrame();
-  return packed & mask;
- use_external_block:;
-  StoreU32(ctx, buffer + 4u, 1u);
-  StoreU32(ctx, buffer, block);
-  StoreU32(ctx, buffer + 12u, 0u);
-  LeaveFrame();
-  return 0xFFFFFFFFu;
+  return i0;
 }
-
-}  // namespace artc
+}

@@ -1,76 +1,156 @@
+// mem_chr.cpp -- the libc memchr: a byte scan up to the alignment boundary, then the word-at-a-time haszero probe, and the address of the first matching byte, or zero when the range runs out..
+//
+// MemChr -- the libc memchr: a byte scan up to the alignment boundary, then the word-at-a-time haszero probe, and the address of the first matching byte, or zero when the range runs out.
+//
+// The step is a plain call: the body holds no suspend point, so the
+// frame pair is bookkeeping only. Judgment order is untouched -- the
+// goto graph is the generated driver's own flattening, renamed labels
+// only.
+//
+// src: artemis.wasm2c.c 122752-122752 (f240); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// The libc byte search: walks the bytes in front of the first aligned address,
-// then probes four bytes at a time with the has-zero trick, and finishes
-// byte-at-a-time for the tail. Returns the address of the first matching byte,
-// or zero when the range runs out.
-uint32_t MemChr(EngineContext* ctx, uint32_t cursor, uint32_t value, uint32_t count) {
-  EnterFrame();
-  // The byte being looked for, the word built from it, and the word the probe is
-  // currently on.
-  uint32_t byte = 0u;
-  uint32_t broadcast = 0u;
-  uint32_t mismatch = 0u;
-  if (count == 0u) {
-    goto scan_done;
-  }
-  if ((cursor & 3u) == 0u) {
-    goto scan_done;
-  }
-  byte = value & 0xFFu;
-  do {
-    if (byte == LoadU8(ctx, cursor)) {
-      goto probe_byte;
-    }
-    cursor += 1u;
-    count -= 1u;
-    if (count == 0u) {
-      goto scan_done;
-    }
-  } while ((cursor & 3u) != 0u);
- scan_done:
-  if (count == 0u) {
-    goto answer_zero;
-  }
- probe_byte:
-  // The byte the walk stopped on is tested again here, so a match reached by the
-  // alignment scan re-reads it.
-  if (LoadU8(ctx, cursor) == (value & 0xFFu)) {
-    goto scan_tail;
-  }
-  if (count < 4u) {
-    goto scan_tail;
-  }
-  // The byte spread across four lanes, so a whole word can be compared at once.
-  broadcast = (value & 0xFFu) * 0x1010101u;
-  do {
-    mismatch = LoadU32(ctx, cursor) ^ broadcast;
-    // A matching lane leaves a zero byte behind; the subtraction borrows into
-    // that lane's top bit, which is the bit the mask keeps.
-    if (((mismatch ^ 0xFFFFFFFFu) & (mismatch - 0x1010101u) & 0x80808080u) != 0u) {
-      goto scan_tail;
-    }
-    cursor += 4u;
-    count -= 4u;
-  } while (count > 3u);
- scan_tail:
-  if (count == 0u) {
-    goto answer_zero;
-  }
-  value &= 0xFFu;
-  do {
-    if (LoadU8(ctx, cursor) == value) {
-      LeaveFrame();
-      return cursor;
-    }
-    cursor += 1u;
-    count -= 1u;
-  } while (count != 0u);
- answer_zero:
-  LeaveFrame();
-  return 0u;
-}
 
-}  // namespace artc
+namespace {
+
+constexpr uint32_t kF240Const1010101 = 0x1010101u;  // 
+constexpr uint32_t kF240Const80808080 = 0x80808080u;  // 
+constexpr uint32_t kF240ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+
+}  // namespace
+
+uint32_t MemChr(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
+  EnterFrame();
+  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
+  i0 = c;
+  i1 = 0u;
+  i0 = i0 != i1;
+  l3 = i0;
+  i0 = c;
+  i0 = !(i0);
+  if (i0) {goto block_2;}
+  i0 = a;
+  i1 = 3u;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {goto block_2;}
+  i0 = b;
+  i1 = 255u;
+  i0 &= i1;
+  l4 = i0;
+  loop_3: 
+    i0 = l4;
+    i1 = a;
+    i1 = LoadU8(ctx, i1);
+    i0 = i0 == i1;
+    if (i0) {goto spill_frame;}
+    i0 = a;
+    i1 = 1u;
+    i0 += i1;
+    a = i0;
+    i0 = c;
+    i1 = 1u;
+    i0 -= i1;
+    c = i0;
+    i1 = 0u;
+    i0 = i0 != i1;
+    l3 = i0;
+    i0 = c;
+    i0 = !(i0);
+    if (i0) {goto block_2;}
+    i0 = a;
+    i1 = 3u;
+    i0 &= i1;
+    if (i0) {goto loop_3;}
+  block_2:;
+  i0 = l3;
+  i0 = !(i0);
+  if (i0) {goto block_0;}
+  spill_frame:;
+  i0 = a;
+  i0 = LoadU8(ctx, i0);
+  i1 = b;
+  i2 = 255u;
+  i1 &= i2;
+  i0 = i0 == i1;
+  if (i0) {goto running_exit;}
+  i0 = c;
+  i1 = 4u;
+  i0 = i0 < i1;
+  if (i0) {goto running_exit;}
+  i0 = b;
+  i1 = 255u;
+  i0 &= i1;
+  i1 = kF240Const1010101;
+  i0 *= i1;
+  l3 = i0;
+  loop_5: 
+    i0 = a;
+    i0 = LoadU32(ctx, i0);
+    i1 = l3;
+    i0 ^= i1;
+    l4 = i0;
+    i1 = kF240ConstFFFFFFFF;
+    i0 ^= i1;
+    l5 = i0;
+    i0 = l5;
+    i1 = l4;
+    i2 = kF240Const1010101;
+    i1 -= i2;
+    i0 &= i1;
+    i1 = kF240Const80808080;
+    i0 &= i1;
+    if (i0) {goto running_exit;}
+    i0 = a;
+    i1 = 4u;
+    i0 += i1;
+    a = i0;
+    i0 = c;
+    i1 = 4u;
+    i0 -= i1;
+    c = i0;
+    i1 = 3u;
+    i0 = i0 > i1;
+    if (i0) {goto loop_5;}
+  running_exit:;
+  i0 = c;
+  i0 = !(i0);
+  if (i0) {goto block_0;}
+  i0 = b;
+  i1 = 255u;
+  i0 &= i1;
+  b = i0;
+  loop_6: 
+    i0 = a;
+    i0 = LoadU8(ctx, i0);
+    i1 = b;
+    i0 = i0 == i1;
+    if (i0) {
+      i0 = a;
+      goto func_exit;
+    }
+    i0 = a;
+    i1 = 1u;
+    i0 += i1;
+    a = i0;
+    i0 = c;
+    i1 = 1u;
+    i0 -= i1;
+    c = i0;
+    if (i0) {goto loop_6;}
+  block_0:;
+  i0 = 0u;
+  func_exit:;
+  LeaveFrame();
+  return i0;
+}
+}

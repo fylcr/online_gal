@@ -15,6 +15,8 @@
     "preview": "pnpm --filter @online-gal/app preview",
     "check": "npm run check:layout && tsc -b tsconfig.packages.json && pnpm --filter @online-gal/app check",
     "check:layout": "node scripts/check-layout.mjs",
+    "check:sources": "node scripts/check-sources.mjs",
+    "test:sources": "node --test test/check-sources.test.mjs",
     "test": "npm run check:layout && npm run build:packages && node scripts/run-tests.mjs"
   },
   "devDependencies": {

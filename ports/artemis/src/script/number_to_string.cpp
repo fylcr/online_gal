@@ -1,116 +1,230 @@
+// number_to_string.cpp -- the numeric formatter behind string coercion, with the 14 significant digit default format..
+//
+// NumberToString -- the numeric formatter behind string coercion, with the 14 significant digit default format.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 788327-788327 (f1704); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations of the callees below.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t StringLength(EngineContext* ctx, uint32_t text);
 uint32_t InternString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t MeasureFormattedNumber(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 
 namespace {
 
-constexpr uint32_t kNumberToStringFormatMessage = 0x2BED9u;  // "%.14g"
-constexpr uint32_t kNumberToStringBufferBytes = 48u;  // room for the formatted text
-constexpr uint32_t kNumberToStringFormatOffset = 16u;  // where the text starts in the buffer
-constexpr uint32_t kNumberToStringNumberTag = 3u;  // the tag of a number value
-constexpr uint32_t kNumberToStringStringTag = 4u;  // the tag it gets once converted
-constexpr uint32_t kNumberToStringSaveFrameBytes = 20u;
-constexpr uint32_t kNumberToStringResumeWordBytes = 4u;
+constexpr uint32_t kF1704MsgG = 0x2BED9u;  // %.14g
+constexpr uint32_t kF1704SaveFrameBytes = 20u;
+constexpr uint32_t kF1704ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Converts a number value into its string form: the double is formatted with
-// "%.14g" into a scratch buffer on the guest stack, the text is measured and
-// interned, and the value is rewritten in place as a string.  A value that is
-// not a number is left alone.  The value being converted is a tagged record --
-// +8 holds the type tag, +0 the payload.
-//
-// Suspendable: both calls can suspend, so every value that outlives a suspend
-// goes into the frame below, and the resume code (0 or 1) names the call that
-// has to be replayed.
 uint32_t NumberToString(EngineContext* ctx, uint32_t value, uint32_t options) {
   EnterFrame();
-  uint32_t text = 0u;
-  uint32_t buffer = 0u;
-  uint32_t count = 0u;
-  uint32_t resume_point = 0u;
-  uint32_t result = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 20-byte frame the suspend path saved.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-        LoadU32(ctx, ReturnFrameSp(ctx)) - kNumberToStringSaveFrameBytes);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    value = LoadU32(ctx, frame);
-    text = LoadU32(ctx, frame + 8u);
-    buffer = LoadU32(ctx, frame + 12u);
-    count = LoadU32(ctx, frame + 16u);
-    options = LoadU32(ctx, frame + 4u);
+  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
+  double d1 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1704SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = LoadU32(ctx, i0);
+    value = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l3 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l4 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l5 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 4u);
+    options = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 4-byte frame that saves the resume code.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-        LoadU32(ctx, ReturnFrameSp(ctx)) - kNumberToStringResumeWordBytes);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1704ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l6 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    buffer = GuestStackSp(ctx) - kNumberToStringBufferBytes;
-    GuestStackSp(ctx) = buffer;
-    text = static_cast<uint32_t>(LoadU32(ctx, options + 8u) == kNumberToStringNumberTag);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = GuestStackSp(ctx);
+    i1 = 48u;
+    i0 -= i1;
+    l4 = i0;
+    GuestStackSp(ctx) = i0;
+    i0 = options;
+    i0 = LoadU32(ctx, i0 + 8u);
+    i1 = 3u;
+    i0 = i0 == i1;
+    l3 = i0;
   }
-  // A value that is not a number keeps the text it already has; the rewinding
-  // pass still walks the block to pick up the string the intern call produced.
-  if (text != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreF64(ctx, buffer, LoadF64(ctx, options));
-      text = buffer + kNumberToStringFormatOffset;
+  i0 = l3;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      i1 = options;
+      d1 = LoadF64(ctx, i1);
+      StoreF64(ctx, i0, d1);
+      i0 = l4;
+      i1 = 16u;
+      i0 += i1;
+      l3 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
-      uint32_t const called =
-          MeasureFormattedNumber(ctx, text, kNumberToStringFormatMessage, buffer);
-      resume_point = 0u;
-      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-      text = called;
+    i0 = l6;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l3;
+      i1 = kF1704MsgG;
+      i2 = l4;
+      i0 = MeasureFormattedNumber(ctx, i0, i1, i2);
+      l2 = i0;
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l2;
+      l3 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      count = StringLength(ctx, buffer + kNumberToStringFormatOffset);
-      text = buffer + kNumberToStringFormatOffset;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      i1 = 16u;
+      i0 += i1;
+      i0 = StringLength(ctx, i0);
+      l5 = i0;
+      i0 = l4;
+      i1 = 16u;
+      i0 += i1;
+      l3 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
-      uint32_t const called = InternString(ctx, value, text, count);
-      resume_point = 1u;
-      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-      value = called;
+    i0 = l6;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = value;
+      i1 = l3;
+      i2 = l5;
+      i0 = InternString(ctx, i0, i1, i2);
+      l2 = i0;
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l2;
+      value = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, options + 8u, kNumberToStringStringTag);
-      StoreU32(ctx, options, value);
-      count = 1u;
+    i0 = ResumePhase(ctx);
+    if (i0) {
+      i0 = l5;
+    } else {
+      i0 = options;
+      i1 = 4u;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = options;
+      i1 = value;
+      StoreU32(ctx, i0, i1);
+      i0 = 1u;
     }
+    l5 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    GuestStackSp(ctx) = buffer + kNumberToStringBufferBytes;
-    result = count;
-    goto exit_path;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    i1 = 48u;
+    i0 += i1;
+    GuestStackSp(ctx) = i0;
+    i0 = l5;
+    goto func_exit;
   }
   TrapUnreachable();
-suspend_point:
-  // Suspend: write the resume code, then push the frame with the live state.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-      LoadU32(ctx, ReturnFrameSp(ctx)) + kNumberToStringResumeWordBytes);
-  {
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    StoreU32(ctx, frame, value);
-    StoreU32(ctx, frame + 4u, options);
-    StoreU32(ctx, frame + 8u, text);
-    StoreU32(ctx, frame + 12u, buffer);
-    StoreU32(ctx, frame + 16u, count);
-  }
-  StoreU32(ctx, ReturnFrameSp(ctx),
-      LoadU32(ctx, ReturnFrameSp(ctx)) + kNumberToStringSaveFrameBytes);
-exit_path:
+  spill_frame:;
+  l2 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF1704ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l2 = i0;
+  i1 = value;
+  StoreU32(ctx, i0, i1);
+  i0 = l2;
+  i1 = options;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l2;
+  i1 = l3;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l2;
+  i1 = l4;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l2;
+  i1 = l5;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 20u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return result;
+  return i0;
 }
-
-}  // namespace artc
+}

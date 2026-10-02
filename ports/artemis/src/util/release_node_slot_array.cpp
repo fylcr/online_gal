@@ -1,258 +1,608 @@
+// release_node_slot_array.cpp -- releases a node slot array: every occupied slot is freed and the array storage is dropped..
+//
+// ReleaseNodeSlotArray -- releases a node slot array: every occupied slot is freed and the array storage is dropped.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 681561-681561 (f1531); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations of the callees below.
+// Forward declarations -- batch-mates and registered callees.
 void Panic(EngineContext* ctx, uint32_t a0);
 
 namespace {
 
-constexpr uint32_t kReleaseNodeSlotControlBlockVtable = 0x90ACCu;  // the control block's vtable
-constexpr uint32_t kReleaseNodeSlotPendingFlag = 0xD015Cu;  // the pending-call flag word
-constexpr uint32_t kReleaseNodeSlotSaveFrameBytes = 16u;  // live state bytes pushed on suspend
-constexpr uint32_t kReleaseNodeSlotResumeWordBytes = 4u;  // resume word pushed above that frame
+constexpr uint32_t kF1531Const90ACC = 0x90ACCu;  // 
+constexpr uint32_t kF1531ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF1531SaveFrameBytes = 16u;
+constexpr uint32_t kF1531ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Gives a node a fresh slot array: an 84-byte control block is laid out and
-// filled in, the node's array pointer is moved onto it, and the counts of the
-// block it replaced are dropped, releasing the old slot pairs as they reach
-// zero.
-//
-// Every callee here can suspend, so each call site carries a resume point naming
-// it, and a, control_block, count and scratch are the live words pushed before
-// the step returns; the two rewind gates at the top restore them.
 void ReleaseNodeSlotArray(EngineContext* ctx, uint32_t a) {
   EnterFrame();
-  uint32_t control_block = 0u;
-  uint32_t count = 0u;
-  uint32_t frame = 0u;
-  uint32_t resume_point = 0u;
-  uint32_t scratch = 0u;
-  uint32_t pending_flag = 0u;
-  // Rewind: drop the 16-byte frame, then the resume word above it.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kReleaseNodeSlotSaveFrameBytes);
-    frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    a = LoadU32(ctx, frame);
-    count = LoadU32(ctx, frame + 8u);
-    scratch = LoadU32(ctx, frame + 12u);
-    control_block = LoadU32(ctx, frame + 4u);
+  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
+  uint64_t j1 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1531SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l2 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l5 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kReleaseNodeSlotResumeWordBytes);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1531ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF1531ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
   }
-  // Lay out the 84-byte control block for the node's slot array.
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
-    frame = HostFoldLayoutOffset(ctx, 1032u, 84u);
-    resume_point = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-    control_block = frame;
+  i0 = l4;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = 1032u;
+    i1 = 84u;
+    i0 = HostFoldLayoutOffset(ctx, i0, i1);
+    l3 = i0;
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    count = LoadU32(ctx, kReleaseNodeSlotPendingFlag);
-    StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
-    count = (count == 1u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF1531ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = kF1531ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l2;
+    i1 = 1u;
+    i0 = i0 == i1;
+    l2 = i0;
   }
-  if (count != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      a = FindMatchingCatch(ctx, 0u);
-      control_block = HostTempRet0(ctx);
-      a = HostRestorePendingThrow(ctx, a);
-      StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
+  i0 = l2;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = 0u;
+      i0 = FindMatchingCatch(ctx, i0);
+      a = i0;
+      i0 = HostTempRet0(ctx);
+      l1 = i0;
+      i0 = a;
+      i0 = HostRestorePendingThrow(ctx, i0);
+      a = i0;
+      i0 = kF1531ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
-      HostMarkRegionSeen(ctx, 1019u);
-      resume_point = 1u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    i0 = l4;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 1019u;
+      HostMarkRegionSeen(ctx, i0);
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      a = LoadU32(ctx, kReleaseNodeSlotPendingFlag);
-      StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
-      a = (a == 1u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF1531ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF1531ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 == i1;
+      a = i0;
     }
-    if (a != 0u || ResumePhase(ctx) == kResumeRewinding) {
-      if (ResumePhase(ctx) == kResumeRunning) {
-        a = HostRet0(ctx);
-        control_block = HostTempRet0(ctx);
-        StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
+    i0 = a;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = HostRet0(ctx);
+        a = i0;
+        i0 = HostTempRet0(ctx);
+        l1 = i0;
+        i0 = kF1531ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
       }
-      if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
-        HostMarkRegionSeen(ctx, 1021u);
-        resume_point = 2u;
-        if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+      i0 = l4;
+      i1 = 2u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = 1021u;
+        HostMarkRegionSeen(ctx, i0);
+        i0 = 2u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
       }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        control_block = LoadU32(ctx, kReleaseNodeSlotPendingFlag);
-        StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
-        if (control_block != 1u) goto abort_missing_call;
-        a = FindMatchingCatch(ctx, 0u);
-        control_block = HostTempRet0(ctx);
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF1531ConstD015C;
+        i0 = LoadU32(ctx, i0);
+        l1 = i0;
+        i0 = kF1531ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+        i0 = l1;
+        i1 = 1u;
+        i0 = i0 != i1;
+        if (i0) {goto block_6;}
+        i0 = 0u;
+        i0 = FindMatchingCatch(ctx, i0);
+        a = i0;
+        i0 = HostTempRet0(ctx);
+        l1 = i0;
       }
-      if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
-        Panic(ctx, a);
-        resume_point = 3u;
-        if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+      i0 = l4;
+      i1 = 3u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = a;
+        Panic(ctx, i0);
+        i0 = 3u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
       }
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
       TrapUnreachable();
     }
   }
-  // Fill the block in: vtable, counts and the byte count of the slot area.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU64(ctx, control_block + 4u, 4294967297ull);
-    StoreU8(ctx, control_block + 16u, 0u);
-    StoreU32(ctx, control_block + 12u, 0u);
-    StoreU32(ctx, control_block, kReleaseNodeSlotControlBlockVtable);
-    StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
-    count = control_block + 20u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    j1 = 4294967297ull;
+    StoreU64(ctx, i0 + 4u, j1);
+    i0 = l1;
+    i1 = 0u;
+    StoreU8(ctx, i0 + 16u, i1);
+    i0 = l1;
+    i1 = 0u;
+    StoreU32(ctx, i0 + 12u, i1);
+    i0 = l1;
+    i1 = kF1531Const90ACC;
+    StoreU32(ctx, i0, i1);
+    i0 = kF1531ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l1;
+    i1 = 20u;
+    i0 += i1;
+    l2 = i0;
   }
-  // Lay out the slot area the control block points at.
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
-    frame = HostFoldLayoutOffset(ctx, 1288u, count);
-    resume_point = 4u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-    scratch = frame;
+  i0 = l4;
+  i1 = 4u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = 1288u;
+    i1 = l2;
+    i0 = HostFoldLayoutOffset(ctx, i0, i1);
+    l3 = i0;
+    i0 = 4u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    l5 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    scratch = LoadU32(ctx, kReleaseNodeSlotPendingFlag);
-    StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
-    pending_flag = (scratch != 1u);
+  i0 = ResumePhase(ctx);
+  if (i0) {
+    i0 = l5;
   } else {
-    // Rewinding: reuse the flag word restored from the frame.
-    pending_flag = scratch;
+    i0 = kF1531ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
+    i0 = kF1531ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l5;
+    i1 = 1u;
+    i0 = i0 != i1;
   }
-  // The slot array is ready: move the node onto it and drop the old block.
-  if (pending_flag != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU8(ctx, control_block + 16u, 1u);
-      StoreU32(ctx, a + 4u, control_block);
-      StoreU32(ctx, a, count);
-      a = LoadU32(ctx, control_block + 4u);
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l1;
+      i1 = 1u;
+      StoreU8(ctx, i0 + 16u, i1);
+      i0 = a;
+      i1 = l1;
+      StoreU32(ctx, i0 + 4u, i1);
+      i0 = a;
+      i1 = l2;
+      StoreU32(ctx, i0, i1);
+      i0 = l1;
+      i0 = LoadU32(ctx, i0 + 4u);
+      a = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      if (a != 0u) goto done;
-      a = LoadU32(ctx, LoadU32(ctx, control_block) + 8u);
-      StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = a;
+      if (i0) {goto block_25;}
+      i0 = l1;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 8u);
+      a = i0;
+      i0 = kF1531ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
-      HostReleaseSlotPair(ctx, a, control_block);
-      resume_point = 5u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    i0 = l4;
+    i1 = 5u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = a;
+      i1 = l1;
+      HostReleaseSlotPair(ctx, i0, i1);
+      i0 = 5u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      a = LoadU32(ctx, kReleaseNodeSlotPendingFlag);
-      StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
-      a = (a == 1u);
-      if (a != 0u) goto rethrow_pending;
-      a = LoadU32(ctx, control_block + 8u);
-      count = a - 1u;
-      StoreU32(ctx, control_block + 8u, count);
-      a = (a != 1u);
-      if (a != 0u) goto done;
-      a = LoadU32(ctx, LoadU32(ctx, control_block) + 12u);
-      StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF1531ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF1531ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 == i1;
+      a = i0;
+      if (i0) {goto block_5;}
+      i0 = l1;
+      i1 = l1;
+      i1 = LoadU32(ctx, i1 + 8u);
+      a = i1;
+      i2 = 1u;
+      i1 -= i2;
+      l2 = i1;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      a = i0;
+      if (i0) {goto block_25;}
+      i0 = l1;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 12u);
+      a = i0;
+      i0 = kF1531ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
-      HostReleaseSlotPair(ctx, a, control_block);
-      resume_point = 6u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    i0 = l4;
+    i1 = 6u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = a;
+      i1 = l1;
+      HostReleaseSlotPair(ctx, i0, i1);
+      i0 = 6u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      a = LoadU32(ctx, kReleaseNodeSlotPendingFlag);
-      StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
-      a = (a == 1u);
-      if (a != 0u) goto rethrow_pending;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF1531ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF1531ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 == i1;
+      a = i0;
+      if (i0) {goto block_5;}
     }
-    done:;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      goto exit_path;
+    block_25:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      goto func_exit;
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    a = HostRet0(ctx);
-    HostTempRet0(ctx);
-    count = LoadU32(ctx, control_block + 4u);
-    StoreU32(ctx, control_block + 4u, count - 1u);
-    count = (count != 1u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = HostRet0(ctx);
+    a = i0;
+    i0 = HostTempRet0(ctx);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU32(ctx, i1 + 4u);
+    l2 = i1;
+    i2 = 1u;
+    i1 -= i2;
+    StoreU32(ctx, i0 + 4u, i1);
+    i0 = l2;
+    i1 = 1u;
+    i0 = i0 != i1;
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (count != 0u) goto release_object_and_trap;
-    count = LoadU32(ctx, LoadU32(ctx, control_block) + 8u);
-    StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    if (i0) {goto block_33;}
+    i0 = l1;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 8u);
+    l2 = i0;
+    i0 = kF1531ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 7u) {
-    HostReleaseSlotPair(ctx, count, control_block);
-    resume_point = 7u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+  i0 = l4;
+  i1 = 7u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l2;
+    i1 = l1;
+    HostReleaseSlotPair(ctx, i0, i1);
+    i0 = 7u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    count = LoadU32(ctx, kReleaseNodeSlotPendingFlag);
-    StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
-    if (count == 1u) goto rethrow_pending;
-    count = LoadU32(ctx, control_block + 8u);
-    StoreU32(ctx, control_block + 8u, count - 1u);
-    if (count != 1u) goto release_object_and_trap;
-    count = LoadU32(ctx, LoadU32(ctx, control_block) + 12u);
-    StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF1531ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = kF1531ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l2;
+    i1 = 1u;
+    i0 = i0 == i1;
+    if (i0) {goto block_5;}
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU32(ctx, i1 + 8u);
+    l2 = i1;
+    i2 = 1u;
+    i1 -= i2;
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = l2;
+    i1 = 1u;
+    i0 = i0 != i1;
+    if (i0) {goto block_33;}
+    i0 = l1;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 12u);
+    l2 = i0;
+    i0 = kF1531ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 8u) {
-    HostReleaseSlotPair(ctx, count, control_block);
-    resume_point = 8u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+  i0 = l4;
+  i1 = 8u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l2;
+    i1 = l1;
+    HostReleaseSlotPair(ctx, i0, i1);
+    i0 = 8u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    control_block = LoadU32(ctx, kReleaseNodeSlotPendingFlag);
-    StoreU32(ctx, kReleaseNodeSlotPendingFlag, 0u);
-    if (control_block == 1u) goto rethrow_pending;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF1531ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i0 = kF1531ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l1;
+    i1 = 1u;
+    i0 = i0 == i1;
+    if (i0) {goto block_5;}
   }
-  // Both counts reached zero: release the object block and trap out of the step.
-  release_object_and_trap:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    HostOsRelease(ctx, a);
+  block_33:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    HostOsRelease(ctx, i0);
     TrapUnreachable();
   }
-  abort_missing_call:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    HostOsRelease(ctx, a);
+  block_6:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    HostOsRelease(ctx, i0);
     TrapUnreachable();
   }
-  // Rethrow the throw object the failed release left pending.
-  rethrow_pending:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    a = FindMatchingCatch(ctx, 0u);
-    HostTempRet0(ctx);
+  block_5:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = 0u;
+    i0 = FindMatchingCatch(ctx, i0);
+    a = i0;
+    i0 = HostTempRet0(ctx);
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 9u) {
-    Panic(ctx, a);
-    resume_point = 9u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+  i0 = l4;
+  i1 = 9u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    Panic(ctx, i0);
+    i0 = 9u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
     TrapUnreachable();
   }
-  goto exit_path;
-  suspend_point:;
-  // Suspend: push the resume point, then the 16-byte frame with the live state.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-           LoadU32(ctx, ReturnFrameSp(ctx)) + kReleaseNodeSlotResumeWordBytes);
-  frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, frame, a);
-  StoreU32(ctx, frame + 4u, control_block);
-  StoreU32(ctx, frame + 8u, count);
-  StoreU32(ctx, frame + 12u, scratch);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-           LoadU32(ctx, ReturnFrameSp(ctx)) + kReleaseNodeSlotSaveFrameBytes);
-  exit_path:;
+  goto func_exit;
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF1531ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = l1;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = l2;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l3;
+  i1 = l5;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 16u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

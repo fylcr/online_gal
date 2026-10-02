@@ -1,177 +1,291 @@
+// declare_upvalue.cpp -- declares an upvalue, adding the local it closes over to the cell list..
+//
+// DeclareUpvalue -- declares an upvalue, adding the local it closes over to the cell list.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 780308-780308 (f1700); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Defined elsewhere in the tree.
+// Forward declarations -- batch-mates and registered callees.
 void RelocateUpvalueCells(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
 namespace {
 
-// Cell index that names no cell.
-constexpr uint32_t kDeclareUpvalueNoCell = 0xFFFFFFFFu;
-// Bytes of the caller's frame spilled while this step is suspended.
-constexpr uint32_t kDeclareUpvalueSaveFrameBytes = 20u;
-// Bytes of the resume word that rides with the spilled frame.
-constexpr uint32_t kDeclareUpvalueResumeWordBytes = 4u;
+constexpr uint32_t kF1700ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF1700SaveFrameBytes = 20u;
+constexpr uint32_t kF1700ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Declares the local slot `local` as closed over by an upvalue: relocates the
-// state's cell list so the slot is represented by a cell, reusing the cell the
-// state already holds for the slot when there is one.
 void DeclareUpvalue(EngineContext* ctx, uint32_t state, uint32_t local) {
   EnterFrame();
-  uint32_t frame = 0u;
-  uint32_t cell = 0u;
-  uint32_t slot_head = 0u;
-  uint32_t flags = 0u;
-  uint32_t cell_array = 0u;
-  uint32_t array_size = 0u;
-  uint32_t resume_code = 0u;
-  uint32_t next_resume_code = 0u;
-  uint32_t sp = 0u;
-  uint32_t prev = 0u;
-  uint32_t word = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    sp = ReturnFrameSp(ctx);
-    prev = ReturnFrameSp(ctx);
-    prev = LoadU32(ctx, prev);
-    StoreU32(ctx, sp, prev - kDeclareUpvalueSaveFrameBytes);
-    sp = ReturnFrameSp(ctx);
-    frame = LoadU32(ctx, sp);
-    state = LoadU32(ctx, frame);
-    local = LoadU32(ctx, frame + 4u);
-    cell = LoadU32(ctx, frame + 8u);
-    flags = LoadU32(ctx, frame + 12u);
-    slot_head = LoadU32(ctx, frame + 16u);
+  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1700SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 4u);
+    local = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l2 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l4 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    sp = ReturnFrameSp(ctx);
-    prev = ReturnFrameSp(ctx);
-    prev = LoadU32(ctx, prev);
-    StoreU32(ctx, sp, prev - kDeclareUpvalueResumeWordBytes);
-    word = ReturnFrameSp(ctx);
-    word = LoadU32(ctx, word);
-    resume_code = LoadU32(ctx, word);
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1700ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Field 24 holds the head slot of the open-cell list; the slot being
-    // declared becomes the new head.
-    slot_head = LoadU32(ctx, state + 24u);
-    StoreU32(ctx, state + 24u, local);
-    flags = LoadU8(ctx, state + 56u);
-    // Bit 5 of the flags marks a slot that is already closed over.
-    cell = flags & 32u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l3 = i0;
+    i0 = state;
+    i1 = local;
+    StoreU32(ctx, i0 + 24u, i1);
+    i0 = state;
+    i0 = LoadU8(ctx, i0 + 56u);
+    l4 = i0;
+    i1 = 32u;
+    i0 &= i1;
+    l2 = i0;
   }
-  if (cell != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    // Replay the relocation that closes the slot over the cell it already has.
-    if (ResumePhase(ctx) == kResumeRunning || resume_code == 0u) {
-      RelocateUpvalueCells(ctx, state, 5u, kDeclareUpvalueNoCell);
-      next_resume_code = 0u;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_frame;
-      }
+  i0 = l2;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = l5;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = 5u;
+      i2 = kF1700ConstFFFFFFFF;
+      RelocateUpvalueCells(ctx, i0, i1, i2);
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      LeaveFrame();
-      return;
-    }
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Bit 3 clear means the slot has no cell yet and one must be relocated.
-    cell = (flags & 8u) == 0u;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (cell != 0u) {
-      goto cell_ready;
-    }
-    cell = LoadU32(ctx, state + 64u);
-    if (cell != 0u) {
-      goto cell_ready;
-    }
-    cell = LoadU32(ctx, state + 60u);
-    StoreU32(ctx, state + 64u, cell);
-  }
-  if (resume_code == 1u || ResumePhase(ctx) == kResumeRunning) {
-    RelocateUpvalueCells(ctx, state, 3u, kDeclareUpvalueNoCell);
-    next_resume_code = 1u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_frame;
-    }
-  }
-cell_ready:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Bit 2 set means the slot is already handled.
-    flags = (flags & 4u) == 0u;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (flags != 0u) {
-      goto declare_done;
-    }
-    cell = LoadU32(ctx, state + 20u);
-    cell = LoadU32(ctx, cell + 4u);
-    cell = LoadU32(ctx, cell);
-    cell = LoadU32(ctx, cell + 16u);
-    array_size = LoadU32(ctx, cell + 12u);
-    // The slot's block index inside the array, used to find its cell.
-    flags = (uint32_t)((int32_t)(local - array_size) >> (2u & 31u)) - 1u;
-    cell_array = LoadU32(ctx, cell + 20u);
-    if (cell_array == 0u) {
-      cell = 0u;
-      if (local <= slot_head) {
-        goto array_checked;
-      }
-      if (flags == 0u) {
-        goto array_checked;
-      }
-      goto declare_done;
-    }
-    cell = LoadU32(ctx, cell_array + (flags << (2u & 31u)));
-    if (local <= slot_head) {
-      goto array_checked;
-    }
-    if (flags == 0u) {
-      goto array_checked;
-    }
-    if (cell == LoadU32(ctx, cell_array + (slot_head - array_size) - 4u)) {
-      goto declare_done;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      goto func_exit;
     }
   }
-array_checked:;
-  if (resume_code == 2u || ResumePhase(ctx) == kResumeRunning) {
-    RelocateUpvalueCells(ctx, state, 2u, cell);
-    next_resume_code = 2u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_frame;
-    }
+  i0 = l2;
+  i1 = l4;
+  i2 = 8u;
+  i1 &= i2;
+  i1 = !(i1);
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  l2 = i0;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    if (i0) {goto block_8;}
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 64u);
+    l2 = i0;
+    if (i0) {goto block_8;}
+    i0 = state;
+    i1 = state;
+    i1 = LoadU32(ctx, i1 + 60u);
+    l2 = i1;
+    StoreU32(ctx, i0 + 64u, i1);
   }
-declare_done:;
+  i0 = l5;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = 3u;
+    i2 = kF1700ConstFFFFFFFF;
+    RelocateUpvalueCells(ctx, i0, i1, i2);
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+  }
+  block_8:;
+  i0 = l4;
+  i1 = l4;
+  i2 = 4u;
+  i1 &= i2;
+  i1 = !(i1);
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  l4 = i0;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    if (i0) {goto block_11;}
+    i0 = local;
+    i1 = state;
+    i1 = LoadU32(ctx, i1 + 20u);
+    i1 = LoadU32(ctx, i1 + 4u);
+    i1 = LoadU32(ctx, i1);
+    i1 = LoadU32(ctx, i1 + 16u);
+    l2 = i1;
+    i1 = LoadU32(ctx, i1 + 12u);
+    l7 = i1;
+    i0 -= i1;
+    i1 = 2u;
+    i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
+    i1 = 1u;
+    i0 -= i1;
+    l4 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l6 = i0;
+    i0 = !(i0);
+    if (i0) {
+      i0 = 0u;
+      l2 = i0;
+      i0 = local;
+      i1 = l3;
+      i0 = i0 <= i1;
+      if (i0) {goto block_13;}
+      i0 = l4;
+      i0 = !(i0);
+      if (i0) {goto block_13;}
+      goto block_11;
+    }
+    i0 = l6;
+    i1 = l4;
+    i2 = 2u;
+    i1 <<= (i2 & 31);
+    i0 += i1;
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = local;
+    i1 = l3;
+    i0 = i0 <= i1;
+    if (i0) {goto block_13;}
+    i0 = l4;
+    i0 = !(i0);
+    if (i0) {goto block_13;}
+    i0 = l2;
+    i1 = l6;
+    i2 = l3;
+    i3 = l7;
+    i2 -= i3;
+    i1 += i2;
+    i2 = 4u;
+    i1 -= i2;
+    i1 = LoadU32(ctx, i1);
+    i0 = i0 == i1;
+    if (i0) {goto block_11;}
+    block_13:;
+  }
+  i0 = l5;
+  i1 = 2u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = 2u;
+    i2 = l2;
+    RelocateUpvalueCells(ctx, i0, i1, i2);
+    i0 = 2u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+  }
+  block_11:;
+  goto func_exit;
+  spill_frame:;
+  l5 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l5;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF1700ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l5 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l5;
+  i1 = local;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l5;
+  i1 = l2;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l5;
+  i1 = l4;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l5;
+  i1 = l3;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 20u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
-  return;
-suspend_frame:;
-  // The call suspended: spill the live locals above the return frame and hand
-  // the resume code back to the runner so it can replay this step.
-  resume_code = next_resume_code;
-  sp = ReturnFrameSp(ctx);
-  sp = LoadU32(ctx, sp);
-  StoreU32(ctx, sp, resume_code);
-  sp = ReturnFrameSp(ctx);
-  prev = ReturnFrameSp(ctx);
-  prev = LoadU32(ctx, prev);
-  StoreU32(ctx, sp, prev + kDeclareUpvalueResumeWordBytes);
-  sp = ReturnFrameSp(ctx);
-  frame = LoadU32(ctx, sp);
-  StoreU32(ctx, frame, state);
-  StoreU32(ctx, frame + 4u, local);
-  StoreU32(ctx, frame + 8u, cell);
-  StoreU32(ctx, frame + 12u, flags);
-  StoreU32(ctx, frame + 16u, slot_head);
-  sp = ReturnFrameSp(ctx);
-  prev = ReturnFrameSp(ctx);
-  prev = LoadU32(ctx, prev);
-  StoreU32(ctx, sp, prev + kDeclareUpvalueSaveFrameBytes);
-  LeaveFrame();
-  return;
 }
-
-}  // namespace artc
+}

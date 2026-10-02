@@ -1,8 +1,23 @@
+// load_proto_slot.cpp -- loads a prototype slot: the prototype's slot word is fetched and projected onto the stack..
+//
+// LoadProtoSlot -- loads a prototype slot: the prototype's slot word is fetched and projected onto the stack.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 300042-300042 (f782); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations for the callees this step drives.
+// Forward declarations -- batch-mates and registered callees.
 void ReserveClosureRecords(EngineContext* ctx, uint32_t state, uint32_t count);
 void ClearFlagsRecursive(EngineContext* ctx, uint32_t state, uint32_t node);
 uint32_t FindPoolEntryByTagByte(EngineContext* ctx, uint32_t pool, uint32_t key);
@@ -11,408 +26,1093 @@ uint32_t FetchMetamethod(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c)
 
 namespace {
 
-constexpr uint32_t kLoadProtoSlotAllBits = 0xFFFFFFFFu;   // all bits set, for the mask below
-constexpr uint32_t kLoadProtoSlotFrameBytes = 16u;        // saved frame: four words
-constexpr uint32_t kLoadProtoSlotResumeWordBytes = 4u;    // resume word written before it
+constexpr uint32_t kF782ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF782SaveFrameBytes = 16u;
+constexpr uint32_t kF782ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Loads the prototype slot held at state+36: marks the node busy, walks it by
-// kind so its sub-nodes drop their flags, then re-measures the chain and grows
-// the closure records or the element array to fit it.
 uint32_t LoadProtoSlot(EngineContext* ctx, uint32_t a) {
   EnterFrame();
-  uint32_t entry = 0u;   // a node being walked, or a chain index
-  uint32_t node = 0u;    // the prototype slot node being loaded
-  uint32_t slot = 0u;    // the node kind, an index, or a node address
-  uint32_t value = 0u;   // a node address, or a flag word
-  uint32_t other = 0u;   // a scratch address
-  uint32_t next = 0u;    // a scratch address, or a chain bound
-  uint32_t linked = 0u;  // whether the node is already linked into a chain
-  uint32_t resume_point = 0u;
-  uint32_t frame = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the frame this step saved when it suspended.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kLoadProtoSlotFrameBytes);
-    frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    a = LoadU32(ctx, frame);
-    entry = LoadU32(ctx, frame + 4u);
-    node = LoadU32(ctx, frame + 8u);
-    slot = LoadU32(ctx, frame + 12u);
+  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF782SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l1 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l2 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume word naming the call this step stopped at.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kLoadProtoSlotResumeWordBytes);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF782ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l8 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The prototype slot names the node; mark it busy while it is loaded.
-    node = LoadU32(ctx, a + 36u);
-    slot = LoadU8(ctx, node + 5u) | 4u;
-    StoreU8(ctx, node + 5u, slot);
-    slot = LoadU8(ctx, node + 4u) - 5u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 36u);
+    l2 = i0;
+    i0 = LoadU8(ctx, i0 + 5u);
+    i1 = 4u;
+    i0 |= i1;
+    l3 = i0;
+    i0 = l2;
+    i1 = l3;
+    StoreU8(ctx, i0 + 5u, i1);
+    i0 = l2;
+    i0 = LoadU8(ctx, i0 + 4u);
+    i1 = 5u;
+    i0 -= i1;
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    switch (slot) {
-      case 0: goto detach_node;
-      case 1: goto release_slots;
-      case 2: goto store_result;
-      case 3: goto resize_chain;
-      case 4: goto clear_tree;
-      default: goto store_result;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l3;
+    switch (i0) {
+      case 0: goto block_12;
+      case 1: goto block_11;
+      case 2: goto block_7;
+      case 3: goto block_10;
+      case 4: goto block_8;
+      default: goto block_7;
     }
-  detach_node:
-    StoreU32(ctx, a + 36u, LoadU32(ctx, node + 24u));
-    entry = LoadU32(ctx, node + 8u);
-    if (!entry) goto walk_children;
-    if (LoadU8(ctx, entry + 5u) & 3u) {
-      ClearFlagsRecursive(ctx, a, entry);
-      entry = LoadU32(ctx, node + 8u);
-      if (!entry) goto walk_children;
+    block_12:;
+    i0 = a;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 24u);
+    StoreU32(ctx, i0 + 36u, i1);
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l1 = i0;
+    i0 = !(i0);
+    if (i0) {goto block_13;}
+    i0 = l1;
+    i0 = LoadU8(ctx, i0 + 5u);
+    i1 = 3u;
+    i0 &= i1;
+    if (i0) {
+      i0 = a;
+      i1 = l1;
+      ClearFlagsRecursive(ctx, i0, i1);
+      i0 = l2;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l1 = i0;
+      i0 = !(i0);
+      if (i0) {goto block_13;}
     }
-    if (LoadU8(ctx, entry + 6u) & 8u) goto walk_children;
-    entry = FetchMetamethod(ctx, entry, 3u, LoadU32(ctx, a + 200u));
-    if (!entry) goto walk_children;
-    if (LoadU32(ctx, entry + 8u) != 4u) goto walk_children;
-    entry = LoadU32(ctx, entry) + 16u;
-    slot = FindPoolEntryByTagByte(ctx, entry, 107u);
-    entry = FindPoolEntryByTagByte(ctx, entry, 118u);
-    if (slot || entry) {
-      StoreU8(ctx, node + 5u,
-              (LoadU8(ctx, node + 5u) & 231u) | ((entry != 0u) << 4u) | ((slot != 0u) << 3u));
-      StoreU32(ctx, node + 24u, LoadU32(ctx, a + 44u));
-      StoreU32(ctx, a + 44u, node);
+    i0 = l1;
+    i0 = LoadU8(ctx, i0 + 6u);
+    i1 = 8u;
+    i0 &= i1;
+    if (i0) {goto block_13;}
+    i0 = l1;
+    i1 = 3u;
+    i2 = a;
+    i2 = LoadU32(ctx, i2 + 200u);
+    i0 = FetchMetamethod(ctx, i0, i1, i2);
+    l1 = i0;
+    i0 = !(i0);
+    if (i0) {goto block_13;}
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 8u);
+    i1 = 4u;
+    i0 = i0 != i1;
+    if (i0) {goto block_13;}
+    i0 = l1;
+    i0 = LoadU32(ctx, i0);
+    i1 = 16u;
+    i0 += i1;
+    l1 = i0;
+    i1 = 107u;
+    i0 = FindPoolEntryByTagByte(ctx, i0, i1);
+    l3 = i0;
+    i0 = l3;
+    i1 = l1;
+    i2 = 118u;
+    i1 = FindPoolEntryByTagByte(ctx, i1, i2);
+    l1 = i1;
+    i0 |= i1;
+    if (i0) {
+      i0 = l2;
+      i1 = l2;
+      i1 = LoadU8(ctx, i1 + 5u);
+      i2 = 231u;
+      i1 &= i2;
+      i2 = l1;
+      i3 = 0u;
+      i2 = i2 != i3;
+      i3 = 4u;
+      i2 <<= (i3 & 31);
+      i3 = l3;
+      i4 = 0u;
+      i3 = i3 != i4;
+      i4 = 3u;
+      i3 <<= (i4 & 31);
+      i2 |= i3;
+      i1 |= i2;
+      StoreU8(ctx, i0 + 5u, i1);
+      i0 = l2;
+      i1 = a;
+      i1 = LoadU32(ctx, i1 + 44u);
+      StoreU32(ctx, i0 + 24u, i1);
+      i0 = a;
+      i1 = l2;
+      StoreU32(ctx, i0 + 44u, i1);
     }
-    if (slot && entry) goto clear_flag;
-    if (entry) goto clear_chain;
-    linked = (slot != 0u);
-  walk_children:
-    entry = LoadU32(ctx, node + 28u);
-    if (entry) {
-      // Release the array slots below the node, newest first.
-      do {
-        entry = entry - 1u;
-        slot = LoadU32(ctx, node + 12u) + (entry << 4u);
-        if ((uint32_t)((int32_t)LoadU32(ctx, slot + 8u) < (int32_t)4u)) goto next_array_slot;
-        slot = LoadU32(ctx, slot);
-        if (!(LoadU8(ctx, slot + 5u) & 3u)) goto next_array_slot;
-        ClearFlagsRecursive(ctx, a, slot);
-      next_array_slot:
-        ;
-      } while (entry);
+    i0 = l3;
+    i1 = 0u;
+    i2 = l1;
+    i0 = i2 ? i0 : i1;
+    if (i0) {goto block_5;}
+    i0 = l1;
+    if (i0) {goto block_6;}
+    i0 = l3;
+    i1 = 0u;
+    i0 = i0 != i1;
+    l7 = i0;
+    block_13:;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 28u);
+    l1 = i0;
+    if (i0) {
+      loop_17: 
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 12u);
+        i1 = l1;
+        i2 = 1u;
+        i1 -= i2;
+        l1 = i1;
+        i2 = 4u;
+        i1 <<= (i2 & 31);
+        i0 += i1;
+        l3 = i0;
+        i0 = LoadU32(ctx, i0 + 8u);
+        i1 = 4u;
+        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+        if (i0) {goto block_18;}
+        i0 = l3;
+        i0 = LoadU32(ctx, i0);
+        l3 = i0;
+        i0 = LoadU8(ctx, i0 + 5u);
+        i1 = 3u;
+        i0 &= i1;
+        i0 = !(i0);
+        if (i0) {goto block_18;}
+        i0 = a;
+        i1 = l3;
+        ClearFlagsRecursive(ctx, i0, i1);
+        block_18:;
+        i0 = l1;
+        if (i0) {goto loop_17;}
     }
-    entry = (kLoadProtoSlotAllBits << LoadU8(ctx, node + 7u)) ^ kLoadProtoSlotAllBits;
-    if (linked) {
-      // The node is linked: release one bucket chain.
-      do {
-        slot = entry;
-        value = LoadU32(ctx, node + 16u) + (entry << 5u);
-        entry = LoadU32(ctx, value + 8u);
-        if (entry) {
-          if ((uint32_t)((int32_t)entry < (int32_t)4u)) goto next_bucket;
-          entry = LoadU32(ctx, value);
-          if (!(LoadU8(ctx, entry + 5u) & 3u)) goto next_bucket;
-          ClearFlagsRecursive(ctx, a, entry);
-          goto next_bucket;
+    i0 = kF782ConstFFFFFFFF;
+    i1 = l2;
+    i1 = LoadU8(ctx, i1 + 7u);
+    i0 <<= (i1 & 31);
+    i1 = kF782ConstFFFFFFFF;
+    i0 ^= i1;
+    l1 = i0;
+    i0 = l7;
+    if (i0) {
+      loop_21: 
+        i0 = l1;
+        l3 = i0;
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 16u);
+        i1 = l1;
+        i2 = 5u;
+        i1 <<= (i2 & 31);
+        i0 += i1;
+        l4 = i0;
+        i0 = LoadU32(ctx, i0 + 8u);
+        l1 = i0;
+        if (i0) {
+          i0 = l1;
+          i1 = 4u;
+          i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+          if (i0) {goto block_22;}
+          i0 = l4;
+          i0 = LoadU32(ctx, i0);
+          l1 = i0;
+          i0 = LoadU8(ctx, i0 + 5u);
+          i1 = 3u;
+          i0 &= i1;
+          i0 = !(i0);
+          if (i0) {goto block_22;}
+          i0 = a;
+          i1 = l1;
+          ClearFlagsRecursive(ctx, i0, i1);
+          goto block_22;
         }
-        if ((uint32_t)((int32_t)LoadU32(ctx, value + 24u) < (int32_t)4u)) goto next_bucket;
-        StoreU32(ctx, value + 24u, 11u);
-      next_bucket:
-        entry = slot - 1u;
-      } while (slot);
-      goto scan_done;
+        i0 = l4;
+        i0 = LoadU32(ctx, i0 + 24u);
+        i1 = 4u;
+        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+        if (i0) {goto block_22;}
+        i0 = l4;
+        i1 = 11u;
+        StoreU32(ctx, i0 + 24u, i1);
+        block_22:;
+        i0 = l3;
+        i1 = 1u;
+        i0 -= i1;
+        l1 = i0;
+        i0 = l3;
+        if (i0) {goto loop_21;}
+      goto block_19;
     }
-    // Not linked: release every bucket of the chain, keeping the flags word.
-    do {
-      slot = entry;
-      next = LoadU32(ctx, node + 16u) + (entry << 5u);
-      other = LoadU32(ctx, next + 24u);
-      value = LoadU32(ctx, next + 8u);
-      if (!value) {
-        if ((uint32_t)((int32_t)other < (int32_t)4u)) goto next_slot;
-        StoreU32(ctx, next + 24u, 11u);
-        goto next_slot;
+    loop_24: 
+      i0 = l1;
+      l3 = i0;
+      i0 = l2;
+      i0 = LoadU32(ctx, i0 + 16u);
+      i1 = l1;
+      i2 = 5u;
+      i1 <<= (i2 & 31);
+      i0 += i1;
+      l6 = i0;
+      l1 = i0;
+      i1 = 24u;
+      i0 += i1;
+      i0 = LoadU32(ctx, i0);
+      l5 = i0;
+      i0 = l1;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l4 = i0;
+      i0 = !(i0);
+      if (i0) {
+        i0 = l5;
+        i1 = 4u;
+        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+        if (i0) {goto block_25;}
+        i0 = l1;
+        i1 = 11u;
+        StoreU32(ctx, i0 + 24u, i1);
+        goto block_25;
       }
-      if ((uint32_t)((int32_t)other < (int32_t)4u)) goto have_value;
-      entry = LoadU32(ctx, next + 16u);
-      if (!(LoadU8(ctx, entry + 5u) & 3u)) goto have_value;
-      ClearFlagsRecursive(ctx, a, entry);
-      value = LoadU32(ctx, next + 8u);
-    have_value:
-      if ((uint32_t)((int32_t)value < (int32_t)4u)) goto next_slot;
-      entry = LoadU32(ctx, next);
-      if (!(LoadU8(ctx, entry + 5u) & 3u)) goto next_slot;
-      ClearFlagsRecursive(ctx, a, entry);
-    next_slot:
-      entry = slot - 1u;
-    } while (slot);
-  scan_done:
-    if (!linked) goto finish;
-    goto clear_flag;
-  release_slots:
-    StoreU32(ctx, a + 36u, LoadU32(ctx, node + 8u));
-    entry = LoadU32(ctx, node + 12u);
-    if (LoadU8(ctx, entry + 5u) & 3u) {
-      ClearFlagsRecursive(ctx, a, entry);
+      i0 = l5;
+      i1 = 4u;
+      i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+      if (i0) {goto block_27;}
+      i0 = l6;
+      i0 = LoadU32(ctx, i0 + 16u);
+      l1 = i0;
+      i0 = LoadU8(ctx, i0 + 5u);
+      i1 = 3u;
+      i0 &= i1;
+      i0 = !(i0);
+      if (i0) {goto block_27;}
+      i0 = a;
+      i1 = l1;
+      ClearFlagsRecursive(ctx, i0, i1);
+      i0 = l6;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l4 = i0;
+      block_27:;
+      i0 = l4;
+      i1 = 4u;
+      i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+      if (i0) {goto block_25;}
+      i0 = l6;
+      i0 = LoadU32(ctx, i0);
+      l1 = i0;
+      i0 = LoadU8(ctx, i0 + 5u);
+      i1 = 3u;
+      i0 &= i1;
+      i0 = !(i0);
+      if (i0) {goto block_25;}
+      i0 = a;
+      i1 = l1;
+      ClearFlagsRecursive(ctx, i0, i1);
+      block_25:;
+      i0 = l3;
+      i1 = 1u;
+      i0 -= i1;
+      l1 = i0;
+      i0 = l3;
+      if (i0) {goto loop_24;}
+    block_19:;
+    i0 = l7;
+    i0 = !(i0);
+    if (i0) {goto running_exit;}
+    goto block_5;
+    block_11:;
+    i0 = a;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 8u);
+    StoreU32(ctx, i0 + 36u, i1);
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l1 = i0;
+    i0 = LoadU8(ctx, i0 + 5u);
+    i1 = 3u;
+    i0 &= i1;
+    if (i0) {
+      i0 = a;
+      i1 = l1;
+      ClearFlagsRecursive(ctx, i0, i1);
     }
-    if (LoadU8(ctx, node + 6u)) {
-      // A field table: walk the 16-byte records.
-      entry = 0u;
-      slot = LoadU8(ctx, node + 7u);
-      if (!slot) {
-        slot = 0u;
-        goto slot_count;
+    i0 = l2;
+    i0 = LoadU8(ctx, i0 + 6u);
+    if (i0) {
+      i0 = 0u;
+      l1 = i0;
+      i0 = l2;
+      i0 = LoadU8(ctx, i0 + 7u);
+      l3 = i0;
+      i0 = !(i0);
+      if (i0) {
+        i0 = 0u;
+        l3 = i0;
+        goto block_29;
       }
-      do {
-        value = node + (entry << 4u);
-        if ((uint32_t)((int32_t)LoadU32(ctx, value + 32u) < (int32_t)4u)) goto next_record;
-        value = LoadU32(ctx, value + 24u);
-        if (!(LoadU8(ctx, value + 5u) & 3u)) goto next_record;
-        ClearFlagsRecursive(ctx, a, value);
-        slot = LoadU8(ctx, node + 7u);
-      next_record:
-        entry = entry + 1u;
-      } while (entry < (slot & 255u));
-      goto slot_count;
+      loop_32: 
+        i0 = l2;
+        i1 = l1;
+        i2 = 4u;
+        i1 <<= (i2 & 31);
+        i0 += i1;
+        l4 = i0;
+        i0 = LoadU32(ctx, i0 + 32u);
+        i1 = 4u;
+        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+        if (i0) {goto block_33;}
+        i0 = l4;
+        i0 = LoadU32(ctx, i0 + 24u);
+        l4 = i0;
+        i0 = LoadU8(ctx, i0 + 5u);
+        i1 = 3u;
+        i0 &= i1;
+        i0 = !(i0);
+        if (i0) {goto block_33;}
+        i0 = a;
+        i1 = l4;
+        ClearFlagsRecursive(ctx, i0, i1);
+        i0 = l2;
+        i0 = LoadU8(ctx, i0 + 7u);
+        l3 = i0;
+        block_33:;
+        i0 = l1;
+        i1 = 1u;
+        i0 += i1;
+        l1 = i0;
+        i1 = l3;
+        i2 = 255u;
+        i1 &= i2;
+        i0 = i0 < i1;
+        if (i0) {goto loop_32;}
+      goto block_29;
     }
-    entry = LoadU32(ctx, node + 16u);
-    if (LoadU8(ctx, entry + 5u) & 3u) {
-      ClearFlagsRecursive(ctx, a, entry);
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l1 = i0;
+    i0 = LoadU8(ctx, i0 + 5u);
+    i1 = 3u;
+    i0 &= i1;
+    if (i0) {
+      i0 = a;
+      i1 = l1;
+      ClearFlagsRecursive(ctx, i0, i1);
     }
-    entry = 0u;
-    slot = LoadU8(ctx, node + 7u);
-    if (!slot) {
-      slot = 0u;
-      goto slot_count;
+    i0 = 0u;
+    l1 = i0;
+    i0 = l2;
+    i0 = LoadU8(ctx, i0 + 7u);
+    l3 = i0;
+    i0 = !(i0);
+    if (i0) {
+      i0 = 0u;
+      l3 = i0;
+      goto block_29;
     }
-    do {
-      value = LoadU32(ctx, node + (entry << 2u) + 20u);
-      if (LoadU8(ctx, value + 5u) & 3u) {
-        ClearFlagsRecursive(ctx, a, value);
-        slot = LoadU8(ctx, node + 7u);
+    loop_36: 
+      i0 = l2;
+      i1 = l1;
+      i2 = 2u;
+      i1 <<= (i2 & 31);
+      i0 += i1;
+      i0 = LoadU32(ctx, i0 + 20u);
+      l4 = i0;
+      i0 = LoadU8(ctx, i0 + 5u);
+      i1 = 3u;
+      i0 &= i1;
+      if (i0) {
+        i0 = a;
+        i1 = l4;
+        ClearFlagsRecursive(ctx, i0, i1);
+        i0 = l2;
+        i0 = LoadU8(ctx, i0 + 7u);
+        l3 = i0;
       }
-      entry = entry + 1u;
-    } while (entry < (slot & 255u));
-  slot_count:
-    a = slot & 255u;
-    if (LoadU8(ctx, node + 6u)) {
-      LeaveFrame();
-      return (a << 4u) + 24u;
+      i0 = l1;
+      i1 = 1u;
+      i0 += i1;
+      l1 = i0;
+      i1 = l3;
+      i2 = 255u;
+      i1 &= i2;
+      i0 = i0 < i1;
+      if (i0) {goto loop_36;}
+    block_29:;
+    i0 = l3;
+    i1 = 255u;
+    i0 &= i1;
+    a = i0;
+    i0 = l2;
+    i0 = LoadU8(ctx, i0 + 6u);
+    if (i0) {
+      i0 = a;
+      i1 = 4u;
+      i0 <<= (i1 & 31);
+      i1 = 24u;
+      i0 += i1;
+      goto func_exit;
     }
-    LeaveFrame();
-    return (a << 2u) + 20u;
-  resize_chain:
-    StoreU32(ctx, a + 36u, LoadU32(ctx, node + 108u));
-    StoreU32(ctx, node + 108u, LoadU32(ctx, a + 40u));
-    StoreU32(ctx, a + 40u, node);
-    StoreU8(ctx, node + 5u, LoadU8(ctx, node + 5u) & 251u);
-    if ((uint32_t)((int32_t)LoadU32(ctx, node + 80u) < (int32_t)4u)) goto measure_chain;
-    entry = LoadU32(ctx, node + 72u);
-    if (!(LoadU8(ctx, entry + 5u) & 3u)) goto measure_chain;
-    ClearFlagsRecursive(ctx, a, entry);
-  measure_chain:
-    value = LoadU32(ctx, node + 8u);
-    entry = LoadU32(ctx, node + 40u);
-    next = LoadU32(ctx, node + 20u);
-    if (entry <= next) {
-      // First pass: find the highest chain index still in use.
-      slot = value;
-      do {
-        other = LoadU32(ctx, entry + 8u);
-        slot = (other > slot) ? other : slot;
-        entry = entry + 24u;
-      } while (next >= entry);
+    i0 = a;
+    i1 = 2u;
+    i0 <<= (i1 & 31);
+    i1 = 20u;
+    i0 += i1;
+    goto func_exit;
+    block_10:;
+    i0 = a;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 108u);
+    StoreU32(ctx, i0 + 36u, i1);
+    i0 = l2;
+    i1 = a;
+    i1 = LoadU32(ctx, i1 + 40u);
+    StoreU32(ctx, i0 + 108u, i1);
+    i0 = a;
+    i1 = l2;
+    StoreU32(ctx, i0 + 40u, i1);
+    i0 = l2;
+    i1 = l2;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 251u;
+    i1 &= i2;
+    StoreU8(ctx, i0 + 5u, i1);
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 80u);
+    i1 = 4u;
+    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+    if (i0) {goto block_39;}
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 72u);
+    l1 = i0;
+    i0 = LoadU8(ctx, i0 + 5u);
+    i1 = 3u;
+    i0 &= i1;
+    i0 = !(i0);
+    if (i0) {goto block_39;}
+    i0 = a;
+    i1 = l1;
+    ClearFlagsRecursive(ctx, i0, i1);
+    block_39:;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l4 = i0;
+    l3 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 40u);
+    l1 = i0;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 20u);
+    l7 = i1;
+    i0 = i0 <= i1;
+    if (i0) {
+      i0 = l4;
+      l3 = i0;
+      loop_41: 
+        i0 = l1;
+        i0 = LoadU32(ctx, i0 + 8u);
+        l5 = i0;
+        i1 = l3;
+        i0 = i0 > i1;
+        l6 = i0;
+        i0 = l5;
+        i1 = l3;
+        i2 = l6;
+        i0 = i2 ? i0 : i1;
+        l3 = i0;
+        i0 = l7;
+        i1 = l1;
+        i2 = 24u;
+        i1 += i2;
+        l1 = i1;
+        i0 = i0 >= i1;
+        if (i0) {goto loop_41;}
     }
-    entry = LoadU32(ctx, node + 32u);
-    if (value > entry) {
-      // Second pass: release the nodes the chain no longer reaches.
-      do {
-        if ((uint32_t)((int32_t)LoadU32(ctx, entry + 8u) < (int32_t)4u)) goto next_chain_node;
-        other = LoadU32(ctx, entry);
-        if (!(LoadU8(ctx, other + 5u) & 3u)) goto next_chain_node;
-        ClearFlagsRecursive(ctx, a, other);
-        value = LoadU32(ctx, node + 8u);
-      next_chain_node:
-        entry = entry + 16u;
-      } while (value > entry);
+    i0 = l4;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 32u);
+    l1 = i1;
+    i0 = i0 > i1;
+    if (i0) {
+      loop_43: 
+        i0 = l1;
+        i0 = LoadU32(ctx, i0 + 8u);
+        i1 = 4u;
+        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+        if (i0) {goto block_44;}
+        i0 = l1;
+        i0 = LoadU32(ctx, i0);
+        l5 = i0;
+        i0 = LoadU8(ctx, i0 + 5u);
+        i1 = 3u;
+        i0 &= i1;
+        i0 = !(i0);
+        if (i0) {goto block_44;}
+        i0 = a;
+        i1 = l5;
+        ClearFlagsRecursive(ctx, i0, i1);
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 8u);
+        l4 = i0;
+        block_44:;
+        i0 = l4;
+        i1 = l1;
+        i2 = 16u;
+        i1 += i2;
+        l1 = i1;
+        i0 = i0 > i1;
+        if (i0) {goto loop_43;}
     }
-    if (entry <= slot) {
-      // Blank the indices that were freed.
-      do {
-        StoreU32(ctx, entry + 8u, 0u);
-        entry = entry + 16u;
-      } while (slot >= entry);
+    i0 = l1;
+    i1 = l3;
+    i0 = i0 <= i1;
+    if (i0) {
+      loop_46: 
+        i0 = l1;
+        i1 = 0u;
+        StoreU32(ctx, i0 + 8u, i1);
+        i0 = l3;
+        i1 = l1;
+        i2 = 16u;
+        i1 += i2;
+        l1 = i1;
+        i0 = i0 >= i1;
+        if (i0) {goto loop_46;}
     }
-    value = LoadU32(ctx, node + 48u);
-    a = (uint32_t)((int32_t)value > (int32_t)20000u);
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 48u);
+    l4 = i0;
+    i1 = 20000u;
+    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+    a = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (a) goto final_size;
-    entry = slot - LoadU32(ctx, node + 32u);
-    slot = (uint32_t)((int32_t)value < (int32_t)17u);
-    a = I32_DIV_S(LoadU32(ctx, node + 20u) - LoadU32(ctx, node + 40u), 24u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    if (i0) {goto block_47;}
+    i0 = l3;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 32u);
+    i0 -= i1;
+    l1 = i0;
+    i0 = l4;
+    i1 = 17u;
+    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+    l3 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 20u);
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 40u);
+    i0 -= i1;
+    i1 = 24u;
+    i0 = I32_DIV_S(i0, i1);
+    a = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (slot) goto closure_records_ready;
-    a = (uint32_t)((int32_t)value <= (int32_t)(a << 2u));
-    if (a) goto closure_records_ready;
-    a = value >> 1u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l3;
+    if (i0) {goto block_49;}
+    i0 = l4;
+    i1 = a;
+    i2 = 2u;
+    i1 <<= (i2 & 31);
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    a = i0;
+    if (i0) {goto block_49;}
+    i0 = l4;
+    i1 = 1u;
+    i0 >>= (i1 & 31);
+    a = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
-    ReserveClosureRecords(ctx, node, a);
-    resume_point = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+  i0 = l8;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l2;
+    i1 = a;
+    ReserveClosureRecords(ctx, i0, i1);
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-closure_records_ready:
-  if (ResumePhase(ctx) == kResumeRunning) {
-    a = LoadU32(ctx, node + 44u);
-    entry = (uint32_t)((int32_t)a <= (int32_t)((uint32_t)((int32_t)entry >> 2u)));
-    if (entry) goto final_size;
-    entry = (uint32_t)((int32_t)a < (int32_t)91u);
-    if (entry) goto final_size;
-    a = a >> 1u;
+  block_49:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 44u);
+    a = i0;
+    i1 = l1;
+    i2 = 2u;
+    i1 = (uint32_t)((int32_t)i1 >> (i2 & 31));
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    l1 = i0;
+    if (i0) {goto block_47;}
+    i0 = a;
+    i1 = 91u;
+    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+    l1 = i0;
+    if (i0) {goto block_47;}
+    i0 = a;
+    i1 = 1u;
+    i0 >>= (i1 & 31);
+    a = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
-    RelocateElementArray(ctx, node, a);
-    resume_point = 1u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+  i0 = l8;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l2;
+    i1 = a;
+    RelocateElementArray(ctx, i0, i1);
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-final_size:
-  if (ResumePhase(ctx) == kResumeRunning) {
-    LeaveFrame();
-    return LoadU32(ctx, node + 48u) * 24u + (LoadU32(ctx, node + 44u) << 4u) + 120u;
+  block_47:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 48u);
+    i1 = 24u;
+    i0 *= i1;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 44u);
+    i2 = 4u;
+    i1 <<= (i2 & 31);
+    i0 += i1;
+    i1 = 120u;
+    i0 += i1;
+    goto func_exit;
   }
-clear_tree:
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, a + 36u, LoadU32(ctx, node + 68u));
-    entry = LoadU32(ctx, node + 32u);
-    if (entry) {
-      StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) & 252u);
+  block_8:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 68u);
+    StoreU32(ctx, i0 + 36u, i1);
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 32u);
+    l1 = i0;
+    if (i0) {
+      i0 = l1;
+      i1 = l1;
+      i1 = LoadU8(ctx, i1 + 5u);
+      i2 = 252u;
+      i1 &= i2;
+      StoreU8(ctx, i0 + 5u, i1);
     }
-    value = LoadU32(ctx, node + 40u);
-    if ((uint32_t)((int32_t)value >= (int32_t)1u)) {
-      // Release the slots the node owns directly.
-      entry = 0u;
-      do {
-        slot = LoadU32(ctx, node + 8u) + (entry << 4u);
-        if ((uint32_t)((int32_t)LoadU32(ctx, slot + 8u) < (int32_t)4u)) goto next_own_slot;
-        slot = LoadU32(ctx, slot);
-        if (!(LoadU8(ctx, slot + 5u) & 3u)) goto next_own_slot;
-        ClearFlagsRecursive(ctx, a, slot);
-        value = LoadU32(ctx, node + 40u);
-      next_own_slot:
-        entry = entry + 1u;
-      } while (value > entry);
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 40u);
+    l4 = i0;
+    i1 = 1u;
+    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
+    if (i0) {
+      i0 = 0u;
+      l1 = i0;
+      loop_58: 
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 8u);
+        i1 = l1;
+        i2 = 4u;
+        i1 <<= (i2 & 31);
+        i0 += i1;
+        l3 = i0;
+        i0 = LoadU32(ctx, i0 + 8u);
+        i1 = 4u;
+        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+        if (i0) {goto block_59;}
+        i0 = l3;
+        i0 = LoadU32(ctx, i0);
+        l3 = i0;
+        i0 = LoadU8(ctx, i0 + 5u);
+        i1 = 3u;
+        i0 &= i1;
+        i0 = !(i0);
+        if (i0) {goto block_59;}
+        i0 = a;
+        i1 = l3;
+        ClearFlagsRecursive(ctx, i0, i1);
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 40u);
+        l4 = i0;
+        block_59:;
+        i0 = l4;
+        i1 = l1;
+        i2 = 1u;
+        i1 += i2;
+        l1 = i1;
+        i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+        if (i0) {goto loop_58;}
     }
-    value = LoadU32(ctx, node + 36u);
-    if ((uint32_t)((int32_t)value >= (int32_t)1u)) {
-      // Then the chain of child nodes.
-      entry = 0u;
-      do {
-        slot = LoadU32(ctx, LoadU32(ctx, node + 28u) + (entry << 2u));
-        if (slot) {
-          StoreU8(ctx, slot + 5u, LoadU8(ctx, slot + 5u) & 252u);
-          value = LoadU32(ctx, node + 36u);
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 36u);
+    l4 = i0;
+    i1 = 1u;
+    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
+    if (i0) {
+      i0 = 0u;
+      l1 = i0;
+      loop_61: 
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 28u);
+        i1 = l1;
+        i2 = 2u;
+        i1 <<= (i2 & 31);
+        i0 += i1;
+        i0 = LoadU32(ctx, i0);
+        l3 = i0;
+        if (i0) {
+          i0 = l3;
+          i1 = l3;
+          i1 = LoadU8(ctx, i1 + 5u);
+          i2 = 252u;
+          i1 &= i2;
+          StoreU8(ctx, i0 + 5u, i1);
+          i0 = l2;
+          i0 = LoadU32(ctx, i0 + 36u);
+          l4 = i0;
         }
-        entry = entry + 1u;
-      } while (value > entry);
+        i0 = l4;
+        i1 = l1;
+        i2 = 1u;
+        i1 += i2;
+        l1 = i1;
+        i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+        if (i0) {goto loop_61;}
     }
-    value = LoadU32(ctx, node + 52u);
-    if ((uint32_t)((int32_t)value >= (int32_t)1u)) {
-      entry = 0u;
-      do {
-        slot = LoadU32(ctx, LoadU32(ctx, node + 16u) + (entry << 2u));
-        if (!slot) goto next_child;
-        if (!(LoadU8(ctx, slot + 5u) & 3u)) goto next_child;
-        ClearFlagsRecursive(ctx, a, slot);
-        value = LoadU32(ctx, node + 52u);
-      next_child:
-        entry = entry + 1u;
-      } while (value > entry);
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 52u);
+    l4 = i0;
+    i1 = 1u;
+    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
+    if (i0) {
+      i0 = 0u;
+      l1 = i0;
+      loop_64: 
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 16u);
+        i1 = l1;
+        i2 = 2u;
+        i1 <<= (i2 & 31);
+        i0 += i1;
+        i0 = LoadU32(ctx, i0);
+        l3 = i0;
+        i0 = !(i0);
+        if (i0) {goto block_65;}
+        i0 = l3;
+        i0 = LoadU8(ctx, i0 + 5u);
+        i1 = 3u;
+        i0 &= i1;
+        i0 = !(i0);
+        if (i0) {goto block_65;}
+        i0 = a;
+        i1 = l3;
+        ClearFlagsRecursive(ctx, i0, i1);
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 52u);
+        l4 = i0;
+        block_65:;
+        i0 = l4;
+        i1 = l1;
+        i2 = 1u;
+        i1 += i2;
+        l1 = i1;
+        i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+        if (i0) {goto loop_64;}
     }
-    a = LoadU32(ctx, node + 56u);
-    if ((uint32_t)((int32_t)a >= (int32_t)1u)) {
-      entry = 0u;
-      do {
-        slot = LoadU32(ctx, LoadU32(ctx, node + 24u) + (entry * 12u));
-        if (slot) {
-          StoreU8(ctx, slot + 5u, LoadU8(ctx, slot + 5u) & 252u);
-          a = LoadU32(ctx, node + 56u);
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 56u);
+    a = i0;
+    i1 = 1u;
+    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
+    if (i0) {
+      i0 = 0u;
+      l1 = i0;
+      loop_67: 
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 24u);
+        i1 = l1;
+        i2 = 12u;
+        i1 *= i2;
+        i0 += i1;
+        i0 = LoadU32(ctx, i0);
+        l3 = i0;
+        if (i0) {
+          i0 = l3;
+          i1 = l3;
+          i1 = LoadU8(ctx, i1 + 5u);
+          i2 = 252u;
+          i1 &= i2;
+          StoreU8(ctx, i0 + 5u, i1);
+          i0 = l2;
+          i0 = LoadU32(ctx, i0 + 56u);
+          a = i0;
         }
-        entry = entry + 1u;
-      } while ((uint32_t)((int32_t)entry < (int32_t)a));
-      value = LoadU32(ctx, node + 52u);
+        i0 = l1;
+        i1 = 1u;
+        i0 += i1;
+        l1 = i0;
+        i1 = a;
+        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+        if (i0) {goto loop_67;}
+      i0 = l2;
+      i0 = LoadU32(ctx, i0 + 52u);
+      l4 = i0;
     }
-    a = a * 12u + ((LoadU32(ctx, node + 40u) + LoadU32(ctx, node + 80u)) << 4u);
-    next = LoadU32(ctx, node + 48u) + LoadU32(ctx, node + 44u) + value;
-    entry = (next + LoadU32(ctx, node + 36u)) << 2u;
-    a = a + entry;
-    entry = a + 92u;
+    i0 = a;
+    i1 = 12u;
+    i0 *= i1;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 40u);
+    i2 = l2;
+    i2 = LoadU32(ctx, i2 + 80u);
+    i1 += i2;
+    i2 = 4u;
+    i1 <<= (i2 & 31);
+    i0 += i1;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1 + 48u);
+    i2 = l2;
+    i2 = LoadU32(ctx, i2 + 44u);
+    i3 = l4;
+    i2 += i3;
+    i1 += i2;
+    l3 = i1;
+    i2 = l2;
+    i2 = LoadU32(ctx, i2 + 36u);
+    i1 += i2;
+    i2 = 2u;
+    i1 <<= (i2 & 31);
+    i0 += i1;
+    a = i0;
+    i1 = 92u;
+    i0 += i1;
+    l1 = i0;
   }
-store_result:
-  if (ResumePhase(ctx) == kResumeRunning) {
-    LeaveFrame();
-    return entry;
+  block_7:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    goto func_exit;
   }
-clear_chain:
-  if (ResumePhase(ctx) == kResumeRunning) {
-    entry = (kLoadProtoSlotAllBits << LoadU8(ctx, node + 7u)) ^ kLoadProtoSlotAllBits;
-    if (slot) {
-      // Release one bucket chain.
-      do {
-        a = entry;
-        entry = LoadU32(ctx, node + 16u) + (entry << 5u);
-        if (LoadU32(ctx, entry + 8u)) goto next_chain_bucket;
-        if ((uint32_t)((int32_t)LoadU32(ctx, entry + 24u) < (int32_t)4u)) goto next_chain_bucket;
-        StoreU32(ctx, entry + 24u, 11u);
-      next_chain_bucket:
-        entry = a - 1u;
-      } while (a);
-      goto clear_flag;
+  block_6:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF782ConstFFFFFFFF;
+    i1 = l2;
+    i1 = LoadU8(ctx, i1 + 7u);
+    i0 <<= (i1 & 31);
+    i1 = kF782ConstFFFFFFFF;
+    i0 ^= i1;
+    l1 = i0;
+    i0 = l3;
+    if (i0) {
+      loop_72: 
+        i0 = l1;
+        a = i0;
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 16u);
+        i1 = l1;
+        i2 = 5u;
+        i1 <<= (i2 & 31);
+        i0 += i1;
+        l1 = i0;
+        i0 = LoadU32(ctx, i0 + 8u);
+        if (i0) {goto block_73;}
+        i0 = l1;
+        i0 = LoadU32(ctx, i0 + 24u);
+        i1 = 4u;
+        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+        if (i0) {goto block_73;}
+        i0 = l1;
+        i1 = 11u;
+        StoreU32(ctx, i0 + 24u, i1);
+        block_73:;
+        i0 = a;
+        i1 = 1u;
+        i0 -= i1;
+        l1 = i0;
+        i0 = a;
+        if (i0) {goto loop_72;}
+      goto block_5;
     }
-    do {
-      slot = entry;
-      other = LoadU32(ctx, node + 16u) + (entry << 5u);
-      entry = other;
-      value = LoadU32(ctx, other + 24u);
-      if (LoadU32(ctx, entry + 8u)) {
-        if ((uint32_t)((int32_t)value < (int32_t)4u)) goto next_chain_slot;
-        entry = LoadU32(ctx, other + 16u);
-        if (!(LoadU8(ctx, entry + 5u) & 3u)) goto next_chain_slot;
-        ClearFlagsRecursive(ctx, a, entry);
-        goto next_chain_slot;
+    loop_74: 
+      i0 = l1;
+      l3 = i0;
+      i0 = l2;
+      i0 = LoadU32(ctx, i0 + 16u);
+      i1 = l1;
+      i2 = 5u;
+      i1 <<= (i2 & 31);
+      i0 += i1;
+      l5 = i0;
+      l1 = i0;
+      i1 = 24u;
+      i0 += i1;
+      i0 = LoadU32(ctx, i0);
+      l4 = i0;
+      i0 = l1;
+      i0 = LoadU32(ctx, i0 + 8u);
+      if (i0) {
+        i0 = l4;
+        i1 = 4u;
+        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+        if (i0) {goto block_75;}
+        i0 = l5;
+        i0 = LoadU32(ctx, i0 + 16u);
+        l1 = i0;
+        i0 = LoadU8(ctx, i0 + 5u);
+        i1 = 3u;
+        i0 &= i1;
+        i0 = !(i0);
+        if (i0) {goto block_75;}
+        i0 = a;
+        i1 = l1;
+        ClearFlagsRecursive(ctx, i0, i1);
+        goto block_75;
       }
-      if ((uint32_t)((int32_t)value < (int32_t)4u)) goto next_chain_slot;
-      StoreU32(ctx, entry + 24u, 11u);
-    next_chain_slot:
-      entry = slot - 1u;
-    } while (slot);
+      i0 = l4;
+      i1 = 4u;
+      i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+      if (i0) {goto block_75;}
+      i0 = l1;
+      i1 = 11u;
+      StoreU32(ctx, i0 + 24u, i1);
+      block_75:;
+      i0 = l3;
+      i1 = 1u;
+      i0 -= i1;
+      l1 = i0;
+      i0 = l3;
+      if (i0) {goto loop_74;}
   }
-clear_flag:
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, node + 5u, LoadU8(ctx, node + 5u) & 251u);
+  block_5:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i1 = l2;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 251u;
+    i1 &= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-finish:
-  if (ResumePhase(ctx) == kResumeRunning) {
-    LeaveFrame();
-    return (LoadU32(ctx, node + 28u) << 4u) + (32u << LoadU8(ctx, node + 7u)) + 32u;
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 28u);
+    i1 = 4u;
+    i0 <<= (i1 & 31);
+    i1 = 32u;
+    i2 = l2;
+    i2 = LoadU8(ctx, i2 + 7u);
+    i1 <<= (i2 & 31);
+    i0 += i1;
+    i1 = 32u;
+    i0 += i1;
+    goto func_exit;
   }
   TrapUnreachable();
-suspend_point:
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-           LoadU32(ctx, ReturnFrameSp(ctx)) + kLoadProtoSlotResumeWordBytes);
-  frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, frame, a);
-  StoreU32(ctx, frame + 4u, entry);
-  StoreU32(ctx, frame + 8u, node);
-  StoreU32(ctx, frame + 12u, slot);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-           LoadU32(ctx, ReturnFrameSp(ctx)) + kLoadProtoSlotFrameBytes);
+  spill_frame:;
+  l4 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l4;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF782ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l4 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l4;
+  i1 = l1;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l4;
+  i1 = l2;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l4;
+  i1 = l3;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 16u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return 0u;
+  return i0;
 }
-
-}  // namespace artc
+}

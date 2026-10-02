@@ -1,114 +1,261 @@
+// insert_formatted_key_entry.cpp -- inserts a formatted key entry: the key is formatted into the table slot's entry list..
+//
+// InsertFormattedKeyEntry -- inserts a formatted key entry: the key is formatted into the table slot's entry list.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 141417-141417 (f325); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Defined elsewhere in the tree.
+// Forward declarations -- batch-mates and registered callees.
 void FormatNumberValue(EngineContext* ctx, uint32_t state, uint32_t value, uint32_t options);
 uint32_t InternString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
-void EnsureTableArrayRoom(EngineContext* ctx, uint32_t holder);
+void EnsureTableArrayRoom(EngineContext* ctx, uint32_t a);
 
 namespace {
 
-constexpr uint32_t kInsertFormattedKeyEntryString = 0x29D02u;  // the key string interned for a formatted entry
-constexpr uint32_t kInsertFormattedKeyEntrySaveFrameBytes = 12u;  // holder, key, slot
-constexpr uint32_t kInsertFormattedKeyEntryResumeWordBytes = 4u;
-constexpr uint32_t kInsertFormattedKeyEntryRoomCall = 0u;  // the room check was in flight
-constexpr uint32_t kInsertFormattedKeyEntryFormatCall = 1u;  // the number formatting was in flight
-constexpr uint32_t kInsertFormattedKeyEntryInternCall = 2u;  // the string interning was in flight
+constexpr uint32_t kF325Const29D02 = 0x29D02u;  // 
+constexpr uint32_t kF325SaveFrameBytes = 12u;
+constexpr uint32_t kF325ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Inserts a formatted key's entry into the object's key list: works out the slot
-// the key belongs in, formats the number into it, and stores the entry pointer
-// there. A key that arrives as a string is interned instead, and a non-zero key
-// leaves the list alone. The step suspends around its three calls; each gate
-// replays the one its resume code names.
-void InsertFormattedKeyEntry(EngineContext* ctx, uint32_t holder, uint32_t key) {
+void InsertFormattedKeyEntry(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  uint32_t frame = 0u;
-  uint32_t call_result = 0u;
-  uint32_t entry = 0u;
-  uint32_t resume_code = 0u;
-  uint32_t slot = 0u;
-  uint32_t resume_word = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kInsertFormattedKeyEntrySaveFrameBytes);
-    frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    holder = LoadU32(ctx, frame);
-    slot = LoadU32(ctx, frame + 8u);
-    key = LoadU32(ctx, frame + 4u);
+  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF325SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l2 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 4u);
+    b = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kInsertFormattedKeyEntryResumeWordBytes);
-    resume_word = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF325ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    slot = static_cast<uint32_t>((int32_t)key >= (int32_t)2u);
-  }
-  if (slot != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // A small integer key: the slot list has to have room for its entry.
-      slot = LoadU32(ctx, holder + 16u);
-      slot = static_cast<uint32_t>(LoadU32(ctx, slot + 68u) >= LoadU32(ctx, slot + 64u));
+  i0 = l2;
+  i1 = b;
+  i2 = 2u;
+  i1 = (uint32_t)((int32_t)i1 >= (int32_t)i2);
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  l2 = i0;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 16u);
+      l2 = i0;
+      i0 = LoadU32(ctx, i0 + 68u);
+      l3 = i0;
+      i0 = l3;
+      i1 = l2;
+      i1 = LoadU32(ctx, i1 + 64u);
+      i0 = i0 >= i1;
+      l2 = i0;
     }
-    if (slot != 0u || ResumePhase(ctx) == kResumeRewinding) {
-      if (ResumePhase(ctx) == kResumeRunning || resume_word == kInsertFormattedKeyEntryRoomCall) {
-        EnsureTableArrayRoom(ctx, holder);
-        resume_code = kInsertFormattedKeyEntryRoomCall;
-        if (ResumePhase(ctx) == kResumeSuspended) {goto suspend_point;}
+    i0 = l2;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = l4;
+      i0 = !(i0);
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = a;
+        EnsureTableArrayRoom(ctx, i0);
+        i0 = 0u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
       }
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      slot = static_cast<uint32_t>((int32_t)(LoadU32(ctx, holder + 8u) - LoadU32(ctx, holder + 12u)) >> 4) - 1u;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 8u);
+      i1 = a;
+      i1 = LoadU32(ctx, i1 + 12u);
+      i0 -= i1;
+      i1 = 4u;
+      i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
+      i1 = 1u;
+      i0 -= i1;
+      l2 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_word == kInsertFormattedKeyEntryFormatCall) {
-      FormatNumberValue(ctx, holder, key, slot);
-      resume_code = kInsertFormattedKeyEntryFormatCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {goto suspend_point;}
+    i0 = l4;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = a;
+      i1 = b;
+      i2 = l2;
+      FormatNumberValue(ctx, i0, i1, i2);
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      slot = holder + 8u;
-      entry = LoadU32(ctx, holder + 8u) + ((1u - key) << 4);
-      goto entry_ready;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = a;
+      i1 = 8u;
+      i0 += i1;
+      l2 = i0;
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 8u);
+      i1 = 1u;
+      i2 = b;
+      i1 -= i2;
+      i2 = 4u;
+      i1 <<= (i2 & 31);
+      i0 += i1;
+      goto running_exit;
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (key != 0u) {goto skip_store;}
-    key = LoadU32(ctx, holder + 8u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = b;
+    if (i0) {goto block_3;}
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 8u);
+    b = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_word == kInsertFormattedKeyEntryInternCall) {
-    call_result = InternString(ctx, holder, kInsertFormattedKeyEntryString, 0u);
-    resume_code = kInsertFormattedKeyEntryInternCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {goto suspend_point;}
-    slot = call_result;
+  i0 = l4;
+  i1 = 2u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF325Const29D02;
+    i2 = 0u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l3 = i0;
+    i0 = 2u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    l2 = i0;
   }
-  if (ResumePhase(ctx) != kResumeRunning) {
-    entry = holder;
+  i0 = ResumePhase(ctx);
+  if (i0) {
+    i0 = a;
   } else {
-    StoreU32(ctx, key + 8u, 4u);
-    StoreU32(ctx, key, slot);
-    slot = holder + 8u;
-    entry = LoadU32(ctx, holder + 8u) + 16u;
+    i0 = b;
+    i1 = 4u;
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = b;
+    i1 = l2;
+    StoreU32(ctx, i0, i1);
+    i0 = a;
+    i1 = 8u;
+    i0 += i1;
+    l2 = i0;
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 8u);
+    i1 = 16u;
+    i0 += i1;
   }
-  entry_ready:;
-  holder = entry;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, slot, holder);
+  running_exit:;
+  a = i0;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i1 = a;
+    StoreU32(ctx, i0, i1);
   }
-  skip_store:;
-  // The running pass is done; the frame write below belongs to a suspend only.
-  goto exit_path;
-  // Suspend here: the resume word naming the call in flight goes first, then the
-  // three saved words, and the caller's frame pointer is left above both.
-  suspend_point:;
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kInsertFormattedKeyEntryResumeWordBytes);
-  frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, frame, holder);
-  StoreU32(ctx, frame + 4u, key);
-  StoreU32(ctx, frame + 8u, slot);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kInsertFormattedKeyEntrySaveFrameBytes);
-  exit_path:;
+  block_3:;
+  goto func_exit;
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF325ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = b;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = l2;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 12u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-}  // namespace artc
+}

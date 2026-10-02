@@ -1,329 +1,819 @@
+// reset_shared_ptr_06.cpp -- one instantiation of boost::shared_ptr<T>::reset: the data segment carries the shared_ptr.hpp assert trio (__FILE__, 'p == 0 || p != px', __func__ 'reset') and the body is that reset -- the owned pointer goes through the swap/release the assert guards; f199 Panic is the only callee..
+//
+// ResetSharedPtr06 -- one instantiation of boost::shared_ptr<T>::reset: the data segment carries the shared_ptr.hpp assert trio (__FILE__, 'p == 0 || p != px', __func__ 'reset') and the body is that reset -- the owned pointer goes through the swap/release the assert guards; f199 Panic is the only callee.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 1568372-1568372 (f3395); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations of the callees below.
+// Forward declarations -- batch-mates and registered callees.
 void Panic(EngineContext* ctx, uint32_t a0);
 
 namespace {
 
-constexpr uint32_t kResetSharedPtr06AssertExpr = 0xB71B4u;  // the shared_ptr assertion expression
-constexpr uint32_t kResetSharedPtr06AssertFile = 0xB5E39u;  // the header the assert blames
-constexpr uint32_t kResetSharedPtr06AssertFunc = 0xAF57Cu;  // the function the assert blames
-constexpr uint32_t kResetSharedPtr06ControlBlockVtable = 0xB7354u;  // the control block's vtable
-constexpr uint32_t kResetSharedPtr06PendingFlag = 0xD015Cu;  // the pending-call flag word
-constexpr uint32_t kResetSharedPtr06SaveFrameBytes = 20u;  // bytes the suspend path pushes
-constexpr uint32_t kResetSharedPtr06ResumeWordBytes = 4u;  // bytes of the resume word
+constexpr uint32_t kF3395MsgReset = 0xAF57Cu;  // reset
+constexpr uint32_t kF3395MsgBoostBoostSmartPtr = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
+constexpr uint32_t kF3395MsgPPPx = 0xB71B4u;  // p == 0 || p != px
+constexpr uint32_t kF3395ConstB7354 = 0xB7354u;  // 
+constexpr uint32_t kF3395ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF3395SaveFrameBytes = 20u;
+constexpr uint32_t kF3395ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Releases the pointer this shared slot owns and lays out a fresh control
-// block for the incoming one; the shared_ptr.hpp assertion trio in the data
-// segment guards the swap and reports the call site when it fails.
-//
-// Suspendable: every call below can suspend, so each site carries a resume
-// point, and a, b, temporary, control_block and pending_throw are the live
-// words pushed before the step returns; the rewind gates at the top restore
-// them.
 void ResetSharedPtr06(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  uint32_t temporary = 0u;
-  uint32_t control_block = 0u;
-  uint32_t frame = 0u;
-  uint32_t resume_point = 0u;
-  uint32_t pending_throw = 0u;
-  // Rewind: drop the 20-byte frame, then the resume word above it.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kResetSharedPtr06SaveFrameBytes);
-    frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    a = LoadU32(ctx, frame);
-    temporary = LoadU32(ctx, frame + 8u);
-    control_block = LoadU32(ctx, frame + 12u);
-    pending_throw = LoadU32(ctx, frame + 16u);
-    b = LoadU32(ctx, frame + 4u);
+  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  uint64_t j1 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF3395SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l2 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l3 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l6 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 4u);
+    b = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kResetSharedPtr06ResumeWordBytes);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF3395ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    temporary = GuestStackSp(ctx) - 16u;
-    GuestStackSp(ctx) = temporary;
-    control_block = !(b);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = GuestStackSp(ctx);
+    i1 = 16u;
+    i0 -= i1;
+    l2 = i0;
+    GuestStackSp(ctx) = i0;
+    i0 = b;
+    i0 = !(i0);
+    l3 = i0;
   }
-  if (control_block != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU64(ctx, temporary + 8u, 0ull);
-      StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
-      b = 0u;
+  i0 = l3;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l2;
+      j1 = 0ull;
+      StoreU64(ctx, i0 + 8u, j1);
+      i0 = kF3395ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = 0u;
+      b = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
-      frame = HostFoldLayoutOffset(ctx, 1032u, 16u);
-      resume_point = 0u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-      control_block = frame;
+    i0 = l5;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 1032u;
+      i1 = 16u;
+      i0 = HostFoldLayoutOffset(ctx, i0, i1);
+      l4 = i0;
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l4;
+      l3 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      pending_throw = LoadU32(ctx, kResetSharedPtr06PendingFlag);
-      StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
-      pending_throw = pending_throw != 1u;
-      if (pending_throw != 0u) goto install_control_block;
-      a = FindMatchingCatch(ctx, 0u);
-      b = HostTempRet0(ctx);
-      a = HostRestorePendingThrow(ctx, a);
-      StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF3395ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      l6 = i0;
+      i0 = kF3395ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = l6;
+      i1 = 1u;
+      i0 = i0 != i1;
+      l6 = i0;
+      if (i0) {goto block_5;}
+      i0 = 0u;
+      i0 = FindMatchingCatch(ctx, i0);
+      a = i0;
+      i0 = HostTempRet0(ctx);
+      b = i0;
+      i0 = a;
+      i0 = HostRestorePendingThrow(ctx, i0);
+      a = i0;
+      i0 = kF3395ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
-      HostMarkRegionSeen(ctx, 1019u);
-      resume_point = 1u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    i0 = l5;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 1019u;
+      HostMarkRegionSeen(ctx, i0);
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      a = LoadU32(ctx, kResetSharedPtr06PendingFlag);
-      StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
-      a = a == 1u;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF3395ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF3395ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 == i1;
+      a = i0;
     }
-    if (a != 0u || ResumePhase(ctx) == kResumeRewinding) {
-      if (ResumePhase(ctx) == kResumeRunning) {
-        b = HostRet0(ctx);
-        a = HostTempRet0(ctx);
-        StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
+    i0 = a;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = HostRet0(ctx);
+        b = i0;
+        i0 = HostTempRet0(ctx);
+        a = i0;
+        i0 = kF3395ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
       }
-      if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
-        HostMarkRegionSeen(ctx, 1021u);
-        resume_point = 2u;
-        if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+      i0 = l5;
+      i1 = 2u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = 1021u;
+        HostMarkRegionSeen(ctx, i0);
+        i0 = 2u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
       }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        a = LoadU32(ctx, kResetSharedPtr06PendingFlag);
-        StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
-        a = a != 1u;
-        if (a != 0u) goto release_owned;
-        a = FindMatchingCatch(ctx, 0u);
-        b = HostTempRet0(ctx);
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF3395ConstD015C;
+        i0 = LoadU32(ctx, i0);
+        a = i0;
+        i0 = kF3395ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+        i0 = a;
+        i1 = 1u;
+        i0 = i0 != i1;
+        a = i0;
+        if (i0) {goto block_13;}
+        i0 = 0u;
+        i0 = FindMatchingCatch(ctx, i0);
+        a = i0;
+        i0 = HostTempRet0(ctx);
+        b = i0;
       }
-      if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
-        Panic(ctx, a);
-        resume_point = 3u;
-        if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+      i0 = l5;
+      i1 = 3u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = a;
+        Panic(ctx, i0);
+        i0 = 3u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
       }
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
       TrapUnreachable();
     }
-    release_owned:;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      a = LoadU32(ctx, temporary + 12u);
-      temporary = !(a);
+    block_13:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l2;
+      i0 = LoadU32(ctx, i0 + 12u);
+      a = i0;
+      i0 = !(i0);
+      l2 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      if (temporary != 0u) goto abort_double_release;
-      temporary = LoadU32(ctx, a + 4u);
-      control_block = temporary - 1u;
-      StoreU32(ctx, a + 4u, control_block);
-      temporary = temporary != 1u;
-      if (temporary != 0u) goto abort_double_release;
-      temporary = LoadU32(ctx, LoadU32(ctx, a) + 8u);
-      StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l2;
+      if (i0) {goto block_23;}
+      i0 = a;
+      i1 = a;
+      i1 = LoadU32(ctx, i1 + 4u);
+      l2 = i1;
+      i2 = 1u;
+      i1 -= i2;
+      l3 = i1;
+      StoreU32(ctx, i0 + 4u, i1);
+      i0 = l2;
+      i1 = 1u;
+      i0 = i0 != i1;
+      l2 = i0;
+      if (i0) {goto block_23;}
+      i0 = a;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 8u);
+      l2 = i0;
+      i0 = kF3395ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
-      HostReleaseSlotPair(ctx, temporary, a);
-      resume_point = 4u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    i0 = l5;
+    i1 = 4u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l2;
+      i1 = a;
+      HostReleaseSlotPair(ctx, i0, i1);
+      i0 = 4u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      temporary = LoadU32(ctx, kResetSharedPtr06PendingFlag);
-      StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
-      if (temporary == 1u) goto pending_throw_unwind;
-      temporary = LoadU32(ctx, a + 8u);
-      control_block = temporary - 1u;
-      StoreU32(ctx, a + 8u, control_block);
-      temporary = temporary != 1u;
-      if (temporary != 0u) goto abort_double_release;
-      temporary = LoadU32(ctx, LoadU32(ctx, a) + 12u);
-      StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF3395ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      l2 = i0;
+      i0 = kF3395ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = l2;
+      i1 = 1u;
+      i0 = i0 == i1;
+      if (i0) {goto block_3;}
+      i0 = a;
+      i1 = a;
+      i1 = LoadU32(ctx, i1 + 8u);
+      l2 = i1;
+      i2 = 1u;
+      i1 -= i2;
+      l3 = i1;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = l2;
+      i1 = 1u;
+      i0 = i0 != i1;
+      l2 = i0;
+      if (i0) {goto block_23;}
+      i0 = a;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 12u);
+      l2 = i0;
+      i0 = kF3395ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
-      HostReleaseSlotPair(ctx, temporary, a);
-      resume_point = 5u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    i0 = l5;
+    i1 = 5u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l2;
+      i1 = a;
+      HostReleaseSlotPair(ctx, i0, i1);
+      i0 = 5u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      a = LoadU32(ctx, kResetSharedPtr06PendingFlag);
-      StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
-      a = a == 1u;
-      if (a != 0u) goto pending_throw_unwind;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF3395ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF3395ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 == i1;
+      a = i0;
+      if (i0) {goto block_3;}
     }
-    abort_double_release:;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      HostOsRelease(ctx, b);
+    block_23:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = b;
+      HostOsRelease(ctx, i0);
       TrapUnreachable();
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    control_block = LoadU32(ctx, a) != b;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU32(ctx, i0);
+    i1 = b;
+    i0 = i0 != i1;
+    l3 = i0;
   }
-  if (control_block != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, temporary + 12u, 0u);
-      StoreU32(ctx, temporary + 8u, b);
-      StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
-      pending_throw = (temporary + 8u) | 4u;
-      control_block = temporary + 8u;
+  i0 = l3;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l2;
+      i1 = 0u;
+      StoreU32(ctx, i0 + 12u, i1);
+      i0 = l2;
+      i1 = b;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = kF3395ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = l2;
+      i1 = 8u;
+      i0 += i1;
+      i1 = 4u;
+      i0 |= i1;
+      l6 = i0;
+      i0 = l2;
+      i1 = 8u;
+      i0 += i1;
+      l3 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
-      HostSyncSlot(ctx, 2791u, control_block, b, pending_throw);
-      resume_point = 6u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    i0 = l5;
+    i1 = 6u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 2791u;
+      i1 = l3;
+      i2 = b;
+      i3 = l6;
+      HostSyncSlot(ctx, i0, i1, i2, i3);
+      i0 = 6u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      b = LoadU32(ctx, kResetSharedPtr06PendingFlag);
-      StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
-      if (b != 1u) {
-        control_block = LoadU32(ctx, temporary + 12u);
-        b = LoadU32(ctx, temporary + 8u);
-        goto finished;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF3395ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      b = i0;
+      i0 = kF3395ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = b;
+      i1 = 1u;
+      i0 = i0 != i1;
+      if (i0) {
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 12u);
+        l3 = i0;
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 8u);
+        b = i0;
+        goto running_exit;
       }
-      b = HostRet0(ctx);
-      a = LoadU32(ctx, temporary + 12u);
-      temporary = !(a);
+      i0 = HostRet0(ctx);
+      b = i0;
+      i0 = HostTempRet0(ctx);
+      i0 = l2;
+      i0 = LoadU32(ctx, i0 + 12u);
+      a = i0;
+      i0 = !(i0);
+      l2 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      if (temporary != 0u) goto abort_unwind_release;
-      temporary = LoadU32(ctx, a + 4u);
-      control_block = temporary - 1u;
-      StoreU32(ctx, a + 4u, control_block);
-      temporary = temporary != 1u;
-      if (temporary != 0u) goto abort_unwind_release;
-      temporary = LoadU32(ctx, LoadU32(ctx, a) + 8u);
-      StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l2;
+      if (i0) {goto block_37;}
+      i0 = a;
+      i1 = a;
+      i1 = LoadU32(ctx, i1 + 4u);
+      l2 = i1;
+      i2 = 1u;
+      i1 -= i2;
+      l3 = i1;
+      StoreU32(ctx, i0 + 4u, i1);
+      i0 = l2;
+      i1 = 1u;
+      i0 = i0 != i1;
+      l2 = i0;
+      if (i0) {goto block_37;}
+      i0 = a;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 8u);
+      l2 = i0;
+      i0 = kF3395ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 7u) {
-      HostReleaseSlotPair(ctx, temporary, a);
-      resume_point = 7u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    i0 = l5;
+    i1 = 7u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l2;
+      i1 = a;
+      HostReleaseSlotPair(ctx, i0, i1);
+      i0 = 7u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      temporary = LoadU32(ctx, kResetSharedPtr06PendingFlag);
-      StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
-      if (temporary == 1u) goto pending_throw_unwind;
-      temporary = LoadU32(ctx, a + 8u);
-      control_block = temporary - 1u;
-      StoreU32(ctx, a + 8u, control_block);
-      temporary = temporary != 1u;
-      if (temporary != 0u) goto abort_unwind_release;
-      temporary = LoadU32(ctx, LoadU32(ctx, a) + 12u);
-      StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF3395ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      l2 = i0;
+      i0 = kF3395ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = l2;
+      i1 = 1u;
+      i0 = i0 == i1;
+      if (i0) {goto block_3;}
+      i0 = a;
+      i1 = a;
+      i1 = LoadU32(ctx, i1 + 8u);
+      l2 = i1;
+      i2 = 1u;
+      i1 -= i2;
+      l3 = i1;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = l2;
+      i1 = 1u;
+      i0 = i0 != i1;
+      l2 = i0;
+      if (i0) {goto block_37;}
+      i0 = a;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 12u);
+      l2 = i0;
+      i0 = kF3395ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 8u) {
-      HostReleaseSlotPair(ctx, temporary, a);
-      resume_point = 8u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+    i0 = l5;
+    i1 = 8u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l2;
+      i1 = a;
+      HostReleaseSlotPair(ctx, i0, i1);
+      i0 = 8u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      a = LoadU32(ctx, kResetSharedPtr06PendingFlag);
-      StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
-      a = a == 1u;
-      if (a != 0u) goto pending_throw_unwind;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF3395ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF3395ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 == i1;
+      a = i0;
+      if (i0) {goto block_3;}
     }
-    abort_unwind_release:;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      HostOsRelease(ctx, b);
+    block_37:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = b;
+      HostOsRelease(ctx, i0);
       TrapUnreachable();
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    HostAssertFail(ctx, kResetSharedPtr06AssertExpr, kResetSharedPtr06AssertFile, 698u,
-                   kResetSharedPtr06AssertFunc);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF3395MsgPPPx;
+    i1 = kF3395MsgBoostBoostSmartPtr;
+    i2 = 698u;
+    i3 = kF3395MsgReset;
+    HostAssertFail(ctx, i0, i1, i2, i3);
     TrapUnreachable();
   }
-  install_control_block:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU64(ctx, control_block + 4u, 4294967297ull);
-    StoreU32(ctx, control_block + 12u, 0u);
-    StoreU32(ctx, control_block, kResetSharedPtr06ControlBlockVtable);
+  block_5:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l3;
+    j1 = 4294967297ull;
+    StoreU64(ctx, i0 + 4u, j1);
+    i0 = l3;
+    i1 = 0u;
+    StoreU32(ctx, i0 + 12u, i1);
+    i0 = l3;
+    i1 = kF3395ConstB7354;
+    StoreU32(ctx, i0, i1);
   }
-  finished:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, temporary + 8u, LoadU32(ctx, a));
-    StoreU32(ctx, a, b);
-    b = LoadU32(ctx, a + 4u);
-    StoreU32(ctx, a + 4u, control_block);
-    StoreU32(ctx, temporary + 12u, b);
-    a = !(b);
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i1 = a;
+    i1 = LoadU32(ctx, i1);
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = a;
+    i1 = b;
+    StoreU32(ctx, i0, i1);
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 4u);
+    b = i0;
+    i0 = a;
+    i1 = l3;
+    StoreU32(ctx, i0 + 4u, i1);
+    i0 = l2;
+    i1 = b;
+    StoreU32(ctx, i0 + 12u, i1);
+    i0 = b;
+    i0 = !(i0);
+    a = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (a != 0u) goto release_done;
-    a = LoadU32(ctx, b + 4u);
-    StoreU32(ctx, b + 4u, a - 1u);
-    a = a != 1u;
-    if (a != 0u) goto release_done;
-    a = LoadU32(ctx, LoadU32(ctx, b) + 8u);
-    StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    if (i0) {goto block_47;}
+    i0 = b;
+    i1 = b;
+    i1 = LoadU32(ctx, i1 + 4u);
+    a = i1;
+    i2 = 1u;
+    i1 -= i2;
+    StoreU32(ctx, i0 + 4u, i1);
+    i0 = a;
+    i1 = 1u;
+    i0 = i0 != i1;
+    a = i0;
+    if (i0) {goto block_47;}
+    i0 = b;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 8u);
+    a = i0;
+    i0 = kF3395ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 9u) {
-    HostReleaseSlotPair(ctx, a, b);
-    resume_point = 9u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+  i0 = l5;
+  i1 = 9u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = b;
+    HostReleaseSlotPair(ctx, i0, i1);
+    i0 = 9u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    a = LoadU32(ctx, kResetSharedPtr06PendingFlag);
-    StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
-    a = a == 1u;
-    if (a != 0u) goto pending_throw_unwind;
-    a = LoadU32(ctx, b + 8u);
-    StoreU32(ctx, b + 8u, a - 1u);
-    a = a != 1u;
-    if (a != 0u) goto release_done;
-    a = LoadU32(ctx, LoadU32(ctx, b) + 12u);
-    StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF3395ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = kF3395ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = a;
+    i1 = 1u;
+    i0 = i0 == i1;
+    a = i0;
+    if (i0) {goto block_3;}
+    i0 = b;
+    i1 = b;
+    i1 = LoadU32(ctx, i1 + 8u);
+    a = i1;
+    i2 = 1u;
+    i1 -= i2;
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = a;
+    i1 = 1u;
+    i0 = i0 != i1;
+    a = i0;
+    if (i0) {goto block_47;}
+    i0 = b;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 12u);
+    a = i0;
+    i0 = kF3395ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 10u) {
-    HostReleaseSlotPair(ctx, a, b);
-    resume_point = 10u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+  i0 = l5;
+  i1 = 10u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = b;
+    HostReleaseSlotPair(ctx, i0, i1);
+    i0 = 10u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    a = LoadU32(ctx, kResetSharedPtr06PendingFlag);
-    StoreU32(ctx, kResetSharedPtr06PendingFlag, 0u);
-    a = a == 1u;
-    if (a != 0u) goto pending_throw_unwind;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF3395ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = kF3395ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = a;
+    i1 = 1u;
+    i0 = i0 == i1;
+    a = i0;
+    if (i0) {goto block_3;}
   }
-  release_done:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    GuestStackSp(ctx) = temporary + 16u;
-    goto exit_path;
+  block_47:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i1 = 16u;
+    i0 += i1;
+    GuestStackSp(ctx) = i0;
+    goto func_exit;
   }
-  pending_throw_unwind:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    a = FindMatchingCatch(ctx, 0u);
+  block_3:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = 0u;
+    i0 = FindMatchingCatch(ctx, i0);
+    a = i0;
+    i0 = HostTempRet0(ctx);
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 11u) {
-    Panic(ctx, a);
-    resume_point = 11u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+  i0 = l5;
+  i1 = 11u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    Panic(ctx, i0);
+    i0 = 11u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
     TrapUnreachable();
   }
-  goto exit_path;
-  suspend_point:;
-  // Suspend: push the resume point, then the 20-byte frame with the live state.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-           LoadU32(ctx, ReturnFrameSp(ctx)) + kResetSharedPtr06ResumeWordBytes);
-  frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, frame, a);
-  StoreU32(ctx, frame + 4u, b);
-  StoreU32(ctx, frame + 8u, temporary);
-  StoreU32(ctx, frame + 12u, control_block);
-  StoreU32(ctx, frame + 16u, pending_throw);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-           LoadU32(ctx, ReturnFrameSp(ctx)) + kResetSharedPtr06SaveFrameBytes);
-  exit_path:;
+  goto func_exit;
+  spill_frame:;
+  l4 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l4;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF3395ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l4 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l4;
+  i1 = b;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l4;
+  i1 = l2;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l4;
+  i1 = l3;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l4;
+  i1 = l6;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 20u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

@@ -1,8 +1,23 @@
+// assign_tagged_tree_range.cpp -- clears the destination tagged tree and re-inserts every node of the [first,last) range as a fresh forty-byte node with deep-copied members..
+//
+// AssignTaggedTreeRange -- clears the destination tagged tree and re-inserts every node of the [first,last) range as a fresh forty-byte node with deep-copied members.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 151176-151176 (f353); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations of the callees below.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t CompareBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 void ReleaseNodeTree(EngineContext* ctx, uint32_t state, uint32_t node);
 void UnlinkListNode(EngineContext* ctx, uint32_t node, uint32_t victim);
@@ -10,346 +25,742 @@ void InsertTaggedTreeNode(EngineContext* ctx, uint32_t a, uint32_t b);
 
 namespace {
 
-constexpr uint32_t kAssignRangePendingFlag = 0xD015Cu;  // the pending-call flag word
-constexpr uint32_t kAssignRangeMinusOne = 0xFFFFFFFFu;  // -1 as the compare result sees it
-constexpr uint32_t kAssignRangeSaveFrameBytes = 36u;  // live state bytes pushed on suspend
-constexpr uint32_t kAssignRangeResumeWordBytes = 4u;  // resume word pushed above that frame
+constexpr uint32_t kF353ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF353ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF353SaveFrameBytes = 36u;
+constexpr uint32_t kF353ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Replaces the nodes of a tagged tree that fall inside the key range [b, c):
-// the range is unlinked and released, then rebuilt from the bound key nodes
-// the comparison walk lands on.
-//
-// Every callee here can suspend, so each call site carries a resume point naming
-// it, and a, b, c, candidate, cursor, node, parent, upper_node and head_cell are
-// the live words pushed before the step returns; the two rewind gates at the top
-// restore them.
 void AssignTaggedTreeRange(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   EnterFrame();
-  uint32_t resume_point = 0u;
-  uint32_t cmp = 0u;
-  uint32_t min_len = 0u;
-  uint32_t key_cell = 0u;
-  uint32_t candidate = 0u;
-  uint32_t cursor = 0u;
-  uint32_t scratch = 0u;
-  uint32_t node = 0u;
-  uint32_t parent = 0u;
-  uint32_t upper_node = 0u;
-  uint32_t head_cell = 0u;
-  // Rewind: drop the 36-byte frame, then the resume word above it.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kAssignRangeSaveFrameBytes);
-    scratch = LoadU32(ctx, ReturnFrameSp(ctx));
-    a = LoadU32(ctx, scratch);
-    c = LoadU32(ctx, scratch + 8u);
-    candidate = LoadU32(ctx, scratch + 12u);
-    cursor = LoadU32(ctx, scratch + 16u);
-    node = LoadU32(ctx, scratch + 20u);
-    parent = LoadU32(ctx, scratch + 24u);
-    upper_node = LoadU32(ctx, scratch + 28u);
-    head_cell = LoadU32(ctx, scratch + 32u);
-    b = LoadU32(ctx, scratch + 4u);
+  uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  uint64_t j1 = 0;
+      l11 = 0, l12 = 0, l13 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF353SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 8u);
+    c = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l3 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l4 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l6 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l7 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 28u);
+    l8 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 32u);
+    l9 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 4u);
+    b = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kAssignRangeResumeWordBytes);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF353ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l10 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // An empty tree has nothing to re-key.
-    candidate = (LoadU32(ctx, a + 8u) == 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 8u);
+    i0 = !(i0);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (candidate != 0u) goto finished;
-    candidate = LoadU32(ctx, a);
-    head_cell = a + 4u;
-    StoreU32(ctx, a, head_cell);
-    StoreU32(ctx, LoadU32(ctx, a + 4u) + 8u, 0u);
-    StoreU64(ctx, a + 4u, 0ull);
-    parent = LoadU32(ctx, candidate + 4u);
-    node = parent ? parent : candidate;
-    candidate = (node == 0u);
-    if (candidate != 0u) {
-      ReleaseNodeTree(ctx, a, node);
-      goto finished;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l3;
+    if (i0) {goto running_exit;}
+    i0 = a;
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = a;
+    i1 = a;
+    i2 = kF353ResumeWordBytes;
+    i1 += i2;
+    l9 = i1;
+    StoreU32(ctx, i0, i1);
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 4u);
+    i1 = 0u;
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = a;
+    j1 = 0ull;
+    StoreU64(ctx, i0 + 4u, j1);
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l7 = i0;
+    i1 = l3;
+    i2 = l7;
+    i0 = i2 ? i0 : i1;
+    l6 = i0;
+    i0 = !(i0);
+    l3 = i0;
+    if (i0) {
+      i0 = a;
+      i1 = l6;
+      ReleaseNodeTree(ctx, i0, i1);
+      goto running_exit;
     }
-    // Descend to the leftmost node: it holds the lowest key in the tree.
-    parent = LoadU32(ctx, node + 8u);
-    if (parent == 0u) goto leftmost_ready;
-    candidate = LoadU32(ctx, parent);
-    if (node == candidate) {
-      StoreU32(ctx, parent, 0u);
-      candidate = LoadU32(ctx, parent + 4u);
-      if (candidate == 0u) {
-        cursor = parent;
-        goto leftmost_ready;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l7 = i0;
+    i0 = !(i0);
+    if (i0) {goto block_7;}
+    i0 = l6;
+    i1 = l7;
+    i1 = LoadU32(ctx, i1);
+    l3 = i1;
+    i0 = i0 == i1;
+    if (i0) {
+      i0 = l7;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = l7;
+      i0 = LoadU32(ctx, i0 + 4u);
+      l3 = i0;
+      i0 = !(i0);
+      if (i0) {
+        i0 = l7;
+        l4 = i0;
+        goto block_7;
       }
-      seek_min_left:;
-      cursor = candidate;
-      candidate = LoadU32(ctx, candidate);
-      if (candidate != 0u) goto seek_min_left;
-      candidate = LoadU32(ctx, cursor + 4u);
-      if (candidate != 0u) goto seek_min_left;
-      goto leftmost_ready;
+      loop_10: 
+        i0 = l3;
+        l4 = i0;
+        i0 = l3;
+        i0 = LoadU32(ctx, i0);
+        l3 = i0;
+        if (i0) {goto loop_10;}
+        i0 = l4;
+        i0 = LoadU32(ctx, i0 + 4u);
+        l3 = i0;
+        if (i0) {goto loop_10;}
+      goto block_7;
     }
-    StoreU32(ctx, parent + 4u, 0u);
-    if (candidate == 0u) {
-      cursor = parent;
-      goto leftmost_ready;
+    i0 = l7;
+    i1 = 0u;
+    StoreU32(ctx, i0 + 4u, i1);
+    i0 = l3;
+    i0 = !(i0);
+    if (i0) {
+      i0 = l7;
+      l4 = i0;
+      goto block_7;
     }
-    seek_min_right:;
-    cursor = candidate;
-    candidate = LoadU32(ctx, candidate);
-    if (candidate != 0u) goto seek_min_right;
-    candidate = LoadU32(ctx, cursor + 4u);
-    if (candidate != 0u) goto seek_min_right;
-    leftmost_ready:;
-    candidate = (b == c);
+    loop_12: 
+      i0 = l3;
+      l4 = i0;
+      i0 = l3;
+      i0 = LoadU32(ctx, i0);
+      l3 = i0;
+      if (i0) {goto loop_12;}
+      i0 = l4;
+      i0 = LoadU32(ctx, i0 + 4u);
+      l3 = i0;
+      if (i0) {goto loop_12;}
+    block_7:;
+    i0 = b;
+    i1 = c;
+    i0 = i0 == i1;
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (candidate != 0u) {
-      parent = node;
-      goto release_range;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l3;
+    if (i0) {
+      i0 = l6;
+      l7 = i0;
+      goto block_13;
     }
-    upper_node = b;
+    i0 = b;
+    l8 = i0;
   }
-  // Walk down the tree comparing the node key span with the target range.
-  scan_range:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    parent = cursor;
-    StoreU32(ctx, kAssignRangePendingFlag, 0u);
-    cursor = node + 16u;
-    b = upper_node + 16u;
-  }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
-    scratch = HostOsQuery(ctx, 870u, cursor, b);
-    resume_point = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-    b = scratch;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    b = LoadU32(ctx, kAssignRangePendingFlag);
-    StoreU32(ctx, kAssignRangePendingFlag, 0u);
-    b = (b == 1u);
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (b != 0u) goto release_and_trap;
-    StoreU32(ctx, kAssignRangePendingFlag, 0u);
-    candidate = upper_node + 28u;
-    b = node + 28u;
-  }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
-    scratch = HostOsQuery(ctx, 870u, b, candidate);
-    resume_point = 1u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-    b = scratch;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    b = LoadU32(ctx, kAssignRangePendingFlag);
-    StoreU32(ctx, kAssignRangePendingFlag, 0u);
-    b = (b == 1u);
-    if (b != 0u) goto release_and_trap;
-    b = LoadU32(ctx, head_cell);
-    if (b == 0u) {
-      b = head_cell;
-      candidate = b;
-      goto link_node;
+  loop_16: 
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      l7 = i0;
+      i0 = kF353ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = l6;
+      i1 = 16u;
+      i0 += i1;
+      l4 = i0;
+      i0 = l8;
+      i1 = 16u;
+      i0 += i1;
+      b = i0;
     }
-    candidate = LoadU8(ctx, node + 27u);
-    scratch = (static_cast<int32_t>(static_cast<uint32_t>(
-      static_cast<int32_t>((candidate << (24u & 31))) >> (24u & 31))) < 0);
-    candidate = scratch ? LoadU32(ctx, node + 20u) : candidate;
-    scratch = scratch ? LoadU32(ctx, node + 16u) : cursor;
-    descend_key:;
-    cursor = LoadU8(ctx, b + 27u);
-    cmp = (static_cast<int32_t>(static_cast<uint32_t>(
-      static_cast<int32_t>((cursor << (24u & 31))) >> (24u & 31))) < 0);
-    cursor = cmp ? LoadU32(ctx, b + 20u) : cursor;
-    min_len = (cursor < candidate);
-    min_len = min_len ? cursor : candidate;
-    if (min_len != 0u) {
-      key_cell = b + 16u;
-      cmp = CompareBytes(ctx, scratch, (cmp ? LoadU32(ctx, key_cell) : key_cell), min_len);
-      if (cmp != 0u) goto compare_bytes;
+    i0 = l10;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 870u;
+      i1 = l4;
+      i2 = b;
+      i0 = HostOsQuery(ctx, i0, i1, i2);
+      l5 = i0;
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l5;
+      b = i0;
     }
-    if (candidate < cursor) goto take_left;
-    goto take_right;
-    compare_bytes:;
-    if (static_cast<int32_t>(cmp) > static_cast<int32_t>(kAssignRangeMinusOne)) goto take_right;
-    take_left:;
-    cursor = LoadU32(ctx, b);
-    if (cursor != 0u) goto descend_next;
-    candidate = b;
-    goto link_node;
-    take_right:;
-    cursor = LoadU32(ctx, b + 4u);
-    if (cursor != 0u) goto descend_next;
-    candidate = b + 4u;
-    goto link_node;
-    descend_next:;
-    b = cursor;
-    goto descend_key;
-    TrapUnreachable();
-  }
-  // A callee left a throw pending: release the subtree and rethrow through it.
-  release_and_trap:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    c = HostRet0(ctx);
-    HostTempRet0(ctx);
-    ReleaseNodeTree(ctx, a, node);
-    if (parent != 0u) {
-      walk_up_tree:;
-      b = LoadU32(ctx, parent + 8u);
-      if (b != 0u) {
-        parent = b;
-        goto walk_up_tree;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF353ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      b = i0;
+      i0 = kF353ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = b;
+      i1 = 1u;
+      i0 = i0 == i1;
+      b = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = b;
+      if (i0) {goto block_21;}
+      i0 = kF353ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = l8;
+      i1 = 28u;
+      i0 += i1;
+      l3 = i0;
+      i0 = l6;
+      i1 = 28u;
+      i0 += i1;
+      b = i0;
+    }
+    i0 = l10;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 870u;
+      i1 = b;
+      i2 = l3;
+      i0 = HostOsQuery(ctx, i0, i1, i2);
+      l5 = i0;
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l5;
+      b = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF353ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      b = i0;
+      i0 = kF353ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = b;
+      i1 = 1u;
+      i0 = i0 == i1;
+      b = i0;
+      if (i0) {goto block_21;}
+      i0 = l9;
+      i0 = LoadU32(ctx, i0);
+      b = i0;
+      i0 = !(i0);
+      if (i0) {
+        i0 = l9;
+        b = i0;
+        l3 = i0;
+        goto block_20;
       }
-      ReleaseNodeTree(ctx, a, parent);
+      i0 = l6;
+      i0 = LoadU8(ctx, i0 + 27u);
+      l3 = i0;
+      i1 = 24u;
+      i0 <<= (i1 & 31);
+      i1 = 24u;
+      i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
+      i1 = 0u;
+      i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+      l5 = i0;
+      i0 = l6;
+      i0 = LoadU32(ctx, i0 + 20u);
+      i1 = l3;
+      i2 = l5;
+      i0 = i2 ? i0 : i1;
+      l3 = i0;
+      i0 = l6;
+      i0 = LoadU32(ctx, i0 + 16u);
+      i1 = l4;
+      i2 = l5;
+      i0 = i2 ? i0 : i1;
+      l5 = i0;
+      loop_26: 
+        i0 = b;
+        i0 = LoadU8(ctx, i0 + 27u);
+        l4 = i0;
+        i1 = 24u;
+        i0 <<= (i1 & 31);
+        i1 = 24u;
+        i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
+        i1 = 0u;
+        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+        l11 = i0;
+        i0 = b;
+        i0 = LoadU32(ctx, i0 + 20u);
+        i1 = l4;
+        i2 = l11;
+        i0 = i2 ? i0 : i1;
+        l4 = i0;
+        i1 = l3;
+        i0 = i0 < i1;
+        l12 = i0;
+        i0 = l4;
+        i1 = l3;
+        i2 = l12;
+        i0 = i2 ? i0 : i1;
+        l12 = i0;
+        if (i0) {
+          i0 = l5;
+          i1 = b;
+          i2 = 16u;
+          i1 += i2;
+          l13 = i1;
+          i1 = LoadU32(ctx, i1);
+          i2 = l13;
+          i3 = l11;
+          i1 = i3 ? i1 : i2;
+          i2 = l12;
+          i0 = CompareBytes(ctx, i0, i1, i2);
+          l11 = i0;
+          if (i0) {goto block_30;}
+        }
+        i0 = l3;
+        i1 = l4;
+        i0 = i0 < i1;
+        if (i0) {goto block_29;}
+        goto block_28;
+        block_30:;
+        i0 = l11;
+        i1 = kF353ConstFFFFFFFF;
+        i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+        if (i0) {goto block_28;}
+        block_29:;
+        i0 = b;
+        i0 = LoadU32(ctx, i0);
+        l4 = i0;
+        if (i0) {goto block_27;}
+        i0 = b;
+        l3 = i0;
+        goto block_20;
+        block_28:;
+        i0 = b;
+        i0 = LoadU32(ctx, i0 + 4u);
+        l4 = i0;
+        if (i0) {goto block_27;}
+        i0 = b;
+        i1 = 4u;
+        i0 += i1;
+        l3 = i0;
+        goto block_20;
+        block_27:;
+        i0 = l4;
+        b = i0;
+        goto loop_26;
+      TrapUnreachable();
     }
-    HostOsRelease(ctx, c);
-    TrapUnreachable();
-  }
-  // Splice the node into the tree and drop it from the ordered list.
-  link_node:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, node + 8u, b);
-    StoreU64(ctx, node, 0ull);
-    StoreU32(ctx, candidate, node);
-    b = LoadU32(ctx, LoadU32(ctx, a));
-    if (b != 0u) {
-      StoreU32(ctx, a, b);
-      node = LoadU32(ctx, candidate);
-    }
-    UnlinkListNode(ctx, LoadU32(ctx, a + 4u), node);
-    StoreU32(ctx, a + 8u, LoadU32(ctx, a + 8u) + 1u);
-    cursor = 0u;
-    if (parent == 0u) goto node_linked;
-    candidate = LoadU32(ctx, parent + 8u);
-    if (candidate == 0u) goto node_linked;
-    b = LoadU32(ctx, candidate);
-    if (parent == b) {
-      StoreU32(ctx, candidate, 0u);
-      b = LoadU32(ctx, candidate + 4u);
-      if (b == 0u) {
-        cursor = candidate;
-        goto node_linked;
+    block_21:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = HostRet0(ctx);
+      c = i0;
+      i0 = HostTempRet0(ctx);
+      i0 = a;
+      i1 = l6;
+      ReleaseNodeTree(ctx, i0, i1);
+      i0 = l7;
+      if (i0) {
+        loop_34: 
+          i0 = l7;
+          i0 = LoadU32(ctx, i0 + 8u);
+          b = i0;
+          if (i0) {
+            i0 = b;
+            l7 = i0;
+            goto loop_34;
+          }
+        i0 = a;
+        i1 = l7;
+        ReleaseNodeTree(ctx, i0, i1);
       }
-      relink_left:;
-      cursor = b;
-      b = LoadU32(ctx, b);
-      if (b != 0u) goto relink_left;
-      b = LoadU32(ctx, cursor + 4u);
-      if (b != 0u) goto relink_left;
-      goto node_linked;
+      i0 = c;
+      HostOsRelease(ctx, i0);
+      TrapUnreachable();
     }
-    StoreU32(ctx, candidate + 4u, 0u);
-    if (b == 0u) {
-      cursor = candidate;
-      goto node_linked;
-    }
-    relink_right:;
-    cursor = b;
-    b = LoadU32(ctx, b);
-    if (b != 0u) goto relink_right;
-    b = LoadU32(ctx, cursor + 4u);
-    if (b != 0u) goto relink_right;
-    node_linked:;
-    candidate = LoadU32(ctx, upper_node + 4u);
-    if (candidate == 0u) {
-      b = LoadU32(ctx, upper_node + 8u);
-      if (upper_node == LoadU32(ctx, b)) goto range_done;
-      candidate = upper_node + 8u;
-      walk_up_chain:;
-      node = LoadU32(ctx, candidate);
-      candidate = node + 8u;
-      b = LoadU32(ctx, node + 8u);
-      if (LoadU32(ctx, b) != node) goto walk_up_chain;
-      goto range_done;
-    }
-    descend_chain:;
-    b = candidate;
-    candidate = LoadU32(ctx, b);
-    if (candidate != 0u) goto descend_chain;
-    range_done:;
-    candidate = (b == c);
-    if (candidate != 0u) goto release_range;
-    upper_node = b;
-    node = parent;
-    if (node != 0u) goto scan_range;
-  }
-  // Drop the nodes the walk landed on, then release the subtree behind them.
-  release_range:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    ReleaseNodeTree(ctx, a, parent);
-    candidate = (cursor == 0u);
-    if (candidate != 0u) goto finished;
-    release_subtree:;
-    candidate = LoadU32(ctx, cursor + 8u);
-    if (candidate != 0u) {
-      cursor = candidate;
-      goto release_subtree;
-    }
-    ReleaseNodeTree(ctx, a, cursor);
-  }
-  finished:;
-  cursor = ResumePhase(ctx) ? cursor : (b != c);
-  if (cursor != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    // Re-insert the range key by key, rebalancing as each node is linked.
-    insert_range:;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      candidate = b + 16u;
-      cursor = b;
-    }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
-      InsertTaggedTreeNode(ctx, a, candidate);
-      resume_point = 2u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      candidate = LoadU32(ctx, b + 4u);
-      if (candidate == 0u) {
-        b = LoadU32(ctx, cursor + 8u);
-        candidate = (cursor == LoadU32(ctx, b));
-        if (candidate != 0u) goto range_rebuilt;
-        cursor = cursor + 8u;
-        walk_insert_parent:;
-        candidate = LoadU32(ctx, cursor);
-        cursor = candidate + 8u;
-        b = LoadU32(ctx, candidate + 8u);
-        candidate = (LoadU32(ctx, b) != candidate);
-        if (candidate != 0u) goto walk_insert_parent;
-        goto range_rebuilt;
+    block_20:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l6;
+      i1 = b;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = l6;
+      j1 = 0ull;
+      StoreU64(ctx, i0, j1);
+      i0 = l3;
+      i1 = l6;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0);
+      b = i0;
+      if (i0) {
+        i0 = a;
+        i1 = b;
+        StoreU32(ctx, i0, i1);
+        i0 = l3;
+        i0 = LoadU32(ctx, i0);
+        l6 = i0;
       }
-      descend_insert:;
-      b = candidate;
-      candidate = LoadU32(ctx, b);
-      if (candidate != 0u) goto descend_insert;
-      range_rebuilt:;
-      cursor = (b != c);
-      if (cursor != 0u) goto insert_range;
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 4u);
+      i1 = l6;
+      UnlinkListNode(ctx, i0, i1);
+      i0 = a;
+      i1 = a;
+      i1 = LoadU32(ctx, i1 + 8u);
+      i2 = 1u;
+      i1 += i2;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = 0u;
+      l4 = i0;
+      i0 = l7;
+      i0 = !(i0);
+      if (i0) {goto block_38;}
+      i0 = l7;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l3 = i0;
+      i0 = !(i0);
+      if (i0) {goto block_38;}
+      i0 = l7;
+      i1 = l3;
+      i1 = LoadU32(ctx, i1);
+      b = i1;
+      i0 = i0 == i1;
+      if (i0) {
+        i0 = l3;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+        i0 = l3;
+        i0 = LoadU32(ctx, i0 + 4u);
+        b = i0;
+        i0 = !(i0);
+        if (i0) {
+          i0 = l3;
+          l4 = i0;
+          goto block_38;
+        }
+        loop_41: 
+          i0 = b;
+          l4 = i0;
+          i0 = b;
+          i0 = LoadU32(ctx, i0);
+          b = i0;
+          if (i0) {goto loop_41;}
+          i0 = l4;
+          i0 = LoadU32(ctx, i0 + 4u);
+          b = i0;
+          if (i0) {goto loop_41;}
+        goto block_38;
+      }
+      i0 = l3;
+      i1 = 0u;
+      StoreU32(ctx, i0 + 4u, i1);
+      i0 = b;
+      i0 = !(i0);
+      if (i0) {
+        i0 = l3;
+        l4 = i0;
+        goto block_38;
+      }
+      loop_43: 
+        i0 = b;
+        l4 = i0;
+        i0 = b;
+        i0 = LoadU32(ctx, i0);
+        b = i0;
+        if (i0) {goto loop_43;}
+        i0 = l4;
+        i0 = LoadU32(ctx, i0 + 4u);
+        b = i0;
+        if (i0) {goto loop_43;}
+      block_38:;
+      i0 = l8;
+      i0 = LoadU32(ctx, i0 + 4u);
+      l3 = i0;
+      i0 = !(i0);
+      if (i0) {
+        i0 = l8;
+        i1 = l8;
+        i1 = LoadU32(ctx, i1 + 8u);
+        b = i1;
+        i1 = LoadU32(ctx, i1);
+        i0 = i0 == i1;
+        if (i0) {goto block_44;}
+        i0 = l8;
+        i1 = 8u;
+        i0 += i1;
+        l3 = i0;
+        loop_46: 
+          i0 = l3;
+          i0 = LoadU32(ctx, i0);
+          l6 = i0;
+          i1 = 8u;
+          i0 += i1;
+          l3 = i0;
+          i0 = l6;
+          i0 = LoadU32(ctx, i0 + 8u);
+          b = i0;
+          i0 = LoadU32(ctx, i0);
+          i1 = l6;
+          i0 = i0 != i1;
+          if (i0) {goto loop_46;}
+        goto block_44;
+      }
+      loop_47: 
+        i0 = l3;
+        b = i0;
+        i0 = LoadU32(ctx, i0);
+        l3 = i0;
+        if (i0) {goto loop_47;}
+      block_44:;
+      i0 = b;
+      i1 = c;
+      i0 = i0 == i1;
+      l3 = i0;
+      if (i0) {goto block_13;}
+      i0 = b;
+      l8 = i0;
+      i0 = l7;
+      l6 = i0;
+      if (i0) {goto loop_16;}
     }
+  block_13:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = l7;
+    ReleaseNodeTree(ctx, i0, i1);
+    i0 = l4;
+    i0 = !(i0);
+    l3 = i0;
+    if (i0) {goto running_exit;}
+    loop_49: 
+      i0 = l4;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l3 = i0;
+      if (i0) {
+        i0 = l3;
+        l4 = i0;
+        goto loop_49;
+      }
+    i0 = a;
+    i1 = l4;
+    ReleaseNodeTree(ctx, i0, i1);
   }
-  goto exit_path;
-  suspend_point:;
-  // Suspend: push the resume point, then the 36-byte frame with the live state.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kAssignRangeResumeWordBytes);
-  scratch = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, scratch, a);
-  StoreU32(ctx, scratch + 4u, b);
-  StoreU32(ctx, scratch + 8u, c);
-  StoreU32(ctx, scratch + 12u, candidate);
-  StoreU32(ctx, scratch + 16u, cursor);
-  StoreU32(ctx, scratch + 20u, node);
-  StoreU32(ctx, scratch + 24u, parent);
-  StoreU32(ctx, scratch + 28u, upper_node);
-  StoreU32(ctx, scratch + 32u, head_cell);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kAssignRangeSaveFrameBytes);
-  exit_path:;
+  running_exit:;
+  i0 = l4;
+  i1 = b;
+  i2 = c;
+  i1 = i1 != i2;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  l4 = i0;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    loop_52: 
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = b;
+        i1 = 16u;
+        i0 += i1;
+        l3 = i0;
+        i0 = b;
+        l4 = i0;
+      }
+      i0 = l10;
+      i1 = 2u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = a;
+        i1 = l3;
+        InsertTaggedTreeNode(ctx, i0, i1);
+        i0 = 2u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = b;
+        i0 = LoadU32(ctx, i0 + 4u);
+        l3 = i0;
+        i0 = !(i0);
+        if (i0) {
+          i0 = l4;
+          i1 = l4;
+          i1 = LoadU32(ctx, i1 + 8u);
+          b = i1;
+          i1 = LoadU32(ctx, i1);
+          i0 = i0 == i1;
+          l3 = i0;
+          if (i0) {goto block_56;}
+          i0 = l4;
+          i1 = 8u;
+          i0 += i1;
+          l4 = i0;
+          loop_58: 
+            i0 = l4;
+            i0 = LoadU32(ctx, i0);
+            l3 = i0;
+            i1 = 8u;
+            i0 += i1;
+            l4 = i0;
+            i0 = l3;
+            i0 = LoadU32(ctx, i0 + 8u);
+            b = i0;
+            i0 = LoadU32(ctx, i0);
+            i1 = l3;
+            i0 = i0 != i1;
+            l3 = i0;
+            if (i0) {goto loop_58;}
+          goto block_56;
+        }
+        loop_59: 
+          i0 = l3;
+          b = i0;
+          i0 = LoadU32(ctx, i0);
+          l3 = i0;
+          if (i0) {goto loop_59;}
+        block_56:;
+        i0 = b;
+        i1 = c;
+        i0 = i0 != i1;
+        l4 = i0;
+        if (i0) {goto loop_52;}
+      }
+  }
+  goto func_exit;
+  spill_frame:;
+  l5 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l5;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF353ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l5 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l5;
+  i1 = b;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l5;
+  i1 = c;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l5;
+  i1 = l3;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l5;
+  i1 = l4;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l5;
+  i1 = l6;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = l5;
+  i1 = l7;
+  StoreU32(ctx, i0 + 24u, i1);
+  i0 = l5;
+  i1 = l8;
+  StoreU32(ctx, i0 + 28u, i1);
+  i0 = l5;
+  i1 = l9;
+  StoreU32(ctx, i0 + 32u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 36u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

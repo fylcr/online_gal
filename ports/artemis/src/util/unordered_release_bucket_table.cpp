@@ -1,212 +1,328 @@
+// unordered_release_bucket_table.cpp -- releases a whole unordered table: every bucket chain is freed and the bucket storage goes back to the pool..
+//
+// UnorderedReleaseBucketTable -- releases a whole unordered table: every bucket chain is freed and the bucket storage goes back to the pool.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 676592-676592 (f1520); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations of callees defined elsewhere in the tree.
+// Forward declarations -- batch-mates and registered callees.
 void Panic(EngineContext* ctx, uint32_t a0);
 
 namespace {
 
-constexpr uint32_t kUnorderedReleaseBucketTableMsgBuckets = 0x90EFCu;  // buckets_
-constexpr uint32_t kUnorderedReleaseBucketTableMsgBoostDetail = 0x90F05u;
-constexpr uint32_t kUnorderedReleaseBucketTableMsgGetBucket = 0x90F48u;
-constexpr uint32_t kUnorderedReleaseBucketTableMsgPx = 0x9107Au;
-constexpr uint32_t kUnorderedReleaseBucketTableMsgBoostSharedPtr = 0x91082u;
-constexpr uint32_t kUnorderedReleaseBucketTableMsgOperator = 0x910BAu;
-constexpr uint32_t kUnorderedReleaseBucketTableLastException = 0xD015Cu;
-constexpr uint32_t kUnorderedReleaseBucketTableSaveFrameBytes = 12u;
-constexpr uint32_t kUnorderedReleaseBucketTableResumeWordBytes = 4u;
+constexpr uint32_t kF1520MsgBuckets = 0x90EFCu;  // buckets_
+constexpr uint32_t kF1520MsgBoostBoostUnorderedDetail = 0x90F05u;  // ../../../../boost_1_66_0/boost/unordered/detail/implementation.hpp
+constexpr uint32_t kF1520MsgGetBucket = 0x90F48u;  // get_bucket
+constexpr uint32_t kF1520MsgPx = 0x9107Au;  // px != 0
+constexpr uint32_t kF1520MsgBoostBoostSmartPtr = 0x91082u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
+constexpr uint32_t kF1520MsgOperator = 0x910BAu;  // operator->
+constexpr uint32_t kF1520ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF1520SaveFrameBytes = 12u;
+constexpr uint32_t kF1520ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Releases every bucket chain of an unordered table and gives the bucket storage
-// back to the pool: the chains hanging off the table are drained one by one and
-// each one is released through the table's release dispatch.
 void UnorderedReleaseBucketTable(EngineContext* ctx, uint32_t a) {
-  uint32_t chain = 0u;        // bucket chain being drained
-  uint32_t entry = 0u;        // chain entry handed to the release dispatch
-  uint32_t frame = 0u;        // frame the suspended registers were saved in
-  uint32_t resume_code = 0u;  // code of the suspension being resumed
-  uint32_t suspend_code = 0u; // code stored when this call suspends
-  uint32_t tmp = 0u;
-  uint32_t tmp2 = 0u;
   EnterFrame();
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    tmp = ReturnFrameSp(ctx);
-    tmp2 = ReturnFrameSp(ctx);
-    tmp2 = LoadU32(ctx, tmp2);
-    tmp2 -= kUnorderedReleaseBucketTableSaveFrameBytes;
-    StoreU32(ctx, tmp, tmp2);
-    tmp = ReturnFrameSp(ctx);
-    tmp = LoadU32(ctx, tmp);
-    frame = tmp;
-    a = LoadU32(ctx, frame);
-    tmp = LoadU32(ctx, frame + 4u);
-    chain = tmp;
-    tmp = LoadU32(ctx, frame + 8u);
-    entry = tmp;
+  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1520SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l2 = i0;
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    tmp = ReturnFrameSp(ctx);
-    tmp2 = ReturnFrameSp(ctx);
-    tmp2 = LoadU32(ctx, tmp2);
-    tmp2 -= kUnorderedReleaseBucketTableResumeWordBytes;
-    StoreU32(ctx, tmp, tmp2);
-    tmp = ReturnFrameSp(ctx);
-    tmp = LoadU32(ctx, tmp);
-    resume_code = LoadU32(ctx, tmp);
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1520ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == 0u) {
-    tmp = LoadU32(ctx, a + 28u);
-    chain = (tmp == 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 28u);
+    i0 = !(i0);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == 0u) {
-    if (chain != 0u) {
-      goto release_done;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    if (i0) {goto block_6;}
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 40u);
+    l2 = i0;
+    i0 = !(i0);
+    l1 = i0;
+  }
+  i0 = l1;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF1520ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    chain = LoadU32(ctx, a + 40u);
-    entry = (chain == 0u);
-  }
-  if ((entry | (ResumePhase(ctx) == kResumeRewinding)) != 0u) {
-    if (ResumePhase(ctx) == 0u) {
-      StoreU32(ctx, kUnorderedReleaseBucketTableLastException, 0u);
+    i0 = l3;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 857u;
+      i1 = kF1520MsgBuckets;
+      i2 = kF1520MsgBoostBoostUnorderedDetail;
+      i3 = 2956u;
+      i4 = kF1520MsgGetBucket;
+      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    tmp = (resume_code == 0u);
-    tmp = (ResumePhase(ctx) != 0u) ? tmp : 1u;
-    if (tmp != 0u) {
-      HostFailAssertion(ctx, 857u, kUnorderedReleaseBucketTableMsgBuckets,
-                        kUnorderedReleaseBucketTableMsgBoostDetail, 2956u,
-                        kUnorderedReleaseBucketTableMsgGetBucket);
-      suspend_code = 0u;
-      tmp = ResumePhase(ctx);
-      if (tmp == kResumeSuspended) {
-        goto save_suspend_frame;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF1520ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF1520ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      a = i0;
+      if (i0) {goto block_5;}
+      goto running_exit;
+    }
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    i1 = a;
+    i1 = LoadU32(ctx, i1 + 24u);
+    i2 = 2u;
+    i1 <<= (i2 & 31);
+    i0 += i1;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = !(i0);
+    l2 = i0;
+    if (i0) {goto block_6;}
+  }
+  loop_14: 
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 20u);
+      l2 = i0;
+      i0 = !(i0);
+      l1 = i0;
+    }
+    i0 = l1;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF1520ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+      }
+      i0 = l3;
+      i1 = 1u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = 857u;
+        i1 = kF1520MsgPx;
+        i2 = kF1520MsgBoostBoostSmartPtr;
+        i3 = 734u;
+        i4 = kF1520MsgOperator;
+        HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+        i0 = 1u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF1520ConstD015C;
+        i0 = LoadU32(ctx, i0);
+        a = i0;
+        i0 = kF1520ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+        i0 = a;
+        i1 = 1u;
+        i0 = i0 != i1;
+        a = i0;
+        if (i0) {goto block_5;}
+        goto running_exit;
       }
     }
-    if (ResumePhase(ctx) == 0u) {
-      a = LoadU32(ctx, kUnorderedReleaseBucketTableLastException);
-      StoreU32(ctx, kUnorderedReleaseBucketTableLastException, 0u);
-      a = (a != 1u);
-      if (a != 0u) {
-        goto unhandled_exception;
-      }
-      goto exit_path;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l2;
+      i0 = LoadU32(ctx, i0);
+      i0 = LoadU32(ctx, i0 + 16u);
+      l1 = i0;
     }
-  }
-  if (ResumePhase(ctx) == 0u) {
-    tmp = LoadU32(ctx, a + 24u);
-    tmp = tmp << (2u & 31u);
-    tmp = chain + tmp;
-    a = LoadU32(ctx, tmp);
-    if (a == 0u) {
-      goto release_done;
-    }
-  }
-  for (;;) {
-    if (ResumePhase(ctx) == 0u) {
-      chain = LoadU32(ctx, a + 20u);
-      entry = (chain == 0u);
-    }
-    if ((entry | (ResumePhase(ctx) == kResumeRewinding)) != 0u) {
-      if (ResumePhase(ctx) == 0u) {
-        StoreU32(ctx, kUnorderedReleaseBucketTableLastException, 0u);
-      }
-      tmp = (resume_code == 1u);
-      tmp = (ResumePhase(ctx) != 0u) ? tmp : 1u;
-      if (tmp != 0u) {
-        HostFailAssertion(ctx, 857u, kUnorderedReleaseBucketTableMsgPx,
-                          kUnorderedReleaseBucketTableMsgBoostSharedPtr, 734u,
-                          kUnorderedReleaseBucketTableMsgOperator);
-        suspend_code = 1u;
-        tmp = ResumePhase(ctx);
-        if (tmp == kResumeSuspended) {
-          goto save_suspend_frame;
-        }
-      }
-      if (ResumePhase(ctx) == 0u) {
-        a = LoadU32(ctx, kUnorderedReleaseBucketTableLastException);
-        StoreU32(ctx, kUnorderedReleaseBucketTableLastException, 0u);
-        a = (a != 1u);
-        if (a != 0u) {
-          goto unhandled_exception;
-        }
-        goto exit_path;
-      }
-    }
-    if (ResumePhase(ctx) == 0u) {
-      tmp = LoadU32(ctx, chain);
-      entry = LoadU32(ctx, tmp + 16u);
-    }
-    tmp = (resume_code == kResumeRewinding);
-    tmp = (ResumePhase(ctx) != 0u) ? tmp : 1u;
-    if (tmp != 0u) {
-      CallTableT1(ctx, entry, chain);
+    i0 = l3;
+    i1 = 2u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l2;
+      i1 = l1;
+      CallTableT1(ctx, i1, i0);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
       SyncMemoryBase(ctx);
 #endif
-      suspend_code = 2u;
-      tmp = ResumePhase(ctx);
-      if (tmp == kResumeSuspended) {
-        goto save_suspend_frame;
-      }
+      i0 = 2u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == 0u) {
-      a = LoadU32(ctx, a);
-      if (a != 0u) {
-        continue;
-      }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      if (i0) {goto loop_14;}
     }
-    break;
+  block_6:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    goto func_exit;
   }
-release_done:;
-  if (ResumePhase(ctx) == 0u) {
-    goto frame_stored;
-  }
-unhandled_exception:;
-  if (ResumePhase(ctx) == 0u) {
+  block_5:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
     TrapUnreachable();
   }
-exit_path:;
-  if (ResumePhase(ctx) == 0u) {
-    a = FindMatchingCatch(ctx, 0u);
-    HostTempRet0(ctx);
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = 0u;
+    i0 = FindMatchingCatch(ctx, i0);
+    a = i0;
+    i0 = HostTempRet0(ctx);
   }
-  tmp = (resume_code == 3u);
-  tmp = (ResumePhase(ctx) != 0u) ? tmp : 1u;
-  if (tmp != 0u) {
-    Panic(ctx, a);
-    suspend_code = 3u;
-    tmp = ResumePhase(ctx);
-    if (tmp == kResumeSuspended) {
-      goto save_suspend_frame;
-    }
+  i0 = l3;
+  i1 = 3u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    Panic(ctx, i0);
+    i0 = 3u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == 0u) {
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
     TrapUnreachable();
   }
-  goto frame_stored;
-save_suspend_frame:;
-  resume_code = suspend_code;
-  tmp = ReturnFrameSp(ctx);
-  tmp = LoadU32(ctx, tmp);
-  StoreU32(ctx, tmp, resume_code);
-  tmp = ReturnFrameSp(ctx);
-  tmp2 = ReturnFrameSp(ctx);
-  tmp2 = LoadU32(ctx, tmp2);
-  tmp2 += kUnorderedReleaseBucketTableResumeWordBytes;
-  StoreU32(ctx, tmp, tmp2);
-  tmp = ReturnFrameSp(ctx);
-  tmp = LoadU32(ctx, tmp);
-  frame = tmp;
-  StoreU32(ctx, frame, a);
-  StoreU32(ctx, frame + 4u, chain);
-  StoreU32(ctx, frame + 8u, entry);
-  tmp = ReturnFrameSp(ctx);
-  tmp2 = ReturnFrameSp(ctx);
-  tmp2 = LoadU32(ctx, tmp2);
-  tmp2 += kUnorderedReleaseBucketTableSaveFrameBytes;
-  StoreU32(ctx, tmp, tmp2);
-frame_stored:;
+  goto func_exit;
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF1520ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = l2;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = l1;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 12u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-}  // namespace artc
+}

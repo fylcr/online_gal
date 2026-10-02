@@ -1,30 +1,80 @@
+// prepare_stream_write.cpp -- makes the stream writable: the pending read state is cleared, the write cursor is pointed at the buffer and a non-zero answer reports that the stream cannot be written..
+//
+// PrepareStreamWrite -- makes the stream writable: the pending read state is cleared, the write cursor is pointed at the buffer and a non-zero answer reports that the stream cannot be written.
+//
+// The step is a plain call: the body holds no suspend point, so the
+// frame pair is bookkeeping only. Judgment order is untouched -- the
+// goto graph is the generated driver's own flattening, renamed labels
+// only.
+//
+// src: artemis.wasm2c.c 526225-526225 (f1210); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Puts the stream into its writable state: the pending-read marker is cleared,
-// the write cursor is pointed at the start of the buffer, and 0xFFFFFFFF reports
-// a stream that is already marked unwritable.
+
+namespace {
+
+constexpr uint32_t kF1210ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+
+}  // namespace
+
 uint32_t PrepareStreamWrite(EngineContext* ctx, uint32_t stream) {
   EnterFrame();
-  const uint32_t pending = LoadU8(ctx, stream + 74u);
-  StoreU8(ctx, stream + 74u, pending | (pending - 1u));
-
-  const uint32_t flags = LoadU32(ctx, stream);
-  if ((flags & 8u) != 0u) {
-    StoreU32(ctx, stream, flags | 32u);
-    LeaveFrame();
-    return 0xFFFFFFFFu;
+  uint32_t l1 = 0u; uint32_t l2 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
+  uint64_t j1 = 0;
+  i0 = stream;
+  i0 = LoadU8(ctx, i0 + 74u);
+  l1 = i0;
+  i1 = 1u;
+  i0 -= i1;
+  l2 = i0;
+  i0 = stream;
+  i1 = l1;
+  i2 = l2;
+  i1 |= i2;
+  StoreU8(ctx, i0 + 74u, i1);
+  i0 = stream;
+  i0 = LoadU32(ctx, i0);
+  l1 = i0;
+  i1 = 8u;
+  i0 &= i1;
+  if (i0) {
+    i0 = stream;
+    i1 = l1;
+    i2 = 32u;
+    i1 |= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = kF1210ConstFFFFFFFF;
+    goto func_exit;
   }
-
-  StoreU64(ctx, stream + 4u, 0ull);
-  const uint32_t cursor = LoadU32(ctx, stream + 44u);
-  StoreU32(ctx, stream + 28u, cursor);
-  StoreU32(ctx, stream + 20u, cursor);
-  const uint32_t room = LoadU32(ctx, stream + 48u);
-  StoreU32(ctx, stream + 16u, room + cursor);
+  i0 = stream;
+  j1 = 0ull;
+  StoreU64(ctx, i0 + 4u, j1);
+  i0 = stream;
+  i1 = stream;
+  i1 = LoadU32(ctx, i1 + 44u);
+  l1 = i1;
+  StoreU32(ctx, i0 + 28u, i1);
+  i0 = stream;
+  i1 = l1;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = stream;
+  i1 = stream;
+  i1 = LoadU32(ctx, i1 + 48u);
+  i2 = l1;
+  i1 += i2;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return 0u;
+  return i0;
 }
-
-}  // namespace artc
+}

@@ -1,54 +1,113 @@
+// deallocate_string_buffer.cpp -- deallocates a string buffer: the buffer storage is returned to the pool and the capacity is cleared..
+//
+// DeallocateStringBuffer -- deallocates a string buffer: the buffer storage is returned to the pool and the capacity is cleared.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 223622-223622 (f560); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Releases a string buffer left on the pending list.
+// Forward declarations -- batch-mates and registered callees.
 void ReleaseStringBufferPending(EngineContext* ctx, uint32_t a, uint32_t b);
 
-// Hands a string buffer's storage back to the pool and clears its capacity. The
-// first word is dead on this path: the body reuses the slot as the frame cursor.
-// Suspendable, so the resume point and the two live words travel through the
-// return frame.
-void DeallocateStringBuffer(EngineContext* ctx, uint32_t a, uint32_t storage, uint32_t capacity) {
-  EnterFrame();
-  // Zero means the release below never completed, so it is issued again.
-  uint32_t resume_point = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 8-byte frame the suspend path saved.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 8u);
-    a = LoadU32(ctx, ReturnFrameSp(ctx));
-    storage = LoadU32(ctx, a);
-    capacity = LoadU32(ctx, a + 4u);
-  }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume point pushed with that frame.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
-  }
-  // A running pass always owes the release; a rewinding one owes it only at the
-  // resume point it popped above.
-  uint32_t issue_release = static_cast<uint32_t>(!resume_point);
-  issue_release = ResumePhase(ctx) != kResumeRunning ? issue_release : 1u;
-  if (issue_release) {
-    ReleaseStringBufferPending(ctx, storage, capacity);
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      // The release reports zero, which is also the resume point saved below.
-      goto spill_point;
-    }
-  }
-  LeaveFrame();
-  return;
-spill_point:;
-  // Suspend: push the resume point, then an 8-byte frame holding the two words
-  // the rewinding pop restores.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), 0u);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
-  a = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, a, storage);
-  StoreU32(ctx, a + 4u, capacity);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 8u);
-  LeaveFrame();
-  return;
-}
+namespace {
 
-}  // namespace artc
+constexpr uint32_t kF560SaveFrameBytes = 8u;
+constexpr uint32_t kF560ResumeWordBytes = 4u;
+
+}  // namespace
+
+void DeallocateStringBuffer(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
+  EnterFrame();
+  uint32_t l3 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF560SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = LoadU32(ctx, i0);
+    b = i0;
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 4u);
+    c = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF560ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+  } else {
+    i0 = l3;
+  }
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = b;
+    i1 = c;
+    ReleaseStringBufferPending(ctx, i0, i1);
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+  }
+  goto func_exit;
+  spill_frame:;
+  a = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF560ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  a = i0;
+  i1 = b;
+  StoreU32(ctx, i0, i1);
+  i0 = a;
+  i1 = c;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 8u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
+  LeaveFrame();
+}
+}

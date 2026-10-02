@@ -1,82 +1,163 @@
+// raise_node_init_error.cpp -- raises a node initialisation error: the failed node initialisation reports through the error route..
+//
+// RaiseNodeInitError -- raises a node initialisation error: the failed node initialisation reports through the error route.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 133844-133844 (f293); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
+
 namespace {
-// The data-segment words the report stamps the failed record with, the slot it
-// clears, and the host os-query slot the report goes through.
-constexpr uint32_t kRaiseNodeInitErrorWordC3110 = 0xC3110u;
-constexpr uint32_t kRaiseNodeInitErrorWordC316C = 0xC316Cu;
-constexpr uint32_t kRaiseNodeInitErrorSlotD015C = 0xD015Cu;
-constexpr uint32_t kRaiseNodeInitErrorQuerySlot = 4222u;
+
+constexpr uint32_t kF293ConstC3110 = 0xC3110u;  // 
+constexpr uint32_t kF293ConstC316C = 0xC316Cu;  // 
+constexpr uint32_t kF293ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF293SaveFrameBytes = 12u;
+constexpr uint32_t kF293ResumeWordBytes = 4u;
+
 }  // namespace
 
-// Raises a node-initialisation error: stamps the failed record, tells the host
-// through the os-query slot, and answers the record back. Suspendable, so the
-// record, the flag word and the query argument travel through the return frame.
-uint32_t RaiseNodeInitError(EngineContext* ctx, uint32_t record, uint32_t word) {
+uint32_t RaiseNodeInitError(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  // The word after the record's header, kept live across the suspend.
-  uint32_t record_tail = 0u;
-  // Zero means the query below never completed, so it is issued again.
-  uint32_t resume_point = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 12-byte frame the suspend path saved.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 12u);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    record = LoadU32(ctx, frame);
-    word = LoadU32(ctx, frame + 4u);
-    record_tail = LoadU32(ctx, frame + 8u);
+  uint32_t l2 = 0u; uint32_t l3 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF293SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 4u);
+    b = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume point pushed with that frame.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF293ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Both words land on the record's first slot; the second store is the one
-    // that survives.
-    StoreU32(ctx, record, kRaiseNodeInitErrorWordC3110);
-    StoreU32(ctx, record, kRaiseNodeInitErrorWordC316C);
-    StoreU32(ctx, kRaiseNodeInitErrorSlotD015C, 0u);
-    record_tail = record + 4u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = kF293ConstC3110;
+    StoreU32(ctx, i0, i1);
+    i0 = a;
+    i1 = kF293ConstC316C;
+    StoreU32(ctx, i0, i1);
+    i0 = kF293ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = a;
+    i1 = 4u;
+    i0 += i1;
+    l2 = i0;
   }
-  // A running pass always owes the query; a rewinding one owes it only at the
-  // resume point it popped above.
-  uint32_t issue_query = static_cast<uint32_t>(!resume_point);
-  issue_query = ResumePhase(ctx) != kResumeRunning ? issue_query : 1u;
-  if (issue_query) {
-    HostOsQuery(ctx, kRaiseNodeInitErrorQuerySlot, record_tail, word);
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      // The query reports zero, which is also the resume point saved below.
-      goto spill_point;
+  i0 = l3;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = 4222u;
+    i1 = l2;
+    i2 = b;
+    i0 = HostOsQuery(ctx, i0, i1, i2);
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF293ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    b = i0;
+    i0 = kF293ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = b;
+    i1 = 1u;
+    i0 = i0 != i1;
+    if (i0) {
+      i0 = a;
+      goto func_exit;
     }
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    word = LoadU32(ctx, kRaiseNodeInitErrorSlotD015C);
-    StoreU32(ctx, kRaiseNodeInitErrorSlotD015C, 0u);
-    if (word != 1u) {
-      LeaveFrame();
-      return record;
-    }
-    record = HostRet0(ctx);
-    HostTempRet0(ctx);
-    HostOsRelease(ctx, record);
+    i0 = HostRet0(ctx);
+    a = i0;
+    i0 = HostTempRet0(ctx);
+    i0 = a;
+    HostOsRelease(ctx, i0);
     TrapUnreachable();
   }
   TrapUnreachable();
-spill_point:;
-  // Suspend: push the resume point, then a 12-byte frame holding the record, the
-  // flag word and the live argument the rewinding pop restores.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), 0u);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
-  uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, saved_frame, record);
-  StoreU32(ctx, saved_frame + 4u, word);
-  StoreU32(ctx, saved_frame + 8u, record_tail);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 12u);
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF293ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = b;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = l2;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 12u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return 0u;
+  return i0;
 }
-
-}  // namespace artc
+}

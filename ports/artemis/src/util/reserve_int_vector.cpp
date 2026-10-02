@@ -1,91 +1,187 @@
+// reserve_int_vector.cpp -- reserves an integer vector, reallocating and re-stamping the header on the way..
+//
+// ReserveIntVector -- reserves an integer vector, reallocating and re-stamping the header on the way.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 814082-814082 (f1735); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- the byte filler, the block reallocator and the object
-// header relocator.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t FillBytes(EngineContext* ctx, uint32_t dst, uint32_t value, uint32_t length);
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
 void RelocateObjectHeader(EngineContext* ctx, uint32_t state, uint32_t source, uint32_t tag);
 
-// Reserves room for an integer vector: the payload is reallocated to four bytes
-// per element behind the object header, the header is moved onto the new block,
-// the length and the element count are re-stamped and the payload is cleared.
-// Returns the object's address, or zero when the pass suspended.
-uint32_t ReserveIntVector(EngineContext* ctx, uint32_t state, uint32_t count, uint32_t size) {
+namespace {
+
+constexpr uint32_t kF1735SaveFrameBytes = 24u;
+constexpr uint32_t kF1735ResumeWordBytes = 4u;
+
+}  // namespace
+
+uint32_t ReserveIntVector(EngineContext* ctx, uint32_t state, uint32_t vector, uint32_t size) {
   EnterFrame();
-  // The reused slots: the word naming the call the suspend path was taken in, the
-  // block the reallocation returned, the address the old object lived at, the size
-  // the payload is reallocated to, the payload length now, and the word handed
-  // over on the way out.
-  uint32_t resume_word = 0u;
-  uint32_t block = 0u;
-  uint32_t old_header = 0u;
-  uint32_t alloc_size = 0u;
-  uint32_t payload_bytes = 0u;
-  uint32_t spilled = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 24-byte frame the suspend path pushed and rebuild the
-    // object, the element count, the request size, the old object, the payload
-    // length and the reallocated size from it.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 24u);
-    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    state = LoadU32(ctx, saved_frame);
-    count = LoadU32(ctx, saved_frame + 4u);
-    size = LoadU32(ctx, saved_frame + 8u);
-    old_header = LoadU32(ctx, saved_frame + 12u);
-    payload_bytes = LoadU32(ctx, saved_frame + 16u);
-    alloc_size = LoadU32(ctx, saved_frame + 20u);
+  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1735SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 4u);
+    vector = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 8u);
+    size = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l5 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l6 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l4 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: the second pop names the call that was in flight. The two pops
-    // stay separate -- the driver keeps one region at a time.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
-    resume_word = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1735ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Four bytes per element, and the twenty-byte object header in front of them.
-    payload_bytes = count << 2u;
-    alloc_size = payload_bytes + 20u;
-    old_header = state;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = vector;
+    i1 = 2u;
+    i0 <<= (i1 & 31);
+    l6 = i0;
+    i1 = 20u;
+    i0 += i1;
+    l4 = i0;
+    i0 = state;
+    l5 = i0;
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(!resume_word) : 1u) {
-    block = ReallocateBlock(ctx, state, 0u, 0u, alloc_size);
-    spilled = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
+  i0 = l3;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = 0u;
+    i2 = 0u;
+    i3 = l4;
+    i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+    l3 = i0;
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    state = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    i1 = state;
+    i2 = 6u;
+    RelocateObjectHeader(ctx, i0, i1, i2);
+    i0 = state;
+    i1 = size;
+    StoreU32(ctx, i0 + 12u, i1);
+    i0 = state;
+    i1 = 0u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = state;
+    i1 = vector;
+    StoreU8(ctx, i0 + 7u, i1);
+    i0 = vector;
+    if (i0) {
+      i0 = state;
+      i1 = 20u;
+      i0 += i1;
+      i1 = 0u;
+      i2 = l6;
+      i0 = FillBytes(ctx, i0, i1, i2);
     }
-    state = block;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    RelocateObjectHeader(ctx, old_header, state, 6u);
-    StoreU32(ctx, state + 12u, size);
-    StoreU8(ctx, state + 6u, 0u);
-    StoreU8(ctx, state + 7u, count);
-    if (count != 0u) {
-      FillBytes(ctx, state + 20u, 0u, payload_bytes);
-    }
-    LeaveFrame();
-    return state;
+    i0 = state;
+    goto func_exit;
   }
   TrapUnreachable();
- suspend_point:;
-  {
-    // The stack pointer lives in the word the frame pointer names, so every push
-    // is a read-modify-write of that word.
-    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), spilled);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
-    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    StoreU32(ctx, saved_frame, state);
-    StoreU32(ctx, saved_frame + 4u, count);
-    StoreU32(ctx, saved_frame + 8u, size);
-    StoreU32(ctx, saved_frame + 12u, old_header);
-    StoreU32(ctx, saved_frame + 16u, payload_bytes);
-    StoreU32(ctx, saved_frame + 20u, alloc_size);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 24u);
-  }
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF1735ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = vector;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = size;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l3;
+  i1 = l5;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l3;
+  i1 = l6;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l3;
+  i1 = l4;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 24u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return 0u;
+  return i0;
 }
-
-}  // namespace artc
+}

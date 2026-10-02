@@ -1,8 +1,23 @@
+// lua_engine_dispatch.cpp -- the Lua engine dispatch entry: one suspendable step drains the queued tag dispatch work and returns the resume status..
+//
+// LuaEngine::Dispatch -- the Lua engine dispatch entry: one suspendable step drains the queued tag dispatch work and returns the resume status.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 330574-330574 (f859); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations for the callees this step calls.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 uint32_t CompareBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
@@ -11,38 +26,41 @@ uint32_t FillBytes(EngineContext* ctx, uint32_t dst, uint32_t value, uint32_t le
 uint32_t StringLength(EngineContext* ctx, uint32_t text);
 uint32_t DestroyDispatchObject(EngineContext* ctx, uint32_t a0);
 
-namespace LuaEngine {
-// LuaEngine::Dispatch -- the Lua engine dispatch entry: one suspendable step
-// drains the queued tag dispatch work and returns the resume status.
+namespace {
 
+constexpr uint32_t kF859Const8AD44 = 0x8AD44u;  // 
+constexpr uint32_t kF859Const8B07C = 0x8B07Cu;  // 
+constexpr uint32_t kF859Const8E084 = 0x8E084u;  // 
+constexpr uint32_t kF859ConstAF4FF = 0xAF4FFu;  // 
+constexpr uint32_t kF859MsgIet = 0xB4A71u;  // .iet
+constexpr uint32_t kF859MsgScript = 0xB4A76u;  // script
+constexpr uint32_t kF859ConstB4A7A = 0xB4A7Au;  // 
+constexpr uint32_t kF859MsgSDLuaS = 0xB4A7Du;  // %s(%d): [Lua] %s
+constexpr uint32_t kF859MsgSS = 0xB4A8Eu;  // %s%s
+constexpr uint32_t kF859MsgAllocatorTAllocateSize = 0xB5BC3u;  // allocator<T>::allocate(size_t n) 'n' exceeds maximum supported size
+constexpr uint32_t kF859ConstB5E30 = 0xB5E30u;  // 
+constexpr uint32_t kF859MsgPx = 0xB5E31u;  // px != 0
+constexpr uint32_t kF859MsgBoostBoostSmartPtr = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
+constexpr uint32_t kF859MsgOperator = 0xB5E71u;  // operator->
+constexpr uint32_t kF859ConstB5F40 = 0xB5F40u;  // 
+constexpr uint32_t kF859MsgOperatorX = 0xB6B10u;  // operator[]
+constexpr uint32_t kF859ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF859Const1FFFFFFF = 0x1FFFFFFFu;  // 
+constexpr uint32_t kF859Const3FFFFFFF = 0x3FFFFFFFu;  // 
+constexpr uint32_t kF859Const40000000 = 0x40000000u;  // 
+constexpr uint32_t kF859Const80000000 = 0x80000000u;  // 
+constexpr uint32_t kF859ConstFFFFFFC0 = 0xFFFFFFC0u;  // 
+constexpr uint32_t kF859ConstFFFFFFF0 = 0xFFFFFFF0u;  // 
+constexpr uint32_t kF859ConstFFFFFFFC = 0xFFFFFFFCu;  // 
+constexpr uint32_t kF859ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF859SaveFrameBytes = 60u;
+constexpr uint32_t kF859ResumeWordBytes = 4u;
+
+}  // namespace
+
+namespace LuaEngine {
 uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  constexpr uint32_t kData8AD44 = 0x8AD44u;
-  constexpr uint32_t kData8B07C = 0x8B07Cu;
-  constexpr uint32_t kData8E084 = 0x8E084u;
-  constexpr uint32_t kDataAF4FF = 0xAF4FFu;
-  constexpr uint32_t kMsgIet = 0xB4A71u;  // .iet
-  constexpr uint32_t kMsgScript = 0xB4A76u;  // script
-  constexpr uint32_t kDataB4A7A = 0xB4A7Au;
-  constexpr uint32_t kMsgSDLuaS = 0xB4A7Du;  // %s(%d): [Lua] %s
-  constexpr uint32_t kMsgSS = 0xB4A8Eu;  // %s%s
-  constexpr uint32_t kMsgAllocatorTAllocateSize = 0xB5BC3u;  // allocator<T>::allocate(size_t n) 'n' exceeds maximum supported size
-  constexpr uint32_t kDataB5E30 = 0xB5E30u;
-  constexpr uint32_t kMsgPx = 0xB5E31u;  // px != 0
-  constexpr uint32_t kMsgSmartPtrPath = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
-  constexpr uint32_t kMsgOperator = 0xB5E71u;  // operator->
-  constexpr uint32_t kDataB5F40 = 0xB5F40u;
-  constexpr uint32_t kMsgOperatorX = 0xB6B10u;  // operator[]
-  constexpr uint32_t kData1FFFFFFF = 0x1FFFFFFFu;
-  constexpr uint32_t kData3FFFFFFF = 0x3FFFFFFFu;
-  constexpr uint32_t kData40000000 = 0x40000000u;
-  constexpr uint32_t kData80000000 = 0x80000000u;
-  constexpr uint32_t kDataFFFFFFC0 = 0xFFFFFFC0u;
-  constexpr uint32_t kDataFFFFFFF0 = 0xFFFFFFF0u;
-  constexpr uint32_t kDataFFFFFFFC = 0xFFFFFFFCu;
-  constexpr uint32_t kDataFFFFFFFF = 0xFFFFFFFFu;
-  constexpr uint32_t kSaveFrameBytes = 60u;
-  constexpr uint32_t kResumeWordBytes = 4u;
   uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l14 = 0u; uint32_t l15 = 0u; uint32_t l16 = 0u; float l17 = 0; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u; uint32_t i6 = 0u;
   uint64_t j1 = 0;
@@ -55,7 +73,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kSaveFrameBytes;
+    i2 = kF859SaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -113,7 +131,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kResumeWordBytes;
+    i2 = kF859ResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -223,7 +241,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           goto block_10;
         }
         i0 = l15;
-        i1 = kDataFFFFFFFF;
+        i1 = kF859ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {goto block_10;}
         block_15:;
@@ -236,7 +254,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         l12 = i0;
         if (i0) {goto block_13;}
         i0 = l11;
-        i1 = kDataFFFFFFFF;
+        i1 = kF859ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         if (i0) {goto block_12;}
         goto block_11;
@@ -280,7 +298,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i1 = 4u;
     i0 += i1;
     l2 = i0;
-    i1 = kDataFFFFFFF0;
+    i1 = kF859ConstFFFFFFF0;
     i0 = i0 >= i1;
     l5 = i0;
   }
@@ -293,7 +311,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -319,10 +337,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -348,14 +366,14 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i1 = 20u;
       i0 += i1;
       l2 = i0;
-      i1 = kDataFFFFFFF0;
+      i1 = kF859ConstFFFFFFF0;
       i0 &= i1;
       l5 = i0;
     }
@@ -381,10 +399,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -400,7 +418,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       StoreU32(ctx, i0 + 156u, i1);
       i0 = l4;
       i1 = l5;
-      i2 = kData80000000;
+      i2 = kF859Const80000000;
       i1 |= i2;
       l5 = i1;
       StoreU32(ctx, i0 + 160u, i1);
@@ -444,7 +462,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 += i1;
     i1 = 0u;
     StoreU8(ctx, i0, i1);
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -461,7 +479,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = 860u;
     i1 = l3;
-    i2 = kMsgIet;
+    i2 = kF859MsgIet;
     i3 = 4u;
     i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
     l8 = i0;
@@ -476,10 +494,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -497,7 +515,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = HostTempRet0(ctx);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 163u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF859ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -609,7 +627,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             goto block_57;
           }
           i0 = l6;
-          i1 = kDataFFFFFFFF;
+          i1 = kF859ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           l6 = i0;
           if (i0) {goto block_57;}
@@ -623,7 +641,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           l6 = i0;
           if (i0) {goto block_61;}
           i0 = l11;
-          i1 = kDataFFFFFFFF;
+          i1 = kF859ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           l6 = i0;
           if (i0) {goto block_60;}
@@ -640,7 +658,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         block_60:;
         i0 = 0u;
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -671,10 +689,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -709,7 +727,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -736,10 +754,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -771,7 +789,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -783,10 +801,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF859MsgPx;
+        i2 = kF859MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF859MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 5u;
         i1 = ResumePhase(ctx);
@@ -797,10 +815,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -808,7 +826,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_17;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
@@ -827,7 +845,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = b;
       i0 = LoadS8(ctx, i0 + 11u);
       l9 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -862,10 +880,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -907,7 +925,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = 4u;
       i0 += i1;
       l2 = i0;
-      i1 = kDataFFFFFFF0;
+      i1 = kF859ConstFFFFFFF0;
       i0 = i0 >= i1;
       l6 = i0;
     }
@@ -920,7 +938,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -947,10 +965,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -981,14 +999,14 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
         i1 = 20u;
         i0 += i1;
         l2 = i0;
-        i1 = kDataFFFFFFF0;
+        i1 = kF859ConstFFFFFFF0;
         i0 &= i1;
         l14 = i0;
       }
@@ -1014,10 +1032,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i0 = LoadU32(ctx, i0);
         l6 = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l6;
@@ -1033,7 +1051,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         StoreU32(ctx, i0 + 92u, i1);
         i0 = l4;
         i1 = l14;
-        i2 = kData80000000;
+        i2 = kF859Const80000000;
         i1 |= i2;
         l6 = i1;
         StoreU32(ctx, i0 + 96u, i1);
@@ -1077,7 +1095,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 += i1;
       i1 = 0u;
       StoreU8(ctx, i0, i1);
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1094,7 +1112,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = 860u;
       i1 = l2;
-      i2 = kMsgIet;
+      i2 = kF859MsgIet;
       i3 = 4u;
       i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
       l8 = i0;
@@ -1109,10 +1127,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1130,7 +1148,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = HostTempRet0(ctx);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 99u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF859ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_38;}
@@ -1148,7 +1166,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 20u);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1188,10 +1206,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -1210,7 +1228,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {
         i0 = l2;
         if (i0) {goto block_75;}
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -1241,10 +1259,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -1262,7 +1280,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = HostTempRet0(ctx);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 99u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF859ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_38;}
@@ -1278,7 +1296,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 99u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF859ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       l2 = i0;
       if (i0) {goto block_89;}
@@ -1295,7 +1313,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 36u);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1321,17 +1339,17 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
       i1 = 1u;
       i0 = i0 == i1;
       if (i0) {goto block_39;}
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1340,7 +1358,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l5;
       i1 = 24u;
       i0 += i1;
-      i1 = kDataFFFFFFFC;
+      i1 = kF859ConstFFFFFFFC;
       i0 &= i1;
       l2 = i0;
     }
@@ -1366,10 +1384,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -1387,7 +1405,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       l9 = i1;
       StoreU32(ctx, i0 + 16u, i1);
       i0 = l2;
-      i1 = kData8B07C;
+      i1 = kF859Const8B07C;
       StoreU32(ctx, i0, i1);
       i0 = l2;
       i1 = 20u;
@@ -1416,7 +1434,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       l6 = i0;
       i0 = LoadU32(ctx, i0 + 24u);
       l9 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1444,10 +1462,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -1455,7 +1473,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l3 = i0;
       if (i0) {goto block_41;}
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1482,10 +1500,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -1508,7 +1526,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1520,10 +1538,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF859MsgPx;
+        i2 = kF859MsgBoostBoostSmartPtr;
         i3 = 740u;
-        i4 = kMsgOperatorX;
+        i4 = kF859MsgOperatorX;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 16u;
         i1 = ResumePhase(ctx);
@@ -1534,10 +1552,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -1545,7 +1563,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_17;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
@@ -1594,12 +1612,12 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       j1 = 0ull;
       StoreU64(ctx, i0 + 116u, j1);
       i0 = l4;
-      i1 = kData8AD44;
+      i1 = kF859Const8AD44;
       StoreU32(ctx, i0 + 88u, i1);
       i0 = l4;
       i1 = l3;
       StoreU32(ctx, i0 + 92u, i1);
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1644,10 +1662,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -1655,7 +1673,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l3 = i0;
       if (i0) {goto block_45;}
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1687,10 +1705,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -1726,7 +1744,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1749,10 +1767,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1777,7 +1795,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1800,10 +1818,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -1816,7 +1834,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1852,10 +1870,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -1889,7 +1907,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF859ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -1925,10 +1943,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF859ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF859ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -1945,7 +1963,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -1956,7 +1974,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 += i1;
             l3 = i0;
             i0 = l4;
-            i1 = kDataFFFFFFC0;
+            i1 = kF859ConstFFFFFFC0;
             i0 -= i1;
             l2 = i0;
           }
@@ -1981,10 +1999,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -1992,7 +2010,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = i0 == i1;
             l3 = i0;
             if (i0) {goto block_160;}
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -2000,7 +2018,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             l2 = i0;
             i1 = 24u;
             i0 += i1;
-            i1 = kDataFFFFFFFC;
+            i1 = kF859ConstFFFFFFFC;
             i0 &= i1;
             l3 = i0;
           }
@@ -2026,10 +2044,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i0 = LoadU32(ctx, i0);
             l5 = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l5;
@@ -2047,7 +2065,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             l2 = i1;
             StoreU32(ctx, i0 + 16u, i1);
             i0 = l3;
-            i1 = kData8E084;
+            i1 = kF859Const8E084;
             StoreU32(ctx, i0, i1);
             i0 = l3;
             i1 = 20u;
@@ -2060,7 +2078,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i2 = l2;
               i0 = FillBytes(ctx, i0, i1, i2);
             }
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -2089,10 +2107,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -2109,7 +2127,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               default: goto block_159;
             }
             block_191:;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -2135,10 +2153,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -2149,7 +2167,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = l10;
             i0 = StringLength(ctx, i0);
             l2 = i0;
-            i1 = kDataFFFFFFF0;
+            i1 = kF859ConstFFFFFFF0;
             i0 = i0 >= i1;
             l6 = i0;
           }
@@ -2162,7 +2180,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF859ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l4;
@@ -2189,10 +2207,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF859ConstD015C;
               i0 = LoadU32(ctx, i0);
               a = i0;
-              i0 = kDataD015C;
+              i0 = kF859ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = a;
@@ -2224,13 +2242,13 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF859ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l2;
               i1 = 16u;
               i0 += i1;
-              i1 = kDataFFFFFFF0;
+              i1 = kF859ConstFFFFFFF0;
               i0 &= i1;
               l6 = i0;
             }
@@ -2256,10 +2274,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF859ConstD015C;
               i0 = LoadU32(ctx, i0);
               l12 = i0;
-              i0 = kDataD015C;
+              i0 = kF859ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l12;
@@ -2275,7 +2293,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               StoreU32(ctx, i0 + 36u, i1);
               i0 = l4;
               i1 = l6;
-              i2 = kData80000000;
+              i2 = kF859Const80000000;
               i1 |= i2;
               l6 = i1;
               StoreU32(ctx, i0 + 40u, i1);
@@ -2317,9 +2335,9 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i1 = 0u;
             StoreU8(ctx, i0, i1);
             i0 = l5;
-            i1 = kDataB5F40;
+            i1 = kF859ConstB5F40;
             StoreU32(ctx, i0, i1);
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -2354,10 +2372,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -2381,14 +2399,14 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             StoreU64(ctx, i0 + 36u, j1);
             i0 = l4;
             i0 = LoadS8(ctx, i0 + 43u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF859ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l4;
               i0 = LoadU32(ctx, i0 + 32u);
               DeallocateRawBlock(ctx, i0);
             }
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l5;
@@ -2421,10 +2439,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -2432,7 +2450,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = i0 == i1;
             l2 = i0;
             if (i0) {goto block_178;}
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -2468,10 +2486,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -2514,11 +2532,11 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 i0 = l4;
                 j1 = 0ull;
                 StoreU64(ctx, i0 + 32u, j1);
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l4;
-                i1 = kDataFFFFFFC0;
+                i1 = kF859ConstFFFFFFC0;
                 i0 -= i1;
                 l6 = i0;
                 i0 = l4;
@@ -2547,10 +2565,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l2 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l2;
@@ -2558,7 +2576,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 i0 = i0 == i1;
                 l2 = i0;
                 if (i0) {goto block_172;}
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l4;
@@ -2566,7 +2584,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 l10 = i0;
                 i1 = 24u;
                 i0 += i1;
-                i1 = kDataFFFFFFFC;
+                i1 = kF859ConstFFFFFFFC;
                 i0 &= i1;
                 l2 = i0;
               }
@@ -2592,10 +2610,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l6 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l6;
@@ -2613,7 +2631,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 l6 = i1;
                 StoreU32(ctx, i0 + 16u, i1);
                 i0 = l2;
-                i1 = kData8E084;
+                i1 = kF859Const8E084;
                 StoreU32(ctx, i0, i1);
                 i0 = l2;
                 i1 = 20u;
@@ -2648,7 +2666,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 i0 = LoadU32(ctx, i0);
                 i0 = LoadU32(ctx, i0 + 8u);
                 l6 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
               }
@@ -2671,16 +2689,16 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l6 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l6;
                 i1 = 1u;
                 i0 = i0 == i1;
-                if (i0) {goto exit_path;}
+                if (i0) {goto running_exit;}
                 i0 = l3;
                 i1 = l3;
                 i1 = LoadU32(ctx, i1 + 8u);
@@ -2698,7 +2716,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 i0 = LoadU32(ctx, i0);
                 i0 = LoadU32(ctx, i0 + 12u);
                 l6 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
               }
@@ -2721,23 +2739,23 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l3 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l3;
                 i1 = 1u;
                 i0 = i0 == i1;
                 l3 = i0;
-                if (i0) {goto exit_path;}
+                if (i0) {goto running_exit;}
               }
               block_224:;
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l4;
@@ -2771,10 +2789,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l3 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l3;
@@ -2782,7 +2800,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 i0 = i0 == i1;
                 l3 = i0;
                 if (i0) {goto block_170;}
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l4;
@@ -2813,10 +2831,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l3 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l3;
@@ -2824,11 +2842,11 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 i0 = i0 == i1;
                 l3 = i0;
                 if (i0) {goto block_171;}
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l4;
-                i1 = kDataFFFFFFC0;
+                i1 = kF859ConstFFFFFFC0;
                 i0 -= i1;
                 l6 = i0;
                 i0 = l4;
@@ -2857,10 +2875,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l3 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l3;
@@ -2868,7 +2886,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 i0 = i0 == i1;
                 l3 = i0;
                 if (i0) {goto block_168;}
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l4;
@@ -2876,7 +2894,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 l10 = i0;
                 i1 = 24u;
                 i0 += i1;
-                i1 = kDataFFFFFFFC;
+                i1 = kF859ConstFFFFFFFC;
                 i0 &= i1;
                 l3 = i0;
               }
@@ -2902,10 +2920,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l6 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l6;
@@ -2923,7 +2941,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 l6 = i1;
                 StoreU32(ctx, i0 + 16u, i1);
                 i0 = l3;
-                i1 = kData8E084;
+                i1 = kF859Const8E084;
                 StoreU32(ctx, i0, i1);
                 i0 = l3;
                 i1 = 20u;
@@ -2958,7 +2976,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 i0 = LoadU32(ctx, i0);
                 i0 = LoadU32(ctx, i0 + 8u);
                 l6 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
               }
@@ -2981,16 +2999,16 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l6 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l6;
                 i1 = 1u;
                 i0 = i0 == i1;
-                if (i0) {goto exit_path;}
+                if (i0) {goto running_exit;}
                 i0 = l2;
                 i1 = l2;
                 i1 = LoadU32(ctx, i1 + 8u);
@@ -3008,7 +3026,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 i0 = LoadU32(ctx, i0);
                 i0 = LoadU32(ctx, i0 + 12u);
                 l6 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
               }
@@ -3031,23 +3049,23 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l2 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l2;
                 i1 = 1u;
                 i0 = i0 == i1;
                 l2 = i0;
-                if (i0) {goto exit_path;}
+                if (i0) {goto running_exit;}
               }
               block_240:;
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l4;
@@ -3081,10 +3099,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l2 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l2;
@@ -3092,7 +3110,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 i0 = i0 == i1;
                 l2 = i0;
                 if (i0) {goto block_169;}
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
               }
@@ -3119,10 +3137,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l2 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l2;
@@ -3130,7 +3148,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 i0 = i0 == i1;
                 l2 = i0;
                 if (i0) {goto block_173;}
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l4;
@@ -3168,10 +3186,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l2 = i0;
-                i0 = kDataD015C;
+                i0 = kF859ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l2;
@@ -3181,7 +3199,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 if (i0) {goto block_165;}
                 i0 = l4;
                 i0 = LoadS8(ctx, i0 + 55u);
-                i1 = kDataFFFFFFFF;
+                i1 = kF859ConstFFFFFFFF;
                 i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
                 if (i0) {
                   i0 = l4;
@@ -3190,7 +3208,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 }
                 i0 = l4;
                 i0 = LoadS8(ctx, i0 + 43u);
-                i1 = kDataFFFFFFFF;
+                i1 = kF859ConstFFFFFFFF;
                 i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
                 if (i0) {
                   i0 = l4;
@@ -3226,7 +3244,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF859ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
             }
@@ -3238,10 +3256,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = i2 ? i0 : i1;
             if (i0) {
               i0 = 857u;
-              i1 = kMsgPx;
-              i2 = kMsgSmartPtrPath;
+              i1 = kF859MsgPx;
+              i2 = kF859MsgBoostBoostSmartPtr;
               i3 = 734u;
-              i4 = kMsgOperator;
+              i4 = kF859MsgOperator;
               HostFailAssertion(ctx, i0, i1, i2, i3, i4);
               i0 = 45u;
               i1 = ResumePhase(ctx);
@@ -3252,10 +3270,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF859ConstD015C;
               i0 = LoadU32(ctx, i0);
               a = i0;
-              i0 = kDataD015C;
+              i0 = kF859ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = a;
@@ -3263,7 +3281,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = i0 != i1;
               a = i0;
               if (i0) {goto block_17;}
-              goto exit_path;
+              goto running_exit;
             }
           }
           i0 = ResumePhase(ctx);
@@ -3303,7 +3321,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i1 = 1u;
             i0 += i1;
             l2 = i0;
-            i1 = kData40000000;
+            i1 = kF859Const40000000;
             i0 = i0 >= i1;
             l15 = i0;
           }
@@ -3316,7 +3334,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF859ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
             }
@@ -3354,9 +3372,9 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i1 = l12;
             i2 = l15;
             i0 = i2 ? i0 : i1;
-            i1 = kData3FFFFFFF;
+            i1 = kF859Const3FFFFFFF;
             i2 = l13;
-            i3 = kData1FFFFFFF;
+            i3 = kF859Const1FFFFFFF;
             i2 = i2 < i3;
             i0 = i2 ? i0 : i1;
             l12 = i0;
@@ -3367,11 +3385,11 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               goto block_261;
             }
             i0 = l12;
-            i1 = kData40000000;
+            i1 = kF859Const40000000;
             i0 = i0 < i1;
             l2 = i0;
             if (i0) {goto block_262;}
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -3383,7 +3401,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = i2 ? i0 : i1;
           if (i0) {
             i0 = 1033u;
-            i1 = kMsgAllocatorTAllocateSize;
+            i1 = kF859MsgAllocatorTAllocateSize;
             HostReleaseSlotPair(ctx, i0, i1);
             i0 = 47u;
             i1 = ResumePhase(ctx);
@@ -3395,10 +3413,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -3416,7 +3434,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l12;
@@ -3446,10 +3464,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i0 = LoadU32(ctx, i0);
             l15 = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l15;
@@ -3488,7 +3506,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             StoreU32(ctx, i0 + 100u, i1);
             i0 = l9;
             i1 = l13;
-            i2 = kResumeWordBytes;
+            i2 = kF859ResumeWordBytes;
             i1 += i2;
             l5 = i1;
             StoreU32(ctx, i0 + 96u, i1);
@@ -3554,7 +3572,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = HostTempRet0(ctx);
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 43u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF859ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           a = i0;
           if (i0) {
@@ -3683,7 +3701,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 55u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF859ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -3692,7 +3710,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           }
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 43u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF859ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_161;}
@@ -3721,7 +3739,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -3733,10 +3751,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = i2 ? i0 : i1;
           if (i0) {
             i0 = 857u;
-            i1 = kMsgPx;
-            i2 = kMsgSmartPtrPath;
+            i1 = kF859MsgPx;
+            i2 = kF859MsgBoostBoostSmartPtr;
             i3 = 734u;
-            i4 = kMsgOperator;
+            i4 = kF859MsgOperator;
             HostFailAssertion(ctx, i0, i1, i2, i3, i4);
             i0 = 49u;
             i1 = ResumePhase(ctx);
@@ -3747,10 +3765,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -3758,7 +3776,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = i0 != i1;
             a = i0;
             if (i0) {goto block_17;}
-            goto exit_path;
+            goto running_exit;
           }
         }
         i0 = ResumePhase(ctx);
@@ -3773,7 +3791,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = l10;
           i0 = StringLength(ctx, i0);
           l2 = i0;
-          i1 = kDataFFFFFFF0;
+          i1 = kF859ConstFFFFFFF0;
           i0 = i0 >= i1;
           l9 = i0;
         }
@@ -3786,7 +3804,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -3813,10 +3831,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -3846,14 +3864,14 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
             i1 = 16u;
             i0 += i1;
             l9 = i0;
-            i1 = kDataFFFFFFF0;
+            i1 = kF859ConstFFFFFFF0;
             i0 &= i1;
             l13 = i0;
           }
@@ -3879,10 +3897,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i0 = LoadU32(ctx, i0);
             l15 = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l15;
@@ -3898,7 +3916,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             StoreU32(ctx, i0 + 36u, i1);
             i0 = l4;
             i1 = l13;
-            i2 = kData80000000;
+            i2 = kF859Const80000000;
             i1 |= i2;
             l13 = i1;
             StoreU32(ctx, i0 + 40u, i1);
@@ -3939,7 +3957,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 += i1;
           i1 = 0u;
           StoreU8(ctx, i0, i1);
-          i0 = kDataD015C;
+          i0 = kF859ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l5;
@@ -3976,10 +3994,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF859ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF859ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
@@ -3998,7 +4016,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           StoreU32(ctx, i0 + 20u, i1);
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 43u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF859ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           l2 = i0;
           if (i0) {goto block_159;}
@@ -4027,7 +4045,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = HostTempRet0(ctx);
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 43u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF859ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_161;}
@@ -4067,7 +4085,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 8u);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF859ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -4090,10 +4108,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF859ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF859ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -4127,7 +4145,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = LoadU32(ctx, i0);
             i0 = LoadU32(ctx, i0 + 12u);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -4150,10 +4168,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -4165,7 +4183,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         }
         i0 = ResumePhase(ctx);
         i0 = !(i0);
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         block_160:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -4202,7 +4220,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 8u);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF859ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -4225,10 +4243,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF859ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF859ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
@@ -4262,7 +4280,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = LoadU32(ctx, i0);
             i0 = LoadU32(ctx, i0 + 12u);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -4285,10 +4303,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF859ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -4300,7 +4318,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         }
         i0 = ResumePhase(ctx);
         i0 = !(i0);
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         block_335:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -4347,7 +4365,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     block_143:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -4374,7 +4392,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 99u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF859ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     a = i0;
     if (i0) {
@@ -4426,7 +4444,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -4438,10 +4456,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF859MsgPx;
+      i2 = kF859MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF859MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 58u;
       i1 = ResumePhase(ctx);
@@ -4452,10 +4470,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -4463,7 +4481,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 != i1;
       a = i0;
       if (i0) {goto block_17;}
-      goto exit_path;
+      goto running_exit;
     }
   }
   i0 = ResumePhase(ctx);
@@ -4473,7 +4491,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -4497,10 +4515,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -4532,7 +4550,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -4544,10 +4562,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF859MsgPx;
+        i2 = kF859MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF859MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 60u;
         i1 = ResumePhase(ctx);
@@ -4558,10 +4576,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -4569,7 +4587,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_17;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
@@ -4579,7 +4597,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 20u);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -4602,10 +4620,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -4643,7 +4661,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -4655,10 +4673,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF859MsgPx;
+      i2 = kF859MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF859MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 62u;
       i1 = ResumePhase(ctx);
@@ -4669,10 +4687,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -4680,7 +4698,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 != i1;
       a = i0;
       if (i0) {goto block_17;}
-      goto exit_path;
+      goto running_exit;
     }
   }
   i0 = ResumePhase(ctx);
@@ -4712,7 +4730,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = l4;
         i1 = b;
         StoreU32(ctx, i0 + 32u, i1);
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -4743,7 +4761,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = l3;
         i2 = l2;
         i3 = b;
-        i4 = kDataB5E30;
+        i4 = kF859ConstB5E30;
         i5 = l5;
         i6 = l6;
         HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -4756,10 +4774,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i0 = LoadU32(ctx, i0);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -4801,7 +4819,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = l5;
       if (i0) {goto block_390;}
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -4819,8 +4837,8 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = 1354u;
       i1 = l2;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kDataAF4FF;
+      i3 = kF859ConstFFFFFFFF;
+      i4 = kF859ConstAF4FF;
       i5 = 3u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -4835,16 +4853,16 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
       i1 = 1u;
       i0 = i0 == i1;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       i0 = l2;
       if (i0) {goto block_390;}
       i0 = a;
@@ -4862,7 +4880,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -4874,10 +4892,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF859MsgPx;
+        i2 = kF859MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF859MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 65u;
         i1 = ResumePhase(ctx);
@@ -4888,10 +4906,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -4899,7 +4917,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_17;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
@@ -4912,19 +4930,19 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = 6u;
       StoreU8(ctx, i0 + 99u, i1);
       i0 = l4;
-      i1 = kMsgScript;
+      i1 = kF859MsgScript;
       i1 = LoadU32(ctx, i1);
       l9 = i1;
       StoreU32(ctx, i0 + 88u, i1);
       i0 = l4;
-      i1 = kDataB4A7A;
+      i1 = kF859ConstB4A7A;
       i1 = LoadU16(ctx, i1);
       l10 = i1;
       StoreU16(ctx, i0 + 92u, i1);
       i0 = l4;
       i1 = 0u;
       StoreU8(ctx, i0 + 94u, i1);
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -4964,7 +4982,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = l6;
       i2 = l5;
       i3 = l12;
-      i4 = kDataB5E30;
+      i4 = kF859ConstB5E30;
       i5 = l14;
       i6 = l13;
       HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -4977,10 +4995,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -4993,7 +5011,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = l5;
       if (i0) {goto block_403;}
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -5025,10 +5043,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -5038,7 +5056,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {goto block_403;}
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 99u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF859ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l5 = i0;
       if (i0) {
@@ -5066,7 +5084,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5078,10 +5096,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF859MsgPx;
+        i2 = kF859MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF859MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 68u;
         i1 = ResumePhase(ctx);
@@ -5092,10 +5110,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -5103,7 +5121,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_17;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
@@ -5128,7 +5146,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       l2 = i0;
       i0 = l5;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF859ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l12 = i0;
       if (i0) {
@@ -5139,7 +5157,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l4;
       i1 = l14;
       StoreU32(ctx, i0 + 16u, i1);
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -5163,7 +5181,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = 2597u;
       i1 = a;
       i2 = 1u;
-      i3 = kMsgSDLuaS;
+      i3 = kF859MsgSDLuaS;
       i4 = l2;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 69u;
@@ -5175,10 +5193,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -5201,7 +5219,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = HostTempRet0(ctx);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 99u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF859ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_42;}
@@ -5230,7 +5248,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l4;
       i1 = 0u;
       StoreU8(ctx, i0 + 94u, i1);
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -5270,7 +5288,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = l5;
       i2 = l2;
       i3 = l6;
-      i4 = kDataB5E30;
+      i4 = kF859ConstB5E30;
       i5 = l9;
       i6 = l10;
       HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -5283,10 +5301,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -5298,7 +5316,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0 + 32u);
       l2 = i0;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF859ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l2;
@@ -5319,7 +5337,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       block_420:;
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 99u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF859ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       l2 = i0;
       if (i0) {goto block_390;}
@@ -5353,7 +5371,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = HostTempRet0(ctx);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 99u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF859ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_42;}
@@ -5382,7 +5400,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -5394,10 +5412,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF859MsgPx;
+      i2 = kF859MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF859MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 71u;
       i1 = ResumePhase(ctx);
@@ -5408,10 +5426,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -5419,7 +5437,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 != i1;
       a = i0;
       if (i0) {goto block_17;}
-      goto exit_path;
+      goto running_exit;
     }
   }
   i0 = ResumePhase(ctx);
@@ -5457,7 +5475,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l3;
     i1 = l5;
     StoreU32(ctx, i0 + 100u, i1);
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -5490,10 +5508,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -5516,7 +5534,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -5528,10 +5546,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF859MsgPx;
+      i2 = kF859MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF859MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 73u;
       i1 = ResumePhase(ctx);
@@ -5542,10 +5560,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -5553,7 +5571,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 != i1;
       a = i0;
       if (i0) {goto block_17;}
-      goto exit_path;
+      goto running_exit;
     }
   }
   i0 = ResumePhase(ctx);
@@ -5661,7 +5679,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 8u);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5684,16 +5702,16 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
         i1 = 1u;
         i0 = i0 == i1;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         i0 = a;
         i1 = a;
         i1 = LoadU32(ctx, i1 + 8u);
@@ -5711,7 +5729,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5734,17 +5752,17 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
         i1 = 1u;
         i0 = i0 == i1;
         a = i0;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
       }
       block_443:;
       i0 = ResumePhase(ctx);
@@ -5778,7 +5796,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 8u);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5801,16 +5819,16 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
         i1 = 1u;
         i0 = i0 == i1;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         i0 = a;
         i1 = a;
         i1 = LoadU32(ctx, i1 + 8u);
@@ -5828,7 +5846,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5851,17 +5869,17 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF859ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
         i1 = 1u;
         i0 = i0 == i1;
         a = i0;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
       }
       block_450:;
       i0 = ResumePhase(ctx);
@@ -5886,7 +5904,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       l2 = i0;
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 11u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF859ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -5899,7 +5917,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l4;
       i1 = l2;
       StoreU32(ctx, i0, i1);
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -5916,7 +5934,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = 2597u;
       i1 = a;
       i2 = 1u;
-      i3 = kMsgSS;
+      i3 = kF859MsgSS;
       i4 = l4;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 78u;
@@ -5928,10 +5946,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -5984,7 +6002,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -6007,10 +6025,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -6044,7 +6062,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -6067,10 +6085,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -6082,14 +6100,14 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_50:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 163u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF859ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_5;}
@@ -6103,7 +6121,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -6115,10 +6133,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = 857u;
-    i1 = kMsgPx;
-    i2 = kMsgSmartPtrPath;
+    i1 = kF859MsgPx;
+    i2 = kF859MsgBoostBoostSmartPtr;
     i3 = 734u;
-    i4 = kMsgOperator;
+    i4 = kF859MsgOperator;
     HostFailAssertion(ctx, i0, i1, i2, i3, i4);
     i0 = 81u;
     i1 = ResumePhase(ctx);
@@ -6129,10 +6147,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -6140,7 +6158,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = i0 != i1;
     a = i0;
     if (i0) {goto block_17;}
-    goto exit_path;
+    goto running_exit;
   }
   block_48:;
   i0 = ResumePhase(ctx);
@@ -6156,7 +6174,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -6168,10 +6186,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = 857u;
-    i1 = kMsgPx;
-    i2 = kMsgSmartPtrPath;
+    i1 = kF859MsgPx;
+    i2 = kF859MsgBoostBoostSmartPtr;
     i3 = 734u;
-    i4 = kMsgOperator;
+    i4 = kF859MsgOperator;
     HostFailAssertion(ctx, i0, i1, i2, i3, i4);
     i0 = 82u;
     i1 = ResumePhase(ctx);
@@ -6182,10 +6200,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -6193,7 +6211,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = i0 != i1;
     a = i0;
     if (i0) {goto block_17;}
-    goto exit_path;
+    goto running_exit;
   }
   block_46:;
   i0 = ResumePhase(ctx);
@@ -6244,7 +6262,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -6267,10 +6285,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -6303,7 +6321,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -6326,10 +6344,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -6341,7 +6359,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_43:;
   i0 = a;
   i1 = l4;
@@ -6394,7 +6412,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -6417,10 +6435,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -6453,7 +6471,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -6476,10 +6494,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -6491,7 +6509,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_41:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -6527,7 +6545,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -6550,10 +6568,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -6586,7 +6604,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -6609,10 +6627,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -6624,7 +6642,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_39:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -6659,7 +6677,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -6682,10 +6700,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF859ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -6719,7 +6737,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -6742,10 +6760,10 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF859ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -6757,14 +6775,14 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_37:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 163u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF859ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -6792,7 +6810,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l3;
     goto func_exit;
   }
-  exit_path:;
+  running_exit:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
@@ -6831,7 +6849,7 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kResumeWordBytes;
+  i2 = kF859ResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
@@ -6893,4 +6911,4 @@ uint32_t Dispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   return i0;
 }
 }
-}  // namespace artc
+}

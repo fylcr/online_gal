@@ -1,129 +1,257 @@
+// advance_table_iterator.cpp -- steps the table cursor to the next present element and answers whether one exists..
+//
+// AdvanceTableIterator -- steps the table cursor to the next present element and answers whether one exists.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 208054-208054 (f521); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations of the callees below.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t NextTableEntry(EngineContext* ctx, uint32_t state, uint32_t table, uint32_t key);
 
 namespace {
 
-constexpr uint32_t kAdvanceTableHeadBias = 0x27118u;  // distance the head sits above the list
-constexpr uint32_t kAdvanceTableSentinel = 0x2B328u;  // entry for a cursor with no element
-constexpr uint32_t kAdvanceTableEndTag = 0xFFFFD8EEu;  // cursor tag: one past the last (-10002)
-constexpr uint32_t kAdvanceTableIndexBase = 0xFFFFD8F1u;  // first cursor that names a real element
-constexpr uint32_t kAdvanceTableStepBack = 0xFFFFFFF0u;  // the -one-element step: -16 bytes
-constexpr uint32_t kAdvanceTableTagBias = 10002u;  // added to a cursor to reach the tag switch
-constexpr uint32_t kAdvanceTableSaveFrameBytes = 16u;  // saved state words below the resume code
-constexpr uint32_t kAdvanceTableResumeWordBytes = 4u;  // resume code slot
+constexpr uint32_t kF521Const27118 = 0x27118u;  // 
+constexpr uint32_t kF521Const2B328 = 0x2B328u;  // 
+constexpr uint32_t kF521ConstFFFFD8EE = 0xFFFFD8EEu;  // 
+constexpr uint32_t kF521ConstFFFFD8F1 = 0xFFFFD8F1u;  // 
+constexpr uint32_t kF521ConstFFFFFFF0 = 0xFFFFFFF0u;  // 
+constexpr uint32_t kF521SaveFrameBytes = 16u;
+constexpr uint32_t kF521ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Steps the table cursor to the next present element and answers whether one
-// exists.  The step is a suspendable call, so the cursor, the entry the call
-// needs and the state it is asked about are kept in the frame.
 uint32_t AdvanceTableIterator(EngineContext* ctx, uint32_t state, uint32_t table) {
   EnterFrame();
-  uint32_t saved_state = 0u;
-  uint32_t table_end = 0u;
-  uint32_t head = 0u;
-  uint32_t entry = 0u;
-  uint32_t resume_point = 0u;
-  uint32_t called = 0u;
-  uint32_t result = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 16-byte frame the suspend path saved.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-        LoadU32(ctx, ReturnFrameSp(ctx)) - kAdvanceTableSaveFrameBytes);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    state = LoadU32(ctx, frame);
-    table = LoadU32(ctx, frame + 4u);
-    table_end = LoadU32(ctx, frame + 8u);
-    saved_state = LoadU32(ctx, frame + 12u);
+  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF521SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 4u);
+    table = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l4 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 4-byte frame that saves the resume code.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-        LoadU32(ctx, ReturnFrameSp(ctx)) - kAdvanceTableResumeWordBytes);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF521ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    saved_state = state;
-    if ((int32_t)table >= 1) {
-      // The cursor sits one past an element, so that element is what this step
-      // hands back; an element outside the table gives the sentinel instead.
-      // Entries are 16 bytes apart.
-      table = LoadU32(ctx, state + 12u) + (table << 4u) - 16u;
-      entry = LoadU32(ctx, state + 8u) > table ? table : kAdvanceTableSentinel;
-      goto entry_ready;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = state;
+    l3 = i0;
+    i0 = table;
+    i1 = 1u;
+    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
+    if (i0) {
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 12u);
+      i1 = table;
+      i2 = 4u;
+      i1 <<= (i2 & 31);
+      i0 += i1;
+      i1 = 16u;
+      i0 -= i1;
+      table = i0;
+      i1 = kF521Const2B328;
+      i2 = state;
+      i2 = LoadU32(ctx, i2 + 8u);
+      i3 = table;
+      i2 = i2 > i3;
+      i0 = i2 ? i0 : i1;
+      goto running_exit;
     }
-    if ((int32_t)table >= (int32_t)kAdvanceTableIndexBase) {
-      // A real index: address the element it names.
-      entry = LoadU32(ctx, state + 8u) + (table << 4u);
-      goto entry_ready;
+    i0 = table;
+    i1 = kF521ConstFFFFD8F1;
+    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
+    if (i0) {
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 8u);
+      i1 = table;
+      i2 = 4u;
+      i1 <<= (i2 & 31);
+      i0 += i1;
+      goto running_exit;
     }
-    switch (table + kAdvanceTableTagBias) {
-      case 0u: goto cursor_start;
-      case 1u: goto cursor_reset;
-      case 2u: goto cursor_end;
-      default: goto cursor_back;
+    i0 = table;
+    i1 = 10002u;
+    i0 += i1;
+    switch (i0) {
+      case 0: goto block_8;
+      case 1: goto block_9;
+      case 2: goto block_10;
+      default: goto block_7;
     }
-  cursor_end:
-    entry = LoadU32(ctx, state + 16u) + 96u;
-    goto entry_ready;
-  cursor_reset:
-    // Restart: the element list and the mode that says the iterator is walking
-    // it are remembered on the state, and the cursor becomes that pair.
-    table = LoadU32(ctx, LoadU32(ctx, LoadU32(ctx, LoadU32(ctx, state + 20u) + 4u)) + 12u);
-    StoreU32(ctx, state + 96u, 5u);
-    StoreU32(ctx, state + 88u, table);
-    entry = state + 88u;
-    goto entry_ready;
-  cursor_start:
-    entry = state + 72u;
-    goto entry_ready;
-  cursor_back:
-    // A cursor below every tag walks the element list backwards; the sentinel
-    // stands in when the walk runs off the head of the list.
-    head = LoadU32(ctx, LoadU32(ctx, LoadU32(ctx, state + 20u) + 4u));
-    entry = (int32_t)LoadU8(ctx, head + 7u) < (int32_t)(kAdvanceTableEndTag - table)
-        ? kAdvanceTableSentinel
-        : head + ((0u - table) << 4u) - kAdvanceTableHeadBias;
-  entry_ready:
-    table = LoadU32(ctx, entry);
-    table_end = LoadU32(ctx, state + 8u) - 16u;
+    block_10:;
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 16u);
+    i1 = 96u;
+    i0 += i1;
+    goto running_exit;
+    block_9:;
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 20u);
+    i0 = LoadU32(ctx, i0 + 4u);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 12u);
+    table = i0;
+    i0 = state;
+    i1 = 5u;
+    StoreU32(ctx, i0 + 96u, i1);
+    i0 = state;
+    i1 = table;
+    StoreU32(ctx, i0 + 88u, i1);
+    i0 = state;
+    i1 = 88u;
+    i0 += i1;
+    goto running_exit;
+    block_8:;
+    i0 = state;
+    i1 = 72u;
+    i0 += i1;
+    goto running_exit;
+    block_7:;
+    i0 = kF521Const2B328;
+    i1 = state;
+    i1 = LoadU32(ctx, i1 + 20u);
+    i1 = LoadU32(ctx, i1 + 4u);
+    i1 = LoadU32(ctx, i1);
+    l4 = i1;
+    i2 = 0u;
+    i3 = table;
+    i2 -= i3;
+    i3 = 4u;
+    i2 <<= (i3 & 31);
+    i1 += i2;
+    i2 = kF521Const27118;
+    i1 -= i2;
+    i2 = l4;
+    i2 = LoadU8(ctx, i2 + 7u);
+    i3 = kF521ConstFFFFD8EE;
+    i4 = table;
+    i3 -= i4;
+    i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
+    i0 = i2 ? i0 : i1;
+    running_exit:;
+    i0 = LoadU32(ctx, i0);
+    table = i0;
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 8u);
+    i1 = 16u;
+    i0 -= i1;
+    l4 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
-    called = NextTableEntry(ctx, saved_state, table, table_end);
-    resume_point = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-    table = called;
+  i0 = l2;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l3;
+    i1 = table;
+    i2 = l4;
+    i0 = NextTableEntry(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    table = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The step succeeded (16 bytes) or failed (16 bytes back), and either way
-    // the cursor itself is the answer.
-    StoreU32(ctx, state + 8u,
-        LoadU32(ctx, state + 8u) + (table != 0u ? 16u : kAdvanceTableStepBack));
-    result = table;
-    goto exit_path;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = state;
+    i1 = state;
+    i1 = LoadU32(ctx, i1 + 8u);
+    i2 = 16u;
+    i3 = kF521ConstFFFFFFF0;
+    i4 = table;
+    i2 = i4 ? i2 : i3;
+    i1 += i2;
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = table;
+    goto func_exit;
   }
   TrapUnreachable();
-suspend_point:
-  // Suspend: write the resume code, then push the frame with the live state.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-      LoadU32(ctx, ReturnFrameSp(ctx)) + kAdvanceTableResumeWordBytes);
-  {
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    StoreU32(ctx, frame, state);
-    StoreU32(ctx, frame + 4u, table);
-    StoreU32(ctx, frame + 8u, table_end);
-    StoreU32(ctx, frame + 12u, saved_state);
-  }
-  StoreU32(ctx, ReturnFrameSp(ctx),
-      LoadU32(ctx, ReturnFrameSp(ctx)) + kAdvanceTableSaveFrameBytes);
-exit_path:
+  spill_frame:;
+  l2 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF521ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l2 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l2;
+  i1 = table;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l2;
+  i1 = l4;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l2;
+  i1 = l3;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 16u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return result;
+  return i0;
 }
-
-}  // namespace artc
+}

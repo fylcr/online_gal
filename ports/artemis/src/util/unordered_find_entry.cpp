@@ -1,232 +1,319 @@
+// unordered_find_entry.cpp -- the unordered-map find: hash mod bucket count, walk the bucket chain comparing keys..
+//
+// UnorderedFindEntry -- the unordered-map find: hash mod bucket count, walk the bucket chain comparing keys.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 232347-232347 (f592); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations of callees defined elsewhere in the tree.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t CompareBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 
 namespace {
 
-constexpr uint32_t kUnorderedFindEntryMsgBuckets = 0x8FAFCu;      // buckets_
-constexpr uint32_t kUnorderedFindEntryMsgBoostHeader = 0x8FB05u;  // unordered/detail/implementation.hpp
-constexpr uint32_t kUnorderedFindEntryMsgGetBucket = 0x8FB48u;    // get_bucket
-constexpr uint32_t kUnorderedFindEntryBucketMask = 0x7FFFFFFFu;
-constexpr uint32_t kUnorderedFindEntrySignedLimit = 0xFFFFFFFFu;
+constexpr uint32_t kF592MsgBuckets = 0x8FAFCu;  // buckets_
+constexpr uint32_t kF592MsgBoostBoostUnorderedDetail = 0x8FB05u;  // ../../../../boost_1_66_0/boost/unordered/detail/implementation.hpp
+constexpr uint32_t kF592MsgGetBucket = 0x8FB48u;  // get_bucket
+constexpr uint32_t kF592Const7FFFFFFF = 0x7FFFFFFFu;  // 
+constexpr uint32_t kF592ConstFFFFFFFF = 0xFFFFFFFFu;  // 
 
 }  // namespace
 
-// Finds the entry of an unordered map that matches a key: hashes the key, walks
-// that bucket's chain comparing the stored bytes, and returns the matching node
-// (or zero); a chain whose needle ran out leaves through the suspend label.
-uint32_t UnorderedFindEntry(EngineContext* ctx, uint32_t map, uint32_t hash, uint32_t key,
-                            uint32_t out) {
-  uint32_t bucket = 0u;      // hash modulo the bucket count
-  uint32_t cursor = 0u;      // needle compared against the chain entry
-  uint32_t key_cursor = 0u;  // second needle cursor used by the byte loop
-  uint32_t length = 0u;      // sign-extended key length
-  uint32_t neg = 0u;         // the key uses the long form when set
-  uint32_t counter = 0u;     // bytes still to compare
-  uint32_t hash_byte = 0u;   // low byte of the hash, the chain's filter byte
-  uint32_t entry_ptr = 0u;   // address of the entry payload
-  uint32_t byte = 0u;        // byte read from the needle
-  uint32_t result = 0u;      // matching node handed back, or zero
-  uint32_t tmp = 0u;
-  uint32_t tmp2 = 0u;
-  uint32_t tmp3 = 0u;
+uint32_t UnorderedFindEntry(EngineContext* ctx, uint32_t map, uint32_t hash, uint32_t key, uint32_t out) {
   EnterFrame();
-  tmp = LoadU32(ctx, map + 4u);
-  bucket = REM_U(hash, tmp);
-  hash = 0u;
-  if (LoadU32(ctx, map + 8u) == 0u) {
-    goto done;
-  }
-  map = LoadU32(ctx, map + 20u);
-  if (map != 0u) {
-    tmp = bucket << (2u & 31u);
-    tmp += map;
-    map = LoadU32(ctx, tmp);
-    if (map == 0u) {
-      goto done;
-    }
-    map = LoadU32(ctx, map);
-    if (map == 0u) {
-      goto done;
-    }
-    hash = LoadU32(ctx, key);
-    tmp = LoadU8(ctx, key + 11u);
-    out = tmp;
-    tmp = tmp << (24u & 31u);
-    tmp = (uint32_t)((int32_t)tmp >> (24u & 31u));
-    length = tmp;
-    neg = (uint32_t)((int32_t)tmp < 0);
-    tmp = LoadU32(ctx, key + 4u);
-    cursor = (neg != 0u) ? tmp : out;
-    tmp = length;
-    tmp2 = kUnorderedFindEntrySignedLimit;
-    tmp = (uint32_t)((int32_t)tmp <= (int32_t)tmp2);
-    if (tmp != 0u) {
-      // Short key: walk the chain comparing the needle byte for byte.
-      key = (neg != 0u) ? hash : key;
-      for (;;) {
-        tmp = LoadU32(ctx, map + 12u);
-        tmp2 = LoadU8(ctx, map + 19u);
-        hash = tmp2;
-        tmp3 = hash;
-        tmp3 = tmp3 << (24u & 31u);
-        tmp3 = (uint32_t)((int32_t)tmp3 >> (24u & 31u));
-        tmp3 = (uint32_t)((int32_t)tmp3 < 0);
-        hash = tmp3;
-        tmp = (tmp3 != 0u) ? tmp : tmp2;
-        if (cursor == tmp) {
-          if (cursor == 0u) {
-            goto suspend_exit;
-          }
-          tmp = map + 8u;
-          out = tmp;
-          tmp2 = LoadU32(ctx, out);
-          tmp3 = (hash != 0u) ? tmp2 : out;
-          tmp = CompareBytes(ctx, key, tmp3, cursor);
-          if (tmp == 0u) {
-            goto suspend_exit;
-          }
+  uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+  i0 = hash;
+  i1 = map;
+  i1 = LoadU32(ctx, i1 + 4u);
+  i0 = REM_U(i0, i1);
+  l6 = i0;
+  i0 = 0u;
+  hash = i0;
+  i0 = map;
+  i0 = LoadU32(ctx, i0 + 8u);
+  i0 = !(i0);
+  if (i0) {goto block_0;}
+  i0 = map;
+  i0 = LoadU32(ctx, i0 + 20u);
+  map = i0;
+  if (i0) {
+    i0 = l6;
+    i1 = 2u;
+    i0 <<= (i1 & 31);
+    i1 = map;
+    i0 += i1;
+    i0 = LoadU32(ctx, i0);
+    map = i0;
+    i0 = !(i0);
+    if (i0) {goto block_0;}
+    i0 = map;
+    i0 = LoadU32(ctx, i0);
+    map = i0;
+    i0 = !(i0);
+    if (i0) {goto block_0;}
+    i0 = key;
+    i0 = LoadU32(ctx, i0);
+    hash = i0;
+    i0 = key;
+    i0 = LoadU8(ctx, i0 + 11u);
+    out = i0;
+    i1 = 24u;
+    i0 <<= (i1 & 31);
+    i1 = 24u;
+    i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
+    l7 = i0;
+    i1 = 0u;
+    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+    l4 = i0;
+    i0 = key;
+    i0 = LoadU32(ctx, i0 + 4u);
+    i1 = out;
+    i2 = l4;
+    i0 = i2 ? i0 : i1;
+    l5 = i0;
+    i0 = l7;
+    i1 = kF592ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {
+      i0 = hash;
+      i1 = key;
+      i2 = l4;
+      i0 = i2 ? i0 : i1;
+      key = i0;
+      loop_5: 
+        i0 = l5;
+        i1 = map;
+        i1 = LoadU32(ctx, i1 + 12u);
+        i2 = map;
+        i2 = LoadU8(ctx, i2 + 19u);
+        hash = i2;
+        i3 = hash;
+        i4 = 24u;
+        i3 <<= (i4 & 31);
+        i4 = 24u;
+        i3 = (uint32_t)((int32_t)i3 >> (i4 & 31));
+        i4 = 0u;
+        i3 = (uint32_t)((int32_t)i3 < (int32_t)i4);
+        hash = i3;
+        i1 = i3 ? i1 : i2;
+        i0 = i0 == i1;
+        if (i0) {
+          i0 = l5;
+          i0 = !(i0);
+          if (i0) {goto spill_frame;}
+          i0 = key;
+          i1 = map;
+          i2 = 8u;
+          i1 += i2;
+          out = i1;
+          i1 = LoadU32(ctx, i1);
+          i2 = out;
+          i3 = hash;
+          i1 = i3 ? i1 : i2;
+          i2 = l5;
+          i0 = CompareBytes(ctx, i0, i1, i2);
+          i0 = !(i0);
+          if (i0) {goto spill_frame;}
         }
-        hash = 0u;
-        tmp = LoadU32(ctx, map + 4u);
-        tmp2 = kUnorderedFindEntryBucketMask;
-        tmp &= tmp2;
-        if (bucket != tmp) {
-          goto done;
-        }
-        for (;;) {
-          map = LoadU32(ctx, map);
-          if (map == 0u) {
-            goto done;
-          }
-          tmp = LoadU32(ctx, map + 4u);
-          if ((int32_t)tmp < 0) {
-            continue;
-          }
-          break;
-        }
-      }
+        i0 = 0u;
+        hash = i0;
+        i0 = l6;
+        i1 = map;
+        i1 = LoadU32(ctx, i1 + 4u);
+        i2 = kF592Const7FFFFFFF;
+        i1 &= i2;
+        i0 = i0 != i1;
+        if (i0) {goto block_0;}
+        loop_7: 
+          i0 = map;
+          i0 = LoadU32(ctx, i0);
+          map = i0;
+          i0 = !(i0);
+          if (i0) {goto block_0;}
+          i0 = map;
+          i0 = LoadU32(ctx, i0 + 4u);
+          i1 = 0u;
+          i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+          if (i0) {goto loop_7;}
+        goto loop_5;
       TrapUnreachable();
     }
-    // Long key: the needle is hashed and compared by its leading filter byte.
-    if (cursor == 0u) {
-      goto compute_result;
-    }
-    hash_byte = hash & 255u;
-    for (;;) {
-      tmp = LoadU32(ctx, map + 12u);
-      tmp2 = LoadU8(ctx, map + 19u);
-      hash = tmp2;
-      tmp3 = hash;
-      tmp3 = tmp3 << (24u & 31u);
-      tmp3 = (uint32_t)((int32_t)tmp3 >> (24u & 31u));
-      tmp3 = (uint32_t)((int32_t)tmp3 < 0);
-      hash = tmp3;
-      tmp = (tmp3 != 0u) ? tmp : tmp2;
-      if (cursor != tmp) {
-        goto chain_end;
-      }
-      counter = out;
-      key_cursor = key;
-      entry_ptr = map + 8u;
-      tmp = LoadU32(ctx, entry_ptr);
-      tmp2 = (hash != 0u) ? tmp : entry_ptr;
-      hash = tmp2;
-      tmp = LoadU8(ctx, hash);
-      if (hash_byte != tmp) {
-        goto chain_end;
-      }
-      for (;;) {
-        counter -= 1u;
-        if (counter == 0u) {
-          goto suspend_exit;
-        }
-        tmp = LoadU8(ctx, hash + 1u);
-        byte = tmp;
-        hash += 1u;
-        key_cursor += 1u;
-        tmp = LoadU8(ctx, key_cursor);
-        if (tmp == byte) {
-          continue;
-        }
-        break;
-      }
-    chain_end:;
-      hash = 0u;
-      tmp = LoadU32(ctx, map + 4u);
-      tmp2 = kUnorderedFindEntryBucketMask;
-      tmp &= tmp2;
-      if (bucket != tmp) {
-        goto done;
-      }
-      for (;;) {
-        map = LoadU32(ctx, map);
-        if (map == 0u) {
-          goto done;
-        }
-        tmp = LoadU32(ctx, map + 4u);
-        if ((int32_t)tmp < 0) {
-          continue;
-        }
-        break;
-      }
-    }
+    i0 = l5;
+    i0 = !(i0);
+    if (i0) {goto block_2;}
+    i0 = hash;
+    i1 = 255u;
+    i0 &= i1;
+    l9 = i0;
+    dispatch_loop: 
+      i0 = l5;
+      i1 = map;
+      i1 = LoadU32(ctx, i1 + 12u);
+      i2 = map;
+      i2 = LoadU8(ctx, i2 + 19u);
+      hash = i2;
+      i3 = hash;
+      i4 = 24u;
+      i3 <<= (i4 & 31);
+      i4 = 24u;
+      i3 = (uint32_t)((int32_t)i3 >> (i4 & 31));
+      i4 = 0u;
+      i3 = (uint32_t)((int32_t)i3 < (int32_t)i4);
+      hash = i3;
+      i1 = i3 ? i1 : i2;
+      i0 = i0 != i1;
+      if (i0) {goto block_9;}
+      i0 = out;
+      l7 = i0;
+      i0 = key;
+      l4 = i0;
+      i0 = l9;
+      i1 = map;
+      i2 = 8u;
+      i1 += i2;
+      l8 = i1;
+      i1 = LoadU32(ctx, i1);
+      i2 = l8;
+      i3 = hash;
+      i1 = i3 ? i1 : i2;
+      hash = i1;
+      i1 = LoadU8(ctx, i1);
+      i0 = i0 != i1;
+      if (i0) {goto block_9;}
+      loop_10: 
+        i0 = l7;
+        i1 = 1u;
+        i0 -= i1;
+        l7 = i0;
+        i0 = !(i0);
+        if (i0) {goto spill_frame;}
+        i0 = hash;
+        i0 = LoadU8(ctx, i0 + 1u);
+        l8 = i0;
+        i0 = hash;
+        i1 = 1u;
+        i0 += i1;
+        hash = i0;
+        i0 = l4;
+        i1 = 1u;
+        i0 += i1;
+        l4 = i0;
+        i0 = LoadU8(ctx, i0);
+        i1 = l8;
+        i0 = i0 == i1;
+        if (i0) {goto loop_10;}
+      block_9:;
+      i0 = 0u;
+      hash = i0;
+      i0 = l6;
+      i1 = map;
+      i1 = LoadU32(ctx, i1 + 4u);
+      i2 = kF592Const7FFFFFFF;
+      i1 &= i2;
+      i0 = i0 != i1;
+      if (i0) {goto block_0;}
+      loop_11: 
+        i0 = map;
+        i0 = LoadU32(ctx, i0);
+        map = i0;
+        i0 = !(i0);
+        if (i0) {goto block_0;}
+        i0 = map;
+        i0 = LoadU32(ctx, i0 + 4u);
+        i1 = 0u;
+        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+        if (i0) {goto loop_11;}
+      goto dispatch_loop;
     TrapUnreachable();
   }
-  HostAssertFail(ctx, kUnorderedFindEntryMsgBuckets, kUnorderedFindEntryMsgBoostHeader,
-                 2956u, kUnorderedFindEntryMsgGetBucket);
+  i0 = kF592MsgBuckets;
+  i1 = kF592MsgBoostBoostUnorderedDetail;
+  i2 = 2956u;
+  i3 = kF592MsgGetBucket;
+  HostAssertFail(ctx, i0, i1, i2, i3);
   TrapUnreachable();
-compute_result:;
-  hash = LoadU8(ctx, map + 19u);
-  hash = hash << (24u & 31u);
-  hash = (uint32_t)((int32_t)hash >> (24u & 31u));
-  out = (uint32_t)((int32_t)hash < 0);
-  tmp = LoadU32(ctx, map + 12u);
-  tmp = (out != 0u) ? tmp : hash;
-  if (tmp == 0u) {
-    goto suspend_exit;
-  }
-  hash = map;
-  for (;;) {
-    tmp = LoadU32(ctx, hash + 4u);
-    tmp2 = kUnorderedFindEntryBucketMask;
-    tmp &= tmp2;
-    if (bucket != tmp) {
-      result = 0u;
-      goto frame_stored;
+  block_2:;
+  i0 = map;
+  i0 = LoadU8(ctx, i0 + 19u);
+  hash = i0;
+  i1 = 24u;
+  i0 <<= (i1 & 31);
+  i1 = 24u;
+  i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
+  i1 = 0u;
+  i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+  out = i0;
+  i0 = map;
+  i0 = LoadU32(ctx, i0 + 12u);
+  i1 = hash;
+  i2 = out;
+  i0 = i2 ? i0 : i1;
+  i0 = !(i0);
+  if (i0) {goto spill_frame;}
+  i0 = map;
+  hash = i0;
+  loop_12: 
+    i0 = l6;
+    i1 = hash;
+    i1 = LoadU32(ctx, i1 + 4u);
+    i2 = kF592Const7FFFFFFF;
+    i1 &= i2;
+    i0 = i0 != i1;
+    if (i0) {
+      i0 = 0u;
+      goto func_exit;
     }
-    for (;;) {
-      hash = LoadU32(ctx, hash);
-      if (hash == 0u) {
-        result = 0u;
-        goto frame_stored;
+    loop_15: 
+      i0 = hash;
+      i0 = LoadU32(ctx, i0);
+      hash = i0;
+      if (i0) {
+        i0 = hash;
+        i0 = LoadU32(ctx, i0 + 4u);
+        i1 = 0u;
+        i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+        if (i0) {goto loop_15;}
+        goto block_14;
       }
-      tmp = LoadU32(ctx, hash + 4u);
-      if ((int32_t)tmp < 0) {
-        continue;
-      }
-      break;
-    }
-  chain_matched:;
-    map = LoadU8(ctx, hash + 19u);
-    map = map << (24u & 31u);
-    map = (uint32_t)((int32_t)map >> (24u & 31u));
-    out = (uint32_t)((int32_t)map < 0);
-    tmp = LoadU32(ctx, hash + 12u);
-    tmp = (out != 0u) ? tmp : map;
-    if (tmp == 0u) {
-      goto done;
-    }
-  }
-suspend_exit:;
-  hash = map;
-done:;
-  result = hash;
-frame_stored:;
+    i0 = 0u;
+    goto func_exit;
+    block_14:;
+    i0 = hash;
+    i0 = LoadU8(ctx, i0 + 19u);
+    map = i0;
+    i1 = 24u;
+    i0 <<= (i1 & 31);
+    i1 = 24u;
+    i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
+    i1 = 0u;
+    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+    out = i0;
+    i0 = hash;
+    i0 = LoadU32(ctx, i0 + 12u);
+    i1 = map;
+    i2 = out;
+    i0 = i2 ? i0 : i1;
+    if (i0) {goto loop_12;}
+  goto block_0;
+  spill_frame:;
+  i0 = map;
+  hash = i0;
+  block_0:;
+  i0 = hash;
+  func_exit:;
   LeaveFrame();
-  return result;
+  return i0;
 }
-}  // namespace artc
+}

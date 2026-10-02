@@ -1,8 +1,23 @@
+// layer_events.cpp -- the layer event registration dispatch: one suspendable step that carries a layer event through the compositor registration table..
+//
+// Compositor::LyEventDispatch -- the layer event registration dispatch: one suspendable step that carries a layer event through the compositor registration table.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 1871065-1871065 (f3661); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations for the callees this step calls.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 uint32_t CompareBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
@@ -11,55 +26,58 @@ void ReleaseNodeTree(EngineContext* ctx, uint32_t state, uint32_t node);
 uint32_t CombineComparisonResults(EngineContext* ctx, uint32_t left, uint32_t right, uint32_t result, uint32_t box);
 void ReleaseLayerNodeTree(EngineContext* ctx, uint32_t a, uint32_t b);
 
-namespace Compositor {
-// Compositor::LyEventDispatch -- the layer event registration dispatch: one
-// suspendable step that carries a layer event through the compositor.
+namespace {
 
+constexpr uint32_t kF3661Const8ADC0 = 0x8ADC0u;  // 
+constexpr uint32_t kF3661Const8AE54 = 0x8AE54u;  // 
+constexpr uint32_t kF3661MsgBuckets = 0x8AE58u;  // buckets_
+constexpr uint32_t kF3661Const8C564 = 0x8C564u;  // 
+constexpr uint32_t kF3661MsgReset = 0xAF57Cu;  // reset
+constexpr uint32_t kF3661MsgLyevent = 0xAF658u;  // lyevent
+constexpr uint32_t kF3661ConstAF65B = 0xAF65Bu;  // 
+constexpr uint32_t kF3661ConstB4B29 = 0xB4B29u;  // 
+constexpr uint32_t kF3661MsgInit = 0xB4D6Eu;  // init
+constexpr uint32_t kF3661MsgClick = 0xB530Eu;  // click
+constexpr uint32_t kF3661MsgRollover = 0xB5314u;  // rollover
+constexpr uint32_t kF3661MsgRollout = 0xB531Du;  // rollout
+constexpr uint32_t kF3661MsgDragin = 0xB5325u;  // dragin
+constexpr uint32_t kF3661MsgDrag = 0xB532Cu;  // drag
+constexpr uint32_t kF3661MsgDragout = 0xB5331u;  // dragout
+constexpr uint32_t kF3661MsgPenetration = 0xB5339u;  // penetration
+constexpr uint32_t kF3661ConstB5340 = 0xB5340u;  // 
+constexpr uint32_t kF3661MsgEnable = 0xB5345u;  // enable
+constexpr uint32_t kF3661MsgDisable = 0xB534Cu;  // disable
+constexpr uint32_t kF3661ConstB5354 = 0xB5354u;  // 
+constexpr uint32_t kF3661MsgBucketsX = 0xB5B6Cu;  // buckets_
+constexpr uint32_t kF3661MsgBoostBoostUnorderedDetail = 0xB5B75u;  // ../../../../boost_1_66_0/boost/unordered/detail/implementation.hpp
+constexpr uint32_t kF3661MsgGetBucket = 0xB5BB8u;  // get_bucket
+constexpr uint32_t kF3661ConstB5E30 = 0xB5E30u;  // 
+constexpr uint32_t kF3661MsgPx = 0xB5E31u;  // px != 0
+constexpr uint32_t kF3661MsgBoostBoostSmartPtr = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
+constexpr uint32_t kF3661MsgOperator = 0xB5E71u;  // operator->
+constexpr uint32_t kF3661ConstB5F40 = 0xB5F40u;  // 
+constexpr uint32_t kF3661ConstB8F8C = 0xB8F8Cu;  // 
+constexpr uint32_t kF3661ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF3661Const65646F6D = 0x65646F6Du;  // 
+constexpr uint32_t kF3661Const65707974 = 0x65707974u;  // 
+constexpr uint32_t kF3661Const80000000 = 0x80000000u;  // 
+constexpr uint32_t kF3661ConstFFFFFFC0 = 0xFFFFFFC0u;  // 
+constexpr uint32_t kF3661ConstFFFFFFF0 = 0xFFFFFFF0u;  // 
+constexpr uint32_t kF3661ConstFFFFFFFE = 0xFFFFFFFEu;  // 
+constexpr uint32_t kF3661ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF3661SaveFrameBytes = 56u;
+constexpr uint32_t kF3661ResumeWordBytes = 4u;
+constexpr uint32_t kF3661ResumeDeallocateRawBlock01 = 1u;
+constexpr uint32_t kF3661ResumeDeallocateRawBlock41 = 41u;
+constexpr uint32_t kF3661ResumeDeallocateRawBlock51 = 51u;
+constexpr uint32_t kF3661ResumeDeallocateRawBlock54 = 54u;
+constexpr uint32_t kF3661ResumeDeallocateRawBlock118 = 118u;
+
+}  // namespace
+
+namespace Compositor {
 void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   EnterFrame();
-  constexpr uint32_t kData8ADC0 = 0x8ADC0u;
-  constexpr uint32_t kData8AE54 = 0x8AE54u;
-  constexpr uint32_t kMsgBuckets = 0x8AE58u;  // buckets_
-  constexpr uint32_t kData8C564 = 0x8C564u;
-  constexpr uint32_t kMsgReset = 0xAF57Cu;  // reset
-  constexpr uint32_t kMsgLyevent = 0xAF658u;  // lyevent
-  constexpr uint32_t kDataAF65B = 0xAF65Bu;
-  constexpr uint32_t kDataB4B29 = 0xB4B29u;
-  constexpr uint32_t kMsgInit = 0xB4D6Eu;  // init
-  constexpr uint32_t kMsgClick = 0xB530Eu;  // click
-  constexpr uint32_t kMsgRollover = 0xB5314u;  // rollover
-  constexpr uint32_t kMsgRollout = 0xB531Du;  // rollout
-  constexpr uint32_t kMsgDragin = 0xB5325u;  // dragin
-  constexpr uint32_t kMsgDrag = 0xB532Cu;  // drag
-  constexpr uint32_t kMsgDragout = 0xB5331u;  // dragout
-  constexpr uint32_t kMsgPenetration = 0xB5339u;  // penetration
-  constexpr uint32_t kDataB5340 = 0xB5340u;
-  constexpr uint32_t kMsgEnable = 0xB5345u;  // enable
-  constexpr uint32_t kMsgDisable = 0xB534Cu;  // disable
-  constexpr uint32_t kDataB5354 = 0xB5354u;
-  constexpr uint32_t kMsgBucketsX = 0xB5B6Cu;  // buckets_
-  constexpr uint32_t kMsgUnorderedDetailPath = 0xB5B75u;  // ../../../../boost_1_66_0/boost/unordered/detail/implementation.hpp
-  constexpr uint32_t kMsgGetBucket = 0xB5BB8u;  // get_bucket
-  constexpr uint32_t kDataB5E30 = 0xB5E30u;
-  constexpr uint32_t kMsgPx = 0xB5E31u;  // px != 0
-  constexpr uint32_t kMsgSmartPtrPath = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
-  constexpr uint32_t kMsgOperator = 0xB5E71u;  // operator->
-  constexpr uint32_t kDataB5F40 = 0xB5F40u;
-  constexpr uint32_t kDataB8F8C = 0xB8F8Cu;
-  constexpr uint32_t kData65646F6D = 0x65646F6Du;
-  constexpr uint32_t kData65707974 = 0x65707974u;
-  constexpr uint32_t kData80000000 = 0x80000000u;
-  constexpr uint32_t kDataFFFFFFC0 = 0xFFFFFFC0u;
-  constexpr uint32_t kDataFFFFFFF0 = 0xFFFFFFF0u;
-  constexpr uint32_t kDataFFFFFFFE = 0xFFFFFFFEu;
-  constexpr uint32_t kDataFFFFFFFF = 0xFFFFFFFFu;
-  constexpr uint32_t kSaveFrameBytes = 56u;
-  constexpr uint32_t kResumeWordBytes = 4u;
-  constexpr uint32_t kResumeStepDeallocateRawBlock1 = 1u;
-  constexpr uint32_t kResumeStepDeallocateRawBlock41 = 41u;
-  constexpr uint32_t kResumeStepDeallocateRawBlock51 = 51u;
-  constexpr uint32_t kResumeStepDeallocateRawBlock54 = 54u;
-  constexpr uint32_t kResumeStepDeallocateRawBlock118 = 118u;
   uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l14 = 0u; uint32_t l15 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u; uint32_t i6 = 0u;
   uint64_t j1 = 0; uint64_t j3 = 0;
@@ -71,7 +89,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kSaveFrameBytes;
+    i2 = kF3661SaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -126,7 +144,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kResumeWordBytes;
+    i2 = kF3661ResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -157,7 +175,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -168,10 +186,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3661MsgPx;
+      i2 = kF3661MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3661MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 0u;
       i1 = ResumePhase(ctx);
@@ -182,10 +200,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -214,7 +232,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -226,10 +244,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3661MsgPx;
+      i2 = kF3661MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3661MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 1u;
       i1 = ResumePhase(ctx);
@@ -240,10 +258,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -266,7 +284,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = l3;
     i1 = 2u;
     StoreU8(ctx, i0 + 107u, i1);
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -306,7 +324,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l5;
     i2 = l13;
     i3 = l7;
-    i4 = kDataB5E30;
+    i4 = kF3661ConstB5E30;
     i5 = l10;
     i6 = l11;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -319,10 +337,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -342,7 +360,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 304u);
     l7 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -375,10 +393,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -388,7 +406,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {goto block_28;}
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 107u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l3;
@@ -399,7 +417,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0 + 504u);
     l4 = i0;
     if (i0) {goto block_27;}
-    goto exit_path;
+    goto running_exit;
   }
   block_28:;
   i0 = ResumePhase(ctx);
@@ -410,7 +428,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 107u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_5;}
@@ -429,12 +447,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 0u;
     StoreU8(ctx, i0 + 100u, i1);
     i0 = l3;
-    i1 = kData65707974;
+    i1 = kF3661Const65707974;
     StoreU32(ctx, i0 + 96u, i1);
     i0 = l3;
     i1 = 4u;
     StoreU8(ctx, i0 + 107u, i1);
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -472,7 +490,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l5;
     i2 = l13;
     i3 = l7;
-    i4 = kDataB5E30;
+    i4 = kF3661ConstB5E30;
     i5 = l10;
     i6 = l11;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -485,10 +503,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -537,7 +555,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -555,14 +573,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = 1354u;
         i1 = l4;
         i2 = 0u;
-        i3 = kDataFFFFFFFF;
-        i4 = kMsgClick;
+        i3 = kF3661ConstFFFFFFFF;
+        i4 = kF3661MsgClick;
         i5 = 5u;
         i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
         l9 = i0;
         i0 = 5u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -572,10 +590,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {
         i0 = l4;
       } else {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -593,7 +611,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 107u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l5 = i0;
       if (i0) {
@@ -609,12 +627,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 0u;
       StoreU8(ctx, i0 + 100u, i1);
       i0 = l3;
-      i1 = kData65707974;
+      i1 = kF3661Const65707974;
       StoreU32(ctx, i0 + 96u, i1);
       i0 = l3;
       i1 = 4u;
       StoreU8(ctx, i0 + 107u, i1);
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -652,7 +670,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = l5;
       i2 = l13;
       i3 = l7;
-      i4 = kDataB5E30;
+      i4 = kF3661ConstB5E30;
       i5 = l10;
       i6 = l11;
       HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -665,10 +683,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -708,7 +726,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -726,14 +744,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = 1354u;
         i1 = l4;
         i2 = 0u;
-        i3 = kDataFFFFFFFF;
-        i4 = kMsgRollover;
+        i3 = kF3661ConstFFFFFFFF;
+        i4 = kF3661MsgRollover;
         i5 = 8u;
         i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
         l9 = i0;
         i0 = 7u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -743,10 +761,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {
         i0 = l4;
       } else {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -764,7 +782,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 107u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l5 = i0;
       if (i0) {
@@ -793,7 +811,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 107u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_6;}
@@ -812,7 +830,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 107u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_6;}
@@ -830,12 +848,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 0u;
     StoreU8(ctx, i0 + 100u, i1);
     i0 = l3;
-    i1 = kData65707974;
+    i1 = kF3661Const65707974;
     StoreU32(ctx, i0 + 96u, i1);
     i0 = l3;
     i1 = 4u;
     StoreU8(ctx, i0 + 107u, i1);
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -873,7 +891,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l5;
     i2 = l13;
     i3 = l7;
-    i4 = kDataB5E30;
+    i4 = kF3661ConstB5E30;
     i5 = l10;
     i6 = l11;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -886,10 +904,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -938,7 +956,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -956,14 +974,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = 1354u;
         i1 = l4;
         i2 = 0u;
-        i3 = kDataFFFFFFFF;
-        i4 = kMsgRollout;
+        i3 = kF3661ConstFFFFFFFF;
+        i4 = kF3661MsgRollout;
         i5 = 7u;
         i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
         l9 = i0;
         i0 = 9u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -973,10 +991,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {
         i0 = l4;
       } else {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -994,7 +1012,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 107u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l5 = i0;
       if (i0) {
@@ -1020,7 +1038,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 107u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_6;}
@@ -1038,12 +1056,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 0u;
     StoreU8(ctx, i0 + 100u, i1);
     i0 = l3;
-    i1 = kData65707974;
+    i1 = kF3661Const65707974;
     StoreU32(ctx, i0 + 96u, i1);
     i0 = l3;
     i1 = 4u;
     StoreU8(ctx, i0 + 107u, i1);
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -1081,7 +1099,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l5;
     i2 = l13;
     i3 = l7;
-    i4 = kDataB5E30;
+    i4 = kF3661ConstB5E30;
     i5 = l10;
     i6 = l11;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -1094,10 +1112,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -1146,7 +1164,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -1164,14 +1182,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = 1354u;
         i1 = l4;
         i2 = 0u;
-        i3 = kDataFFFFFFFF;
-        i4 = kMsgDragin;
+        i3 = kF3661ConstFFFFFFFF;
+        i4 = kF3661MsgDragin;
         i5 = 6u;
         i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
         l9 = i0;
         i0 = 11u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -1181,10 +1199,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {
         i0 = l4;
       } else {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -1202,7 +1220,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 107u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l5 = i0;
       if (i0) {
@@ -1228,7 +1246,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 107u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_6;}
@@ -1246,12 +1264,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 0u;
     StoreU8(ctx, i0 + 100u, i1);
     i0 = l3;
-    i1 = kData65707974;
+    i1 = kF3661Const65707974;
     StoreU32(ctx, i0 + 96u, i1);
     i0 = l3;
     i1 = 4u;
     StoreU8(ctx, i0 + 107u, i1);
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -1289,7 +1307,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l5;
     i2 = l13;
     i3 = l7;
-    i4 = kDataB5E30;
+    i4 = kF3661ConstB5E30;
     i5 = l10;
     i6 = l11;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -1302,10 +1320,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -1354,7 +1372,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -1372,14 +1390,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = 1354u;
         i1 = l4;
         i2 = 0u;
-        i3 = kDataFFFFFFFF;
-        i4 = kMsgDrag;
-        i5 = kResumeWordBytes;
+        i3 = kF3661ConstFFFFFFFF;
+        i4 = kF3661MsgDrag;
+        i5 = kF3661ResumeWordBytes;
         i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
         l9 = i0;
         i0 = 13u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -1389,10 +1407,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {
         i0 = l4;
       } else {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -1410,7 +1428,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 107u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l5 = i0;
       if (i0) {
@@ -1436,7 +1454,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 107u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_6;}
@@ -1454,12 +1472,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 0u;
     StoreU8(ctx, i0 + 100u, i1);
     i0 = l3;
-    i1 = kData65707974;
+    i1 = kF3661Const65707974;
     StoreU32(ctx, i0 + 96u, i1);
     i0 = l3;
     i1 = 4u;
     StoreU8(ctx, i0 + 107u, i1);
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -1497,7 +1515,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l5;
     i2 = l13;
     i3 = l7;
-    i4 = kDataB5E30;
+    i4 = kF3661ConstB5E30;
     i5 = l10;
     i6 = l11;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -1510,10 +1528,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -1562,7 +1580,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -1580,14 +1598,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = 1354u;
         i1 = l4;
         i2 = 0u;
-        i3 = kDataFFFFFFFF;
-        i4 = kMsgDragout;
+        i3 = kF3661ConstFFFFFFFF;
+        i4 = kF3661MsgDragout;
         i5 = 7u;
         i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
         l9 = i0;
         i0 = 15u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -1597,10 +1615,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {
         i0 = l4;
       } else {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -1618,7 +1636,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 107u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l5 = i0;
       if (i0) {
@@ -1630,7 +1648,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l4;
       i0 = !(i0);
       l4 = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       i0 = 5u;
       l12 = i0;
       goto block_63;
@@ -1644,7 +1662,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 107u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_6;}
@@ -1668,12 +1686,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 0u;
     StoreU8(ctx, i0 + 100u, i1);
     i0 = l3;
-    i1 = kData65646F6D;
+    i1 = kF3661Const65646F6D;
     StoreU32(ctx, i0 + 96u, i1);
     i0 = l3;
     i1 = 4u;
     StoreU8(ctx, i0 + 107u, i1);
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -1709,7 +1727,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l4;
     i2 = l13;
     i3 = l5;
-    i4 = kDataB5E30;
+    i4 = kF3661ConstB5E30;
     i5 = l7;
     i6 = l11;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -1722,10 +1740,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -1766,7 +1784,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1784,14 +1802,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l4;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kMsgInit;
-      i5 = kResumeWordBytes;
+      i3 = kF3661ConstFFFFFFFF;
+      i4 = kF3661MsgInit;
+      i5 = kF3661ResumeWordBytes;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l9 = i0;
       i0 = 17u;
       i1 = ResumePhase(ctx);
-      i2 = kResumeStepDeallocateRawBlock1;
+      i2 = kF3661ResumeDeallocateRawBlock01;
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
       i0 = l9;
@@ -1801,10 +1819,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l5;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -1821,7 +1839,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 107u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     l4 = i0;
     if (i0) {
@@ -1863,7 +1881,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1875,10 +1893,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3661MsgPx;
+        i2 = kF3661MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3661MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 18u;
         i1 = ResumePhase(ctx);
@@ -1889,10 +1907,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -1906,7 +1924,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = 0u;
@@ -1925,7 +1943,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       l9 = i0;
       i0 = 19u;
       i1 = ResumePhase(ctx);
-      i2 = kResumeStepDeallocateRawBlock1;
+      i2 = kF3661ResumeDeallocateRawBlock01;
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
       i0 = l9;
@@ -1934,10 +1952,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = 1u;
@@ -1960,11 +1978,11 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i2 = !(i2);
       if (i2) {
         i2 = l8;
-        i3 = kDataB5340;
+        i3 = kF3661ConstB5340;
         i3 = LoadU32(ctx, i3);
         StoreU32(ctx, i2 + 7u, i3);
         i2 = l8;
-        i3 = kMsgPenetration;
+        i3 = kF3661MsgPenetration;
         j3 = LoadU64(ctx, i3);
         StoreU64(ctx, i2, j3);
         i2 = l8;
@@ -2036,7 +2054,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               goto block_167;
             }
             i0 = l9;
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             l4 = i0;
             if (i0) {goto block_167;}
@@ -2050,7 +2068,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             l11 = i0;
             if (i0) {goto block_171;}
             i0 = l4;
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             l4 = i0;
             if (i0) {goto block_170;}
@@ -2065,7 +2083,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = l15;
           if (i0) {goto block_168;}
           block_170:;
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -2082,7 +2100,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           l9 = i0;
           i0 = 20u;
           i1 = ResumePhase(ctx);
-          i2 = kResumeStepDeallocateRawBlock1;
+          i2 = kF3661ResumeDeallocateRawBlock01;
           i1 = i1 == i2;
           if (i1) {goto spill_frame;}
           i0 = l9;
@@ -2091,10 +2109,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i0 = LoadU32(ctx, i0);
           l5 = i0;
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l5;
@@ -2112,14 +2130,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = 0u;
           StoreU8(ctx, i0 + 11u, i1);
           i0 = l4;
-          i1 = kDataB5340;
+          i1 = kF3661ConstB5340;
           i1 = LoadU32(ctx, i1);
           StoreU32(ctx, i0 + 7u, i1);
           i0 = l4;
-          i1 = kMsgPenetration;
+          i1 = kF3661MsgPenetration;
           j1 = LoadU64(ctx, i1);
           StoreU64(ctx, i0, j1);
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -2155,7 +2173,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = l4;
           i2 = l13;
           i3 = l5;
-          i4 = kDataB5E30;
+          i4 = kF3661ConstB5E30;
           i5 = l10;
           i6 = l11;
           HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -2168,10 +2186,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i0 = LoadU32(ctx, i0);
           l4 = i0;
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -2240,7 +2258,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i0 != i1;
         l11 = i0;
         if (i0) {goto block_161;}
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -2258,14 +2276,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = 1354u;
         i1 = l4;
         i2 = 0u;
-        i3 = kDataFFFFFFFF;
-        i4 = kDataB4B29;
+        i3 = kF3661ConstFFFFFFFF;
+        i4 = kF3661ConstB4B29;
         i5 = 1u;
         i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
         l9 = i0;
         i0 = 22u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -2274,10 +2292,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -2294,7 +2312,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -2316,7 +2334,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 23u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -2325,10 +2343,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         l11 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l11;
@@ -2342,7 +2360,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l3;
         i1 = 2648u;
         StoreU32(ctx, i0 + 368u, i1);
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -2378,10 +2396,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -2389,7 +2407,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i0 == i1;
         l4 = i0;
         if (i0) {goto block_158;}
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -2416,7 +2434,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 25u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -2425,10 +2443,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         l11 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l11;
@@ -2440,7 +2458,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 272u);
         l11 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -2465,10 +2483,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         l7 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l7;
@@ -2499,14 +2517,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = l11;
           if (i0) {goto block_195;}
           i0 = l7;
-          i1 = kDataFFFFFFFE;
+          i1 = kF3661ConstFFFFFFFE;
           i0 &= i1;
           i0 = LoadU32(ctx, i0);
           l7 = i0;
           i0 = !(i0);
           l11 = i0;
           if (i0) {goto block_195;}
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l7;
@@ -2537,10 +2555,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i0 = LoadU32(ctx, i0);
           l7 = i0;
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l7;
@@ -2562,11 +2580,11 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = !(i0);
       if (i0) {
         i0 = l3;
-        i1 = kDataB5F40;
+        i1 = kF3661ConstB5F40;
         StoreU32(ctx, i0 + 444u, i1);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 483u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l3;
@@ -2581,7 +2599,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 459u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l3;
@@ -2589,11 +2607,11 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           DeallocateRawBlock(ctx, i0);
         }
         i0 = l5;
-        i1 = kDataB5F40;
+        i1 = kF3661ConstB5F40;
         StoreU32(ctx, i0, i1);
         i0 = l5;
         i0 = LoadS8(ctx, i0 + 39u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l5;
@@ -2609,7 +2627,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l5;
         i0 = LoadS8(ctx, i0 + 15u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         l4 = i0;
         if (i0) {
@@ -2622,7 +2640,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         if (i0) {goto block_205;}
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 107u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         l4 = i0;
         if (i0) {goto block_205;}
@@ -2694,14 +2712,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = b;
         if (i0) {goto block_211;}
         i0 = a;
-        i1 = kDataFFFFFFFE;
+        i1 = kF3661ConstFFFFFFFE;
         i0 &= i1;
         i0 = LoadU32(ctx, i0);
         a = i0;
         i0 = !(i0);
         b = i0;
         if (i0) {goto block_211;}
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -2732,10 +2750,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -2771,11 +2789,11 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = !(i0);
       if (i0) {
         i0 = l3;
-        i1 = kDataB5F40;
+        i1 = kF3661ConstB5F40;
         StoreU32(ctx, i0 + 444u, i1);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 483u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l3;
@@ -2791,7 +2809,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 459u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         a = i0;
         if (i0) {goto block_154;}
@@ -2805,11 +2823,11 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = !(i0);
       if (i0) {
         i0 = l5;
-        i1 = kDataB5F40;
+        i1 = kF3661ConstB5F40;
         StoreU32(ctx, i0, i1);
         i0 = l5;
         i0 = LoadS8(ctx, i0 + 39u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l5;
@@ -2825,7 +2843,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l5;
         i0 = LoadS8(ctx, i0 + 15u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         a = i0;
         if (i0) {
@@ -2843,7 +2861,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 107u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         a = i0;
         if (i0) {goto block_152;}
@@ -2884,12 +2902,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 0u;
     StoreU8(ctx, i0 + 100u, i1);
     i0 = l3;
-    i1 = kData65646F6D;
+    i1 = kF3661Const65646F6D;
     StoreU32(ctx, i0 + 96u, i1);
     i0 = l3;
     i1 = 4u;
     StoreU8(ctx, i0 + 107u, i1);
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -2925,7 +2943,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l4;
     i2 = l13;
     i3 = l8;
-    i4 = kDataB5E30;
+    i4 = kF3661ConstB5E30;
     i5 = l7;
     i6 = l10;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -2938,10 +2956,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -2990,7 +3008,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -3008,14 +3026,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = 1354u;
         i1 = l4;
         i2 = 0u;
-        i3 = kDataFFFFFFFF;
-        i4 = kMsgReset;
+        i3 = kF3661ConstFFFFFFFF;
+        i4 = kF3661MsgReset;
         i5 = 5u;
         i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
         l9 = i0;
         i0 = 30u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -3025,10 +3043,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {
         i0 = l5;
       } else {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -3045,7 +3063,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 107u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -3071,7 +3089,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -3083,10 +3101,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3661MsgPx;
+        i2 = kF3661MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3661MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 31u;
         i1 = ResumePhase(ctx);
@@ -3097,10 +3115,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -3121,7 +3139,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 272u);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -3150,10 +3168,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -3184,14 +3202,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l4;
         if (i0) {goto block_253;}
         i0 = b;
-        i1 = kDataFFFFFFFE;
+        i1 = kF3661ConstFFFFFFFE;
         i0 &= i1;
         i0 = LoadU32(ctx, i0);
         b = i0;
         i0 = !(i0);
         l4 = i0;
         if (i0) {goto block_253;}
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -3224,10 +3242,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -3263,7 +3281,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -3275,10 +3293,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3661MsgPx;
+        i2 = kF3661MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3661MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 34u;
         i1 = ResumePhase(ctx);
@@ -3289,10 +3307,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -3310,7 +3328,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 292u);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -3327,7 +3345,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       l9 = i0;
       i0 = 35u;
       i1 = ResumePhase(ctx);
-      i2 = kResumeStepDeallocateRawBlock1;
+      i2 = kF3661ResumeDeallocateRawBlock01;
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
       i0 = l9;
@@ -3336,10 +3354,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -3367,7 +3385,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -3379,10 +3397,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3661MsgPx;
+        i2 = kF3661MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3661MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 36u;
         i1 = ResumePhase(ctx);
@@ -3393,10 +3411,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -3414,7 +3432,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 276u);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -3439,10 +3457,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -3461,7 +3479,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 107u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_6;}
@@ -3495,14 +3513,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = b;
     if (i0) {goto block_278;}
     i0 = a;
-    i1 = kDataFFFFFFFE;
+    i1 = kF3661ConstFFFFFFFE;
     i0 &= i1;
     i0 = LoadU32(ctx, i0);
     a = i0;
     i0 = !(i0);
     b = i0;
     if (i0) {goto block_278;}
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -3535,10 +3553,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -3565,7 +3583,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = !(i0);
   if (i0) {
     i0 = c;
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     i0 = l3;
     j1 = 0ull;
     StoreU64(ctx, i0 + 100u, j1);
@@ -3581,12 +3599,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 0u;
     StoreU8(ctx, i0 + 220u, i1);
     i0 = l3;
-    i1 = kData65707974;
+    i1 = kF3661Const65707974;
     StoreU32(ctx, i0 + 216u, i1);
     i0 = l3;
     i1 = 4u;
     StoreU8(ctx, i0 + 227u, i1);
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -3622,7 +3640,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = c;
     i2 = l13;
     i3 = l4;
-    i4 = kDataB5E30;
+    i4 = kF3661ConstB5E30;
     i5 = l5;
     i6 = l8;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -3635,10 +3653,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     c = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = c;
@@ -3662,12 +3680,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 0u;
       StoreU8(ctx, i0 + 204u, i1);
       i0 = l3;
-      i1 = kData65707974;
+      i1 = kF3661Const65707974;
       StoreU32(ctx, i0 + 200u, i1);
       i0 = l3;
       i1 = 4u;
       StoreU8(ctx, i0 + 211u, i1);
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -3688,7 +3706,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 += i1;
       l7 = i0;
       i0 = l3;
-      i1 = kDataFFFFFFC0;
+      i1 = kF3661ConstFFFFFFC0;
       i0 -= i1;
       l10 = i0;
       i0 = l3;
@@ -3707,7 +3725,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = l4;
       i2 = l5;
       i3 = l8;
-      i4 = kDataB5E30;
+      i4 = kF3661ConstB5E30;
       i5 = l7;
       i6 = l10;
       HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -3720,10 +3738,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -3731,7 +3749,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i0 == i1;
       l4 = i0;
       if (i0) {goto block_288;}
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -3756,9 +3774,9 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i2 = c;
       i0 = HostOsQuery(ctx, i0, i1, i2);
       l9 = i0;
-      i0 = kResumeStepDeallocateRawBlock41;
+      i0 = kF3661ResumeDeallocateRawBlock41;
       i1 = ResumePhase(ctx);
-      i2 = kResumeStepDeallocateRawBlock1;
+      i2 = kF3661ResumeDeallocateRawBlock01;
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
       i0 = l9;
@@ -3767,10 +3785,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = c;
@@ -3780,7 +3798,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {goto block_288;}
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 211u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -3789,7 +3807,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       }
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 227u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       c = i0;
       if (i0) {
@@ -3813,7 +3831,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -3825,10 +3843,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3661MsgPx;
+        i2 = kF3661MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3661MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 42u;
         i1 = ResumePhase(ctx);
@@ -3839,10 +3857,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -3865,7 +3883,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l3;
       i1 = 2u;
       StoreU8(ctx, i0 + 227u, i1);
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -3901,7 +3919,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = a;
       i2 = l13;
       i3 = c;
-      i4 = kDataB5E30;
+      i4 = kF3661ConstB5E30;
       i5 = l4;
       i6 = l5;
       HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -3914,10 +3932,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -3946,11 +3964,11 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 0u;
       StoreU8(ctx, i0 + 207u, i1);
       i0 = l3;
-      i1 = kMsgLyevent;
+      i1 = kF3661MsgLyevent;
       i1 = LoadU32(ctx, i1);
       StoreU32(ctx, i0 + 200u, i1);
       i0 = l3;
-      i1 = kDataAF65B;
+      i1 = kF3661ConstAF65B;
       i1 = LoadU32(ctx, i1);
       StoreU32(ctx, i0 + 203u, i1);
       i0 = l3;
@@ -3970,7 +3988,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -3999,7 +4017,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           l9 = i0;
           i0 = 44u;
           i1 = ResumePhase(ctx);
-          i2 = kResumeStepDeallocateRawBlock1;
+          i2 = kF3661ResumeDeallocateRawBlock01;
           i1 = i1 == i2;
           if (i1) {goto spill_frame;}
           i0 = l9;
@@ -4008,10 +4026,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -4071,7 +4089,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -4110,10 +4128,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -4129,7 +4147,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 211u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -4138,7 +4156,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       }
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 227u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -4153,7 +4171,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 100u);
       b = i1;
       ReleaseNodeTree(ctx, i0, i1);
-      goto exit_path;
+      goto running_exit;
     }
   }
   i0 = ResumePhase(ctx);
@@ -4174,7 +4192,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 211u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_287;}
@@ -4189,7 +4207,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 227u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_227;}
@@ -4223,12 +4241,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 0u;
     StoreU8(ctx, i0 + 100u, i1);
     i0 = l3;
-    i1 = kData65646F6D;
+    i1 = kF3661Const65646F6D;
     StoreU32(ctx, i0 + 96u, i1);
     i0 = l3;
     i1 = 4u;
     StoreU8(ctx, i0 + 107u, i1);
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -4264,7 +4282,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l4;
     i2 = l13;
     i3 = l8;
-    i4 = kDataB5E30;
+    i4 = kF3661ConstB5E30;
     i5 = l7;
     i6 = l10;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -4277,10 +4295,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -4329,7 +4347,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -4347,14 +4365,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = 1354u;
         i1 = l4;
         i2 = 0u;
-        i3 = kDataFFFFFFFF;
-        i4 = kMsgEnable;
+        i3 = kF3661ConstFFFFFFFF;
+        i4 = kF3661MsgEnable;
         i5 = 6u;
         i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
         l9 = i0;
         i0 = 47u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -4364,10 +4382,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {
         i0 = l5;
       } else {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -4384,7 +4402,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 107u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l4 = i0;
       if (i0) {
@@ -4418,7 +4436,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -4430,10 +4448,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kMsgPx;
-          i2 = kMsgSmartPtrPath;
+          i1 = kF3661MsgPx;
+          i2 = kF3661MsgBoostBoostSmartPtr;
           i3 = 734u;
-          i4 = kMsgOperator;
+          i4 = kF3661MsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 48u;
           i1 = ResumePhase(ctx);
@@ -4444,10 +4462,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -4465,7 +4483,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 276u);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -4490,10 +4508,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -4502,7 +4520,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         b = i0;
         if (i0) {goto block_130;}
         i0 = c;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         i0 = l3;
         j1 = 0ull;
         StoreU64(ctx, i0 + 220u, j1);
@@ -4518,12 +4536,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = 0u;
         StoreU8(ctx, i0 + 100u, i1);
         i0 = l3;
-        i1 = kData65646F6D;
+        i1 = kF3661Const65646F6D;
         StoreU32(ctx, i0 + 96u, i1);
         i0 = l3;
         i1 = 4u;
         StoreU8(ctx, i0 + 107u, i1);
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -4563,7 +4581,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = b;
         i2 = c;
         i3 = l4;
-        i4 = kDataB5E30;
+        i4 = kF3661ConstB5E30;
         i5 = l5;
         i6 = l8;
         HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -4576,10 +4594,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -4587,7 +4605,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i0 == i1;
         b = i0;
         if (i0) {goto block_340;}
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -4605,12 +4623,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {
         i0 = 996u;
         i1 = b;
-        i2 = kMsgDisable;
+        i2 = kF3661MsgDisable;
         i0 = HostOsQuery(ctx, i0, i1, i2);
         l9 = i0;
-        i0 = kResumeStepDeallocateRawBlock51;
+        i0 = kF3661ResumeDeallocateRawBlock51;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -4619,10 +4637,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -4632,7 +4650,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         if (i0) {goto block_340;}
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 107u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l3;
@@ -4643,12 +4661,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = 0u;
         StoreU8(ctx, i0 + 100u, i1);
         i0 = l3;
-        i1 = kData65707974;
+        i1 = kF3661Const65707974;
         StoreU32(ctx, i0 + 96u, i1);
         i0 = l3;
         i1 = 4u;
         StoreU8(ctx, i0 + 107u, i1);
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -4684,7 +4702,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = b;
         i2 = l13;
         i3 = c;
-        i4 = kDataB5E30;
+        i4 = kF3661ConstB5E30;
         i5 = l4;
         i6 = l5;
         HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -4697,10 +4715,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -4715,12 +4733,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = 0u;
         StoreU8(ctx, i0 + 204u, i1);
         i0 = l3;
-        i1 = kData65707974;
+        i1 = kF3661Const65707974;
         StoreU32(ctx, i0 + 200u, i1);
         i0 = l3;
         i1 = 4u;
         StoreU8(ctx, i0 + 211u, i1);
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -4741,7 +4759,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 += i1;
         l8 = i0;
         i0 = l3;
-        i1 = kDataFFFFFFC0;
+        i1 = kF3661ConstFFFFFFC0;
         i0 -= i1;
         l7 = i0;
         i0 = l3;
@@ -4760,7 +4778,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = c;
         i2 = l4;
         i3 = l5;
-        i4 = kDataB5E30;
+        i4 = kF3661ConstB5E30;
         i5 = l8;
         i6 = l7;
         HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -4773,10 +4791,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         c = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -4784,7 +4802,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i0 == i1;
         c = i0;
         if (i0) {goto block_343;}
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -4809,9 +4827,9 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i2 = b;
         i0 = HostOsQuery(ctx, i0, i1, i2);
         l9 = i0;
-        i0 = kResumeStepDeallocateRawBlock54;
+        i0 = kF3661ResumeDeallocateRawBlock54;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -4820,10 +4838,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -4833,7 +4851,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         if (i0) {goto block_343;}
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 211u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l3;
@@ -4842,7 +4860,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         }
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 107u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l3;
@@ -4864,7 +4882,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -4876,10 +4894,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kMsgPx;
-          i2 = kMsgSmartPtrPath;
+          i1 = kF3661MsgPx;
+          i2 = kF3661MsgBoostBoostSmartPtr;
           i3 = 734u;
-          i4 = kMsgOperator;
+          i4 = kF3661MsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 55u;
           i1 = ResumePhase(ctx);
@@ -4890,10 +4908,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -4916,7 +4934,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l3;
         i1 = 2u;
         StoreU8(ctx, i0 + 107u, i1);
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -4952,7 +4970,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = b;
         i2 = l13;
         i3 = c;
-        i4 = kDataB5E30;
+        i4 = kF3661ConstB5E30;
         i5 = l4;
         i6 = l5;
         HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -4965,10 +4983,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -4997,11 +5015,11 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = 0u;
         StoreU8(ctx, i0 + 207u, i1);
         i0 = l3;
-        i1 = kMsgLyevent;
+        i1 = kF3661MsgLyevent;
         i1 = LoadU32(ctx, i1);
         StoreU32(ctx, i0 + 200u, i1);
         i0 = l3;
-        i1 = kDataAF65B;
+        i1 = kF3661ConstAF65B;
         i1 = LoadU32(ctx, i1);
         StoreU32(ctx, i0 + 203u, i1);
         i0 = l12;
@@ -5021,7 +5039,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -5051,7 +5069,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             l9 = i0;
             i0 = 57u;
             i1 = ResumePhase(ctx);
-            i2 = kResumeStepDeallocateRawBlock1;
+            i2 = kF3661ResumeDeallocateRawBlock01;
             i1 = i1 == i2;
             if (i1) {goto spill_frame;}
             i0 = l9;
@@ -5060,10 +5078,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i0 = LoadU32(ctx, i0);
             c = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = c;
@@ -5123,7 +5141,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -5162,10 +5180,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -5181,7 +5199,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 211u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l3;
@@ -5190,7 +5208,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         }
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 107u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l3;
@@ -5202,7 +5220,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         StoreU8(ctx, i0 + 96u, i1);
         i0 = 38u;
         l4 = i0;
-        i0 = kData8ADC0;
+        i0 = kF3661Const8ADC0;
         l5 = i0;
         loop_397: 
           i0 = l5;
@@ -5225,7 +5243,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = i2 ? i0 : i1;
           l5 = i0;
           i0 = b;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3661ConstFFFFFFFF;
           i0 ^= i1;
           l8 = i0;
           i1 = l4;
@@ -5235,10 +5253,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = i2 ? i0 : i1;
           l4 = i0;
           if (i0) {goto loop_397;}
-        i0 = kData8AE54;
+        i0 = kF3661Const8AE54;
         i1 = l5;
         i2 = l5;
-        i3 = kMsgBuckets;
+        i3 = kF3661MsgBuckets;
         i2 = i2 == i3;
         i0 = i2 ? i0 : i1;
         i0 = LoadU32(ctx, i0);
@@ -5272,14 +5290,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = b;
-        i1 = kData8C564;
-        i2 = kDataB8F8C;
+        i1 = kF3661Const8C564;
+        i2 = kF3661ConstB8F8C;
         i3 = 0u;
         i0 = CombineComparisonResults(ctx, i0, i1, i2, i3);
         l9 = i0;
         i0 = 59u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -5313,7 +5331,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 368u);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -5346,10 +5364,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         c = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -5359,7 +5377,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         if (i0) {goto block_348;}
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 211u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l3;
@@ -5392,7 +5410,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 8u);
         c = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5415,10 +5433,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         c = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -5442,7 +5460,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         c = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5465,10 +5483,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -5490,7 +5508,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = LoadU32(ctx, i0 + 116u);
         b = i0;
         if (i0) {goto block_398;}
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5502,10 +5520,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgBucketsX;
-        i2 = kMsgUnorderedDetailPath;
+        i1 = kF3661MsgBucketsX;
+        i2 = kF3661MsgBoostBoostUnorderedDetail;
         i3 = 2956u;
-        i4 = kMsgGetBucket;
+        i4 = kF3661MsgGetBucket;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 63u;
         i1 = ResumePhase(ctx);
@@ -5516,10 +5534,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -5533,7 +5551,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5545,10 +5563,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3661MsgPx;
+        i2 = kF3661MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3661MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 64u;
         i1 = ResumePhase(ctx);
@@ -5559,10 +5577,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -5614,7 +5632,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -5626,10 +5644,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = i2 ? i0 : i1;
           if (i0) {
             i0 = 857u;
-            i1 = kMsgPx;
-            i2 = kMsgSmartPtrPath;
+            i1 = kF3661MsgPx;
+            i2 = kF3661MsgBoostBoostSmartPtr;
             i3 = 734u;
-            i4 = kMsgOperator;
+            i4 = kF3661MsgOperator;
             HostFailAssertion(ctx, i0, i1, i2, i3, i4);
             i0 = 65u;
             i1 = ResumePhase(ctx);
@@ -5640,10 +5658,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -5666,7 +5684,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = l3;
           i1 = 2u;
           StoreU8(ctx, i0 + 91u, i1);
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -5687,7 +5705,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 += i1;
           l10 = i0;
           i0 = l3;
-          i1 = kDataFFFFFFC0;
+          i1 = kF3661ConstFFFFFFC0;
           i0 -= i1;
           c = i0;
         }
@@ -5702,7 +5720,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = c;
           i2 = l13;
           i3 = l4;
-          i4 = kDataB5E30;
+          i4 = kF3661ConstB5E30;
           i5 = l5;
           i6 = l10;
           HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -5715,10 +5733,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -5746,7 +5764,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             l4 = i0;
             i0 = LoadS8(ctx, i0 + 39u);
             l5 = i0;
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l4;
@@ -5769,7 +5787,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i1 = 1u;
             i0 += i1;
             l4 = i0;
-            i1 = kDataFFFFFFF0;
+            i1 = kF3661ConstFFFFFFF0;
             i0 = i0 >= i1;
             l10 = i0;
           }
@@ -5782,7 +5800,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l3;
@@ -5809,10 +5827,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i0 = LoadU32(ctx, i0);
               a = i0;
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = a;
@@ -5838,14 +5856,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l5;
               i1 = 17u;
               i0 += i1;
               l4 = i0;
-              i1 = kDataFFFFFFF0;
+              i1 = kF3661ConstFFFFFFF0;
               i0 &= i1;
               l10 = i0;
             }
@@ -5862,7 +5880,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               l9 = i0;
               i0 = 68u;
               i1 = ResumePhase(ctx);
-              i2 = kResumeStepDeallocateRawBlock1;
+              i2 = kF3661ResumeDeallocateRawBlock01;
               i1 = i1 == i2;
               if (i1) {goto spill_frame;}
               i0 = l9;
@@ -5871,10 +5889,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i0 = LoadU32(ctx, i0);
               l11 = i0;
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l11;
@@ -5890,7 +5908,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               StoreU32(ctx, i0 + 188u, i1);
               i0 = l3;
               i1 = l10;
-              i2 = kData80000000;
+              i2 = kF3661Const80000000;
               i1 |= i2;
               l10 = i1;
               StoreU32(ctx, i0 + 192u, i1);
@@ -5931,7 +5949,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 += i1;
             i1 = 0u;
             StoreU8(ctx, i0, i1);
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -5948,13 +5966,13 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           if (i0) {
             i0 = 860u;
             i1 = c;
-            i2 = kDataB5354;
+            i2 = kF3661ConstB5354;
             i3 = 1u;
             i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
             l9 = i0;
             i0 = 69u;
             i1 = ResumePhase(ctx);
-            i2 = kResumeStepDeallocateRawBlock1;
+            i2 = kF3661ResumeDeallocateRawBlock01;
             i1 = i1 == i2;
             if (i1) {goto spill_frame;}
             i0 = l9;
@@ -5963,10 +5981,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i0 = LoadU32(ctx, i0);
             c = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = c;
@@ -5985,7 +6003,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = HostTempRet0(ctx);
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 195u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             a = i0;
             if (i0) {goto block_349;}
@@ -6008,7 +6026,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = b;
             i0 = LoadU32(ctx, i0 + 8u);
             l5 = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -6050,7 +6068,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             l9 = i0;
             i0 = 70u;
             i1 = ResumePhase(ctx);
-            i2 = kResumeStepDeallocateRawBlock1;
+            i2 = kF3661ResumeDeallocateRawBlock01;
             i1 = i1 == i2;
             if (i1) {goto spill_frame;}
             i0 = l9;
@@ -6059,10 +6077,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i0 = LoadU32(ctx, i0);
             l4 = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -6094,11 +6112,11 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i1 = 7u;
             StoreU8(ctx, i0 + 75u, i1);
             i0 = l3;
-            i1 = kMsgLyevent;
+            i1 = kF3661MsgLyevent;
             i1 = LoadU32(ctx, i1);
             StoreU32(ctx, i0 + 64u, i1);
             i0 = l3;
-            i1 = kDataAF65B;
+            i1 = kF3661ConstAF65B;
             i1 = LoadU32(ctx, i1);
             StoreU32(ctx, i0 + 67u, i1);
             i0 = l3;
@@ -6121,7 +6139,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF3661ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l3;
@@ -6151,7 +6169,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
                 l9 = i0;
                 i0 = 71u;
                 i1 = ResumePhase(ctx);
-                i2 = kResumeStepDeallocateRawBlock1;
+                i2 = kF3661ResumeDeallocateRawBlock01;
                 i1 = i1 == i2;
                 if (i1) {goto spill_frame;}
                 i0 = l9;
@@ -6160,10 +6178,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF3661ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l4 = i0;
-                i0 = kDataD015C;
+                i0 = kF3661ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l4;
@@ -6223,11 +6241,11 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
-            i1 = kDataFFFFFFC0;
+            i1 = kF3661ConstFFFFFFC0;
             i0 -= i1;
             l4 = i0;
             i0 = l3;
@@ -6262,10 +6280,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i0 = LoadU32(ctx, i0);
             c = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = c;
@@ -6282,7 +6300,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             ReleaseNodeTree(ctx, i0, i1);
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 75u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l3;
@@ -6291,7 +6309,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             }
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 211u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l3;
@@ -6300,7 +6318,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             }
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 195u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l3;
@@ -6309,7 +6327,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             }
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 91u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             c = i0;
             if (i0) {
@@ -6358,12 +6376,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 0u;
       StoreU8(ctx, i0 + 100u, i1);
       i0 = l3;
-      i1 = kData65646F6D;
+      i1 = kF3661Const65646F6D;
       StoreU32(ctx, i0 + 96u, i1);
       i0 = l3;
       i1 = 4u;
       StoreU8(ctx, i0 + 107u, i1);
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -6399,7 +6417,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = l4;
       i2 = l13;
       i3 = l8;
-      i4 = kDataB5E30;
+      i4 = kF3661ConstB5E30;
       i5 = l7;
       i6 = l10;
       HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -6412,10 +6430,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -6464,7 +6482,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -6482,14 +6500,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = 1354u;
           i1 = l4;
           i2 = 0u;
-          i3 = kDataFFFFFFFF;
-          i4 = kMsgDisable;
+          i3 = kF3661ConstFFFFFFFF;
+          i4 = kF3661MsgDisable;
           i5 = 7u;
           i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
           l9 = i0;
           i0 = 74u;
           i1 = ResumePhase(ctx);
-          i2 = kResumeStepDeallocateRawBlock1;
+          i2 = kF3661ResumeDeallocateRawBlock01;
           i1 = i1 == i2;
           if (i1) {goto spill_frame;}
           i0 = l9;
@@ -6499,10 +6517,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         if (i0) {
           i0 = l5;
         } else {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i0 = LoadU32(ctx, i0);
           l5 = i0;
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l5;
@@ -6519,7 +6537,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 107u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l3;
@@ -6528,7 +6546,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         }
         i0 = l5;
         i0 = !(i0);
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         i0 = l3;
         i0 = LoadU32(ctx, i0 + 504u);
         l4 = i0;
@@ -6544,7 +6562,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -6556,10 +6574,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kMsgPx;
-          i2 = kMsgSmartPtrPath;
+          i1 = kF3661MsgPx;
+          i2 = kF3661MsgBoostBoostSmartPtr;
           i3 = 734u;
-          i4 = kMsgOperator;
+          i4 = kF3661MsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 75u;
           i1 = ResumePhase(ctx);
@@ -6570,10 +6588,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -6591,7 +6609,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 276u);
         l5 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -6616,10 +6634,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -6627,7 +6645,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i0 == i1;
         if (i0) {goto block_130;}
         i0 = c;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         i0 = l3;
         j1 = 0ull;
         StoreU64(ctx, i0 + 220u, j1);
@@ -6643,12 +6661,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = 0u;
         StoreU8(ctx, i0 + 100u, i1);
         i0 = l3;
-        i1 = kData65646F6D;
+        i1 = kF3661Const65646F6D;
         StoreU32(ctx, i0 + 96u, i1);
         i0 = l3;
         i1 = 4u;
         StoreU8(ctx, i0 + 107u, i1);
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -6690,10 +6708,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         c = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -6712,7 +6730,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         if (i0) {
           i0 = l3;
           i0 = LoadS8(ctx, i0 + 107u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3661ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l3;
@@ -6723,12 +6741,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = 0u;
           StoreU8(ctx, i0 + 100u, i1);
           i0 = l3;
-          i1 = kData65707974;
+          i1 = kF3661Const65707974;
           StoreU32(ctx, i0 + 96u, i1);
           i0 = l3;
           i1 = 4u;
           StoreU8(ctx, i0 + 107u, i1);
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -6770,10 +6788,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -6792,7 +6810,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           if (i0) {
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 107u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l3;
@@ -6814,7 +6832,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
             }
@@ -6826,10 +6844,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = i2 ? i0 : i1;
             if (i0) {
               i0 = 857u;
-              i1 = kMsgPx;
-              i2 = kMsgSmartPtrPath;
+              i1 = kF3661MsgPx;
+              i2 = kF3661MsgBoostBoostSmartPtr;
               i3 = 734u;
-              i4 = kMsgOperator;
+              i4 = kF3661MsgOperator;
               HostFailAssertion(ctx, i0, i1, i2, i3, i4);
               i0 = 79u;
               i1 = ResumePhase(ctx);
@@ -6840,10 +6858,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i0 = LoadU32(ctx, i0);
               a = i0;
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = a;
@@ -6885,7 +6903,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF3661ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l3;
@@ -6915,7 +6933,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
                 l9 = i0;
                 i0 = 80u;
                 i1 = ResumePhase(ctx);
-                i2 = kResumeStepDeallocateRawBlock1;
+                i2 = kF3661ResumeDeallocateRawBlock01;
                 i1 = i1 == i2;
                 if (i1) {goto spill_frame;}
                 i0 = l9;
@@ -6924,10 +6942,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF3661ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 l4 = i0;
-                i0 = kDataD015C;
+                i0 = kF3661ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = l4;
@@ -6987,7 +7005,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -7017,10 +7035,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i0 = LoadU32(ctx, i0);
             c = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = c;
@@ -7039,7 +7057,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             StoreU8(ctx, i0 + 96u, i1);
             i0 = 38u;
             l4 = i0;
-            i0 = kData8ADC0;
+            i0 = kF3661Const8ADC0;
             l5 = i0;
             loop_538: 
               i0 = l4;
@@ -7062,7 +7080,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               i0 = i2 ? i0 : i1;
               l5 = i0;
               i0 = c;
-              i1 = kDataFFFFFFFF;
+              i1 = kF3661ConstFFFFFFFF;
               i0 ^= i1;
               l7 = i0;
               i1 = l4;
@@ -7072,10 +7090,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               i0 = i2 ? i0 : i1;
               l4 = i0;
               if (i0) {goto loop_538;}
-            i0 = kData8AE54;
+            i0 = kF3661Const8AE54;
             i1 = l5;
             i2 = l5;
-            i3 = kMsgBuckets;
+            i3 = kF3661MsgBuckets;
             i2 = i2 == i3;
             i0 = i2 ? i0 : i1;
             i0 = LoadU32(ctx, i0);
@@ -7109,14 +7127,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = i2 ? i0 : i1;
           if (i0) {
             i0 = c;
-            i1 = kData8C564;
-            i2 = kDataB8F8C;
+            i1 = kF3661Const8C564;
+            i2 = kF3661ConstB8F8C;
             i3 = 0u;
             i0 = CombineComparisonResults(ctx, i0, i1, i2, i3);
             l9 = i0;
             i0 = 82u;
             i1 = ResumePhase(ctx);
-            i2 = kResumeStepDeallocateRawBlock1;
+            i2 = kF3661ResumeDeallocateRawBlock01;
             i1 = i1 == i2;
             if (i1) {goto spill_frame;}
             i0 = l9;
@@ -7150,7 +7168,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = LoadU32(ctx, i0);
             i0 = LoadU32(ctx, i0 + 368u);
             l5 = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -7183,10 +7201,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i0 = LoadU32(ctx, i0);
             c = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = c;
@@ -7196,7 +7214,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             if (i0) {goto block_518;}
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 211u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l3;
@@ -7229,7 +7247,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = LoadU32(ctx, i0);
             i0 = LoadU32(ctx, i0 + 8u);
             c = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -7252,10 +7270,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i0 = LoadU32(ctx, i0);
             c = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = c;
@@ -7279,7 +7297,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = LoadU32(ctx, i0);
             i0 = LoadU32(ctx, i0 + 12u);
             c = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -7302,10 +7320,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i0 = LoadU32(ctx, i0);
             c = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = c;
@@ -7327,7 +7345,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = l3;
             i1 = 2u;
             StoreU8(ctx, i0 + 195u, i1);
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -7340,7 +7358,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 += i1;
             l4 = i0;
             i0 = l3;
-            i1 = kDataFFFFFFC0;
+            i1 = kF3661ConstFFFFFFC0;
             i0 -= i1;
             l5 = i0;
             i0 = l3;
@@ -7363,7 +7381,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i1 = c;
             i2 = l13;
             i3 = l4;
-            i4 = kDataB5E30;
+            i4 = kF3661ConstB5E30;
             i5 = l5;
             i6 = l8;
             HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -7376,10 +7394,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i0 = LoadU32(ctx, i0);
             c = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = c;
@@ -7398,7 +7416,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             l4 = i0;
             i0 = LoadS8(ctx, i0 + 39u);
             l5 = i0;
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             c = i0;
             if (i0) {goto block_540;}
@@ -7413,7 +7431,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -7425,10 +7443,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = i2 ? i0 : i1;
           if (i0) {
             i0 = 857u;
-            i1 = kMsgPx;
-            i2 = kMsgSmartPtrPath;
+            i1 = kF3661MsgPx;
+            i2 = kF3661MsgBoostBoostSmartPtr;
             i3 = 734u;
-            i4 = kMsgOperator;
+            i4 = kF3661MsgOperator;
             HostFailAssertion(ctx, i0, i1, i2, i3, i4);
             i0 = 87u;
             i1 = ResumePhase(ctx);
@@ -7439,10 +7457,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -7474,7 +7492,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i1 = 1u;
             i0 += i1;
             l4 = i0;
-            i1 = kDataFFFFFFF0;
+            i1 = kF3661ConstFFFFFFF0;
             i0 = i0 >= i1;
             l8 = i0;
           }
@@ -7487,7 +7505,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l3;
@@ -7514,10 +7532,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i0 = LoadU32(ctx, i0);
               a = i0;
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = a;
@@ -7543,14 +7561,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l5;
               i1 = 17u;
               i0 += i1;
               l4 = i0;
-              i1 = kDataFFFFFFF0;
+              i1 = kF3661ConstFFFFFFF0;
               i0 &= i1;
               l8 = i0;
             }
@@ -7567,7 +7585,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               l9 = i0;
               i0 = 89u;
               i1 = ResumePhase(ctx);
-              i2 = kResumeStepDeallocateRawBlock1;
+              i2 = kF3661ResumeDeallocateRawBlock01;
               i1 = i1 == i2;
               if (i1) {goto spill_frame;}
               i0 = l9;
@@ -7576,10 +7594,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i0 = LoadU32(ctx, i0);
               l7 = i0;
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l7;
@@ -7595,7 +7613,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               StoreU32(ctx, i0 + 204u, i1);
               i0 = l3;
               i1 = l8;
-              i2 = kData80000000;
+              i2 = kF3661Const80000000;
               i1 |= i2;
               l8 = i1;
               StoreU32(ctx, i0 + 208u, i1);
@@ -7636,7 +7654,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 += i1;
             i1 = 0u;
             StoreU8(ctx, i0, i1);
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -7653,13 +7671,13 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           if (i0) {
             i0 = 860u;
             i1 = c;
-            i2 = kDataB5354;
+            i2 = kF3661ConstB5354;
             i3 = 1u;
             i0 = HostDispatchInvoke(ctx, i0, i1, i2, i3);
             l9 = i0;
             i0 = 90u;
             i1 = ResumePhase(ctx);
-            i2 = kResumeStepDeallocateRawBlock1;
+            i2 = kF3661ResumeDeallocateRawBlock01;
             i1 = i1 == i2;
             if (i1) {goto spill_frame;}
             i0 = l9;
@@ -7668,10 +7686,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i0 = LoadU32(ctx, i0);
             c = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = c;
@@ -7689,7 +7707,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = HostTempRet0(ctx);
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 211u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             a = i0;
             if (i0) {goto block_519;}
@@ -7705,7 +7723,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           if (i0) {
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 195u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l3;
@@ -7732,7 +7750,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
             }
@@ -7744,10 +7762,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = i2 ? i0 : i1;
             if (i0) {
               i0 = 857u;
-              i1 = kMsgBucketsX;
-              i2 = kMsgUnorderedDetailPath;
+              i1 = kF3661MsgBucketsX;
+              i2 = kF3661MsgBoostBoostUnorderedDetail;
               i3 = 2956u;
-              i4 = kMsgGetBucket;
+              i4 = kF3661MsgGetBucket;
               HostFailAssertion(ctx, i0, i1, i2, i3, i4);
               i0 = 91u;
               i1 = ResumePhase(ctx);
@@ -7758,10 +7776,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i0 = LoadU32(ctx, i0);
               a = i0;
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = a;
@@ -7799,7 +7817,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l3;
@@ -7836,10 +7854,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i0 = LoadU32(ctx, i0);
               c = i0;
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = c;
@@ -7856,7 +7874,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               i0 = l3;
               i1 = 2u;
               StoreU8(ctx, i0 + 91u, i1);
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l3;
@@ -7877,7 +7895,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               i0 += i1;
               l10 = i0;
               i0 = l3;
-              i1 = kDataFFFFFFC0;
+              i1 = kF3661ConstFFFFFFC0;
               i0 -= i1;
               c = i0;
             }
@@ -7892,7 +7910,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               i1 = c;
               i2 = l13;
               i3 = l4;
-              i4 = kDataB5E30;
+              i4 = kF3661ConstB5E30;
               i5 = l5;
               i6 = l10;
               HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -7905,10 +7923,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i0 = LoadU32(ctx, i0);
               c = i0;
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = c;
@@ -7922,7 +7940,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               c = i0;
               i0 = l4;
               i0 = LoadS8(ctx, i0 + 39u);
-              i1 = kDataFFFFFFFF;
+              i1 = kF3661ConstFFFFFFFF;
               i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
               if (i0) {
                 i0 = c;
@@ -7954,7 +7972,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               DeallocateRawBlock(ctx, i0);
               i0 = l3;
               i0 = LoadS8(ctx, i0 + 195u);
-              i1 = kDataFFFFFFFF;
+              i1 = kF3661ConstFFFFFFFF;
               i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
               if (i0) {goto block_598;}
               i0 = l3;
@@ -7976,7 +7994,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF3661ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
               }
@@ -7988,10 +8006,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               i0 = i2 ? i0 : i1;
               if (i0) {
                 i0 = 857u;
-                i1 = kMsgPx;
-                i2 = kMsgSmartPtrPath;
+                i1 = kF3661MsgPx;
+                i2 = kF3661MsgBoostBoostSmartPtr;
                 i3 = 734u;
-                i4 = kMsgOperator;
+                i4 = kF3661MsgOperator;
                 HostFailAssertion(ctx, i0, i1, i2, i3, i4);
                 i0 = 94u;
                 i1 = ResumePhase(ctx);
@@ -8002,10 +8020,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               i0 = ResumePhase(ctx);
               i0 = !(i0);
               if (i0) {
-                i0 = kDataD015C;
+                i0 = kF3661ConstD015C;
                 i0 = LoadU32(ctx, i0);
                 a = i0;
-                i0 = kDataD015C;
+                i0 = kF3661ConstD015C;
                 i1 = 0u;
                 StoreU32(ctx, i0, i1);
                 i0 = a;
@@ -8042,7 +8060,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
                 i0 = ResumePhase(ctx);
                 i0 = !(i0);
                 if (i0) {
-                  i0 = kDataD015C;
+                  i0 = kF3661ConstD015C;
                   i1 = 0u;
                   StoreU32(ctx, i0, i1);
                   i0 = l3;
@@ -8072,7 +8090,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
                   l9 = i0;
                   i0 = 95u;
                   i1 = ResumePhase(ctx);
-                  i2 = kResumeStepDeallocateRawBlock1;
+                  i2 = kF3661ResumeDeallocateRawBlock01;
                   i1 = i1 == i2;
                   if (i1) {goto spill_frame;}
                   i0 = l9;
@@ -8081,10 +8099,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
                 i0 = ResumePhase(ctx);
                 i0 = !(i0);
                 if (i0) {
-                  i0 = kDataD015C;
+                  i0 = kF3661ConstD015C;
                   i0 = LoadU32(ctx, i0);
                   l4 = i0;
-                  i0 = kDataD015C;
+                  i0 = kF3661ConstD015C;
                   i1 = 0u;
                   StoreU32(ctx, i0, i1);
                   i0 = l4;
@@ -8143,7 +8161,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l3;
@@ -8173,10 +8191,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i0 = LoadU32(ctx, i0);
               c = i0;
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = c;
@@ -8217,7 +8235,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = HostTempRet0(ctx);
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 91u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l3;
@@ -8226,7 +8244,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             }
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 195u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             a = i0;
             if (i0) {goto block_521;}
@@ -8292,7 +8310,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           if (i0) {
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 211u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             a = i0;
             if (i0) {goto block_517;}
@@ -8317,7 +8335,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           if (i0) {
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 195u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             a = i0;
             if (i0) {goto block_517;}
@@ -8336,7 +8354,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = HostTempRet0(ctx);
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 211u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3661ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l3;
@@ -8364,7 +8382,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = LoadU32(ctx, i0);
             i0 = LoadU32(ctx, i0 + 8u);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -8387,10 +8405,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -8424,7 +8442,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               i0 = LoadU32(ctx, i0);
               i0 = LoadU32(ctx, i0 + 12u);
               a = i0;
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
             }
@@ -8447,10 +8465,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i0 = LoadU32(ctx, i0);
               a = i0;
-              i0 = kDataD015C;
+              i0 = kF3661ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = a;
@@ -8467,7 +8485,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -8494,10 +8512,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF3661ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -8533,7 +8551,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = HostTempRet0(ctx);
           i0 = l3;
           i0 = LoadS8(ctx, i0 + 107u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3661ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_500;}
@@ -8552,7 +8570,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = HostTempRet0(ctx);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 107u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3661ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         a = i0;
         if (i0) {goto block_500;}
@@ -8584,7 +8602,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = HostTempRet0(ctx);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 107u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -8600,14 +8618,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 211u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
         i0 = LoadU32(ctx, i0 + 200u);
         DeallocateRawBlock(ctx, i0);
       }
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -8634,10 +8652,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -8653,7 +8671,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = LoadU32(ctx, i1 + 220u);
         b = i1;
         ReleaseLayerNodeTree(ctx, i0, i1);
-        goto exit_path;
+        goto running_exit;
       }
       goto block_3;
     }
@@ -8673,7 +8691,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 75u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -8682,7 +8700,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       }
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 211u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_350;}
@@ -8697,7 +8715,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 195u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_349;}
@@ -8712,7 +8730,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 91u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_347;}
@@ -8731,7 +8749,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = HostTempRet0(ctx);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 211u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -8759,7 +8777,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -8782,10 +8800,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -8819,7 +8837,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -8842,10 +8860,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -8862,7 +8880,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -8889,10 +8907,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -8918,7 +8936,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 211u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_344;}
@@ -8943,7 +8961,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 107u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_339;}
@@ -8962,7 +8980,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = HostTempRet0(ctx);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 211u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_341;}
@@ -8987,7 +9005,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 107u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_339;}
@@ -9006,7 +9024,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = HostTempRet0(ctx);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 107u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_339;}
@@ -9038,7 +9056,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 107u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_6;}
@@ -9052,7 +9070,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -9079,10 +9097,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -9098,7 +9116,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 220u);
       b = i1;
       ReleaseNodeTree(ctx, i0, i1);
-      goto exit_path;
+      goto running_exit;
     }
     goto block_3;
   }
@@ -9118,7 +9136,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     ReleaseNodeTree(ctx, i0, i1);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 211u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_228;}
@@ -9133,7 +9151,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 227u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_227;}
@@ -9171,7 +9189,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -9183,10 +9201,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3661MsgPx;
+      i2 = kF3661MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3661MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 105u;
       i1 = ResumePhase(ctx);
@@ -9197,10 +9215,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -9214,7 +9232,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -9236,7 +9254,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     l9 = i0;
     i0 = 106u;
     i1 = ResumePhase(ctx);
-    i2 = kResumeStepDeallocateRawBlock1;
+    i2 = kF3661ResumeDeallocateRawBlock01;
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l9;
@@ -9245,10 +9263,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -9261,7 +9279,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = l3;
     i1 = 2648u;
     StoreU32(ctx, i0 + 232u, i1);
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -9301,10 +9319,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -9312,7 +9330,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i0 == i1;
     l5 = i0;
     if (i0) {goto block_136;}
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -9339,7 +9357,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     l9 = i0;
     i0 = 108u;
     i1 = ResumePhase(ctx);
-    i2 = kResumeStepDeallocateRawBlock1;
+    i2 = kF3661ResumeDeallocateRawBlock01;
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l9;
@@ -9348,10 +9366,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l8 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l8;
@@ -9363,7 +9381,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 272u);
     l8 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -9388,10 +9406,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l8 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l8;
@@ -9422,14 +9440,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l7;
       if (i0) {goto block_695;}
       i0 = l8;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3661ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       l8 = i0;
       i0 = !(i0);
       l7 = i0;
       if (i0) {goto block_695;}
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l8;
@@ -9460,10 +9478,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       l8 = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l8;
@@ -9485,11 +9503,11 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = !(i0);
   if (i0) {
     i0 = l3;
-    i1 = kDataB5F40;
+    i1 = kF3661ConstB5F40;
     StoreU32(ctx, i0 + 308u, i1);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 347u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l3;
@@ -9504,7 +9522,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     ReleaseNodeTree(ctx, i0, i1);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 323u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l3;
@@ -9512,11 +9530,11 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       DeallocateRawBlock(ctx, i0);
     }
     i0 = l4;
-    i1 = kDataB5F40;
+    i1 = kF3661ConstB5F40;
     StoreU32(ctx, i0, i1);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 39u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -9532,7 +9550,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     ReleaseNodeTree(ctx, i0, i1);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 15u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     l5 = i0;
     if (i0) {goto block_137;}
@@ -9549,7 +9567,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0 + 504u);
     l4 = i0;
     if (i0) {goto block_131;}
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -9561,10 +9579,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = 857u;
-    i1 = kMsgPx;
-    i2 = kMsgSmartPtrPath;
+    i1 = kF3661MsgPx;
+    i2 = kF3661MsgBoostBoostSmartPtr;
     i3 = 734u;
-    i4 = kMsgOperator;
+    i4 = kF3661MsgOperator;
     HostFailAssertion(ctx, i0, i1, i2, i3, i4);
     i0 = 111u;
     i1 = ResumePhase(ctx);
@@ -9575,10 +9593,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -9622,14 +9640,14 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = b;
     if (i0) {goto block_710;}
     i0 = a;
-    i1 = kDataFFFFFFFE;
+    i1 = kF3661ConstFFFFFFFE;
     i0 &= i1;
     i0 = LoadU32(ctx, i0);
     a = i0;
     i0 = !(i0);
     b = i0;
     if (i0) {goto block_710;}
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -9660,10 +9678,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -9699,11 +9717,11 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = !(i0);
   if (i0) {
     i0 = l3;
-    i1 = kDataB5F40;
+    i1 = kF3661ConstB5F40;
     StoreU32(ctx, i0 + 308u, i1);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 347u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l3;
@@ -9719,7 +9737,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     ReleaseNodeTree(ctx, i0, i1);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 323u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_132;}
@@ -9733,11 +9751,11 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = !(i0);
   if (i0) {
     i0 = l4;
-    i1 = kDataB5F40;
+    i1 = kF3661ConstB5F40;
     StoreU32(ctx, i0, i1);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 39u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -9753,7 +9771,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     ReleaseNodeTree(ctx, i0, i1);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 15u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_6;}
@@ -9771,7 +9789,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 292u);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -9788,7 +9806,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     l9 = i0;
     i0 = 113u;
     i1 = ResumePhase(ctx);
-    i2 = kResumeStepDeallocateRawBlock1;
+    i2 = kF3661ResumeDeallocateRawBlock01;
     i1 = i1 == i2;
     if (i1) {goto spill_frame;}
     i0 = l9;
@@ -9797,10 +9815,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -9837,7 +9855,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -9849,10 +9867,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3661MsgPx;
+        i2 = kF3661MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3661MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 114u;
         i1 = ResumePhase(ctx);
@@ -9863,10 +9881,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -9884,7 +9902,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 276u);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -9909,10 +9927,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -9926,7 +9944,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = !(i0);
   if (i0) {
     i0 = c;
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     i0 = l3;
     j1 = 0ull;
     StoreU64(ctx, i0 + 220u, j1);
@@ -9942,12 +9960,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 0u;
     StoreU8(ctx, i0 + 204u, i1);
     i0 = l3;
-    i1 = kData65707974;
+    i1 = kF3661Const65707974;
     StoreU32(ctx, i0 + 200u, i1);
     i0 = l3;
     i1 = 4u;
     StoreU8(ctx, i0 + 211u, i1);
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -9964,7 +9982,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 += i1;
     l5 = i0;
     i0 = l3;
-    i1 = kDataFFFFFFC0;
+    i1 = kF3661ConstFFFFFFC0;
     i0 -= i1;
     l8 = i0;
     i0 = l3;
@@ -9983,7 +10001,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = c;
     i2 = l13;
     i3 = l4;
-    i4 = kDataB5E30;
+    i4 = kF3661ConstB5E30;
     i5 = l5;
     i6 = l8;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -9996,10 +10014,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     c = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = c;
@@ -10023,12 +10041,12 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 0u;
       StoreU8(ctx, i0 + 188u, i1);
       i0 = l3;
-      i1 = kData65707974;
+      i1 = kF3661Const65707974;
       StoreU32(ctx, i0 + 184u, i1);
       i0 = l3;
       i1 = 4u;
       StoreU8(ctx, i0 + 195u, i1);
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -10045,7 +10063,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 += i1;
       l8 = i0;
       i0 = l3;
-      i1 = kDataFFFFFFC0;
+      i1 = kF3661ConstFFFFFFC0;
       i0 -= i1;
       l7 = i0;
       i0 = l3;
@@ -10068,7 +10086,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = l4;
       i2 = l5;
       i3 = l8;
-      i4 = kDataB5E30;
+      i4 = kF3661ConstB5E30;
       i5 = l7;
       i6 = l10;
       HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -10081,17 +10099,17 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = 1u;
       i0 = i0 == i1;
       if (i0) {goto block_740;}
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -10116,9 +10134,9 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i2 = c;
       i0 = HostOsQuery(ctx, i0, i1, i2);
       l9 = i0;
-      i0 = kResumeStepDeallocateRawBlock118;
+      i0 = kF3661ResumeDeallocateRawBlock118;
       i1 = ResumePhase(ctx);
-      i2 = kResumeStepDeallocateRawBlock1;
+      i2 = kF3661ResumeDeallocateRawBlock01;
       i1 = i1 == i2;
       if (i1) {goto spill_frame;}
       i0 = l9;
@@ -10127,10 +10145,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = c;
@@ -10140,7 +10158,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {goto block_740;}
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 195u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -10149,7 +10167,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       }
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 211u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -10171,7 +10189,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -10183,10 +10201,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3661MsgPx;
+        i2 = kF3661MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3661MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 119u;
         i1 = ResumePhase(ctx);
@@ -10197,10 +10215,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -10223,7 +10241,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l3;
       i1 = 2u;
       StoreU8(ctx, i0 + 211u, i1);
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -10240,7 +10258,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 += i1;
       l5 = i0;
       i0 = l3;
-      i1 = kDataFFFFFFC0;
+      i1 = kF3661ConstFFFFFFC0;
       i0 -= i1;
       l7 = i0;
       i0 = l3;
@@ -10259,7 +10277,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = c;
       i2 = l13;
       i3 = l4;
-      i4 = kDataB5E30;
+      i4 = kF3661ConstB5E30;
       i5 = l5;
       i6 = l7;
       HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -10272,10 +10290,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = c;
@@ -10304,11 +10322,11 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 0u;
       StoreU8(ctx, i0 + 191u, i1);
       i0 = l3;
-      i1 = kMsgLyevent;
+      i1 = kF3661MsgLyevent;
       i1 = LoadU32(ctx, i1);
       StoreU32(ctx, i0 + 184u, i1);
       i0 = l3;
-      i1 = kDataAF65B;
+      i1 = kF3661ConstAF65B;
       i1 = LoadU32(ctx, i1);
       StoreU32(ctx, i0 + 187u, i1);
       i0 = l12;
@@ -10328,7 +10346,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -10358,7 +10376,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           l9 = i0;
           i0 = 121u;
           i1 = ResumePhase(ctx);
-          i2 = kResumeStepDeallocateRawBlock1;
+          i2 = kF3661ResumeDeallocateRawBlock01;
           i1 = i1 == i2;
           if (i1) {goto spill_frame;}
           i0 = l9;
@@ -10367,10 +10385,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i0 = LoadU32(ctx, i0);
           l4 = i0;
-          i0 = kDataD015C;
+          i0 = kF3661ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -10428,7 +10446,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -10467,10 +10485,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = c;
@@ -10487,7 +10505,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 195u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -10496,7 +10514,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       }
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 211u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -10518,7 +10536,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -10530,10 +10548,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3661MsgPx;
+        i2 = kF3661MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3661MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 123u;
         i1 = ResumePhase(ctx);
@@ -10544,10 +10562,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -10570,7 +10588,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l3;
       i1 = 2u;
       StoreU8(ctx, i0 + 211u, i1);
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -10587,7 +10605,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 += i1;
       l5 = i0;
       i0 = l3;
-      i1 = kDataFFFFFFC0;
+      i1 = kF3661ConstFFFFFFC0;
       i0 -= i1;
       l8 = i0;
       i0 = l3;
@@ -10606,7 +10624,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = c;
       i2 = l13;
       i3 = l4;
-      i4 = kDataB5E30;
+      i4 = kF3661ConstB5E30;
       i5 = l5;
       i6 = l8;
       HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -10619,10 +10637,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = c;
@@ -10637,7 +10655,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 += i2;
       c = i1;
       StoreU32(ctx, i0 + 80u, i1);
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -10649,7 +10667,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 += i1;
       l5 = i0;
       i0 = l3;
-      i1 = kDataFFFFFFC0;
+      i1 = kF3661ConstFFFFFFC0;
       i0 -= i1;
       l8 = i0;
       i0 = a;
@@ -10668,7 +10686,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = l4;
       i2 = a;
       i3 = c;
-      i4 = kDataB5E30;
+      i4 = kF3661ConstB5E30;
       i5 = l5;
       i6 = l8;
       HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -10681,10 +10699,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -10712,7 +10730,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -10730,7 +10748,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = 126u;
         i1 = ResumePhase(ctx);
-        i2 = kResumeStepDeallocateRawBlock1;
+        i2 = kF3661ResumeDeallocateRawBlock01;
         i1 = i1 == i2;
         if (i1) {goto spill_frame;}
         i0 = l9;
@@ -10739,10 +10757,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i0 = LoadU32(ctx, i0);
         c = i0;
-        i0 = kDataD015C;
+        i0 = kF3661ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -10771,7 +10789,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -10799,10 +10817,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -10817,7 +10835,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 211u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3661ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -10832,7 +10850,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 220u);
       b = i1;
       ReleaseNodeTree(ctx, i0, i1);
-      goto exit_path;
+      goto running_exit;
     }
   }
   i0 = ResumePhase(ctx);
@@ -10853,7 +10871,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 195u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_739;}
@@ -10868,7 +10886,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 211u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_8;}
@@ -10903,7 +10921,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 211u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_8;}
@@ -10945,7 +10963,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     ReleaseNodeTree(ctx, i0, i1);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 195u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_9;}
@@ -10960,7 +10978,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 211u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_8;}
@@ -10992,7 +11010,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 107u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3661ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_6;}
@@ -11027,7 +11045,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -11050,10 +11068,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -11076,7 +11094,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 12u);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -11099,10 +11117,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -11119,7 +11137,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     HostOsRelease(ctx, i0);
     TrapUnreachable();
   }
-  exit_path:;
+  running_exit:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
@@ -11149,7 +11167,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -11172,10 +11190,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3661ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -11207,7 +11225,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -11230,10 +11248,10 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3661ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -11295,7 +11313,7 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kResumeWordBytes;
+  i2 = kF3661ResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
@@ -11352,4 +11370,4 @@ void LyEventDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   LeaveFrame();
 }
 }
-}  // namespace artc
+}

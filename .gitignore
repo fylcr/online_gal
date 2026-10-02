@@ -10,9 +10,23 @@ packages/*/dist/
 # Astro
 apps/app/.astro/
 
-# Local scratch
+# Local scratch (kept on disk; never part of the source upload)
 buildlog.txt
 *.log
+/.au3/
+/.audit2/
+/.audit_f3633/
+/.work_*
+/01,W01p
+/02,W02p
+/03,W03p
+/ports/artemis/rewrite-fixes/
+/ports/artemis/reverse/.build-dbg.sh
+/ports/artemis/reverse/build-bridge-route-o1tmp.sh
+/ports/artemis/tools/apply_part34_arms.py
+/ports/artemis/tools/check_part34_region.py
+/ports/artemis/tools/rg2.mjs
+/ports/artemis/tools/rg-full-console.mjs
 
 # Reference material (read-only upstream checkouts used for porting and for the
 # real-game tests). Not ours to redistribute, and large: fetch these yourself.
@@ -24,7 +38,7 @@ buildlog.txt
 #   .ref/onscripter-yuri  OnscripterYuri                — the ONScripter web build
 #   .ref/kirikiroid2-web  kirikiroid2-web               — the KiriKiri web build
 #   .ref/krkrsdl2         krkrsdl2 + krkrz              — the earlier KiriKiri attempt
-#   .ref/artemis-compat   artemis-compat                — the Artemis engine
+#   .ref/artemis-compat   artemis-compat                — naming/structure reference
 #   .ref/vcpkg            vcpkg                         — KiriKiri's dependency manager
 #   .ref/emsdk            Emscripten SDK                — optional; /d/emsdk also works
 #   .ref/*-game           real game data                — never redistributable
@@ -53,15 +67,12 @@ ports/**/*.o
 # of derived archives, and only ever exists on a build machine.
 .vcpkg-binary-cache/
 
-# ...except `ports/artemis/vendor/`, which holds the official Artemis SDK binaries.
-# Those are inputs to the port, not output from it: the reverse-engineering recipes
-# under `ports/artemis/reverse/` verify themselves against exactly these bytes, and
-# the official-wasm deployment reads them as a drop-in for `.ref/artemis`. The
-# ignore rules above are about build products, so they are switched off here.
-#
-# The SDK is proprietary and this is committed deliberately (decision recorded in
-# `docs/artemis-web-port.md`): the port cannot be reproduced, and its claims about
-# the official build cannot be checked, without the reference binaries present.
+# Retained asset exception: `ports/artemis/vendor/` contains official SDK inputs.
+# Preserve existing files during source organization; this exception is NOT a
+# redistribution grant. Artemis's own copyright reserves all rights, and the
+# SDK/derived-product boundary needs separate review (THIRD_PARTY_NOTICES.md).
+# CI still uses the asyncify binary as wasm2c input. Official glue is diagnostic,
+# not the shipping host; generated build output remains ignored elsewhere.
 !ports/artemis/vendor/**
 
 # Downloaded third-party toolchains. These are fetched, not authored: wabt is the

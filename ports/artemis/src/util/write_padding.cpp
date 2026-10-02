@@ -1,135 +1,210 @@
+// write_padding.cpp -- the field padding of the formatter: the padding character is repeated into a 256 byte stack buffer and flushed in whole blocks until the requested width is reached, and nothing is written when the width already fits or the left-adjust and zero-pad flags are set..
+//
+// WritePadding -- the field padding of the formatter: the padding character is repeated into a 256 byte stack buffer and flushed in whole blocks until the requested width is reached, and nothing is written when the width already fits or the left-adjust and zero-pad flags are set.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 178729-178729 (f411); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Callees used below: the buffer filler and the callback runner.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t FillBytes(EngineContext* ctx, uint32_t dst, uint32_t value, uint32_t length);
-void InvokeCallbackWhenFlagUnset(EngineContext* ctx, uint32_t state, uint32_t buffer, uint32_t bytes);
+void InvokeCallbackWhenFlagUnset(EngineContext* ctx, uint32_t state, uint32_t slot, uint32_t callback);
 
 namespace {
 
-constexpr uint32_t kWritePaddingSaveFrameBytes = 12u;
-constexpr uint32_t kWritePaddingResumeWordBytes = 4u;
+constexpr uint32_t kF411SaveFrameBytes = 12u;
+constexpr uint32_t kF411ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Pads a formatted field out to its requested width: the padding character is
-// copied into a 256-byte stack buffer that is flushed in whole blocks, one host
-// call per block.  Nothing is written when the text already reaches the width,
-// or when the left-adjust or zero-pad flags are set.
-void WritePadding(EngineContext* ctx, uint32_t stream, uint32_t pad_char, uint32_t width, uint32_t used, uint32_t flags) {
-  uint32_t buffer = 0u;       // 256-byte block buffer carved off the guest stack
-  uint32_t resume_code = 0u;  // which call a rewinding pass has to replay
-  uint32_t width_fits = 0u;   // the text already reaches the requested width
-  uint32_t more_blocks = 0u;  // at least one more whole block is still owed
-  uint32_t early_out = 0u;    // no padding is needed at all
-  uint32_t suspend_code = 0u; // resume word pushed when a call suspends
-  uint32_t frame_sp = 0u;
-  uint32_t frame_base = 0u;
-  uint32_t word_a = 0u;
-  uint32_t word_b = 0u;
+void WritePadding(EngineContext* ctx, uint32_t stream, uint32_t ch, uint32_t width, uint32_t length, uint32_t flags) {
   EnterFrame();
-  // Rewinding: pop this step's saved frame and restore the live words.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    uint32_t arg_sp = ReturnFrameSp(ctx);
-    uint32_t saved_sp = ReturnFrameSp(ctx);
-    uint32_t saved = LoadU32(ctx, saved_sp);
-    StoreU32(ctx, arg_sp, saved - kWritePaddingSaveFrameBytes);
-    uint32_t live_sp = ReturnFrameSp(ctx);
-    uint32_t frame = LoadU32(ctx, live_sp);
-    stream = LoadU32(ctx, frame);
-    width = LoadU32(ctx, frame + 4u);
-    buffer = LoadU32(ctx, frame + 8u);
+  uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF411SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
+    i0 = LoadU32(ctx, i0);
+    stream = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 4u);
+    width = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l5 = i0;
   }
-  // Rewinding: drop the pushed resume word and reload the resume code.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    uint32_t arg_sp = ReturnFrameSp(ctx);
-    uint32_t word_sp = ReturnFrameSp(ctx);
-    uint32_t word = LoadU32(ctx, word_sp);
-    StoreU32(ctx, arg_sp, word - kWritePaddingResumeWordBytes);
-    uint32_t code_sp = ReturnFrameSp(ctx);
-    uint32_t code_word = LoadU32(ctx, code_sp);
-    resume_code = LoadU32(ctx, code_word);
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF411ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l6 = i0;
   }
-  // First pass: take the buffer off the guest stack and decide whether any
-  // padding is needed.  A negative width is treated as huge, as usual.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    buffer = GuestStackSp(ctx) - 256u;
-    GuestStackSp(ctx) = buffer;
-    int32_t pad_width = static_cast<int32_t>(width);
-    int32_t written = static_cast<int32_t>(used);
-    width_fits = pad_width <= written ? 1u : 0u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = GuestStackSp(ctx);
+    i1 = 256u;
+    i0 -= i1;
+    l5 = i0;
+    GuestStackSp(ctx) = i0;
+    i0 = width;
+    i1 = length;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    l7 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (width_fits) {
-      early_out = 1u;
-    } else if ((flags & 73728u) != 0u) {
-      // Left-adjust and zero-pad are handled by the caller.
-      early_out = 1u;
-    } else {
-      uint32_t fill_byte = pad_char & 255u;
-      width -= used;
-      uint32_t one_block = width < 256u;
-      uint32_t block_bytes = one_block ? width : 256u;
-      FillBytes(ctx, buffer, fill_byte, block_bytes);
-      more_blocks = one_block ? 0u : 1u;
-    }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l7;
+    if (i0) {goto running_exit;}
+    i0 = flags;
+    i1 = 73728u;
+    i0 &= i1;
+    if (i0) {goto running_exit;}
+    i0 = ch;
+    i1 = 255u;
+    i0 &= i1;
+    flags = i0;
+    i0 = width;
+    i1 = length;
+    i0 -= i1;
+    width = i0;
+    i1 = 256u;
+    i0 = i0 < i1;
+    ch = i0;
+    i0 = l5;
+    i1 = flags;
+    i2 = width;
+    i3 = 256u;
+    i4 = ch;
+    i2 = i4 ? i2 : i3;
+    i0 = FillBytes(ctx, i0, i1, i2);
+    i0 = ch;
+    i0 = !(i0);
+    ch = i0;
   }
-  if (!early_out) {
-    // Flush whole blocks until fewer than 256 bytes are left to pad.
-    if ((more_blocks != 0u) | (ResumePhase(ctx) == kResumeRewinding)) {
-      for (;;) {
-        if ((ResumePhase(ctx) == kResumeRunning) | (resume_code == 0u)) {
-          InvokeCallbackWhenFlagUnset(ctx, stream, buffer, 256u);
-          suspend_code = 0u;
-          if (ResumePhase(ctx) == kResumeSuspended) {
-            goto save_suspend_frame;
-          }
-        }
-        if (ResumePhase(ctx) == kResumeRunning) {
-          width -= 256u;
-          if (width > 255u) {
-            continue;
-          }
-        }
-        break;
+  i0 = ch;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    loop_7: 
+      i0 = l6;
+      i0 = !(i0);
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = stream;
+        i1 = l5;
+        i2 = 256u;
+        InvokeCallbackWhenFlagUnset(ctx, i0, i1, i2);
+        i0 = 0u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
       }
-    }
-    // Flush the remaining partial block.
-    if ((ResumePhase(ctx) == kResumeRunning) | (resume_code == 1u)) {
-      InvokeCallbackWhenFlagUnset(ctx, stream, buffer, width);
-      suspend_code = 1u;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto save_suspend_frame;
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = width;
+        i1 = 256u;
+        i0 -= i1;
+        width = i0;
+        i1 = 255u;
+        i0 = i0 > i1;
+        if (i0) {goto loop_7;}
       }
-    }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    GuestStackSp(ctx) = buffer + 256u;
+  i0 = l6;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = stream;
+    i1 = l5;
+    i2 = width;
+    InvokeCallbackWhenFlagUnset(ctx, i0, i1, i2);
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  goto frame_stored;
-save_suspend_frame:;
-  // A call suspended: hand the live words to the frame above the stack
-  // pointer, push the resume word naming the call, then leave.
-  frame_sp = ReturnFrameSp(ctx);
-  frame_base = LoadU32(ctx, frame_sp);
-  StoreU32(ctx, frame_base, suspend_code);
-  frame_sp = ReturnFrameSp(ctx);
-  word_a = ReturnFrameSp(ctx);
-  word_b = LoadU32(ctx, word_a);
-  word_b += kWritePaddingResumeWordBytes;
-  StoreU32(ctx, frame_sp, word_b);
-  frame_sp = ReturnFrameSp(ctx);
-  frame_base = LoadU32(ctx, frame_sp);
-  StoreU32(ctx, frame_base, stream);
-  StoreU32(ctx, frame_base + 4u, width);
-  StoreU32(ctx, frame_base + 8u, buffer);
-  frame_sp = ReturnFrameSp(ctx);
-  word_a = ReturnFrameSp(ctx);
-  word_b = LoadU32(ctx, word_a);
-  word_b += kWritePaddingSaveFrameBytes;
-  StoreU32(ctx, frame_sp, word_b);
-frame_stored:;
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    i1 = 256u;
+    i0 += i1;
+    GuestStackSp(ctx) = i0;
+  }
+  goto func_exit;
+  spill_frame:;
+  ch = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = ch;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF411ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  ch = i0;
+  i1 = stream;
+  StoreU32(ctx, i0, i1);
+  i0 = ch;
+  i1 = width;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = ch;
+  i1 = l5;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 12u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-}  // namespace artc
+}

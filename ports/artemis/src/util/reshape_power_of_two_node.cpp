@@ -1,119 +1,207 @@
+// reshape_power_of_two_node.cpp -- reshapes a node whose array part has to stay a power of two in size..
+//
+// ReshapePowerOfTwoNode -- reshapes a node whose array part has to stay a power of two in size.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 2696631-2696631 (f5509); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Reallocates a node's array part to a new size.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
 
 namespace {
 
-// The shared empty array descriptor that a node's array field points at while
-// the node holds no elements of its own.
-constexpr uint32_t kReshapePowerOfTwoNodeEmptyArray = 0x2BBD0u;
-constexpr uint32_t kReshapePowerOfTwoNodeSaveFrameBytes = 16u;
-constexpr uint32_t kReshapePowerOfTwoNodeResumeWordBytes = 4u;
+constexpr uint32_t kF5509Const2BBD0 = 0x2BBD0u;  // 
+constexpr uint32_t kF5509SaveFrameBytes = 16u;
+constexpr uint32_t kF5509ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Reshapes the array part of one node so that its capacity stays a power of
-// two.  A detached array is reallocated to the shifted element count first,
-// then the node's own array to its compacted size; the resume code that a
-// rewinding pass reads names which of the two reallocations to replay.
 void ReshapePowerOfTwoNode(EngineContext* ctx, uint32_t state, uint32_t node) {
-  uint32_t block = 0u;         // the array block currently linked to the node
-  uint32_t old_size = 0u;      // the element count the block is reallocated from
-  uint32_t fits_flag = 0u;     // the array field is not the shared empty array
-  uint32_t resume_code = 0u;   // which reallocation a rewinding pass replays
-  uint32_t block_result = 0u;  // what the first reallocation returned
-  uint32_t suspend_code = 0u;  // resume word pushed when a call suspends
-  uint32_t frame_sp = 0u;
-  uint32_t frame_base = 0u;
-  uint32_t word_a = 0u;
-  uint32_t word_b = 0u;
   EnterFrame();
-  // Rewinding: pop this step's saved frame and restore the live words.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    uint32_t arg_sp = ReturnFrameSp(ctx);
-    uint32_t saved_sp = ReturnFrameSp(ctx);
-    uint32_t saved = LoadU32(ctx, saved_sp);
-    StoreU32(ctx, arg_sp, saved - kReshapePowerOfTwoNodeSaveFrameBytes);
-    uint32_t live_sp = ReturnFrameSp(ctx);
-    uint32_t frame = LoadU32(ctx, live_sp);
-    state = LoadU32(ctx, frame);
-    node = LoadU32(ctx, frame + 4u);
-    old_size = LoadU32(ctx, frame + 8u);
-    block = LoadU32(ctx, frame + 12u);
+  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5509SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 4u);
+    node = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l3 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l2 = i0;
   }
-  // Rewinding: drop the pushed resume word and reload the resume code.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    uint32_t arg_sp = ReturnFrameSp(ctx);
-    uint32_t word_sp = ReturnFrameSp(ctx);
-    uint32_t word = LoadU32(ctx, word_sp);
-    StoreU32(ctx, arg_sp, word - kReshapePowerOfTwoNodeResumeWordBytes);
-    uint32_t code_sp = ReturnFrameSp(ctx);
-    uint32_t code_word = LoadU32(ctx, code_sp);
-    resume_code = LoadU32(ctx, code_word);
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5509ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    block = LoadU32(ctx, node + 16u);
-    fits_flag = block != kReshapePowerOfTwoNodeEmptyArray ? 1u : 0u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l2 = i0;
+    i1 = kF5509Const2BBD0;
+    i0 = i0 != i1;
+    l3 = i0;
   }
-  if ((fits_flag != 0u) | (ResumePhase(ctx) == kResumeRewinding)) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The element count the detached array was allocated for.
-      old_size = 32u << (LoadU8(ctx, node + 7u) & 31u);
+  i0 = l3;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = 32u;
+      i1 = node;
+      i1 = LoadU8(ctx, i1 + 7u);
+      i0 <<= (i1 & 31);
+      l3 = i0;
     }
-    if ((ResumePhase(ctx) == kResumeRunning) | (resume_code == 0u)) {
-      block_result = ReallocateBlock(ctx, state, block, old_size, 0u);
-      suspend_code = 0u;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto save_suspend_frame;
-      }
-      block = block_result;
+    i0 = l5;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = l2;
+      i2 = l3;
+      i3 = 0u;
+      i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+      l4 = i0;
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l4;
+    } else {
+      i0 = l2;
     }
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    old_size = LoadU32(ctx, node + 28u) << (4u & 31u);
-    block = LoadU32(ctx, node + 12u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 28u);
+    i1 = 4u;
+    i0 <<= (i1 & 31);
+    l3 = i0;
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l2 = i0;
   }
-  if ((ResumePhase(ctx) == kResumeRunning) | (resume_code == 1u)) {
-    ReallocateBlock(ctx, state, block, old_size, 0u);
-    suspend_code = 1u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto save_suspend_frame;
-    }
+  i0 = l5;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = l2;
+    i2 = l3;
+    i3 = 0u;
+    i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if ((ResumePhase(ctx) == kResumeRunning) | (resume_code == 2u)) {
-    ReallocateBlock(ctx, state, node, 32u, 0u);
-    suspend_code = 2u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto save_suspend_frame;
-    }
+  i0 = l5;
+  i1 = 2u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = node;
+    i2 = 32u;
+    i3 = 0u;
+    i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+    i0 = 2u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  goto frame_stored;
-save_suspend_frame:;
-  // A call suspended: hand the live words to the frame above the stack
-  // pointer, push the resume word naming the call, then leave.
-  frame_sp = ReturnFrameSp(ctx);
-  frame_base = LoadU32(ctx, frame_sp);
-  StoreU32(ctx, frame_base, suspend_code);
-  frame_sp = ReturnFrameSp(ctx);
-  word_a = ReturnFrameSp(ctx);
-  word_b = LoadU32(ctx, word_a);
-  word_b += kReshapePowerOfTwoNodeResumeWordBytes;
-  StoreU32(ctx, frame_sp, word_b);
-  frame_sp = ReturnFrameSp(ctx);
-  frame_base = LoadU32(ctx, frame_sp);
-  StoreU32(ctx, frame_base, state);
-  StoreU32(ctx, frame_base + 4u, node);
-  StoreU32(ctx, frame_base + 8u, old_size);
-  StoreU32(ctx, frame_base + 12u, block);
-  frame_sp = ReturnFrameSp(ctx);
-  word_a = ReturnFrameSp(ctx);
-  word_b = LoadU32(ctx, word_a);
-  word_b += kReshapePowerOfTwoNodeSaveFrameBytes;
-  StoreU32(ctx, frame_sp, word_b);
-frame_stored:;
+  goto func_exit;
+  spill_frame:;
+  l4 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l4;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF5509ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l4 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l4;
+  i1 = node;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l4;
+  i1 = l3;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l4;
+  i1 = l2;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 16u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-}  // namespace artc
+}

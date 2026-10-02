@@ -1,118 +1,255 @@
+// invoke_meta_field.cpp -- invokes a meta field: the field is resolved and called with the projected arguments..
+//
+// InvokeMetaField -- invokes a meta field: the field is resolved and called with the projected arguments.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 813851-813851 (f1734); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations of the callees below.
+// Forward declarations -- batch-mates and registered callees.
 void CallValue(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 uint32_t FetchMetamethod(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
 namespace {
 
-constexpr uint32_t kInvokeMetaFieldSaveFrameBytes = 20u;  // saved words below the resume code
-constexpr uint32_t kInvokeMetaFieldResumeWordBytes = 4u;  // resume code slot
+constexpr uint32_t kF1734SaveFrameBytes = 20u;
+constexpr uint32_t kF1734ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Resolves the metamethod a field access needs and calls it with the field's
-// value.  The call can suspend, so the object, the value record and the
-// object's saved field word are kept in the frame.
 void InvokeMetaField(EngineContext* ctx, uint32_t a) {
   EnterFrame();
-  uint32_t value = 0u;        // the projected value, then its new record
-  uint32_t object = 0u;       // the object the metamethod is looked up on
-  uint32_t saved_field = 0u;  // the object's field word, saved around the call
-  uint32_t saved_flag = 0u;   // the state flag byte, saved around the call
-  uint32_t entry = 0u;        // the object's current metamethod entry
-  uint32_t payload = 0u;      // the entry's payload object
-  uint32_t missing = 0u;      // set when the value carries no payload
-  uint32_t metamethod = 0u;   // the metamethod to invoke
-  uint32_t record = 0u;       // the 32-byte value record built on the guest stack
-  uint32_t resume_point = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 20-byte frame the suspend path saved.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-        LoadU32(ctx, ReturnFrameSp(ctx)) - kInvokeMetaFieldSaveFrameBytes);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    a = LoadU32(ctx, frame);
-    value = LoadU32(ctx, frame + 4u);
-    object = LoadU32(ctx, frame + 8u);
-    saved_field = LoadU32(ctx, frame + 12u);
-    saved_flag = LoadU32(ctx, frame + 16u);
+  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  uint64_t j1 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1734SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l2 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l3 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l6 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l4 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 4-byte frame that saves the resume code.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-        LoadU32(ctx, ReturnFrameSp(ctx)) - kInvokeMetaFieldResumeWordBytes);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1734ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l7 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Unlink the value's node from the object's entry chain.
-    object = LoadU32(ctx, a + 16u);
-    entry = LoadU32(ctx, object + 48u);
-    value = LoadU32(ctx, entry);
-    if (entry == value) {
-      StoreU32(ctx, object + 48u, 0u);
-      goto copy_done;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l3 = i0;
+    i0 = LoadU32(ctx, i0 + 48u);
+    l1 = i0;
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = l1;
+    i1 = l2;
+    i0 = i0 == i1;
+    if (i0) {
+      i0 = l3;
+      i1 = 0u;
+      StoreU32(ctx, i0 + 48u, i1);
+      goto running_exit;
     }
-    StoreU32(ctx, entry, LoadU32(ctx, value));
-copy_done:
-    StoreU32(ctx, value, LoadU32(ctx, LoadU32(ctx, object + 112u)));
-    StoreU32(ctx, LoadU32(ctx, object + 112u), value);
-    StoreU8(ctx, value + 5u,
-        (LoadU8(ctx, object + 20u) & 3u) | (LoadU8(ctx, value + 5u) & 248u));
-    payload = LoadU32(ctx, value + 8u);
-    missing = payload == 0u;
+    i0 = l1;
+    i1 = l2;
+    i1 = LoadU32(ctx, i1);
+    StoreU32(ctx, i0, i1);
+    running_exit:;
+    i0 = l2;
+    i1 = l3;
+    i1 = LoadU32(ctx, i1 + 112u);
+    i1 = LoadU32(ctx, i1);
+    StoreU32(ctx, i0, i1);
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 112u);
+    i1 = l2;
+    StoreU32(ctx, i0, i1);
+    i0 = l2;
+    i1 = l3;
+    i1 = LoadU8(ctx, i1 + 20u);
+    i2 = 3u;
+    i1 &= i2;
+    i2 = l2;
+    i2 = LoadU8(ctx, i2 + 5u);
+    i3 = 248u;
+    i2 &= i3;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l1 = i0;
+    i0 = !(i0);
+    l5 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Nothing to invoke: no payload, or the payload carries no metamethod.
-    if (missing != 0u) { goto exit_path; }
-    if ((LoadU8(ctx, payload + 6u) & 4u) != 0u) { goto exit_path; }
-    metamethod = FetchMetamethod(ctx, payload, 2u, LoadU32(ctx, LoadU32(ctx, a + 16u) + 196u));
-    if (metamethod == 0u) { goto exit_path; }
-    // Build the 32-byte value record the metamethod is called with, and
-    // remember the field the running call temporarily clears.
-    saved_field = LoadU32(ctx, object + 64u);
-    saved_flag = LoadU8(ctx, a + 57u);
-    StoreU8(ctx, a + 57u, 0u);
-    StoreU32(ctx, object + 64u, LoadU32(ctx, object + 68u) << 1u);
-    record = LoadU32(ctx, a + 8u);
-    StoreU64(ctx, record, LoadU64(ctx, metamethod));
-    StoreU32(ctx, record + 8u, LoadU32(ctx, metamethod + 8u));
-    record = LoadU32(ctx, a + 8u);
-    StoreU32(ctx, record + 16u, value);
-    StoreU32(ctx, record + 24u, 7u);
-    value = LoadU32(ctx, a + 8u);
-    StoreU32(ctx, a + 8u, value + 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    if (i0) {goto block_6;}
+    i0 = l1;
+    i0 = LoadU8(ctx, i0 + 6u);
+    i1 = 4u;
+    i0 &= i1;
+    if (i0) {goto block_6;}
+    i0 = l1;
+    i1 = 2u;
+    i2 = a;
+    i2 = LoadU32(ctx, i2 + 16u);
+    i2 = LoadU32(ctx, i2 + 196u);
+    i0 = FetchMetamethod(ctx, i0, i1, i2);
+    l1 = i0;
+    i0 = !(i0);
+    if (i0) {goto block_6;}
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 64u);
+    l6 = i0;
+    i0 = a;
+    i0 = LoadU8(ctx, i0 + 57u);
+    l4 = i0;
+    i0 = a;
+    i1 = 0u;
+    StoreU8(ctx, i0 + 57u, i1);
+    i0 = l3;
+    i1 = l3;
+    i1 = LoadU32(ctx, i1 + 68u);
+    i2 = 1u;
+    i1 <<= (i2 & 31);
+    StoreU32(ctx, i0 + 64u, i1);
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l5 = i0;
+    i1 = l1;
+    j1 = LoadU64(ctx, i1);
+    StoreU64(ctx, i0, j1);
+    i0 = l5;
+    i1 = l1;
+    i1 = LoadU32(ctx, i1 + 8u);
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l1 = i0;
+    i1 = l2;
+    StoreU32(ctx, i0 + 16u, i1);
+    i0 = l1;
+    i1 = 7u;
+    StoreU32(ctx, i0 + 24u, i1);
+    i0 = a;
+    i1 = a;
+    i1 = LoadU32(ctx, i1 + 8u);
+    l2 = i1;
+    i2 = 32u;
+    i1 += i2;
+    StoreU32(ctx, i0 + 8u, i1);
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
-    // CallValue can suspend, so the values that outlive it are in the frame.
-    CallValue(ctx, a, value, 0u);
-    resume_point = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+  i0 = l7;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = l2;
+    i2 = 0u;
+    CallValue(ctx, i0, i1, i2);
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The call is done: put the field back and drop the record.
-    StoreU8(ctx, a + 57u, saved_flag);
-    StoreU32(ctx, object + 64u, saved_field);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = l4;
+    StoreU8(ctx, i0 + 57u, i1);
+    i0 = l3;
+    i1 = l6;
+    StoreU32(ctx, i0 + 64u, i1);
   }
-  goto exit_path;
-suspend_point:
-  // Suspend: write the resume code, then push the frame with the live state.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-      LoadU32(ctx, ReturnFrameSp(ctx)) + kInvokeMetaFieldResumeWordBytes);
-  {
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    StoreU32(ctx, frame, a);
-    StoreU32(ctx, frame + 4u, value);
-    StoreU32(ctx, frame + 8u, object);
-    StoreU32(ctx, frame + 12u, saved_field);
-    StoreU32(ctx, frame + 16u, saved_flag);
-  }
-  StoreU32(ctx, ReturnFrameSp(ctx),
-      LoadU32(ctx, ReturnFrameSp(ctx)) + kInvokeMetaFieldSaveFrameBytes);
-exit_path:
+  block_6:;
+  goto func_exit;
+  spill_frame:;
+  l1 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l1;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF1734ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l1 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l1;
+  i1 = l2;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l1;
+  i1 = l3;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l1;
+  i1 = l6;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l1;
+  i1 = l4;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 20u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

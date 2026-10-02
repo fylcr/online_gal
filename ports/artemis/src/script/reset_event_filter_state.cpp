@@ -1,348 +1,644 @@
+// reset_event_filter_state.cpp -- resets the event filter state: the latched event filters are cleared..
+//
+// ResetEventFilterState -- resets the event filter state: the latched event filters are cleared.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 199253-199253 (f490); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations -- the diagnostic, the line formatter and the storage
-// initialiser this reset drives.
+// Forward declarations -- batch-mates and registered callees.
 void Panic(EngineContext* ctx, uint32_t a0);
 uint32_t FormatLuaEventFilterLine(EngineContext* ctx, uint32_t a0, uint32_t a1);
 void InitNodeStorage(EngineContext* ctx, uint32_t a);
 
 namespace {
 
-// The shared_ptr precondition the checks below report, by message index.
-constexpr uint32_t kResetFilterStateAssertLead = 857u;
-// "px != 0", by message index.
-constexpr uint32_t kResetFilterStateNullCheckAddr = 0xB5E31u;
-// "../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp", by message index.
-constexpr uint32_t kResetFilterStateSharedPtrPathAddr = 0xB5E39u;
-// The source line the checks below report.
-constexpr uint32_t kResetFilterStateAssertLine = 734u;
-// "operator->", by message index.
-constexpr uint32_t kResetFilterStateAssertFuncAddr = 0xB5E71u;
-// The engine's pending-throw latch, cleared before every bridge call that can
-// raise and read back once it returns.
-constexpr uint32_t kResetFilterStateThrowLatch = 0xD015Cu;
+constexpr uint32_t kF490MsgPx = 0xB5E31u;  // px != 0
+constexpr uint32_t kF490MsgBoostBoostSmartPtr = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
+constexpr uint32_t kF490MsgOperator = 0xB5E71u;  // operator->
+constexpr uint32_t kF490ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF490SaveFrameBytes = 40u;
+constexpr uint32_t kF490ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Resets the event filter state: the latched state is replaced, the filter's
-// node is dispatched through its vtable, and the filters that survived the reset
-// are re-emitted one line at a time.  Suspendable: every bridge call below can
-// suspend the step.
 void ResetEventFilterState(EngineContext* ctx, uint32_t a) {
   EnterFrame();
-  uint32_t const kSaveFrameBytes = 40u;
-  uint32_t const kResumeWordBytes = 4u;
-  // The codes the eight spill sites below name.
-  uint32_t const kFirstAssertCall = 0u;
-  uint32_t const kFirstDispatchCall = 1u;
-  uint32_t const kSecondAssertCall = 2u;
-  uint32_t const kSecondDispatchCall = 3u;
-  uint32_t const kInitNodeStorageCall = 4u;
-  uint32_t const kFirstFormatLineCall = 5u;
-  uint32_t const kSecondFormatLineCall = 6u;
-  uint32_t const kPanicCall = 7u;
-  // The frame saves one word per slot below, so each slot keeps a single name
-  // across the whole walk even where a later region reuses it as a carry:
-  // `target` holds the dispatch slot, then a byte test, then the walk's slot
-  // pointer; `element` holds an element of the walk and then the line's object.
-  uint32_t target = 0u;
-  uint32_t entry = 0u;
-  uint32_t element = 0u;
-  uint32_t end_slot = 0u;
-  uint32_t count = 0u;
-  uint32_t begin_slot = 0u;
-  uint32_t self = 0u;
-  uint32_t walking = 0u;
-  uint32_t state_bits = 0u;
-  uint32_t resume_code = 0u;
-  // Plain temporaries, rebuilt from scratch on every pass.
-  uint32_t selected = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 40-byte frame and rebuild the ten saved slots from it.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    a = LoadU32(ctx, frame);
-    target = LoadU32(ctx, frame + 4u);
-    element = LoadU32(ctx, frame + 12u);
-    end_slot = LoadU32(ctx, frame + 16u);
-    count = LoadU32(ctx, frame + 20u);
-    begin_slot = LoadU32(ctx, frame + 24u);
-    self = LoadU32(ctx, frame + 28u);
-    walking = LoadU32(ctx, frame + 32u);
-    state_bits = LoadU32(ctx, frame + 36u);
-    entry = LoadU32(ctx, frame + 8u);
+  uint32_t l1 = 0u; uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+      l9 = 0, l10 = 0, l11 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF490SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l1 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l4 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l6 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l7 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l8 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 28u);
+    l10 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 32u);
+    l9 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 36u);
+    l11 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // The second pop names the call that was in flight; the two pops stay
-    // separate -- one region is read back at a time.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
-    resume_code = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF490ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Publish the new state over the old one and keep whether it differs from
-    // the cleared value; the filter list base hangs off the object.
-    uint32_t const state_addr = a + 2876u;
-    state_bits = LoadU32(ctx, state_addr);
-    uint32_t const new_state = LoadU32(ctx, a + 2880u);
-    StoreU32(ctx, state_addr, new_state);
-    target = static_cast<uint32_t>(new_state != 1u);
-    entry = LoadU32(ctx, a + 8u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = 2876u;
+    i0 += i1;
+    l1 = i0;
+    i0 = LoadU32(ctx, i0);
+    l11 = i0;
+    i0 = l1;
+    i1 = a;
+    i2 = 2880u;
+    i1 += i2;
+    i1 = LoadU32(ctx, i1);
+    l1 = i1;
+    StoreU32(ctx, i0, i1);
+    i0 = l1;
+    i1 = 1u;
+    i0 = i0 != i1;
+    l1 = i0;
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Only a state that just became 1 with the latch byte set reaches the check
-    // below; anything else goes straight to the second dispatch.
-    if (target != 0u) {
-      goto second_dispatch;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    if (i0) {goto block_7;}
+    i0 = a;
+    i0 = LoadU8(ctx, i0 + 34u);
+    i0 = !(i0);
+    l1 = i0;
+    if (i0) {goto block_7;}
+    i0 = l3;
+    i0 = !(i0);
+    l1 = i0;
+  }
+  i0 = l1;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF490ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    target = static_cast<uint32_t>(LoadU8(ctx, a + 34u) == 0u);
-    if (target != 0u) {
-      goto second_dispatch;
+    i0 = l5;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 857u;
+      i1 = kF490MsgPx;
+      i2 = kF490MsgBoostBoostSmartPtr;
+      i3 = 734u;
+      i4 = kF490MsgOperator;
+      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    target = static_cast<uint32_t>(entry == 0u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF490ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF490ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      a = i0;
+      if (i0) {goto block_5;}
+      goto running_exit;
+    }
   }
-  if (target != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The check reports through the pending-throw latch, so it is cleared
-      // first.
-      StoreU32(ctx, kResetFilterStateThrowLatch, 0u);
-    }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstAssertCall) : 1u) {
-      // The list has to hold a live shared_ptr before it is walked.
-      HostFailAssertion(ctx, kResetFilterStateAssertLead, kResetFilterStateNullCheckAddr,
-                        kResetFilterStateSharedPtrPathAddr, kResetFilterStateAssertLine,
-                        kResetFilterStateAssertFuncAddr);
-      resume_code = kFirstAssertCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // A raised throw leaves through the catch path, anything else through the
-      // unreachable trap; both sit past the walk below.
-      uint32_t const latch = LoadU32(ctx, kResetFilterStateThrowLatch);
-      StoreU32(ctx, kResetFilterStateThrowLatch, 0u);
-      if (latch != 1u) {
-        goto trap_path;
-      }
-      goto catch_path;
-    }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l3;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 28u);
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The node's dispatch slot, read through its vtable.
-    target = LoadU32(ctx, LoadU32(ctx, entry) + 28u);
-  }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstDispatchCall) : 1u) {
-    CallTableT0(ctx, target, entry, 1u);
+  i0 = l5;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l3;
+    i1 = 1u;
+    i2 = l1;
+    CallTableT0(ctx, i2, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    resume_code = kFirstDispatchCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {goto block_6;}
+  block_7:;
+  i0 = l1;
+  i1 = l3;
+  i1 = !(i1);
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  l1 = i0;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF490ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+    }
+    i0 = l5;
+    i1 = 2u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 857u;
+      i1 = kF490MsgPx;
+      i2 = kF490MsgBoostBoostSmartPtr;
+      i3 = 734u;
+      i4 = kF490MsgOperator;
+      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+      i0 = 2u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF490ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF490ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      a = i0;
+      if (i0) {goto block_5;}
+      goto running_exit;
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    goto walk_filters;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l3;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 28u);
+    l1 = i0;
   }
-second_dispatch:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The alternate entry re-tests the base pointer the first dispatch left.
-    target = static_cast<uint32_t>(entry == 0u);
-  }
-  if (target != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, kResetFilterStateThrowLatch, 0u);
-    }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondAssertCall) : 1u) {
-      HostFailAssertion(ctx, kResetFilterStateAssertLead, kResetFilterStateNullCheckAddr,
-                        kResetFilterStateSharedPtrPathAddr, kResetFilterStateAssertLine,
-                        kResetFilterStateAssertFuncAddr);
-      resume_code = kSecondAssertCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      uint32_t const latch = LoadU32(ctx, kResetFilterStateThrowLatch);
-      StoreU32(ctx, kResetFilterStateThrowLatch, 0u);
-      if (latch != 1u) {
-        goto trap_path;
-      }
-      goto catch_path;
-    }
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    target = LoadU32(ctx, LoadU32(ctx, entry) + 28u);
-  }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondDispatchCall) : 1u) {
-    CallTableT0(ctx, target, entry, 0u);
+  i0 = l5;
+  i1 = 3u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l3;
+    i1 = 0u;
+    i2 = l1;
+    CallTableT0(ctx, i2, i0, i1);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    resume_code = kSecondDispatchCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
+    i0 = 3u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-walk_filters:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Set up the walk: the storage's slot base and its element count place the
-    // first element, which is the bucket the count's remainder names.
-    target = LoadU32(ctx, a + 2912u);
-    count = LoadU32(ctx, a + 2924u);
-    uint32_t const slot_index = count + LoadU32(ctx, a + 2928u);
-    entry = DIV_U(slot_index, 93u);
-    end_slot = target + (entry << 2u);
-    element = 0u;
-    self = a;
-    begin_slot = LoadU32(ctx, a + 2916u);
-    if (target != begin_slot) {
-      element = LoadU32(ctx, end_slot) + (slot_index - entry * 93u) * 44u;
+  block_6:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = 2912u;
+    i0 += i1;
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i1 = a;
+    i2 = 2924u;
+    i1 += i2;
+    i1 = LoadU32(ctx, i1);
+    l7 = i1;
+    i2 = a;
+    i3 = 2928u;
+    i2 += i3;
+    i2 = LoadU32(ctx, i2);
+    i1 += i2;
+    l2 = i1;
+    i2 = 93u;
+    i1 = DIV_U(i1, i2);
+    l3 = i1;
+    i2 = 2u;
+    i1 <<= (i2 & 31);
+    i0 += i1;
+    l6 = i0;
+    i0 = 0u;
+    l4 = i0;
+    i0 = a;
+    l10 = i0;
+    i0 = l1;
+    i1 = a;
+    i2 = 2916u;
+    i1 += i2;
+    i1 = LoadU32(ctx, i1);
+    l8 = i1;
+    i0 = i0 != i1;
+    if (i0) {
+      i0 = l6;
+      i0 = LoadU32(ctx, i0);
+      i1 = l2;
+      i2 = l3;
+      i3 = 93u;
+      i2 *= i3;
+      i1 -= i2;
+      i2 = 44u;
+      i1 *= i2;
+      i0 += i1;
+      l4 = i0;
     }
-    entry = element;
+    i0 = l4;
+    l3 = i0;
   }
-next_filter:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The slot pointer names the element: either the storage's base slot, or a
-    // bucket lookup whose remainder picks the element inside that bucket.
-    if (target == begin_slot) {
-      element = 0u;
-    } else {
-      uint32_t const bucket = DIV_U(count, 93u);
-      element = LoadU32(ctx, target + (bucket << 2u));
-      element += (count - bucket * 93u) * 44u;
+  loop_27: 
+    i0 = l9;
+    i1 = ResumePhase(ctx);
+    i1 = !(i1);
+    if (i1) {
+      i1 = l1;
+      i2 = l8;
+      i1 = i1 == i2;
+      l4 = i1;
+      if (i1) {
+        i1 = 0u;
+      } else {
+        i1 = l7;
+        i2 = 93u;
+        i1 = DIV_U(i1, i2);
+        l2 = i1;
+        i2 = 2u;
+        i1 <<= (i2 & 31);
+        i2 = l1;
+        i1 += i2;
+        i1 = LoadU32(ctx, i1);
+        l4 = i1;
+        i1 = l4;
+        i2 = l7;
+        i3 = l2;
+        i4 = 93u;
+        i3 *= i4;
+        i2 -= i3;
+        i3 = 44u;
+        i2 *= i3;
+        i1 += i2;
+      }
+      i2 = l3;
+      i1 = i1 == i2;
+      l1 = i1;
     }
-    target = static_cast<uint32_t>(element == entry);
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    walking = target;
-  }
-  if (walking != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The node storage every format below runs against.
-      target = a + 2908u;
+    i1 = l1;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    l9 = i0;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = l1;
+      i1 = a;
+      i2 = 2908u;
+      i1 += i2;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      l1 = i0;
+      i0 = l5;
+      i1 = 4u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = l1;
+        InitNodeStorage(ctx, i0);
+        i0 = 4u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = l11;
+        i1 = 5u;
+        i0 -= i1;
+        l1 = i0;
+        switch (i0) {
+          case 0: goto block_32;
+          case 1: goto block_26;
+          default: goto block_24;
+        }
+      }
+      block_32:;
     }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kInitNodeStorageCall) : 1u) {
-      InitNodeStorage(ctx, target);
-      resume_code = kInitNodeStorageCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
+    i0 = l9;
+    i0 = !(i0);
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = a;
+        l4 = i0;
+        i0 = l3;
+        l1 = i0;
+        i1 = l6;
+        i1 = LoadU32(ctx, i1);
+        i0 = i0 == i1;
+        if (i0) {
+          i0 = l6;
+          i1 = 4u;
+          i0 -= i1;
+          i0 = LoadU32(ctx, i0);
+          i1 = 4092u;
+          i0 += i1;
+        } else {
+          i0 = l1;
+        }
+        i1 = 44u;
+        i0 -= i1;
+        l1 = i0;
+      }
+      i0 = l5;
+      i1 = 5u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = l4;
+        i1 = l1;
+        i0 = FormatLuaEventFilterLine(ctx, i0, i1);
+        i0 = 5u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = l3;
+        i1 = l6;
+        i1 = LoadU32(ctx, i1);
+        i0 = i0 == i1;
+        if (i0) {
+          i0 = l6;
+          i1 = 4u;
+          i0 -= i1;
+          l6 = i0;
+          i0 = LoadU32(ctx, i0);
+          i1 = 4092u;
+          i0 += i1;
+        } else {
+          i0 = l3;
+        }
+        i1 = 44u;
+        i0 -= i1;
+        l3 = i0;
+        i0 = a;
+        i0 = LoadU32(ctx, i0 + 2916u);
+        l8 = i0;
+        i0 = a;
+        i0 = LoadU32(ctx, i0 + 2924u);
+        l7 = i0;
+        i0 = a;
+        i0 = LoadU32(ctx, i0 + 2912u);
+        l1 = i0;
+        goto loop_27;
       }
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The state word picks which base the tail formats against; 5 leaves the
-      // walk at once.
-      uint32_t const state_case = state_bits - 5u;
-      if (state_case == 0u) {
-        goto end_walk;
-      }
-      if (state_case == 1u) {
-        goto second_base_path;
-      }
-      goto reset_done;
-    }
-  end_walk:;
+  i0 = a;
+  i1 = 14072u;
+  i0 += i1;
+  i1 = ResumePhase(ctx);
+  i1 = !(i1);
+  if (i1) {goto block_25;}
+  block_26:;
+  i0 = a;
+  i1 = a;
+  i2 = 14160u;
+  i1 += i2;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  block_25:;
+  a = i0;
+  i0 = l5;
+  i1 = 6u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l10;
+    i1 = a;
+    i0 = FormatLuaEventFilterLine(ctx, i0, i1);
+    l2 = i0;
+    i0 = 6u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    a = i0;
   }
-  if (walking == 0u || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The line's two arguments: the object, and the slot one element back from
-      // the walk -- clamped to the storage block when the walk ran off its end.
-      element = a;
-      target = entry;
-      if (entry == LoadU32(ctx, end_slot)) {
-        target = LoadU32(ctx, end_slot - 4u) + 4092u;
-      }
-      target -= 44u;
-    }
-    if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFirstFormatLineCall) : 1u) {
-      FormatLuaEventFilterLine(ctx, element, target);
-      resume_code = kFirstFormatLineCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // Step one element further through the storage and re-sample the block's
-      // bounds; the walk repeats while elements are left.
-      target = entry;
-      if (entry == LoadU32(ctx, end_slot)) {
-        end_slot -= 4u;
-        target = LoadU32(ctx, end_slot) + 4092u;
-      }
-      entry = target - 44u;
-      begin_slot = LoadU32(ctx, a + 2916u);
-      count = LoadU32(ctx, a + 2924u);
-      target = LoadU32(ctx, a + 2912u);
-      goto next_filter;
-    }
+  block_24:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    goto func_exit;
   }
-  selected = a + 14072u;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    goto base_selected;
-  }
-second_base_path:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The other base layout the reset formats against.
-    selected = a + 14160u;
-  }
-base_selected:;
-  a = selected;
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kSecondFormatLineCall) : 1u) {
-    uint32_t const line = FormatLuaEventFilterLine(ctx, self, a);
-    resume_code = kSecondFormatLineCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    a = line;
-  }
-reset_done:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    goto done;
-  }
-trap_path:;
-  if (ResumePhase(ctx) == kResumeRunning) {
+  block_5:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
     TrapUnreachable();
   }
-catch_path:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The raised throw is looked up in the catch table and handed to the panic.
-    a = FindMatchingCatch(ctx, 0u);
-    (void)HostTempRet0(ctx);
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = 0u;
+    i0 = FindMatchingCatch(ctx, i0);
+    a = i0;
+    i0 = HostTempRet0(ctx);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kPanicCall) : 1u) {
-    Panic(ctx, a);
-    resume_code = kPanicCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
+  i0 = l5;
+  i1 = 7u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    Panic(ctx, i0);
+    i0 = 7u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
     TrapUnreachable();
   }
-  goto done;
-suspend_point:;
-  {
-    // Suspend: push the code naming the call in flight, step past it, then push
-    // the 40-byte frame a rewinding pass reads back.
-    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    StoreU32(ctx, frame, a);
-    StoreU32(ctx, frame + 4u, target);
-    StoreU32(ctx, frame + 8u, entry);
-    StoreU32(ctx, frame + 12u, element);
-    StoreU32(ctx, frame + 16u, end_slot);
-    StoreU32(ctx, frame + 20u, count);
-    StoreU32(ctx, frame + 24u, begin_slot);
-    StoreU32(ctx, frame + 28u, self);
-    StoreU32(ctx, frame + 32u, walking);
-    StoreU32(ctx, frame + 36u, state_bits);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
-  }
-done:;
+  goto func_exit;
+  spill_frame:;
+  l2 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF490ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l2 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l2;
+  i1 = l1;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l2;
+  i1 = l3;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l2;
+  i1 = l4;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l2;
+  i1 = l6;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l2;
+  i1 = l7;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = l2;
+  i1 = l8;
+  StoreU32(ctx, i0 + 24u, i1);
+  i0 = l2;
+  i1 = l10;
+  StoreU32(ctx, i0 + 28u, i1);
+  i0 = l2;
+  i1 = l9;
+  StoreU32(ctx, i0 + 32u, i1);
+  i0 = l2;
+  i1 = l11;
+  StoreU32(ctx, i0 + 36u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 40u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

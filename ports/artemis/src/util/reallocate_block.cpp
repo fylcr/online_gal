@@ -1,129 +1,211 @@
+// reallocate_block.cpp -- the guest block reallocator with the block-too-big guard; a zero new size frees..
+//
+// ReallocateBlock -- the guest block reallocator with the block-too-big guard; a zero new size frees.
+//
+// The step is a plain call: the body holds no suspend point, so the
+// frame pair is bookkeeping only. Judgment order is untouched -- the
+// goto graph is the generated driver's own flattening, renamed labels
+// only.
+//
+// src: artemis.wasm2c.c 116561-116561 (f223); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Cross-product callee from the script host.
+// Forward declarations -- batch-mates and registered callees.
 void ThrowScriptError(EngineContext* ctx, uint32_t a0, uint32_t a1);
 
 namespace {
 
-constexpr uint32_t kReallocateBlockResumeWordBytes = 4u;
+constexpr uint32_t kF223ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Reallocates the payload of a guest block: a running pass hands the block to
-// the allocator entry the runtime holds, settles the accounted heap total by the
-// size delta and answers the block the caller keeps. A grow that came back with
-// no block raises instead, and a zero new size frees. Answers zero on the rewind.
 uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size) {
   EnterFrame();
-  uint32_t frame = 0u;
-  uint32_t entry = 0u;
-  uint32_t runtime = 0u;
-  uint32_t table_index = 0u;
-  uint32_t resume_code = 0u;
-
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the saved frame and read its words back in store order.
-    uint32_t sp = ReturnFrameSp(ctx);
-    uint32_t frame_top = ReturnFrameSp(ctx);
-    frame_top = LoadU32(ctx, frame_top) - 28u;
-    StoreU32(ctx, sp, frame_top);
-    frame = ReturnFrameSp(ctx);
-    frame = LoadU32(ctx, frame);
-    state = LoadU32(ctx, frame);
-    old_size = LoadU32(ctx, frame + 8u);
-    new_size = LoadU32(ctx, frame + 12u);
-    entry = LoadU32(ctx, frame + 16u);
-    runtime = LoadU32(ctx, frame + 20u);
-    table_index = LoadU32(ctx, frame + 24u);
-    block = LoadU32(ctx, frame + 4u);
+  uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = 28u;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 8u);
+    old_size = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 12u);
+    new_size = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l5 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l6 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l7 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 4u);
+    block = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume word that names the call that was in flight.
-    uint32_t sp = ReturnFrameSp(ctx);
-    uint32_t word_top = ReturnFrameSp(ctx);
-    word_top = LoadU32(ctx, word_top) - kReallocateBlockResumeWordBytes;
-    StoreU32(ctx, sp, word_top);
-    uint32_t code_slot = ReturnFrameSp(ctx);
-    uint32_t word_addr = LoadU32(ctx, code_slot);
-    resume_code = LoadU32(ctx, word_addr);
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF223ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l8 = i0;
   }
-  uint32_t phase = ResumePhase(ctx);
-  if (phase == kResumeRunning) {
-    // A running pass refreshes the allocator entry and its table slot.
-    runtime = LoadU32(ctx, state + 16u);
-    entry = LoadU32(ctx, runtime + 16u);
-    table_index = LoadU32(ctx, runtime + 12u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l6 = i0;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l5 = i0;
+    i0 = l6;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l7 = i0;
   }
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning || resume_code == 0u) {
-    uint32_t result = CallTableT7(ctx, table_index, entry, block, old_size, new_size);
+  i0 = l8;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l5;
+    i1 = block;
+    i2 = old_size;
+    i3 = new_size;
+    i4 = l7;
+    i0 = CallTableT7(ctx, i4, i0, i1, i2, i3);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    resume_code = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_here;
-    }
-    block = result;
+    l4 = i0;
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l4;
+    block = i0;
   }
-  // The same word carries the table entry while a call is in flight and the
-  // no-growth flag once the call has come back.
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning) {
-    entry = new_size == 0u;
+  i0 = l5;
+  i1 = new_size;
+  i1 = !(i1);
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  l5 = i0;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    if (i0) {goto block_5;}
+    i0 = block;
+    if (i0) {goto block_5;}
   }
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning) {
-    if (entry != 0u) { goto allocation_ok; }
-    if (block != 0u) { goto allocation_ok; }
+  i0 = l8;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = 4u;
+    ThrowScriptError(ctx, i0, i1);
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning || resume_code == kResumeSuspended) {
-    // A grow that came back with no block is an error the script must see.
-    ThrowScriptError(ctx, state, 4u);
-    resume_code = 1u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_here;
-    }
-  }
-allocation_ok:;
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning) {
-    // Settle the heap total by the size delta and hand the block back.
-    uint32_t live = LoadU32(ctx, runtime + 68u);
-    live += new_size - old_size;
-    StoreU32(ctx, runtime + 68u, live);
-    LeaveFrame();
-    return block;
+  block_5:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l6;
+    i1 = l6;
+    i1 = LoadU32(ctx, i1 + 68u);
+    i2 = new_size;
+    i3 = old_size;
+    i2 -= i3;
+    i1 += i2;
+    StoreU32(ctx, i0 + 68u, i1);
+    i0 = block;
+    goto func_exit;
   }
   TrapUnreachable();
-suspend_here:;
-  // Push the resume word naming the call that was in flight, then the frame the
-  // rewind pops; the words go in the order that pop reads them back.
-  uint32_t slot = ReturnFrameSp(ctx);
-  slot = LoadU32(ctx, slot);
-  StoreU32(ctx, slot, resume_code);
-  uint32_t sp = ReturnFrameSp(ctx);
-  uint32_t frame_top = ReturnFrameSp(ctx);
-  frame_top = LoadU32(ctx, frame_top) + kReallocateBlockResumeWordBytes;
-  StoreU32(ctx, sp, frame_top);
-  frame = ReturnFrameSp(ctx);
-  frame = LoadU32(ctx, frame);
-  StoreU32(ctx, frame, state);
-  StoreU32(ctx, frame + 4u, block);
-  StoreU32(ctx, frame + 8u, old_size);
-  StoreU32(ctx, frame + 12u, new_size);
-  StoreU32(ctx, frame + 16u, entry);
-  StoreU32(ctx, frame + 20u, runtime);
-  StoreU32(ctx, frame + 24u, table_index);
-  sp = ReturnFrameSp(ctx);
-  frame_top = ReturnFrameSp(ctx);
-  frame_top = LoadU32(ctx, frame_top) + 28u;
-  StoreU32(ctx, sp, frame_top);
+  spill_frame:;
+  l4 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l4;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF223ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l4 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l4;
+  i1 = block;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l4;
+  i1 = old_size;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l4;
+  i1 = new_size;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l4;
+  i1 = l5;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l4;
+  i1 = l6;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = l4;
+  i1 = l7;
+  StoreU32(ctx, i0 + 24u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 28u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return 0u;
+  return i0;
 }
-
-}  // namespace artc
+}

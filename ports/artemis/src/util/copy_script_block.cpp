@@ -1,225 +1,377 @@
+// copy_script_block.cpp -- the CScriptBlock copy constructor: clones the name string, deep-copies the tagged map through the host insert slot, copies the boxed member, and restores the map on the throw path..
+//
+// CopyScriptBlock -- the CScriptBlock copy constructor: clones the name string, deep-copies the tagged map through the host insert slot, copies the boxed member, and restores the map on the throw path.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 131754-131754 (f284); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void ReleaseNodeTree(EngineContext* ctx, uint32_t state, uint32_t node);
 uint32_t AppendStringText(EngineContext* ctx, uint32_t text, uint32_t source);
 
 namespace {
-// The word written into the copy's header.
-constexpr uint32_t kCopyScriptBlockHeaderWord = 0xB5F40u;
-// The word a pending result is published in.
-constexpr uint32_t kCopyScriptBlockStatusAddr = 0xD015Cu;
-// The all-bits word a signed size byte is held against.
-constexpr uint32_t kCopyScriptBlockAllBits = 0xFFFFFFFFu;
-constexpr uint32_t kCopyScriptBlockSaveFrameBytes = 32u;
-constexpr uint32_t kCopyScriptBlockResumeWordBytes = 4u;
+
+constexpr uint32_t kF284ConstB5F40 = 0xB5F40u;  // 
+constexpr uint32_t kF284ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF284ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF284SaveFrameBytes = 32u;
+constexpr uint32_t kF284ResumeWordBytes = 4u;
+
 }  // namespace
 
-// Copy-constructs a script block: it clones the name string, deep-copies the
-// tagged map through the host insert slot, copies the boxed member, and
-// releases everything it built when a pending result was raised.
 uint32_t CopyScriptBlock(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  uint32_t top = 0u;
-  uint32_t arg = 0u;
-  // The frame base, a call result, and a cursor walking the copied map.
-  uint32_t hold = 0u;
-  // A restored word, a walk pointer, and the published status.
-  uint32_t cur = 0u;
-  // The source word, a flag, and a walk pointer.
-  uint32_t peer = 0u;
-  // The address of the copy's twentieth byte.
-  uint32_t slot = 0u;
-  // The cloned name string.
-  uint32_t name = 0u;
-  // The head word of the copied map.
-  uint32_t head = 0u;
-  // The end of the source map.
-  uint32_t tail = 0u;
-  // The await code a suspend was resumed with.
-  uint32_t await_code = 0u;
-  uint64_t zero = 0;
-
-  if (ResumePhase(ctx) == 2u) {
-    top = ReturnFrameSp(ctx);
-    arg = ReturnFrameSp(ctx);
-    arg = LoadU32(ctx, arg);
-    arg = arg - kCopyScriptBlockSaveFrameBytes;
-    StoreU32(ctx, top, arg);
-    top = ReturnFrameSp(ctx);
-    top = LoadU32(ctx, top);
-    hold = top;
-    a = LoadU32(ctx, hold);
-    cur = LoadU32(ctx, hold + 8u);
-    peer = LoadU32(ctx, hold + 12u);
-    slot = LoadU32(ctx, hold + 16u);
-    name = LoadU32(ctx, hold + 20u);
-    head = LoadU32(ctx, hold + 24u);
-    tail = LoadU32(ctx, hold + 28u);
-    b = LoadU32(ctx, hold + 4u);
+  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+  uint64_t j1 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF284SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l3 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l4 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l5 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l6 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l7 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 28u);
+    l9 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 4u);
+    b = i0;
   }
-  if (ResumePhase(ctx) == 2u) {
-    top = ReturnFrameSp(ctx);
-    arg = ReturnFrameSp(ctx);
-    arg = LoadU32(ctx, arg);
-    arg = arg - kCopyScriptBlockResumeWordBytes;
-    StoreU32(ctx, top, arg);
-    top = ReturnFrameSp(ctx);
-    top = LoadU32(ctx, top);
-    await_code = LoadU32(ctx, top);
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF284ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l8 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, a, kCopyScriptBlockHeaderWord);
-    peer = b + 4u;
-    cur = a + 4u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = kF284ConstB5F40;
+    StoreU32(ctx, i0, i1);
+    i0 = b;
+    i1 = 4u;
+    i0 += i1;
+    l4 = i0;
+    i0 = a;
+    i1 = 4u;
+    i0 += i1;
+    l3 = i0;
   }
-  if (await_code == 0u || ResumePhase(ctx) == kResumeRunning) {
-    hold = AppendStringText(ctx, cur, peer);
-    top = 0u;
-    arg = ResumePhase(ctx);
-    arg = arg == kResumeSuspended;
-    if (arg != 0u) {
-      goto save_frame;
-    }
-    name = hold;
+  i0 = l8;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l3;
+    i1 = l4;
+    i0 = AppendStringText(ctx, i0, i1);
+    l2 = i0;
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l6 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    slot = a + 20u;
-    zero = 0ull;
-    StoreU64(ctx, slot, zero);
-    StoreU32(ctx, a + 16u, slot);
-    head = a + 16u;
-    cur = LoadU32(ctx, b + 16u);
-    tail = b + 20u;
-    peer = cur != tail;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = 20u;
+    i0 += i1;
+    l5 = i0;
+    j1 = 0ull;
+    StoreU64(ctx, i0, j1);
+    i0 = a;
+    i1 = l5;
+    StoreU32(ctx, i0 + 16u, i1);
+    i0 = a;
+    i1 = 16u;
+    i0 += i1;
+    l7 = i0;
+    i0 = b;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l3 = i0;
+    i1 = b;
+    i2 = 20u;
+    i1 += i2;
+    l9 = i1;
+    i0 = i0 != i1;
+    l4 = i0;
   }
-  // Copy the source map entry by entry until the walk runs off its end.
-  if (peer != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    while (true) {
-      if (ResumePhase(ctx) == kResumeRunning) {
-        StoreU32(ctx, kCopyScriptBlockStatusAddr, 0u);
-        peer = cur;
-        cur = cur + 16u;
+  i0 = l4;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    loop_9: 
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF284ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+        i0 = l3;
+        l4 = i0;
+        i1 = 16u;
+        i0 += i1;
+        l3 = i0;
       }
-      if (await_code == 1u || ResumePhase(ctx) == kResumeRunning) {
-        hold = HostInvokeIiiii(ctx, 2364u, head, slot, cur, cur);
-        top = 1u;
-        arg = ResumePhase(ctx);
-        arg = arg == kResumeSuspended;
-        if (arg != 0u) {
-          goto save_frame;
-        }
-        cur = hold;
+      i0 = l8;
+      i1 = 1u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = 2364u;
+        i1 = l7;
+        i2 = l5;
+        i3 = l3;
+        i4 = l3;
+        i0 = HostInvokeIiiii(ctx, i0, i1, i2, i3, i4);
+        l2 = i0;
+        i0 = 1u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+        i0 = l2;
+        l3 = i0;
       }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        cur = LoadU32(ctx, kCopyScriptBlockStatusAddr);
-        StoreU32(ctx, kCopyScriptBlockStatusAddr, 0u);
-        if (cur == 1u) {
-          goto release_and_trap;
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = kF284ConstD015C;
+        i0 = LoadU32(ctx, i0);
+        l3 = i0;
+        i0 = kF284ConstD015C;
+        i1 = 0u;
+        StoreU32(ctx, i0, i1);
+        i0 = l3;
+        i1 = 1u;
+        i0 = i0 == i1;
+        if (i0) {goto block_5;}
+        i0 = l4;
+        i0 = LoadU32(ctx, i0 + 4u);
+        l2 = i0;
+        i0 = !(i0);
+        if (i0) {
+          i0 = l4;
+          i0 = LoadU32(ctx, i0 + 8u);
+          l3 = i0;
+          i0 = LoadU32(ctx, i0);
+          i1 = l4;
+          i0 = i0 == i1;
+          if (i0) {goto block_13;}
+          i0 = l4;
+          i1 = 8u;
+          i0 += i1;
+          l2 = i0;
+          loop_15: 
+            i0 = l2;
+            i0 = LoadU32(ctx, i0);
+            l4 = i0;
+            i1 = 8u;
+            i0 += i1;
+            l2 = i0;
+            i0 = l4;
+            i0 = LoadU32(ctx, i0 + 8u);
+            l3 = i0;
+            i0 = LoadU32(ctx, i0);
+            i1 = l4;
+            i0 = i0 != i1;
+            if (i0) {goto loop_15;}
+          goto block_13;
         }
-        hold = LoadU32(ctx, peer + 4u);
-        if (hold == 0u) {
-          cur = LoadU32(ctx, peer + 8u);
-          if (LoadU32(ctx, cur) != peer) {
-            hold = peer + 8u;
-            do {
-              peer = LoadU32(ctx, hold);
-              hold = peer + 8u;
-              cur = LoadU32(ctx, peer + 8u);
-            } while (LoadU32(ctx, cur) != peer);
-          }
-        } else {
-          do {
-            cur = hold;
-            hold = LoadU32(ctx, hold);
-          } while (hold != 0u);
-        }
-        peer = cur != tail;
-        if (peer != 0u) {
-          continue;
-        }
+        loop_16: 
+          i0 = l2;
+          l3 = i0;
+          i0 = LoadU32(ctx, i0);
+          l2 = i0;
+          if (i0) {goto loop_16;}
+        block_13:;
+        i0 = l3;
+        i1 = l9;
+        i0 = i0 != i1;
+        l4 = i0;
+        if (i0) {goto loop_9;}
       }
-      break;
-    }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, kCopyScriptBlockStatusAddr, 0u);
-    peer = b + 28u;
-    cur = a + 28u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF284ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = b;
+    i1 = 28u;
+    i0 += i1;
+    l4 = i0;
+    i0 = a;
+    i1 = 28u;
+    i0 += i1;
+    l3 = i0;
   }
-  if (await_code == 2u || ResumePhase(ctx) == kResumeRunning) {
-    HostOsQuery(ctx, 873u, cur, peer);
-    top = 2u;
-    arg = ResumePhase(ctx);
-    arg = arg == kResumeSuspended;
-    if (arg != 0u) {
-      goto save_frame;
-    }
+  i0 = l8;
+  i1 = 2u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = 873u;
+    i1 = l3;
+    i2 = l4;
+    i0 = HostOsQuery(ctx, i0, i1, i2);
+    i0 = 2u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    cur = LoadU32(ctx, kCopyScriptBlockStatusAddr);
-    StoreU32(ctx, kCopyScriptBlockStatusAddr, 0u);
-    if (cur == 1u) {
-      goto release_and_trap;
-    }
-    top = LoadU32(ctx, b + 40u);
-    StoreU32(ctx, a + 40u, top);
-    top = a;
-    LeaveFrame();
-    return top;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF284ConstD015C;
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = kF284ConstD015C;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    i0 = l3;
+    i1 = 1u;
+    i0 = i0 == i1;
+    if (i0) {goto block_5;}
+    i0 = a;
+    i1 = b;
+    i1 = LoadU32(ctx, i1 + 40u);
+    StoreU32(ctx, i0 + 40u, i1);
+    i0 = a;
+    goto func_exit;
   }
-release_and_trap:;
-  // A pending result was raised, so release the copy and trap.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    a = HostRet0(ctx);
-    top = HostTempRet0(ctx);
-    arg = LoadU32(ctx, slot);
-    ReleaseNodeTree(ctx, head, arg);
-    top = LoadS8(ctx, name + 11u);
-    arg = kCopyScriptBlockAllBits;
-    top = (uint32_t)((int32_t)top <= (int32_t)arg);
-    if (top != 0u) {
-      top = LoadU32(ctx, name);
-      DeallocateRawBlock(ctx, top);
+  block_5:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = HostRet0(ctx);
+    a = i0;
+    i0 = HostTempRet0(ctx);
+    i0 = l7;
+    i1 = l5;
+    i1 = LoadU32(ctx, i1);
+    ReleaseNodeTree(ctx, i0, i1);
+    i0 = l6;
+    i0 = LoadS8(ctx, i0 + 11u);
+    i1 = kF284ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {
+      i0 = l6;
+      i0 = LoadU32(ctx, i0);
+      DeallocateRawBlock(ctx, i0);
     }
-    top = a;
-    HostOsRelease(ctx, top);
+    i0 = a;
+    HostOsRelease(ctx, i0);
     TrapUnreachable();
   }
   TrapUnreachable();
-save_frame:;
-  // Push the word naming the call in flight, then the save frame; a rewind
-  // reads them back in that order.
-  hold = top;
-  top = ReturnFrameSp(ctx);
-  top = LoadU32(ctx, top);
-  StoreU32(ctx, top, hold);
-  top = ReturnFrameSp(ctx);
-  arg = ReturnFrameSp(ctx);
-  arg = LoadU32(ctx, arg);
-  arg = arg + kCopyScriptBlockResumeWordBytes;
-  StoreU32(ctx, top, arg);
-  top = ReturnFrameSp(ctx);
-  top = LoadU32(ctx, top);
-  hold = top;
-  StoreU32(ctx, hold, a);
-  StoreU32(ctx, hold + 4u, b);
-  StoreU32(ctx, hold + 8u, cur);
-  StoreU32(ctx, hold + 12u, peer);
-  StoreU32(ctx, hold + 16u, slot);
-  StoreU32(ctx, hold + 20u, name);
-  StoreU32(ctx, hold + 24u, head);
-  StoreU32(ctx, hold + 28u, tail);
-  top = ReturnFrameSp(ctx);
-  arg = ReturnFrameSp(ctx);
-  arg = LoadU32(ctx, arg);
-  arg = arg + kCopyScriptBlockSaveFrameBytes;
-  StoreU32(ctx, top, arg);
-  top = 0u;
+  spill_frame:;
+  l2 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF284ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l2 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l2;
+  i1 = b;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l2;
+  i1 = l3;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l2;
+  i1 = l4;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l2;
+  i1 = l5;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l2;
+  i1 = l6;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = l2;
+  i1 = l7;
+  StoreU32(ctx, i0 + 24u, i1);
+  i0 = l2;
+  i1 = l9;
+  StoreU32(ctx, i0 + 28u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 32u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return top;
+  return i0;
 }
-
-}  // namespace artc
+}

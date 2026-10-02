@@ -1,8 +1,23 @@
+// compile_statement.cpp -- the statement compiler proper: dispatches on the statement kind and emits the code for it..
+//
+// CompileStatement -- the statement compiler proper: dispatches on the statement kind and emits the code for it.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 348345-348345 (f899); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations for the callees this step calls.
+// Forward declarations -- batch-mates and registered callees.
 void ExpectToken(EngineContext* ctx, uint32_t a, uint32_t b);
 uint32_t AppendWithLimit(EngineContext* ctx, uint32_t list, uint32_t entry, uint32_t limit, uint32_t what);
 void ReleaseExpressionSlots(EngineContext* ctx, uint32_t state, uint32_t instruction, uint32_t count, uint32_t unused);
@@ -38,27 +53,29 @@ void AllocateExpressionRegister(EngineContext* ctx, uint32_t state, uint32_t ins
 void PatchComparisonIntoJump(EngineContext* ctx, uint32_t state, uint32_t instruction, uint32_t expression);
 uint32_t EmitInstructionABC(EngineContext* ctx, uint32_t state, uint32_t opcode, uint32_t arg_a, uint32_t arg_c);
 
-// CompileStatement -- the statement compiler: it dispatches on the statement
-// kind and emits the code for it.
+namespace {
+
+constexpr uint32_t kF899MsgSExpected = 0x2B625u;  // '%s' expected
+constexpr uint32_t kF899MsgChunkHasTooMany = 0x2B633u;  // chunk has too many syntax levels
+constexpr uint32_t kF899MsgOrInExpected = 0x2B7FFu;  // '=' or 'in' expected
+constexpr uint32_t kF899MsgForIndex = 0x2B814u;  // (for index)
+constexpr uint32_t kF899MsgForLimit = 0x2B820u;  // (for limit)
+constexpr uint32_t kF899MsgForStep = 0x2B82Cu;  // (for step)
+constexpr uint32_t kF899MsgForGenerator = 0x2B837u;  // (for generator)
+constexpr uint32_t kF899MsgForState = 0x2B847u;  // (for state)
+constexpr uint32_t kF899MsgForControl = 0x2B853u;  // (for control)
+constexpr uint32_t kF899MsgNoLoopToBreak = 0x2B861u;  // no loop to break
+constexpr uint32_t kF899Const8010007 = 0x8010007u;  // 
+constexpr uint32_t kF899ConstFF803FFF = 0xFF803FFFu;  // 
+constexpr uint32_t kF899ConstFFFFFFC0 = 0xFFFFFFC0u;  // 
+constexpr uint32_t kF899ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF899SaveFrameBytes = 56u;
+constexpr uint32_t kF899ResumeWordBytes = 4u;
+
+}  // namespace
 
 uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   EnterFrame();
-  constexpr uint32_t kMsgSExpected = 0x2B625u;  // '%s' expected
-  constexpr uint32_t kMsgChunkHasTooMany = 0x2B633u;  // chunk has too many syntax levels
-  constexpr uint32_t kMsgOrInExpected = 0x2B7FFu;  // '=' or 'in' expected
-  constexpr uint32_t kMsgForIndex = 0x2B814u;  // (for index)
-  constexpr uint32_t kMsgForLimit = 0x2B820u;  // (for limit)
-  constexpr uint32_t kMsgForStep = 0x2B82Cu;  // (for step)
-  constexpr uint32_t kMsgForGenerator = 0x2B837u;  // (for generator)
-  constexpr uint32_t kMsgForState = 0x2B847u;  // (for state)
-  constexpr uint32_t kMsgForControl = 0x2B853u;  // (for control)
-  constexpr uint32_t kMsgNoLoopToBreak = 0x2B861u;  // no loop to break
-  constexpr uint32_t kData8010007 = 0x8010007u;
-  constexpr uint32_t kDataFF803FFF = 0xFF803FFFu;
-  constexpr uint32_t kDataFFFFFFC0 = 0xFFFFFFC0u;
-  constexpr uint32_t kDataFFFFFFFF = 0xFFFFFFFFu;
-  constexpr uint32_t kSaveFrameBytes = 56u;
-  constexpr uint32_t kResumeWordBytes = 4u;
   uint32_t l1 = 0u; uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l14 = 0u; uint32_t l15 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
   uint64_t j1 = 0;
@@ -70,7 +87,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kSaveFrameBytes;
+    i2 = kF899SaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -125,7 +142,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kResumeWordBytes;
+    i2 = kF899ResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -182,7 +199,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i0 = LoadU32(ctx, i0 + 48u);
     l1 = i0;
     i0 = l6;
-    i1 = kDataFFFFFFFF;
+    i1 = kF899ConstFFFFFFFF;
     StoreU32(ctx, i0 + 176u, i1);
   }
   i0 = l4;
@@ -531,7 +548,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
       i0 += i1;
       state = i0;
       i0 = LoadU32(ctx, i0);
-      i1 = kDataFF803FFF;
+      i1 = kF899ConstFF803FFF;
       i0 &= i1;
       i1 = 16384u;
       i0 |= i1;
@@ -628,7 +645,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = state;
-    i1 = kMsgNoLoopToBreak;
+    i1 = kF899MsgNoLoopToBreak;
     RaiseSyntaxError(ctx, i0, i1);
     i0 = 16u;
     i1 = ResumePhase(ctx);
@@ -720,7 +737,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   i0 = 1u;
   i1 = ResumePhase(ctx);
   i1 = !(i1);
-  if (i1) {goto exit_path;}
+  if (i1) {goto running_exit;}
   block_12:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -765,7 +782,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i0 = 1u;
     i1 = l1;
     i0 <<= (i1 & 31);
-    i1 = kData8010007;
+    i1 = kF899Const8010007;
     i0 &= i1;
     i0 = !(i0);
     if (i0) {goto block_61;}
@@ -947,7 +964,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i1 = 176u;
     i0 += i1;
     l3 = i0;
-    i0 = kDataFFFFFFFF;
+    i0 = kF899ConstFFFFFFFF;
     l1 = i0;
   }
   i0 = l4;
@@ -959,7 +976,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   if (i0) {
     i0 = l2;
     i1 = l3;
-    i2 = kDataFFFFFFFF;
+    i2 = kF899ConstFFFFFFFF;
     AllocateExpressionRegister(ctx, i0, i1, i2);
     i0 = 25u;
     i1 = ResumePhase(ctx);
@@ -991,7 +1008,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i0 += i1;
     state = i0;
     i0 = LoadU32(ctx, i0);
-    i1 = kDataFFFFFFC0;
+    i1 = kF899ConstFFFFFFC0;
     i0 &= i1;
     i1 = 29u;
     i0 |= i1;
@@ -1087,7 +1104,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   i0 = 1u;
   i1 = ResumePhase(ctx);
   i1 = !(i1);
-  if (i1) {goto exit_path;}
+  if (i1) {goto running_exit;}
   block_11:;
   i0 = l4;
   i1 = 29u;
@@ -1198,7 +1215,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = l2;
-        i1 = kMsgSExpected;
+        i1 = kF899MsgSExpected;
         i2 = l3;
         i0 = FormatPushString(ctx, i0, i1, i2);
         l5 = i0;
@@ -1404,7 +1421,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
       i1 = LoadU32(ctx, i1 + 24u);
       StoreU32(ctx, i0 + 4u, i1);
       i0 = 0u;
-      goto exit_path;
+      goto running_exit;
     }
   }
   loop_108: 
@@ -1465,7 +1482,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = l2;
-        i1 = kMsgSExpected;
+        i1 = kF899MsgSExpected;
         i2 = l3;
         i0 = FormatPushString(ctx, i0, i1, i2);
         l5 = i0;
@@ -1892,7 +1909,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = l1;
-      i1 = kMsgSExpected;
+      i1 = kF899MsgSExpected;
       i2 = l2;
       i0 = FormatPushString(ctx, i0, i1, i2);
       l5 = i0;
@@ -2166,7 +2183,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
         i2 = 2u;
         i1 <<= (i2 & 31);
         i0 += i1;
-        i1 = kResumeWordBytes;
+        i1 = kF899ResumeWordBytes;
         i0 -= i1;
         state = i0;
         i1 = l9;
@@ -2223,7 +2240,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i0 = l1;
     l8 = i0;
     i0 = l6;
-    i1 = kDataFFFFFFFF;
+    i1 = kF899ConstFFFFFFFF;
     StoreU32(ctx, i0 + 156u, i1);
     i0 = l6;
     i1 = 1u;
@@ -2241,7 +2258,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i0 = LoadU32(ctx, i0 + 20u);
     l2 = i0;
     i0 = l6;
-    i1 = kDataFFFFFFFF;
+    i1 = kF899ConstFFFFFFFF;
     StoreU32(ctx, i0 + 140u, i1);
     i0 = l6;
     i1 = l2;
@@ -2313,7 +2330,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = state;
-      i1 = kMsgChunkHasTooMany;
+      i1 = kF899MsgChunkHasTooMany;
       i2 = 0u;
       LexError(ctx, i0, i1, i2);
       i0 = 63u;
@@ -2339,7 +2356,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
       i2 = 1u;
       i3 = l1;
       i2 <<= (i3 & 31);
-      i3 = kData8010007;
+      i3 = kF899Const8010007;
       i2 &= i3;
       i0 = i2 ? i0 : i1;
       i0 = !(i0);
@@ -2717,7 +2734,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = state;
-    i1 = kMsgNoLoopToBreak;
+    i1 = kF899MsgNoLoopToBreak;
     RaiseSyntaxError(ctx, i0, i1);
     i0 = 72u;
     i1 = ResumePhase(ctx);
@@ -3119,7 +3136,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i1 = 1u;
     StoreU8(ctx, i0 + 162u, i1);
     i0 = l6;
-    i1 = kDataFFFFFFFF;
+    i1 = kF899ConstFFFFFFFF;
     StoreU32(ctx, i0 + 156u, i1);
     i0 = l7;
     i0 = LoadU8(ctx, i0 + 50u);
@@ -3216,7 +3233,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = l1;
-      i1 = kMsgSExpected;
+      i1 = kF899MsgSExpected;
       i2 = l2;
       i0 = FormatPushString(ctx, i0, i1, i2);
       l5 = i0;
@@ -3317,7 +3334,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = state;
-    i1 = kMsgForIndex;
+    i1 = kF899MsgForIndex;
     i2 = 11u;
     i0 = BindUpvalueCell(ctx, i0, i1, i2);
     l5 = i0;
@@ -3354,7 +3371,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = state;
-    i1 = kMsgForLimit;
+    i1 = kF899MsgForLimit;
     i2 = 11u;
     i0 = BindUpvalueCell(ctx, i0, i1, i2);
     l5 = i0;
@@ -3391,7 +3408,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = state;
-    i1 = kMsgForStep;
+    i1 = kF899MsgForStep;
     i2 = 10u;
     i0 = BindUpvalueCell(ctx, i0, i1, i2);
     l5 = i0;
@@ -3497,7 +3514,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = l3;
-      i1 = kMsgSExpected;
+      i1 = kF899MsgSExpected;
       i2 = l8;
       i0 = FormatPushString(ctx, i0, i1, i2);
       l5 = i0;
@@ -3655,7 +3672,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = l3;
-      i1 = kMsgSExpected;
+      i1 = kF899MsgSExpected;
       i2 = l8;
       i0 = FormatPushString(ctx, i0, i1, i2);
       l5 = i0;
@@ -3945,7 +3962,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = state;
-    i1 = kMsgOrInExpected;
+    i1 = kF899MsgOrInExpected;
     RaiseSyntaxError(ctx, i0, i1);
     i0 = 114u;
     i1 = ResumePhase(ctx);
@@ -3974,7 +3991,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = state;
-    i1 = kMsgForGenerator;
+    i1 = kF899MsgForGenerator;
     i2 = 15u;
     i0 = BindUpvalueCell(ctx, i0, i1, i2);
     l5 = i0;
@@ -4016,7 +4033,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = state;
-    i1 = kMsgForState;
+    i1 = kF899MsgForState;
     i2 = 11u;
     i0 = BindUpvalueCell(ctx, i0, i1, i2);
     l5 = i0;
@@ -4053,7 +4070,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = state;
-    i1 = kMsgForControl;
+    i1 = kF899MsgForControl;
     i2 = 13u;
     i0 = BindUpvalueCell(ctx, i0, i1, i2);
     l5 = i0;
@@ -4189,7 +4206,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
           i1 = l3;
           StoreU32(ctx, i0 + 64u, i1);
           i0 = l6;
-          i1 = kDataFFFFFFC0;
+          i1 = kF899ConstFFFFFFC0;
           i0 -= i1;
           l3 = i0;
         }
@@ -4201,7 +4218,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = l2;
-          i1 = kMsgSExpected;
+          i1 = kF899MsgSExpected;
           i2 = l3;
           i0 = FormatPushString(ctx, i0, i1, i2);
           l5 = i0;
@@ -4349,7 +4366,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = l1;
-      i1 = kMsgSExpected;
+      i1 = kF899MsgSExpected;
       i2 = l3;
       i0 = FormatPushString(ctx, i0, i1, i2);
       l5 = i0;
@@ -4877,7 +4894,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i1 = 1u;
     StoreU8(ctx, i0 + 162u, i1);
     i0 = l6;
-    i1 = kDataFFFFFFFF;
+    i1 = kF899ConstFFFFFFFF;
     StoreU32(ctx, i0 + 156u, i1);
     i0 = l6;
     i0 = LoadU32(ctx, i0 + 196u);
@@ -4953,7 +4970,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = l3;
-      i1 = kMsgSExpected;
+      i1 = kF899MsgSExpected;
       i2 = l6;
       i0 = FormatPushString(ctx, i0, i1, i2);
       l5 = i0;
@@ -5200,7 +5217,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   i1 = 0u;
   i2 = ResumePhase(ctx);
   i0 = i2 ? i0 : i1;
-  exit_path:;
+  running_exit:;
   state = i0;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -5222,7 +5239,7 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kResumeWordBytes;
+  i2 = kF899ResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
@@ -5280,4 +5297,4 @@ uint32_t CompileStatement(EngineContext* ctx, uint32_t state) {
   LeaveFrame();
   return i0;
 }
-}  // namespace artc
+}

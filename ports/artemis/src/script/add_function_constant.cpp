@@ -1,157 +1,344 @@
+// add_function_constant.cpp -- interns one key/value pair into the function constant table: lookup first, append on miss, and raise on overflow..
+//
+// AddFunctionConstant -- interns one key/value pair into the function constant table: lookup first, append on miss, and raise on overflow.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 271843-271843 (f708); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations of the callees below.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t ResolveTableField(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 void StoreListEntry(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t GrowArray(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f);
 
 namespace {
 
-constexpr uint32_t kAddConstantOverflowMessage = 0x2A3AFu;  // "constant table overflow"
-constexpr uint32_t kAddConstantCellLimit = 0x3FFFFu;  // most cells the table may hold
-constexpr uint32_t kAddConstantIntOverflow = 0x80000000u;  // int a double out of range converts to
-constexpr uint32_t kAddConstantDoubleKind = 3u;  // value-kind tag of a double cell
-constexpr uint32_t kAddConstantSaveFrameBytes = 32u;  // saved state words below the resume code
-constexpr uint32_t kAddConstantResumeWordBytes = 4u;  // resume code slot
+constexpr uint32_t kF708MsgConstantTableOverflow = 0x2A3AFu;  // constant table overflow
+constexpr uint32_t kF708Const3FFFF = 0x3FFFFu;  // 
+constexpr uint32_t kF708Const80000000 = 0x80000000u;  // 
+constexpr uint32_t kF708SaveFrameBytes = 32u;
+constexpr uint32_t kF708ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Interns one key/value pair into the function constant table: the cell that
-// the key resolves to is looked at first, the pair is appended when the table
-// grew, and a table that outgrows its limit traps.  Two calls can suspend, so
-// every value that outlives them is kept in the frame.
 uint32_t AddFunctionConstant(EngineContext* ctx, uint32_t func_state, uint32_t key, uint32_t value) {
   EnterFrame();
-  uint32_t slot = 0u;
-  uint32_t called = 0u;
-  uint32_t pool = 0u;
-  uint32_t number = 0u;
-  uint32_t count_addr = 0u;
-  uint32_t pool_base = 0u;
-  uint32_t table = 0u;
-  uint32_t resume_point = 0u;
-  uint32_t flag = 0u;
-  uint32_t result = 0u;
-  uint32_t target = 0u;
-  uint32_t source = 0u;
-  uint32_t index = 0u;
-  double raw = 0.0;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 32-byte frame the suspend path saved.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-        LoadU32(ctx, ReturnFrameSp(ctx)) - kAddConstantSaveFrameBytes);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    func_state = LoadU32(ctx, frame);
-    key = LoadU32(ctx, frame + 4u);
-    value = LoadU32(ctx, frame + 8u);
-    slot = LoadU32(ctx, frame + 12u);
-    pool = LoadU32(ctx, frame + 16u);
-    count_addr = LoadU32(ctx, frame + 20u);
-    table = LoadU32(ctx, frame + 24u);
-    flag = LoadU32(ctx, frame + 28u);
+  double l10 = 0; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u;
+  uint64_t j1 = 0;
+  double d0 = 0; double d1 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF708SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    i0 = LoadU32(ctx, i0);
+    func_state = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 8u);
+    value = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l3 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l5 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l6 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l7 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 28u);
+    l9 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 4u);
+    key = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 4-byte frame that saves the resume code.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-        LoadU32(ctx, ReturnFrameSp(ctx)) - kAddConstantResumeWordBytes);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF708ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l8 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    table = LoadU32(ctx, func_state + 16u);
-    slot = LoadU32(ctx, func_state + 4u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = func_state;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l7 = i0;
+    i0 = func_state;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
-    called = ResolveTableField(ctx, table, slot, key);
-    resume_point = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-    slot = called;
+  i0 = l8;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l7;
+    i1 = l3;
+    i2 = key;
+    i0 = ResolveTableField(ctx, i0, i1, i2);
+    l4 = i0;
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l4;
+    l3 = i0;
   }
-  // The running pass looks at the cell the key resolved to: a cell that is
-  // already a double converts straight back to an int, anything else gets the
-  // pair interned behind it.  The rewinding pass keeps the flag it saved.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (LoadU32(ctx, slot + 8u) == kAddConstantDoubleKind) {
-      raw = LoadF64(ctx, slot);
-      if (wasm_fabs(raw) < 2147483648.0) {
-        result = I32_TRUNC_S_F64(raw);
-        goto exit_path;
+  i0 = ResumePhase(ctx);
+  if (i0) {
+    i0 = l9;
+  } else {
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 8u);
+    i1 = 3u;
+    i0 = i0 == i1;
+    if (i0) {
+      i0 = l3;
+      d0 = LoadF64(ctx, i0);
+      l10 = d0;
+      d0 = wasm_fabs(d0);
+      d1 = 2147483648.0;
+      i0 = d0 < d1;
+      if (i0) {
+        d0 = l10;
+        i0 = I32_TRUNC_S_F64(d0);
+        goto func_exit;
       }
-      result = kAddConstantIntOverflow;
-      goto exit_path;
+      i0 = kF708Const80000000;
+      goto func_exit;
     }
-    pool = LoadU32(ctx, func_state);
-    key = LoadU32(ctx, pool + 40u);
-    number = LoadU32(ctx, func_state + 40u);
-    StoreU32(ctx, slot + 8u, kAddConstantDoubleKind);
-    StoreF64(ctx, slot, (double)(int32_t)number);
-    count_addr = pool + 40u;
-    slot = LoadU32(ctx, pool + 40u);
-    flag = (uint32_t)((int32_t)slot <= (int32_t)LoadU32(ctx, func_state + 40u));
+    i0 = func_state;
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
+    i0 = LoadU32(ctx, i0 + 40u);
+    key = i0;
+    i0 = func_state;
+    i0 = LoadU32(ctx, i0 + 40u);
+    l6 = i0;
+    i0 = l3;
+    i1 = 3u;
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = l3;
+    i1 = l6;
+    d1 = (double)(int32_t)(i1);
+    StoreF64(ctx, i0, d1);
+    i0 = l5;
+    i1 = 40u;
+    i0 += i1;
+    l6 = i0;
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i1 = func_state;
+    i1 = LoadU32(ctx, i1 + 40u);
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
   }
-  if (flag != 0u || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      slot = LoadU32(ctx, pool + 8u);
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l5;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l3 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
-      // The pool may move, so the slot index is read back from it afterwards.
-      called = GrowArray(ctx, table, slot, count_addr, 16u, kAddConstantCellLimit,
-          kAddConstantOverflowMessage);
-      resume_point = 1u;
-      if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
-      slot = called;
+    i0 = l8;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l7;
+      i1 = l3;
+      i2 = l6;
+      i3 = 16u;
+      i4 = kF708Const3FFFF;
+      i5 = kF708MsgConstantTableOverflow;
+      i0 = GrowArray(ctx, i0, i1, i2, i3, i4, i5);
+      l4 = i0;
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l4;
+      l3 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      StoreU32(ctx, pool + 8u, slot);
-      slot = LoadU32(ctx, pool + 40u);
+    i0 = ResumePhase(ctx);
+    if (i0) {
+      i0 = l3;
+    } else {
+      i0 = l5;
+      i1 = l3;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = l5;
+      i0 = LoadU32(ctx, i0 + 40u);
     }
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Clear the kind word of every cell between the resolved one and the free
-    // slot, then copy the pair into the free slot.  A cell holds 8 bytes of
-    // payload with its kind word at +8, so the walk strides by 16.
-    pool_base = LoadU32(ctx, pool + 8u);
-    if ((int32_t)key < (int32_t)slot) {
-    clear_cells:
-      StoreU32(ctx, pool_base + (key << 4u) + 8u, 0u);
-      key += 1u;
-      if ((int32_t)slot > (int32_t)key) goto clear_cells;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l6 = i0;
+    i0 = key;
+    i1 = l3;
+    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+    if (i0) {
+      loop_14: 
+        i0 = l6;
+        i1 = key;
+        i2 = 4u;
+        i1 <<= (i2 & 31);
+        i0 += i1;
+        i1 = 0u;
+        StoreU32(ctx, i0 + 8u, i1);
+        i0 = l3;
+        i1 = key;
+        i2 = 1u;
+        i1 += i2;
+        key = i1;
+        i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+        if (i0) {goto loop_14;}
     }
-    target = pool_base + (LoadU32(ctx, func_state + 40u) << 4u);
-    StoreU64(ctx, target, LoadU64(ctx, value));
-    StoreU32(ctx, target + 8u, LoadU32(ctx, value + 8u));
-    if ((int32_t)LoadU32(ctx, value + 8u) < (int32_t)4u) goto finish;
-    source = LoadU32(ctx, value);
-    if ((LoadU8(ctx, source + 5u) & 3u) == 0u) goto finish;
-    if ((LoadU8(ctx, pool + 5u) & 4u) == 0u) goto finish;
-    StoreListEntry(ctx, table, pool, source);
-  finish:;
-    index = LoadU32(ctx, func_state + 40u);
-    StoreU32(ctx, func_state + 40u, index + 1u);
-    result = index;
-    goto exit_path;
+    i0 = l6;
+    i1 = func_state;
+    i1 = LoadU32(ctx, i1 + 40u);
+    i2 = 4u;
+    i1 <<= (i2 & 31);
+    i0 += i1;
+    key = i0;
+    i1 = value;
+    j1 = LoadU64(ctx, i1);
+    StoreU64(ctx, i0, j1);
+    i0 = key;
+    i1 = value;
+    i1 = LoadU32(ctx, i1 + 8u);
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = value;
+    i0 = LoadU32(ctx, i0 + 8u);
+    i1 = 4u;
+    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+    if (i0) {goto block_15;}
+    i0 = value;
+    i0 = LoadU32(ctx, i0);
+    key = i0;
+    i0 = LoadU8(ctx, i0 + 5u);
+    i1 = 3u;
+    i0 &= i1;
+    i0 = !(i0);
+    if (i0) {goto block_15;}
+    i0 = l5;
+    i0 = LoadU8(ctx, i0 + 5u);
+    i1 = 4u;
+    i0 &= i1;
+    i0 = !(i0);
+    if (i0) {goto block_15;}
+    i0 = l7;
+    i1 = l5;
+    i2 = key;
+    StoreListEntry(ctx, i0, i1, i2);
+    block_15:;
+    i0 = func_state;
+    key = i0;
+    i0 = LoadU32(ctx, i0 + 40u);
+    func_state = i0;
+    i1 = 1u;
+    i0 += i1;
+    value = i0;
+    i0 = key;
+    i1 = value;
+    StoreU32(ctx, i0 + 40u, i1);
+    i0 = func_state;
+    goto func_exit;
   }
   TrapUnreachable();
-suspend_point:
-  // Suspend: write the resume code, then push the frame with the live state.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kAddConstantResumeWordBytes);
-  {
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    StoreU32(ctx, frame, func_state);
-    StoreU32(ctx, frame + 4u, key);
-    StoreU32(ctx, frame + 8u, value);
-    StoreU32(ctx, frame + 12u, slot);
-    StoreU32(ctx, frame + 16u, pool);
-    StoreU32(ctx, frame + 20u, count_addr);
-    StoreU32(ctx, frame + 24u, table);
-    StoreU32(ctx, frame + 28u, flag);
-  }
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kAddConstantSaveFrameBytes);
-exit_path:
+  spill_frame:;
+  l4 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l4;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF708ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l4 = i0;
+  i1 = func_state;
+  StoreU32(ctx, i0, i1);
+  i0 = l4;
+  i1 = key;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l4;
+  i1 = value;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l4;
+  i1 = l3;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l4;
+  i1 = l5;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l4;
+  i1 = l6;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = l4;
+  i1 = l7;
+  StoreU32(ctx, i0 + 24u, i1);
+  i0 = l4;
+  i1 = l9;
+  StoreU32(ctx, i0 + 28u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 32u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return result;
+  return i0;
 }
-
-}  // namespace artc
+}

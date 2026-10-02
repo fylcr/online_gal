@@ -54,6 +54,15 @@ REPO_ROOT="$(cd "$PORTS_ROOT/.." && pwd)"
 # outdir and naming a flag there would otherwise be read as a directory.
 DEBUG_TRAP="${ARTC_DEBUG_TRAP:-0}"
 PROFILE="${ARTC_PROFILE:-0}"
+# Optimisation is required for the largest handwritten dispatch routine: at -O0 clang lowers
+# its structured state machine to 95,112 wasm locals, beyond V8's 50,000-local limit. -O1
+# keeps the same C++ semantics while coalescing it to 135 locals in the finished module.
+# Override ARTC_OPT_LEVEL only for diagnostics; shipping builds use -O1.
+OPT_LEVEL="${ARTC_OPT_LEVEL:--O1}"
+case "$OPT_LEVEL" in
+  -O0|-O1|-O2|-O3|-Os|-Oz) ;;
+  *) echo "unsupported ARTC_OPT_LEVEL: $OPT_LEVEL" >&2; exit 2 ;;
+esac
 ARGS=()
 for arg in "$@"; do
   case "$arg" in
@@ -364,7 +373,7 @@ for f in wasm-rt-impl wasm-rt-mem-impl; do
   # `_emscripten_throw_longjmp`, and the official module imports neither, i.e. it was
   # built with exceptions off.  Compiling the runtime the same way is what makes the
   # rebuilt module's import list match.
-  "$EMCC" -c -O0 -x c -fno-exceptions -sDISABLE_EXCEPTION_CATCHING=1 $TRAP_DEFS \
+  "$EMCC" -c "$OPT_LEVEL" -x c -fno-exceptions -sDISABLE_EXCEPTION_CATCHING=1 $TRAP_DEFS \
     -I "$RUNTIME_STAGE" -I "$RUNTIME_SRC" \
     "$RUNTIME_STAGE/$f.c" -o "$OUTDIR/$f.o" \
     2>> "$OUTDIR/runtime.log" || fail "emcc failed on $f.c (see $OUTDIR/runtime.log)"
@@ -373,7 +382,7 @@ echo "     runtime objects built"
 
 # --- 5. link: import the host's memory, exactly as the official module does --
 note "5/6  linking with em++ (importing memory as a.a)"
-"$EMXX" -O0 -Wno-c23-extensions --no-entry -sINVOKE_RUN=0 \
+"$EMXX" "$OPT_LEVEL" -Wno-c23-extensions --no-entry -sINVOKE_RUN=0 \
   -fno-exceptions -fno-rtti -sDISABLE_EXCEPTION_CATCHING=1 -sSUPPORT_LONGJMP=0 \
   -Wl,--export-all -sEXPORT_ALL -sSTACK_SIZE=$STACK_SIZE \
   -sIMPORTED_MEMORY=1 -Xlinker --import-memory=a,a \
@@ -427,10 +436,10 @@ STUB_COUNT=$(grep -c '^/\* was the runtime import ' "$OUTDIR/runtime-stubs.c" 2>
 STUB_COUNT=${STUB_COUNT:-0}
 if [ "$STUB_COUNT" -gt 0 ]; then
   note "6b/7  relinking with $STUB_COUNT local runtime definition(s)"
-  "$EMCC" -c -O0 -x c -fno-exceptions -I "$RUNTIME_SRC" "$OUTDIR/runtime-stubs.c" \
+  "$EMCC" -c "$OPT_LEVEL" -x c -fno-exceptions -I "$RUNTIME_SRC" "$OUTDIR/runtime-stubs.c" \
     -o "$OUTDIR/runtime-stubs.o" 2>> "$OUTDIR/runtime.log" \
     || fail "compiling the runtime stubs failed (see $OUTDIR/runtime.log)"
-  "$EMXX" -O0 -Wno-c23-extensions --no-entry -sINVOKE_RUN=0 \
+  "$EMXX" "$OPT_LEVEL" -Wno-c23-extensions --no-entry -sINVOKE_RUN=0 \
     -fno-exceptions -fno-rtti -sDISABLE_EXCEPTION_CATCHING=1 -sSUPPORT_LONGJMP=0 \
     -Wl,--export-all -sEXPORT_ALL \
     -sIMPORTED_MEMORY=1 -Xlinker --import-memory=a,a \

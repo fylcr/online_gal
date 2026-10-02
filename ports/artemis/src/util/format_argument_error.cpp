@@ -1,191 +1,324 @@
+// format_argument_error.cpp -- formats the bad argument #%d message into the pending message buffer..
+//
+// FormatArgumentError -- formats the bad argument #%d message into the pending message buffer.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 136486-136486 (f304); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Cross-TU callees: the string compare, the frame reader and the two traceback
-// steps the message paths below call.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t CompareNulTerminatedStrings(EngineContext* ctx, uint32_t left, uint32_t right);
 uint32_t RaiseTraceback(EngineContext* ctx, uint32_t value, uint32_t message, uint32_t tag);
-uint32_t TrimLocalSlotsAboveLevel(EngineContext* ctx, uint32_t proto, uint32_t level,
-                                  uint32_t result);
+uint32_t TrimLocalSlotsAboveLevel(EngineContext* ctx, uint32_t proto, uint32_t level, uint32_t result);
 uint32_t FormatTracebackFrame(EngineContext* ctx, uint32_t state, uint32_t name, uint32_t out);
 
 namespace {
 
-constexpr uint32_t kFormatArgumentErrorMsgBadArgumentDS = 0x29D03u;  // "bad argument #%d (%s)"
-constexpr uint32_t kFormatArgumentErrorConst29D19 = 0x29D19u;  // name word for the traceback frame
-constexpr uint32_t kFormatArgumentErrorMsgMethod = 0x29D1Bu;  // "method"
-constexpr uint32_t kFormatArgumentErrorMsgCallingSOnBad = 0x29D22u;  // "calling '%s' on bad self"
-constexpr uint32_t kFormatArgumentErrorConst29D40 = 0x29D40u;  // fallback name word
-constexpr uint32_t kFormatArgumentErrorMsgBadArgumentDTo = 0x29D42u;  // "bad argument #%d to '%s'"
-constexpr uint32_t kFormatArgumentErrorSaveFrameBytes = 20u;
-constexpr uint32_t kFormatArgumentErrorResumeWordBytes = 4u;
+constexpr uint32_t kF304MsgBadArgumentDS = 0x29D03u;  // bad argument #%d (%s)
+constexpr uint32_t kF304Const29D19 = 0x29D19u;  // 
+constexpr uint32_t kF304MsgMethod = 0x29D1Bu;  // method
+constexpr uint32_t kF304MsgCallingSOnBad = 0x29D22u;  // calling '%s' on bad self (%s)
+constexpr uint32_t kF304Const29D40 = 0x29D40u;  // 
+constexpr uint32_t kF304MsgBadArgumentDTo = 0x29D42u;  // bad argument #%d to '%s' (%s)
+constexpr uint32_t kF304SaveFrameBytes = 20u;
+constexpr uint32_t kF304ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Formats the bad-argument error for one call: it reads the calling function's
-// name and name word out of the frame, picks one of three message forms and
-// raises it through the traceback path. Answers the error state word.
 uint32_t FormatArgumentError(EngineContext* ctx, uint32_t state, uint32_t index, uint32_t actual) {
   EnterFrame();
-  uint32_t frame = 0u;
-  uint32_t slot = 0u;
-  uint32_t resume_code = 0u;
-
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the saved frame and read its words back in the saved order.
-    uint32_t sp = ReturnFrameSp(ctx);
-    uint32_t frame_top = ReturnFrameSp(ctx);
-    frame_top = LoadU32(ctx, frame_top) - kFormatArgumentErrorSaveFrameBytes;
-    StoreU32(ctx, sp, frame_top);
-    uint32_t base = ReturnFrameSp(ctx);
-    base = LoadU32(ctx, base);
-    state = LoadU32(ctx, base);
-    actual = LoadU32(ctx, base + 8u);
-    frame = LoadU32(ctx, base + 12u);
-    slot = LoadU32(ctx, base + 16u);
-    index = LoadU32(ctx, base + 4u);
+  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF304SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 8u);
+    actual = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l4 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l5 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 4u);
+    index = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume word that names the call that was in flight.
-    uint32_t sp = ReturnFrameSp(ctx);
-    uint32_t word_top = ReturnFrameSp(ctx);
-    word_top = LoadU32(ctx, word_top) - kFormatArgumentErrorResumeWordBytes;
-    StoreU32(ctx, sp, word_top);
-    uint32_t word = ReturnFrameSp(ctx);
-    word = LoadU32(ctx, word);
-    resume_code = LoadU32(ctx, word);
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF304ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l6 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // A running pass takes its scratch frame from the guest stack.
-    uint32_t sp = GuestStackSp(ctx);
-    frame = sp - 160u;
-    GuestStackSp(ctx) = frame;
-    uint32_t trimmed = TrimLocalSlotsAboveLevel(ctx, state, 0u, frame + 56u);
-    slot = trimmed == 0u;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = GuestStackSp(ctx);
+    i1 = 160u;
+    i0 -= i1;
+    l4 = i0;
+    GuestStackSp(ctx) = i0;
+    i0 = state;
+    i1 = 0u;
+    i2 = l4;
+    i3 = 56u;
+    i2 += i3;
+    i0 = TrimLocalSlotsAboveLevel(ctx, i0, i1, i2);
+    i0 = !(i0);
+    l5 = i0;
   }
-  uint32_t phase = ResumePhase(ctx);
-  if (slot != 0u || phase == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // Put the caller's argument words back into the frame.
-      StoreU32(ctx, frame + 4u, actual);
-      StoreU32(ctx, frame, index);
+  i0 = l5;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      i1 = actual;
+      StoreU32(ctx, i0 + 4u, i1);
+      i0 = l4;
+      i1 = index;
+      StoreU32(ctx, i0, i1);
     }
-    phase = ResumePhase(ctx);
-    if (phase == kResumeRunning || resume_code == 0u) {
-      uint32_t raised = RaiseTraceback(ctx, state, kFormatArgumentErrorMsgBadArgumentDS, frame);
-      resume_code = 0u;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_here;
-      }
-      state = raised;
+    i0 = l6;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = kF304MsgBadArgumentDS;
+      i2 = l4;
+      i0 = RaiseTraceback(ctx, i0, i1, i2);
+      l3 = i0;
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l3;
+      state = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      goto exit_path;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {goto running_exit;}
+  }
+  i0 = l5;
+  i1 = l4;
+  i2 = 56u;
+  i1 += i2;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  l5 = i0;
+  i0 = l6;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = kF304Const29D19;
+    i2 = l5;
+    i0 = FormatTracebackFrame(ctx, i0, i1, i2);
+    l3 = i0;
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    l5 = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 64u);
+    i1 = kF304MsgMethod;
+    i0 = CompareNulTerminatedStrings(ctx, i0, i1);
+    l5 = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    if (i0) {goto block_10;}
+    i0 = index;
+    i1 = 1u;
+    i0 -= i1;
+    index = i0;
+    if (i0) {goto block_10;}
+    i0 = l4;
+    i1 = l4;
+    i1 = LoadU32(ctx, i1 + 60u);
+    StoreU32(ctx, i0 + 16u, i1);
+    i0 = l4;
+    i1 = actual;
+    StoreU32(ctx, i0 + 20u, i1);
+    i0 = l4;
+    i1 = 16u;
+    i0 += i1;
+    index = i0;
+  }
+  i0 = l6;
+  i1 = 2u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = kF304MsgCallingSOnBad;
+    i2 = index;
+    i0 = RaiseTraceback(ctx, i0, i1, i2);
+    l3 = i0;
+    i0 = 2u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    state = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {goto running_exit;}
+  block_10:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 60u);
+    l5 = i0;
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      i1 = kF304Const29D40;
+      StoreU32(ctx, i0 + 60u, i1);
+      i0 = kF304Const29D40;
+      l5 = i0;
     }
+    i0 = l4;
+    i1 = actual;
+    StoreU32(ctx, i0 + 40u, i1);
+    i0 = l4;
+    i1 = l5;
+    StoreU32(ctx, i0 + 36u, i1);
+    i0 = l4;
+    i1 = index;
+    StoreU32(ctx, i0 + 32u, i1);
+    i0 = l4;
+    i1 = 32u;
+    i0 += i1;
+    index = i0;
   }
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning) {
-    slot = frame + 56u;
+  i0 = l6;
+  i1 = 3u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = kF304MsgBadArgumentDTo;
+    i2 = index;
+    i0 = RaiseTraceback(ctx, i0, i1, i2);
+    l3 = i0;
+    i0 = 3u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    state = i0;
   }
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning || resume_code == 1u) {
-    uint32_t formatted = FormatTracebackFrame(ctx, state, kFormatArgumentErrorConst29D19, slot);
-    resume_code = 1u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_here;
-    }
-    slot = formatted;
-  }
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning) {
-    uint32_t name_word = LoadU32(ctx, frame + 64u);
-    slot = CompareNulTerminatedStrings(ctx, name_word, kFormatArgumentErrorMsgMethod);
-  }
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning) {
-    // A method name word with a decremented argument of zero is the bad-self case.
-    if (slot != 0u) {
-      goto named_argument;
-    }
-    index = index - 1u;
-    if (index != 0u) {
-      goto named_argument;
-    }
-    uint32_t name = LoadU32(ctx, frame + 60u);
-    StoreU32(ctx, frame + 16u, name);
-    StoreU32(ctx, frame + 20u, actual);
-    index = frame + 16u;
-  }
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning || resume_code == 2u) {
-    uint32_t raised = RaiseTraceback(ctx, state, kFormatArgumentErrorMsgCallingSOnBad, index);
-    resume_code = 2u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_here;
-    }
-    state = raised;
-  }
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning) {
-    goto exit_path;
-  }
-named_argument:;
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning) {
-    slot = LoadU32(ctx, frame + 60u);
-    if (slot == 0u) {
-      // No name in the frame: fall back to the placeholder name word.
-      uint32_t fallback = kFormatArgumentErrorConst29D40;
-      StoreU32(ctx, frame + 60u, fallback);
-      slot = kFormatArgumentErrorConst29D40;
-    }
-    StoreU32(ctx, frame + 40u, actual);
-    StoreU32(ctx, frame + 36u, slot);
-    StoreU32(ctx, frame + 32u, index);
-    index = frame + 32u;
-  }
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning || resume_code == 3u) {
-    uint32_t raised = RaiseTraceback(ctx, state, kFormatArgumentErrorMsgBadArgumentDTo, index);
-    resume_code = 3u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_here;
-    }
-    state = raised;
-  }
-exit_path:;
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning) {
-    // The running pass hands its scratch frame back to the guest stack.
-    GuestStackSp(ctx) = frame + 160u;
-    LeaveFrame();
-    return state;
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l4;
+    i1 = 160u;
+    i0 += i1;
+    GuestStackSp(ctx) = i0;
+    i0 = state;
+    goto func_exit;
   }
   TrapUnreachable();
-suspend_here:;
-  // Push the resume word naming the call that was in flight, then the frame the
-  // rewind pops; the two words go in the order the pop above reads them back.
-  uint32_t word_slot = ReturnFrameSp(ctx);
-  word_slot = LoadU32(ctx, word_slot);
-  StoreU32(ctx, word_slot, resume_code);
-  uint32_t sp = ReturnFrameSp(ctx);
-  uint32_t word_top = ReturnFrameSp(ctx);
-  word_top = LoadU32(ctx, word_top) + kFormatArgumentErrorResumeWordBytes;
-  StoreU32(ctx, sp, word_top);
-  uint32_t base = ReturnFrameSp(ctx);
-  base = LoadU32(ctx, base);
-  StoreU32(ctx, base, state);
-  StoreU32(ctx, base + 4u, index);
-  StoreU32(ctx, base + 8u, actual);
-  StoreU32(ctx, base + 12u, frame);
-  StoreU32(ctx, base + 16u, slot);
-  sp = ReturnFrameSp(ctx);
-  word_top = ReturnFrameSp(ctx);
-  word_top = LoadU32(ctx, word_top) + kFormatArgumentErrorSaveFrameBytes;
-  StoreU32(ctx, sp, word_top);
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF304ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = index;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = actual;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l3;
+  i1 = l4;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l3;
+  i1 = l5;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 20u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return 0u;
+  return i0;
 }
-
-}  // namespace artc
+}

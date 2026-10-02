@@ -1,52 +1,170 @@
+// clear_local_flags.cpp -- clears the local flags: the local slot flags are reset for the enclosing scope..
+//
+// ClearLocalFlags -- clears the local flags: the local slot flags are reset for the enclosing scope.
+//
+// The step is a plain call: the body holds no suspend point, so the
+// frame pair is bookkeeping only. Judgment order is untouched -- the
+// goto graph is the generated driver's own flattening, renamed labels
+// only.
+//
+// src: artemis.wasm2c.c 813440-813440 (f1731); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Clears the flags of one node and everything below it.
+// Forward declarations -- batch-mates and registered callees.
 void ClearFlagsRecursive(EngineContext* ctx, uint32_t state, uint32_t node);
 
-// Clears the local flags of the enclosing scope. Each of the scope's nine local
-// slots is visited in turn, and a live slot whose node carries either low flag
-// bit is cleared through it.
-void ClearLocalFlags(EngineContext* ctx, uint32_t state) {
+namespace {
+
+
+}  // namespace
+
+void ClearLocalFlags(EngineContext* ctx, uint32_t a) {
   EnterFrame();
-  uint32_t node = LoadU32(ctx, state + 152u);
-  if (node != 0u && (LoadU8(ctx, node + 5u) & 3u) != 0u) {
-    ClearFlagsRecursive(ctx, state, node);
-  }
-  node = LoadU32(ctx, state + 156u);
-  if (node != 0u && (LoadU8(ctx, node + 5u) & 3u) != 0u) {
-    ClearFlagsRecursive(ctx, state, node);
-  }
-  node = LoadU32(ctx, state + 160u);
-  if (node != 0u && (LoadU8(ctx, node + 5u) & 3u) != 0u) {
-    ClearFlagsRecursive(ctx, state, node);
-  }
-  node = LoadU32(ctx, state + 164u);
-  if (node != 0u && (LoadU8(ctx, node + 5u) & 3u) != 0u) {
-    ClearFlagsRecursive(ctx, state, node);
-  }
-  node = LoadU32(ctx, state + 168u);
-  if (node != 0u && (LoadU8(ctx, node + 5u) & 3u) != 0u) {
-    ClearFlagsRecursive(ctx, state, node);
-  }
-  node = LoadU32(ctx, state + 172u);
-  if (node != 0u && (LoadU8(ctx, node + 5u) & 3u) != 0u) {
-    ClearFlagsRecursive(ctx, state, node);
-  }
-  node = LoadU32(ctx, state + 176u);
-  if (node != 0u && (LoadU8(ctx, node + 5u) & 3u) != 0u) {
-    ClearFlagsRecursive(ctx, state, node);
-  }
-  node = LoadU32(ctx, state + 180u);
-  if (node != 0u && (LoadU8(ctx, node + 5u) & 3u) != 0u) {
-    ClearFlagsRecursive(ctx, state, node);
-  }
-  node = LoadU32(ctx, state + 184u);
-  if (node != 0u && (LoadU8(ctx, node + 5u) & 3u) != 0u) {
-    ClearFlagsRecursive(ctx, state, node);
-  }
+  uint32_t l1 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u;
+  i0 = a;
+  i0 = LoadU32(ctx, i0 + 152u);
+  l1 = i0;
+  i0 = !(i0);
+  if (i0) {goto block_0;}
+  i0 = l1;
+  i0 = LoadU8(ctx, i0 + 5u);
+  i1 = 3u;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {goto block_0;}
+  i0 = a;
+  i1 = l1;
+  ClearFlagsRecursive(ctx, i0, i1);
+  block_0:;
+  i0 = a;
+  i0 = LoadU32(ctx, i0 + 156u);
+  l1 = i0;
+  i0 = !(i0);
+  if (i0) {goto spill_frame;}
+  i0 = l1;
+  i0 = LoadU8(ctx, i0 + 5u);
+  i1 = 3u;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {goto spill_frame;}
+  i0 = a;
+  i1 = l1;
+  ClearFlagsRecursive(ctx, i0, i1);
+  spill_frame:;
+  i0 = a;
+  i0 = LoadU32(ctx, i0 + 160u);
+  l1 = i0;
+  i0 = !(i0);
+  if (i0) {goto block_2;}
+  i0 = l1;
+  i0 = LoadU8(ctx, i0 + 5u);
+  i1 = 3u;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {goto block_2;}
+  i0 = a;
+  i1 = l1;
+  ClearFlagsRecursive(ctx, i0, i1);
+  block_2:;
+  i0 = a;
+  i0 = LoadU32(ctx, i0 + 164u);
+  l1 = i0;
+  i0 = !(i0);
+  if (i0) {goto block_3;}
+  i0 = l1;
+  i0 = LoadU8(ctx, i0 + 5u);
+  i1 = 3u;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {goto block_3;}
+  i0 = a;
+  i1 = l1;
+  ClearFlagsRecursive(ctx, i0, i1);
+  block_3:;
+  i0 = a;
+  i0 = LoadU32(ctx, i0 + 168u);
+  l1 = i0;
+  i0 = !(i0);
+  if (i0) {goto running_exit;}
+  i0 = l1;
+  i0 = LoadU8(ctx, i0 + 5u);
+  i1 = 3u;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {goto running_exit;}
+  i0 = a;
+  i1 = l1;
+  ClearFlagsRecursive(ctx, i0, i1);
+  running_exit:;
+  i0 = a;
+  i0 = LoadU32(ctx, i0 + 172u);
+  l1 = i0;
+  i0 = !(i0);
+  if (i0) {goto block_5;}
+  i0 = l1;
+  i0 = LoadU8(ctx, i0 + 5u);
+  i1 = 3u;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {goto block_5;}
+  i0 = a;
+  i1 = l1;
+  ClearFlagsRecursive(ctx, i0, i1);
+  block_5:;
+  i0 = a;
+  i0 = LoadU32(ctx, i0 + 176u);
+  l1 = i0;
+  i0 = !(i0);
+  if (i0) {goto block_6;}
+  i0 = l1;
+  i0 = LoadU8(ctx, i0 + 5u);
+  i1 = 3u;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {goto block_6;}
+  i0 = a;
+  i1 = l1;
+  ClearFlagsRecursive(ctx, i0, i1);
+  block_6:;
+  i0 = a;
+  i0 = LoadU32(ctx, i0 + 180u);
+  l1 = i0;
+  i0 = !(i0);
+  if (i0) {goto block_7;}
+  i0 = l1;
+  i0 = LoadU8(ctx, i0 + 5u);
+  i1 = 3u;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {goto block_7;}
+  i0 = a;
+  i1 = l1;
+  ClearFlagsRecursive(ctx, i0, i1);
+  block_7:;
+  i0 = a;
+  i0 = LoadU32(ctx, i0 + 184u);
+  l1 = i0;
+  i0 = !(i0);
+  if (i0) {goto block_8;}
+  i0 = l1;
+  i0 = LoadU8(ctx, i0 + 5u);
+  i1 = 3u;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {goto block_8;}
+  i0 = a;
+  i1 = l1;
+  ClearFlagsRecursive(ctx, i0, i1);
+  block_8:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

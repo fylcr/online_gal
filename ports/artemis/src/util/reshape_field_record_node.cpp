@@ -1,158 +1,381 @@
+// reshape_field_record_node.cpp -- reshapes a node whose payload is a record of fixed-width fields..
+//
+// ReshapeFieldRecordNode -- reshapes a node whose payload is a record of fixed-width fields.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 2733955-2733955 (f5629); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declaration -- the block reallocator.
-uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size,
-                         uint32_t new_size);
+// Forward declarations -- batch-mates and registered callees.
+uint32_t ReallocateBlock(EngineContext* ctx, uint32_t state, uint32_t block, uint32_t old_size, uint32_t new_size);
 
-// Reshapes a node whose payload is a record of fixed-width fields: the node is
-// unlinked from the list of records with the same field kind, then each of its
-// field arrays is released. Suspendable -- every call can suspend.
+namespace {
+
+constexpr uint32_t kF5629SaveFrameBytes = 16u;
+constexpr uint32_t kF5629ResumeWordBytes = 4u;
+
+}  // namespace
+
 void ReshapeFieldRecordNode(EngineContext* ctx, uint32_t state, uint32_t node) {
   EnterFrame();
-  // The call index the suspend path saves, the block being released with its old
-  // byte size, and the block a reallocation hands back.
-  uint32_t resume_at = 0u;
-  uint32_t resume_point = 0u;
-  uint32_t block = 0u;
-  uint32_t old_size = 0u;
-  uint32_t reallocated = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 16-byte frame the suspend path pushed.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 16u);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    state = LoadU32(ctx, frame);
-    node = LoadU32(ctx, frame + 4u);
-    block = LoadU32(ctx, frame + 8u);
-    old_size = LoadU32(ctx, frame + 12u);
+  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5629SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l2 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l4 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 4u);
+    node = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume word pushed with that frame.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5629ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
   }
-  // Each gate below releases one of the record's field arrays: the block sits at
-  // a fixed offset in the node, and its old size is the element count times the
-  // element width.
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Unlink the record from the list of records with the same field kind.
-    uint32_t const next = LoadU32(ctx, node + 88u);
-    uint32_t const prev = LoadU32(ctx, node + 84u);
-    if (prev) {
-      StoreU32(ctx, prev + 88u, next);
-    } else {
-      StoreU32(ctx, LoadU32(ctx, state + 16u) + 256u, next);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 88u);
+    l2 = i0;
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 84u);
+    l4 = i0;
+    if (i0) {
+      i0 = l4;
+      i1 = l2;
+      StoreU32(ctx, i0 + 88u, i1);
+      i0 = node;
+      i0 = LoadU32(ctx, i0 + 88u);
+      l2 = i0;
+      goto running_exit;
     }
-    if (next) {
-      StoreU32(ctx, next + 84u, prev);
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 16u);
+    i1 = l2;
+    StoreU32(ctx, i0 + 256u, i1);
+    running_exit:;
+    i0 = l2;
+    if (i0) {
+      i0 = l2;
+      i1 = l4;
+      StoreU32(ctx, i0 + 84u, i1);
     }
-    // The record's own storage, in sixteen-byte entries.
-    old_size = LoadU32(ctx, node + 80u) << 4;
-    block = LoadU32(ctx, node + 76u);
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 80u);
+    i1 = 4u;
+    i0 <<= (i1 & 31);
+    l4 = i0;
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 76u);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
-    reallocated = ReallocateBlock(ctx, state, block, old_size, 0u);
-    resume_at = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto spill_point;
-    }
-    block = reallocated;
+  i0 = l5;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = l2;
+    i2 = l4;
+    i3 = 0u;
+    i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+    l3 = i0;
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    old_size = LoadU32(ctx, node + 44u) << 2;
-    block = LoadU32(ctx, node + 12u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 44u);
+    i1 = 2u;
+    i0 <<= (i1 & 31);
+    l4 = i0;
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
-    reallocated = ReallocateBlock(ctx, state, block, old_size, 0u);
-    resume_at = 1u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto spill_point;
-    }
-    block = reallocated;
+  i0 = l5;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = l2;
+    i2 = l4;
+    i3 = 0u;
+    i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+    l3 = i0;
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    old_size = LoadU32(ctx, node + 52u) << 2;
-    block = LoadU32(ctx, node + 16u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 52u);
+    i1 = 2u;
+    i0 <<= (i1 & 31);
+    l4 = i0;
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
-    reallocated = ReallocateBlock(ctx, state, block, old_size, 0u);
-    resume_at = 2u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto spill_point;
-    }
-    block = reallocated;
+  i0 = l5;
+  i1 = 2u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = l2;
+    i2 = l4;
+    i3 = 0u;
+    i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+    l3 = i0;
+    i0 = 2u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    old_size = LoadU32(ctx, node + 40u) << 4;
-    block = LoadU32(ctx, node + 8u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 40u);
+    i1 = 4u;
+    i0 <<= (i1 & 31);
+    l4 = i0;
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
-    reallocated = ReallocateBlock(ctx, state, block, old_size, 0u);
-    resume_at = 3u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto spill_point;
-    }
-    block = reallocated;
+  i0 = l5;
+  i1 = 3u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = l2;
+    i2 = l4;
+    i3 = 0u;
+    i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+    l3 = i0;
+    i0 = 3u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    old_size = LoadU32(ctx, node + 48u) << 2;
-    block = LoadU32(ctx, node + 20u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 48u);
+    i1 = 2u;
+    i0 <<= (i1 & 31);
+    l4 = i0;
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
-    reallocated = ReallocateBlock(ctx, state, block, old_size, 0u);
-    resume_at = 4u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto spill_point;
-    }
-    block = reallocated;
+  i0 = l5;
+  i1 = 4u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = l2;
+    i2 = l4;
+    i3 = 0u;
+    i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+    l3 = i0;
+    i0 = 4u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    old_size = LoadU32(ctx, node + 56u) * 12u;
-    block = LoadU32(ctx, node + 24u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 56u);
+    i1 = 12u;
+    i0 *= i1;
+    l4 = i0;
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
-    reallocated = ReallocateBlock(ctx, state, block, old_size, 0u);
-    resume_at = 5u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto spill_point;
-    }
-    block = reallocated;
+  i0 = l5;
+  i1 = 5u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = l2;
+    i2 = l4;
+    i3 = 0u;
+    i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+    l3 = i0;
+    i0 = 5u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    old_size = LoadU32(ctx, node + 36u) << 2;
-    block = LoadU32(ctx, node + 28u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 36u);
+    i1 = 2u;
+    i0 <<= (i1 & 31);
+    l4 = i0;
+    i0 = node;
+    i0 = LoadU32(ctx, i0 + 28u);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
-    ReallocateBlock(ctx, state, block, old_size, 0u);
-    resume_at = 6u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto spill_point;
-    }
+  i0 = l5;
+  i1 = 6u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = l2;
+    i2 = l4;
+    i3 = 0u;
+    i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+    i0 = 6u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 7u) {
-    // The record's fixed 92-byte tail.
-    ReallocateBlock(ctx, state, node, 92u, 0u);
-    resume_at = 7u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto spill_point;
-    }
+  i0 = l5;
+  i1 = 7u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = node;
+    i2 = 92u;
+    i3 = 0u;
+    i0 = ReallocateBlock(ctx, i0, i1, i2, i3);
+    i0 = 7u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
+  goto func_exit;
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF5629ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = node;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = l2;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l3;
+  i1 = l4;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 16u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
-  return;
-spill_point:;
-  // Suspend: push the resume word, then the 16-byte frame holding the state, the
-  // node, the block and its old size.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_at);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
-  uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, frame, state);
-  StoreU32(ctx, frame + 4u, node);
-  StoreU32(ctx, frame + 8u, block);
-  StoreU32(ctx, frame + 12u, old_size);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 16u);
-  LeaveFrame();
-  return;
 }
-
-}  // namespace artc
+}

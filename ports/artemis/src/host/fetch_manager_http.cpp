@@ -1,8 +1,23 @@
+// fetch_manager_http.cpp -- the httpget/httppost tag surface: validates the url, key, value and header parameters, builds the multipart or urlencoded body and drives the fetch step..
+//
+// HttpDispatch -- the httpget/httppost tag surface: validates the url, key, value and header parameters, builds the multipart or urlencoded body and drives the fetch step.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 1530958-1530958 (f3293); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations for the callees this step calls.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 uint32_t CompareBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
@@ -14,59 +29,61 @@ uint32_t DestroyFileObject(EngineContext* ctx, uint32_t a);
 void AssignTaggedTreeRange(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 uint32_t FindLastCharInString(EngineContext* ctx, uint32_t a, uint32_t b);
 
-namespace FetchManager {
-// HttpDispatch -- the httpget/httppost tag surface: validates the url, key,
-// value and header parameters, builds the multipart or urlencoded body, and
-// parks the guest while the host performs the request.
+namespace {
 
+constexpr uint32_t kF3293Const8B830 = 0x8B830u;  // 
+constexpr uint32_t kF3293Const90610 = 0x90610u;  // 
+constexpr uint32_t kF3293Const90680 = 0x90680u;  // 
+constexpr uint32_t kF3293ConstAE298 = 0xAE298u;  // 
+constexpr uint32_t kF3293ConstAEE0C = 0xAEE0Cu;  // 
+constexpr uint32_t kF3293ConstB832A = 0xB832Au;  // 
+constexpr uint32_t kF3293ConstB832C = 0xB832Cu;  // 
+constexpr uint32_t kF3293MsgHeaderKey = 0xB832Eu;  // header_key
+constexpr uint32_t kF3293ConstB8336 = 0xB8336u;  // 
+constexpr uint32_t kF3293MsgHeaderValue = 0xB8339u;  // header_value
+constexpr uint32_t kF3293ConstB8341 = 0xB8341u;  // 
+constexpr uint32_t kF3293MsgHttpget = 0xB8346u;  // httpget
+constexpr uint32_t kF3293ConstB834E = 0xB834Eu;  // 
+constexpr uint32_t kF3293MsgHttppost = 0xB8376u;  // httppost
+constexpr uint32_t kF3293ConstB837F = 0xB837Fu;  // 
+constexpr uint32_t kF3293ConstB8381 = 0xB8381u;  // 
+constexpr uint32_t kF3293MsgValue = 0xB8383u;  // value
+constexpr uint32_t kF3293ConstB8387 = 0xB8387u;  // 
+constexpr uint32_t kF3293ConstB8389 = 0xB8389u;  // 
+constexpr uint32_t kF3293ConstB838B = 0xB838Bu;  // 
+constexpr uint32_t kF3293MsgContentDispositionFormData = 0xB838Du;  // Content-Disposition: form-data; name="
+constexpr uint32_t kF3293ConstB8395 = 0xB8395u;  // 
+constexpr uint32_t kF3293ConstB839D = 0xB839Du;  // 
+constexpr uint32_t kF3293ConstB83A5 = 0xB83A5u;  // 
+constexpr uint32_t kF3293ConstB83AB = 0xB83ABu;  // 
+constexpr uint32_t kF3293ConstB83B4 = 0xB83B4u;  // 
+constexpr uint32_t kF3293MsgFilename = 0xB83B6u;  // "; filename="
+constexpr uint32_t kF3293ConstB83C4 = 0xB83C4u;  // 
+constexpr uint32_t kF3293ConstB83F7 = 0xB83F7u;  // 
+constexpr uint32_t kF3293MsgApplicationXWwwForm = 0xB843Cu;  // application/x-www-form-urlencoded
+constexpr uint32_t kF3293MsgContentType = 0xB845Eu;  // Content-Type
+constexpr uint32_t kF3293ConstB8466 = 0xB8466u;  // 
+constexpr uint32_t kF3293MsgMultipartFormDataBoundary = 0xB846Bu;  // multipart/form-data; boundary=
+constexpr uint32_t kF3293ConstB8473 = 0xB8473u;  // 
+constexpr uint32_t kF3293ConstB847B = 0xB847Bu;  // 
+constexpr uint32_t kF3293ConstB8481 = 0xB8481u;  // 
+constexpr uint32_t kF3293ConstB84F3 = 0xB84F3u;  // 
+constexpr uint32_t kF3293MsgPx = 0xB8506u;  // px != 0
+constexpr uint32_t kF3293MsgBoostBoostSmartPtr = 0xB850Eu;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
+constexpr uint32_t kF3293MsgOperator = 0xB8546u;  // operator->
+constexpr uint32_t kF3293ConstB90E8 = 0xB90E8u;  // 
+constexpr uint32_t kF3293ConstCF12C = 0xCF12Cu;  // 
+constexpr uint32_t kF3293ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF3293Const656C6966 = 0x656C6966u;  // 
+constexpr uint32_t kF3293ConstFFFFFFC0 = 0xFFFFFFC0u;  // 
+constexpr uint32_t kF3293ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF3293ResumeWordBytes = 4u;
+
+}  // namespace
+
+namespace FetchManager {
 void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  constexpr uint32_t kData8B830 = 0x8B830u;
-  constexpr uint32_t kData90610 = 0x90610u;
-  constexpr uint32_t kData90680 = 0x90680u;
-  constexpr uint32_t kDataAE298 = 0xAE298u;
-  constexpr uint32_t kDataAEE0C = 0xAEE0Cu;
-  constexpr uint32_t kDataB832A = 0xB832Au;
-  constexpr uint32_t kDataB832C = 0xB832Cu;
-  constexpr uint32_t kMsgHeaderKey = 0xB832Eu;  // header_key
-  constexpr uint32_t kDataB8336 = 0xB8336u;
-  constexpr uint32_t kMsgHeaderValue = 0xB8339u;  // header_value
-  constexpr uint32_t kDataB8341 = 0xB8341u;
-  constexpr uint32_t kMsgHttpget = 0xB8346u;  // httpget
-  constexpr uint32_t kDataB834E = 0xB834Eu;
-  constexpr uint32_t kMsgHttppost = 0xB8376u;  // httppost
-  constexpr uint32_t kDataB837F = 0xB837Fu;
-  constexpr uint32_t kDataB8381 = 0xB8381u;
-  constexpr uint32_t kMsgValue = 0xB8383u;  // value
-  constexpr uint32_t kDataB8387 = 0xB8387u;
-  constexpr uint32_t kDataB8389 = 0xB8389u;
-  constexpr uint32_t kDataB838B = 0xB838Bu;
-  constexpr uint32_t kMsgContentDispositionFormData = 0xB838Du;  // Content-Disposition: form-data; name="
-  constexpr uint32_t kDataB8395 = 0xB8395u;
-  constexpr uint32_t kDataB839D = 0xB839Du;
-  constexpr uint32_t kDataB83A5 = 0xB83A5u;
-  constexpr uint32_t kDataB83AB = 0xB83ABu;
-  constexpr uint32_t kDataB83B4 = 0xB83B4u;
-  constexpr uint32_t kMsgFilename = 0xB83B6u;  // "; filename="
-  constexpr uint32_t kDataB83C4 = 0xB83C4u;
-  constexpr uint32_t kDataB83F7 = 0xB83F7u;
-  constexpr uint32_t kMsgApplicationXWwwForm = 0xB843Cu;  // application/x-www-form-urlencoded
-  constexpr uint32_t kMsgContentType = 0xB845Eu;  // Content-Type
-  constexpr uint32_t kDataB8466 = 0xB8466u;
-  constexpr uint32_t kMsgMultipartFormDataBoundary = 0xB846Bu;  // multipart/form-data; boundary=
-  constexpr uint32_t kDataB8473 = 0xB8473u;
-  constexpr uint32_t kDataB847B = 0xB847Bu;
-  constexpr uint32_t kDataB8481 = 0xB8481u;
-  constexpr uint32_t kDataB84F3 = 0xB84F3u;
-  constexpr uint32_t kMsgPx = 0xB8506u;  // px != 0
-  constexpr uint32_t kMsgSmartPtrPath = 0xB850Eu;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
-  constexpr uint32_t kMsgOperator = 0xB8546u;  // operator->
-  constexpr uint32_t kDataB90E8 = 0xB90E8u;
-  constexpr uint32_t kDataCF12C = 0xCF12Cu;
-  constexpr uint32_t kData656C6966 = 0x656C6966u;
-  constexpr uint32_t kDataFFFFFFC0 = 0xFFFFFFC0u;
-  constexpr uint32_t kDataFFFFFFFF = 0xFFFFFFFFu;
-  constexpr uint32_t kResumeWordBytes = 4u;
   uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l14 = 0u; uint32_t l15 = 0u; uint32_t l16 = 0u; uint32_t l17 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u; uint32_t i6 = 0u;
   uint64_t j1 = 0; uint64_t j3 = 0;
@@ -78,7 +95,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kDataFFFFFFC0;
+    i2 = kF3293ConstFFFFFFC0;
     i1 += i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -139,7 +156,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kResumeWordBytes;
+    i2 = kF3293ResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -280,17 +297,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i1 = 3u;
     StoreU8(ctx, i0 + 139u, i1);
     i0 = l4;
-    i1 = kDataB832A;
+    i1 = kF3293ConstB832A;
     i1 = LoadU16(ctx, i1);
     StoreU16(ctx, i0 + 128u, i1);
     i0 = l4;
-    i1 = kDataB832C;
+    i1 = kF3293ConstB832C;
     i1 = LoadU8(ctx, i1);
     StoreU8(ctx, i0 + 130u, i1);
     i0 = l4;
     i1 = 0u;
     StoreU8(ctx, i0 + 131u, i1);
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -330,7 +347,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i1 = l2;
     i2 = l12;
     i3 = l3;
-    i4 = kDataB84F3;
+    i4 = kF3293ConstB84F3;
     i5 = l6;
     i6 = l8;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -343,10 +360,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -359,7 +376,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l2;
     if (i0) {goto block_39;}
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -395,10 +412,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -408,7 +425,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {goto block_39;}
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 139u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -419,7 +436,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU8(ctx, i0 + 8u);
     l2 = i0;
     if (i0) {goto block_36;}
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -454,10 +471,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -484,7 +501,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l11;
     i0 = LoadS8(ctx, i0 + 59u);
     l3 = i0;
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l11;
@@ -506,7 +523,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = SkipWhitespace(ctx, i0);
     block_46:;
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -546,10 +563,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -601,7 +618,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     l2 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -624,16 +641,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
     i1 = 1u;
     i0 = i0 == i1;
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     i0 = l3;
     i1 = l3;
     i1 = LoadU32(ctx, i1 + 8u);
@@ -651,7 +668,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 12u);
     l2 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -674,17 +691,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
     i1 = 1u;
     i0 = i0 == i1;
     l2 = i0;
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
   }
   block_52:;
   i0 = ResumePhase(ctx);
@@ -718,7 +735,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     l2 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -741,16 +758,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
     i1 = 1u;
     i0 = i0 == i1;
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     i0 = l3;
     i1 = l3;
     i1 = LoadU32(ctx, i1 + 8u);
@@ -768,7 +785,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 12u);
     l2 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -791,17 +808,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
     i1 = 1u;
     i0 = i0 == i1;
     l2 = i0;
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
   }
   block_59:;
   i0 = ResumePhase(ctx);
@@ -809,7 +826,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l6;
     i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     l2 = i0;
     if (i0) {goto block_35;}
@@ -828,7 +845,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = HostTempRet0(ctx);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 139u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_5;}
@@ -858,7 +875,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = HostTempRet0(ctx);
     i0 = l6;
     i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_6;}
@@ -872,7 +889,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l11;
@@ -907,10 +924,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     l6 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l6;
@@ -927,7 +944,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -955,10 +972,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l6 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l6;
@@ -968,7 +985,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {goto block_75;}
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 11u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -980,7 +997,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 139u);
       l3 = i0;
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l6 = i0;
     }
@@ -1009,7 +1026,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 += i1;
       goto block_83;
       block_85:;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1041,10 +1058,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = l6;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l6 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = 1u;
@@ -1059,7 +1076,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 += i1;
       i1 = l2;
       i1 = LoadS8(ctx, i1 + 11u);
-      i2 = kDataFFFFFFFF;
+      i2 = kF3293ConstFFFFFFFF;
       i1 = (uint32_t)((int32_t)i1 > (int32_t)i2);
       l9 = i1;
       if (i1) {goto block_83;}
@@ -1081,7 +1098,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = l11;
       i0 = LoadS8(ctx, i0 + 59u);
       l6 = i0;
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l11;
@@ -1103,7 +1120,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = SkipWhitespace(ctx, i0);
       block_90:;
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1143,10 +1160,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1198,7 +1215,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       l6 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1221,16 +1238,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l6 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l6;
       i1 = 1u;
       i0 = i0 == i1;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       i0 = l2;
       i1 = l2;
       i1 = LoadU32(ctx, i1 + 8u);
@@ -1248,7 +1265,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       l6 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1271,17 +1288,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
       i1 = 1u;
       i0 = i0 == i1;
       l2 = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
     }
     block_96:;
     i0 = ResumePhase(ctx);
@@ -1315,7 +1332,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       l6 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1338,10 +1355,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l6 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l6;
@@ -1366,7 +1383,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       l6 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1389,10 +1406,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1410,7 +1427,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {goto block_110;}
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 363u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       if (i0) {goto block_110;}
       i0 = l4;
@@ -1419,7 +1436,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       block_110:;
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 139u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       l2 = i0;
       if (i0) {goto block_35;}
@@ -1448,7 +1465,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_6;}
@@ -1481,7 +1498,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {goto block_72;}
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 363u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_72;}
@@ -1496,7 +1513,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 139u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_6;}
@@ -1553,7 +1570,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1565,10 +1582,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3293MsgPx;
+      i2 = kF3293MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3293MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 20u;
       i1 = ResumePhase(ctx);
@@ -1579,10 +1596,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -1590,13 +1607,13 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 != i1;
       a = i0;
       if (i0) {goto block_23;}
-      goto exit_path;
+      goto running_exit;
     }
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -1620,10 +1637,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -1648,7 +1665,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1676,10 +1693,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -1687,17 +1704,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       if (i0) {goto block_11;}
       i0 = l4;
-      i1 = kDataB8336;
+      i1 = kF3293ConstB8336;
       i1 = LoadU16(ctx, i1);
       StoreU16(ctx, i0 + 328u, i1);
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = 2560u;
       StoreU16(ctx, i0 + 330u, i1);
       i0 = l4;
-      i1 = kMsgHeaderKey;
+      i1 = kF3293MsgHeaderKey;
       j1 = LoadU64(ctx, i1);
       StoreU64(ctx, i0 + 320u, j1);
       i0 = l4;
@@ -1752,10 +1769,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1778,7 +1795,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       StoreU32(ctx, i0 + 8u, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 331u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l2 = i0;
       if (i0) {
@@ -1787,7 +1804,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         l2 = i0;
         DeallocateRawBlock(ctx, i0);
       }
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1813,10 +1830,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1833,14 +1850,14 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i1 = 0u;
       StoreU8(ctx, i0 + 12u, i1);
       i0 = l3;
-      i1 = kDataB8341;
+      i1 = kF3293ConstB8341;
       i1 = LoadU32(ctx, i1);
       StoreU32(ctx, i0 + 8u, i1);
       i0 = l3;
-      i1 = kMsgHeaderValue;
+      i1 = kF3293MsgHeaderValue;
       j1 = LoadU64(ctx, i1);
       StoreU64(ctx, i0, j1);
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1896,10 +1913,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -1922,7 +1939,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       StoreU32(ctx, i0 + 8u, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 315u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l2 = i0;
       if (i0) {
@@ -2029,7 +2046,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               goto block_144;
             }
             i0 = l7;
-            i1 = kDataFFFFFFFF;
+            i1 = kF3293ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             l13 = i0;
             if (i0) {goto block_144;}
@@ -2043,7 +2060,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             l14 = i0;
             if (i0) {goto block_148;}
             i0 = l13;
-            i1 = kDataFFFFFFFF;
+            i1 = kF3293ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             l13 = i0;
             if (i0) {goto block_147;}
@@ -2141,7 +2158,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 goto block_155;
               }
               i0 = l7;
-              i1 = kDataFFFFFFFF;
+              i1 = kF3293ConstFFFFFFFF;
               i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
               l8 = i0;
               if (i0) {goto block_155;}
@@ -2155,7 +2172,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               l10 = i0;
               if (i0) {goto block_159;}
               i0 = l8;
-              i1 = kDataFFFFFFFF;
+              i1 = kF3293ConstFFFFFFFF;
               i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
               l8 = i0;
               if (i0) {goto block_158;}
@@ -2170,7 +2187,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = l16;
             if (i0) {goto block_156;}
             block_158:;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -2206,7 +2223,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i1 = l2;
             i2 = l12;
             i3 = l3;
-            i4 = kDataB84F3;
+            i4 = kF3293ConstB84F3;
             i5 = l8;
             i6 = l9;
             HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -2219,10 +2236,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -2235,7 +2252,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           if (i0) {
             i0 = l2;
             if (i0) {goto block_165;}
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -2274,7 +2291,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i1 = l2;
             i2 = l12;
             i3 = l8;
-            i4 = kDataB84F3;
+            i4 = kF3293ConstB84F3;
             i5 = l9;
             i6 = l10;
             HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -2287,10 +2304,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -2305,7 +2322,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i1 += i2;
             l2 = i1;
             StoreU32(ctx, i0 + 288u, i1);
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -2336,7 +2353,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i1 = l8;
             i2 = l9;
             i3 = l2;
-            i4 = kDataB84F3;
+            i4 = kF3293ConstB84F3;
             i5 = l10;
             i6 = l13;
             HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -2349,10 +2366,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -2360,7 +2377,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = i0 == i1;
             l2 = i0;
             if (i0) {goto block_165;}
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -2396,10 +2413,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -2417,7 +2434,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = HostTempRet0(ctx);
             i0 = l4;
             i0 = LoadS8(ctx, i0 + 331u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3293ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             a = i0;
             if (i0) {goto block_9;}
@@ -2448,7 +2465,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = !(i0);
         if (i0) {
           i0 = l17;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -2463,7 +2480,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 <<= (i1 & 31);
           i1 = 24u;
           i0 = (uint32_t)((int32_t)i0 >> (i1 & 31));
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -2472,7 +2489,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           }
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 139u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           l2 = i0;
           if (i0) {goto block_127;}
@@ -2488,7 +2505,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 331u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -2497,7 +2514,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           }
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 51u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -2506,7 +2523,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           }
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 139u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           l2 = i0;
           if (i0) {
@@ -2544,7 +2561,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 331u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -2553,7 +2570,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 51u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -2562,7 +2579,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 139u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     l2 = i0;
     if (i0) {goto block_127;}
@@ -2657,7 +2674,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           goto block_193;
         }
         i0 = l10;
-        i1 = kDataFFFFFFFF;
+        i1 = kF3293ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         l3 = i0;
         if (i0) {goto block_193;}
@@ -2673,7 +2690,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         l6 = i0;
         if (i0) {goto block_197;}
         i0 = l3;
-        i1 = kDataFFFFFFFF;
+        i1 = kF3293ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         l3 = i0;
         if (i0) {goto block_196;}
@@ -2692,7 +2709,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0 + 12u);
       l3 = i0;
       if (i0) {goto block_191;}
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -2704,10 +2721,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3293MsgPx;
+      i2 = kF3293MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3293MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 30u;
       i1 = ResumePhase(ctx);
@@ -2718,10 +2735,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -2729,7 +2746,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 != i1;
       a = i0;
       if (i0) {goto block_23;}
-      goto exit_path;
+      goto running_exit;
     }
     block_194:;
     i0 = l2;
@@ -2762,7 +2779,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l4;
     i1 = 8u;
     StoreU8(ctx, i0 + 139u, i1);
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -2798,7 +2815,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i1 = l2;
     i2 = l12;
     i3 = l6;
-    i4 = kDataB84F3;
+    i4 = kF3293ConstB84F3;
     i5 = l8;
     i6 = l9;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -2811,10 +2828,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -2834,7 +2851,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 60u);
     l6 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -2862,10 +2879,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -2875,7 +2892,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {goto block_207;}
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 139u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     l2 = i0;
     if (i0) {goto block_187;}
@@ -2894,7 +2911,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = HostTempRet0(ctx);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 139u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_7;}
@@ -2934,7 +2951,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l8;
     if (i0) {goto block_214;}
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2948,8 +2965,8 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = 1354u;
     i1 = l15;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgHttpget;
+    i3 = kF3293ConstFFFFFFFF;
+    i4 = kF3293MsgHttpget;
     i5 = 7u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -2964,10 +2981,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -3010,7 +3027,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -3022,10 +3039,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3293MsgPx;
+        i2 = kF3293MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3293MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 34u;
         i1 = ResumePhase(ctx);
@@ -3036,10 +3053,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -3047,7 +3064,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_23;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
@@ -3057,7 +3074,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 52u);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -3085,10 +3102,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -3116,7 +3133,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -3128,10 +3145,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3293MsgPx;
+        i2 = kF3293MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3293MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 36u;
         i1 = ResumePhase(ctx);
@@ -3142,10 +3159,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -3153,13 +3170,13 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_23;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -3187,10 +3204,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -3211,7 +3228,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 16u);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -3251,10 +3268,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -3264,7 +3281,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {goto block_239;}
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 139u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3293ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         l2 = i0;
         if (i0) {
@@ -3277,7 +3294,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = !(i0);
         b = i0;
         if (i0) {goto block_213;}
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -3290,8 +3307,8 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {
         i0 = 3127u;
         i1 = a;
-        i2 = kDataFFFFFFFF;
-        i3 = kDataB834E;
+        i2 = kF3293ConstFFFFFFFF;
+        i3 = kF3293ConstB834E;
         HostSyncSlot(ctx, i0, i1, i2, i3);
         i0 = 39u;
         i1 = ResumePhase(ctx);
@@ -3302,10 +3319,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -3343,7 +3360,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 8u);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -3366,10 +3383,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -3403,7 +3420,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 12u);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -3426,10 +3443,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -3441,7 +3458,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       }
       i0 = ResumePhase(ctx);
       i0 = !(i0);
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -3461,7 +3478,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = HostTempRet0(ctx);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 139u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_7;}
@@ -3484,7 +3501,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_214:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -3504,7 +3521,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = i0 != i1;
     l2 = i0;
     if (i0) {goto block_213;}
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -3518,8 +3535,8 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = 1354u;
     i1 = l15;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgHttppost;
+    i3 = kF3293ConstFFFFFFFF;
+    i4 = kF3293MsgHttppost;
     i5 = 8u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -3534,17 +3551,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
     i1 = 1u;
     i0 = i0 == i1;
     l2 = i0;
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     i0 = l3;
     if (i0) {goto block_213;}
     i0 = l4;
@@ -3579,7 +3596,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -3607,10 +3624,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -3618,18 +3635,18 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = i0 == i1;
       l2 = i0;
       if (i0) {goto block_16;}
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = 3u;
       StoreU8(ctx, i0 + 139u, i1);
       i0 = l4;
-      i1 = kDataB837F;
+      i1 = kF3293ConstB837F;
       i1 = LoadU16(ctx, i1);
       StoreU16(ctx, i0 + 128u, i1);
       i0 = l4;
-      i1 = kDataB8381;
+      i1 = kF3293ConstB8381;
       i1 = LoadU8(ctx, i1);
       StoreU8(ctx, i0 + 130u, i1);
       i0 = l4;
@@ -3687,10 +3704,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -3714,25 +3731,25 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       StoreU32(ctx, i0 + 8u, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 139u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
         i0 = LoadU32(ctx, i0 + 128u);
         DeallocateRawBlock(ctx, i0);
       }
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = 5u;
       StoreU8(ctx, i0 + 139u, i1);
       i0 = l4;
-      i1 = kMsgValue;
+      i1 = kF3293MsgValue;
       i1 = LoadU32(ctx, i1);
       StoreU32(ctx, i0 + 128u, i1);
       i0 = l4;
-      i1 = kDataB8387;
+      i1 = kF3293ConstB8387;
       i1 = LoadU8(ctx, i1);
       StoreU8(ctx, i0 + 132u, i1);
       i0 = l4;
@@ -3790,10 +3807,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -3817,21 +3834,21 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       StoreU32(ctx, i0 + 8u, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 139u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
         i0 = LoadU32(ctx, i0 + 128u);
         DeallocateRawBlock(ctx, i0);
       }
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = 0u;
       StoreU8(ctx, i0 + 132u, i1);
       i0 = l4;
-      i1 = kData656C6966;
+      i1 = kF3293Const656C6966;
       StoreU32(ctx, i0 + 128u, i1);
       i0 = l4;
       i1 = 4u;
@@ -3888,10 +3905,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l2;
@@ -3915,7 +3932,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       StoreU32(ctx, i0 + 8u, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 139u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l2 = i0;
       if (i0) {
@@ -4021,7 +4038,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               goto block_279;
             }
             i0 = l16;
-            i1 = kDataFFFFFFFF;
+            i1 = kF3293ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {goto block_279;}
             block_285:;
@@ -4034,7 +4051,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             l9 = i0;
             if (i0) {goto block_283;}
             i0 = l15;
-            i1 = kDataFFFFFFFF;
+            i1 = kF3293ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             l9 = i0;
             if (i0) {goto block_282;}
@@ -4134,7 +4151,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 goto block_302;
               }
               i0 = l7;
-              i1 = kDataFFFFFFFF;
+              i1 = kF3293ConstFFFFFFFF;
               i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
               l10 = i0;
               if (i0) {goto block_302;}
@@ -4148,7 +4165,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               l9 = i0;
               if (i0) {goto block_306;}
               i0 = l10;
-              i1 = kDataFFFFFFFF;
+              i1 = kF3293ConstFFFFFFFF;
               i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
               l9 = i0;
               if (i0) {goto block_305;}
@@ -4185,7 +4202,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = l4;
               i1 = 192u;
               i0 += i1;
-              i1 = kDataB8389;
+              i1 = kF3293ConstB8389;
               i2 = l3;
               i0 = CopyBytes(ctx, i0, i1, i2);
             }
@@ -4196,7 +4213,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 |= i1;
             i1 = 0u;
             StoreU8(ctx, i0, i1);
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -4209,7 +4226,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 += i1;
             l8 = i0;
             i0 = l4;
-            i1 = kDataFFFFFFC0;
+            i1 = kF3293ConstFFFFFFC0;
             i0 -= i1;
             l9 = i0;
             i0 = l4;
@@ -4232,7 +4249,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i1 = l2;
             i2 = l12;
             i3 = l3;
-            i4 = kDataB84F3;
+            i4 = kF3293ConstB84F3;
             i5 = l8;
             i6 = l9;
             HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -4245,10 +4262,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -4279,7 +4296,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = l3;
               i0 = LoadU8(ctx, i0 + 39u);
               l3 = i0;
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l4;
@@ -4329,10 +4346,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i0 = LoadU32(ctx, i0);
               l2 = i0;
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l2;
@@ -4453,7 +4470,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
                 goto block_346;
               }
               i0 = l7;
-              i1 = kDataFFFFFFFF;
+              i1 = kF3293ConstFFFFFFFF;
               i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
               l8 = i0;
               if (i0) {goto block_346;}
@@ -4467,7 +4484,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               l9 = i0;
               if (i0) {goto block_350;}
               i0 = l8;
-              i1 = kDataFFFFFFFF;
+              i1 = kF3293ConstFFFFFFFF;
               i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
               l8 = i0;
               if (i0) {goto block_349;}
@@ -4482,16 +4499,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = l16;
             if (i0) {goto block_347;}
             block_349:;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
             i1 = 128u;
             i0 += i1;
             l3 = i0;
-            i1 = kDataAE298;
+            i1 = kF3293ConstAE298;
             StoreU32(ctx, i0, i1);
-            i0 = kDataCF12C;
+            i0 = kF3293ConstCF12C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
             i0 = l3;
@@ -4505,10 +4522,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             StoreU64(ctx, i0 + 16u, j1);
             i0 = l3;
             l8 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -4517,7 +4534,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             l2 = i0;
             if (i0) {goto block_342;}
             i0 = l4;
-            i1 = kData90680;
+            i1 = kF3293Const90680;
             StoreU32(ctx, i0 + 152u, i1);
             i0 = l4;
             j1 = 0ull;
@@ -4532,9 +4549,9 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             j1 = 0ull;
             StoreU64(ctx, i0 + 156u, j1);
             i0 = l4;
-            i1 = kDataB90E8;
+            i1 = kF3293ConstB90E8;
             StoreU32(ctx, i0 + 128u, i1);
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -4570,7 +4587,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i1 = l2;
             i2 = l12;
             i3 = l3;
-            i4 = kDataB84F3;
+            i4 = kF3293ConstB84F3;
             i5 = l9;
             i6 = l10;
             HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -4583,10 +4600,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -4602,14 +4619,14 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             l2 = i0;
             i0 = l3;
             i0 = LoadS8(ctx, i0 + 39u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3293ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l2;
               i0 = LoadU32(ctx, i0);
               l2 = i0;
             }
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -4640,10 +4657,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -4653,7 +4670,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             if (i0) {goto block_328;}
             i0 = l3;
             if (i0) {goto block_330;}
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -4689,10 +4706,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -4704,7 +4721,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = LoadU32(ctx, i0 + 120u);
             l3 = i0;
             if (i0) {goto block_343;}
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -4716,10 +4733,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = i2 ? i0 : i1;
           if (i0) {
             i0 = 857u;
-            i1 = kMsgPx;
-            i2 = kMsgSmartPtrPath;
+            i1 = kF3293MsgPx;
+            i2 = kF3293MsgBoostBoostSmartPtr;
             i3 = 734u;
-            i4 = kMsgOperator;
+            i4 = kF3293MsgOperator;
             HostFailAssertion(ctx, i0, i1, i2, i3, i4);
             i0 = 52u;
             i1 = ResumePhase(ctx);
@@ -4730,10 +4747,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -4741,7 +4758,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = i0 != i1;
             a = i0;
             if (i0) {goto block_23;}
-            goto exit_path;
+            goto running_exit;
           }
           block_347:;
           i0 = l3;
@@ -4766,7 +4783,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = a;
           i0 = LoadU32(ctx, i0 + 4u);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -4802,7 +4819,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i1 = l3;
           i2 = 1u;
           i3 = b;
-          i4 = kDataB83F7;
+          i4 = kF3293ConstB83F7;
           i5 = l4;
           HostInitResources(ctx, i0, i1, i2, i3, i4, i5);
           i0 = 53u;
@@ -4814,10 +4831,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -4841,7 +4858,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = l3;
           i0 = LoadU32(ctx, i0 + 4u);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -4880,10 +4897,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -4891,7 +4908,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = i0 == i1;
           l2 = i0;
           if (i0) {goto block_341;}
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -4917,10 +4934,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
@@ -4938,26 +4955,26 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i1 = 0u;
           StoreU8(ctx, i0 + 38u, i1);
           i0 = l3;
-          i1 = kDataB83AB;
+          i1 = kF3293ConstB83AB;
           j1 = LoadU64(ctx, i1);
           StoreU64(ctx, i0 + 30u, j1);
           i0 = l3;
-          i1 = kDataB83A5;
+          i1 = kF3293ConstB83A5;
           j1 = LoadU64(ctx, i1);
           StoreU64(ctx, i0 + 24u, j1);
           i0 = l3;
-          i1 = kDataB839D;
+          i1 = kF3293ConstB839D;
           j1 = LoadU64(ctx, i1);
           StoreU64(ctx, i0 + 16u, j1);
           i0 = l3;
-          i1 = kDataB8395;
+          i1 = kF3293ConstB8395;
           j1 = LoadU64(ctx, i1);
           StoreU64(ctx, i0 + 8u, j1);
           i0 = l3;
-          i1 = kMsgContentDispositionFormData;
+          i1 = kF3293MsgContentDispositionFormData;
           j1 = LoadU64(ctx, i1);
           StoreU64(ctx, i0, j1);
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -4966,7 +4983,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i1 += i2;
           StoreU32(ctx, i0 + 64u, i1);
           i0 = l4;
-          i1 = kDataFFFFFFC0;
+          i1 = kF3293ConstFFFFFFC0;
           i0 -= i1;
           l9 = i0;
           i0 = l4;
@@ -4993,7 +5010,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i1 = l2;
           i2 = l12;
           i3 = l3;
-          i4 = kDataB84F3;
+          i4 = kF3293ConstB84F3;
           i5 = l9;
           i6 = l10;
           HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -5006,10 +5023,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -5031,7 +5048,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = l3;
           i0 = LoadU8(ctx, i0 + 39u);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -5080,10 +5097,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
@@ -5105,7 +5122,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = l3;
           i1 = 0u;
           StoreU32(ctx, i0 + 8u, i1);
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -5122,7 +5139,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = 997u;
           i1 = l2;
-          i2 = kMsgFilename;
+          i2 = kF3293MsgFilename;
           i0 = HostOsQuery(ctx, i0, i1, i2);
           l7 = i0;
           i0 = 58u;
@@ -5136,10 +5153,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
@@ -5161,7 +5178,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = l3;
           i1 = 0u;
           StoreU32(ctx, i0 + 8u, i1);
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -5197,7 +5214,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i1 = l2;
           i2 = l12;
           i3 = l3;
-          i4 = kDataB84F3;
+          i4 = kF3293ConstB84F3;
           i5 = l9;
           i6 = l10;
           HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -5210,10 +5227,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -5222,9 +5239,9 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           l2 = i0;
           if (i0) {goto block_337;}
           i0 = l4;
-          i1 = kData8B830;
+          i1 = kF3293Const8B830;
           StoreU32(ctx, i0 + 40u, i1);
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -5256,10 +5273,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
@@ -5271,14 +5288,14 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i1 = 47u;
           StoreU8(ctx, i0 + 56u, i1);
           i0 = l4;
-          i1 = kDataCF12C;
+          i1 = kF3293ConstCF12C;
           i1 = LoadU32(ctx, i1);
           StoreU32(ctx, i0 + 60u, i1);
           i0 = l3;
           i1 = 47u;
           i0 = FindLastCharInString(ctx, i0, i1);
           l2 = i0;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = i0 == i1;
           l9 = i0;
         }
@@ -5291,11 +5308,11 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
-            i1 = kDataFFFFFFC0;
+            i1 = kF3293ConstFFFFFFC0;
             i0 -= i1;
             l2 = i0;
           }
@@ -5322,10 +5339,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -5339,11 +5356,11 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
-          i1 = kDataFFFFFFC0;
+          i1 = kF3293ConstFFFFFFC0;
           i0 -= i1;
           l9 = i0;
           i0 = l2;
@@ -5362,7 +5379,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i1 = l9;
           i2 = l3;
           i3 = l2;
-          i4 = kDataFFFFFFFF;
+          i4 = kF3293ConstFFFFFFFF;
           i5 = l17;
           i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
           l7 = i0;
@@ -5377,10 +5394,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -5393,7 +5410,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -5403,7 +5420,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = l4;
           i0 = LoadU32(ctx, i0 + 64u);
           i1 = l4;
-          i2 = kDataFFFFFFC0;
+          i2 = kF3293ConstFFFFFFC0;
           i1 -= i2;
           i2 = l4;
           i2 = LoadU8(ctx, i2 + 75u);
@@ -5449,10 +5466,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
@@ -5474,7 +5491,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = l3;
           i1 = 0u;
           StoreU32(ctx, i0 + 8u, i1);
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -5511,10 +5528,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -5564,7 +5581,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             StoreU32(ctx, i0 + 112u, i1);
             goto block_395;
           }
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -5596,10 +5613,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -5640,7 +5657,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 8u);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -5663,16 +5680,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
           i1 = 1u;
           i0 = i0 == i1;
-          if (i0) {goto exit_path;}
+          if (i0) {goto running_exit;}
           i0 = l3;
           i1 = l3;
           i1 = LoadU32(ctx, i1 + 8u);
@@ -5690,7 +5707,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 12u);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -5713,17 +5730,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
           i1 = 1u;
           i0 = i0 == i1;
           l2 = i0;
-          if (i0) {goto exit_path;}
+          if (i0) {goto running_exit;}
         }
         block_401:;
         i0 = ResumePhase(ctx);
@@ -5731,7 +5748,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 219u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -5740,7 +5757,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           }
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 75u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -5748,11 +5765,11 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             DeallocateRawBlock(ctx, i0);
           }
           i0 = l4;
-          i1 = kData8B830;
+          i1 = kF3293Const8B830;
           StoreU32(ctx, i0 + 40u, i1);
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 55u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -5761,7 +5778,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           }
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 203u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -5770,7 +5787,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           }
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 107u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -5779,7 +5796,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           }
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 91u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -5826,7 +5843,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             StoreU32(ctx, i0 + 292u, i1);
             goto block_414;
           }
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -5858,10 +5875,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -5897,7 +5914,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 8u);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -5920,10 +5937,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
@@ -5957,7 +5974,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = LoadU32(ctx, i0);
             i0 = LoadU32(ctx, i0 + 12u);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -5980,10 +5997,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -5995,7 +6012,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         }
         i0 = ResumePhase(ctx);
         i0 = !(i0);
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         block_342:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -6096,7 +6113,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           l2 = i0;
           i0 = LoadU32(ctx, i0 + 8u);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -6119,10 +6136,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -6156,7 +6173,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             l2 = i0;
             i0 = LoadU32(ctx, i0 + 12u);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -6179,10 +6196,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -6194,7 +6211,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         }
         i0 = ResumePhase(ctx);
         i0 = !(i0);
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         block_334:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -6210,7 +6227,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 219u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_332;}
@@ -6225,7 +6242,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 75u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_326;}
@@ -6252,7 +6269,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = a;
           i0 = LoadU32(ctx, i0 + 4u);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -6285,7 +6302,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i1 = l3;
           i2 = 1u;
           i3 = b;
-          i4 = kDataB83C4;
+          i4 = kF3293ConstB83C4;
           i5 = l2;
           HostInitResources(ctx, i0, i1, i2, i3, i4, i5);
           i0 = 73u;
@@ -6297,10 +6314,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -6314,7 +6331,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = !(i0);
         if (i0) {
           i0 = l4;
-          i1 = kData90610;
+          i1 = kF3293Const90610;
           StoreU32(ctx, i0 + 128u, i1);
           i0 = l4;
           i0 = LoadU32(ctx, i0 + 180u);
@@ -6344,7 +6361,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 8u);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -6367,16 +6384,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
           i1 = 1u;
           i0 = i0 == i1;
-          if (i0) {goto exit_path;}
+          if (i0) {goto running_exit;}
           i0 = l3;
           i1 = l3;
           i1 = LoadU32(ctx, i1 + 8u);
@@ -6394,7 +6411,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 12u);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -6417,28 +6434,28 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
           i1 = 1u;
           i0 = i0 == i1;
           l2 = i0;
-          if (i0) {goto exit_path;}
+          if (i0) {goto running_exit;}
         }
         block_451:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
           i0 = l4;
-          i1 = kData90680;
+          i1 = kF3293Const90680;
           StoreU32(ctx, i0 + 152u, i1);
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 167u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           l2 = i0;
           if (i0) {
@@ -6493,11 +6510,11 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = !(i0);
         if (i0) {
           i0 = l4;
-          i1 = kData8B830;
+          i1 = kF3293Const8B830;
           StoreU32(ctx, i0 + 40u, i1);
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 55u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_325;}
@@ -6512,7 +6529,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 203u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_324;}
@@ -6527,7 +6544,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 107u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_323;}
@@ -6542,7 +6559,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 91u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_322;}
@@ -6578,7 +6595,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           l2 = i0;
           i0 = LoadU32(ctx, i0 + 8u);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -6601,10 +6618,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -6638,7 +6655,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             l2 = i0;
             i0 = LoadU32(ctx, i0 + 12u);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -6661,10 +6678,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -6676,13 +6693,13 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         }
         i0 = ResumePhase(ctx);
         i0 = !(i0);
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         block_321:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
           i0 = l4;
-          i1 = kData90610;
+          i1 = kF3293Const90610;
           StoreU32(ctx, i0 + 128u, i1);
           i0 = l4;
           i0 = LoadU32(ctx, i0 + 180u);
@@ -6712,7 +6729,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           l2 = i0;
           i0 = LoadU32(ctx, i0 + 8u);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -6735,10 +6752,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -6763,7 +6780,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           l2 = i0;
           i0 = LoadU32(ctx, i0 + 12u);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -6786,10 +6803,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -6803,11 +6820,11 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = !(i0);
         if (i0) {
           i0 = l4;
-          i1 = kData90680;
+          i1 = kF3293Const90680;
           StoreU32(ctx, i0 + 152u, i1);
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 167u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           a = i0;
           if (i0) {
@@ -6841,7 +6858,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         block_475:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         block_299:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -6860,7 +6877,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = l3;
           i1 = 0u;
           StoreU32(ctx, i0 + 8u, i1);
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -6877,7 +6894,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = 997u;
           i1 = l2;
-          i2 = kDataB838B;
+          i2 = kF3293ConstB838B;
           i0 = HostOsQuery(ctx, i0, i1, i2);
           l7 = i0;
           i0 = 82u;
@@ -6891,10 +6908,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
@@ -6925,7 +6942,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = l3;
             i1 = 0u;
             StoreU32(ctx, i0 + 8u, i1);
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -6938,7 +6955,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 += i1;
             l8 = i0;
             i0 = l4;
-            i1 = kDataFFFFFFC0;
+            i1 = kF3293ConstFFFFFFC0;
             i0 -= i1;
             l9 = i0;
             i0 = l4;
@@ -6961,7 +6978,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i1 = l2;
             i2 = l12;
             i3 = l3;
-            i4 = kDataB84F3;
+            i4 = kF3293ConstB84F3;
             i5 = l8;
             i6 = l9;
             HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -6974,10 +6991,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -6999,7 +7016,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = l3;
             i0 = LoadU8(ctx, i0 + 39u);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -7049,10 +7066,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -7074,7 +7091,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = l3;
             i1 = 0u;
             StoreU32(ctx, i0 + 8u, i1);
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -7130,10 +7147,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -7143,7 +7160,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             if (i0) {goto block_489;}
             i0 = l4;
             i0 = LoadS8(ctx, i0 + 139u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3293ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l4;
@@ -7152,7 +7169,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             }
             i0 = l4;
             i0 = LoadS8(ctx, i0 + 51u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3293ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l4;
@@ -7161,7 +7178,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             }
             i0 = l4;
             i0 = LoadS8(ctx, i0 + 219u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3293ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l4;
@@ -7170,7 +7187,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             }
             i0 = l4;
             i0 = LoadS8(ctx, i0 + 203u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3293ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             l2 = i0;
             if (i0) {
@@ -7179,7 +7196,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               l2 = i0;
               DeallocateRawBlock(ctx, i0);
             }
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -7205,10 +7222,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -7226,26 +7243,26 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i1 = 0u;
             StoreU8(ctx, i0 + 38u, i1);
             i0 = l3;
-            i1 = kDataB83AB;
+            i1 = kF3293ConstB83AB;
             j1 = LoadU64(ctx, i1);
             StoreU64(ctx, i0 + 30u, j1);
             i0 = l3;
-            i1 = kDataB83A5;
+            i1 = kF3293ConstB83A5;
             j1 = LoadU64(ctx, i1);
             StoreU64(ctx, i0 + 24u, j1);
             i0 = l3;
-            i1 = kDataB839D;
+            i1 = kF3293ConstB839D;
             j1 = LoadU64(ctx, i1);
             StoreU64(ctx, i0 + 16u, j1);
             i0 = l3;
-            i1 = kDataB8395;
+            i1 = kF3293ConstB8395;
             j1 = LoadU64(ctx, i1);
             StoreU64(ctx, i0 + 8u, j1);
             i0 = l3;
-            i1 = kMsgContentDispositionFormData;
+            i1 = kF3293MsgContentDispositionFormData;
             j1 = LoadU64(ctx, i1);
             StoreU64(ctx, i0, j1);
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -7258,7 +7275,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 += i1;
             l8 = i0;
             i0 = l4;
-            i1 = kDataFFFFFFC0;
+            i1 = kF3293ConstFFFFFFC0;
             i0 -= i1;
             l9 = i0;
             i0 = l4;
@@ -7281,7 +7298,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i1 = l2;
             i2 = l12;
             i3 = l3;
-            i4 = kDataB84F3;
+            i4 = kF3293ConstB84F3;
             i5 = l8;
             i6 = l9;
             HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -7294,10 +7311,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -7319,7 +7336,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = l3;
             i0 = LoadU8(ctx, i0 + 39u);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -7369,10 +7386,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -7394,7 +7411,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = l3;
             i1 = 0u;
             StoreU32(ctx, i0 + 8u, i1);
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -7411,7 +7428,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           if (i0) {
             i0 = 997u;
             i1 = l2;
-            i2 = kDataB83B4;
+            i2 = kF3293ConstB83B4;
             i0 = HostOsQuery(ctx, i0, i1, i2);
             l7 = i0;
             i0 = 89u;
@@ -7425,10 +7442,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -7450,7 +7467,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = l3;
             i1 = 0u;
             StoreU32(ctx, i0 + 8u, i1);
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -7463,7 +7480,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 += i1;
             l8 = i0;
             i0 = l4;
-            i1 = kDataFFFFFFC0;
+            i1 = kF3293ConstFFFFFFC0;
             i0 -= i1;
             l9 = i0;
             i0 = l4;
@@ -7486,7 +7503,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i1 = l2;
             i2 = l12;
             i3 = l3;
-            i4 = kDataB84F3;
+            i4 = kF3293ConstB84F3;
             i5 = l8;
             i6 = l9;
             HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -7499,10 +7516,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -7510,7 +7527,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = i0 == i1;
             l2 = i0;
             if (i0) {goto block_293;}
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -7548,10 +7565,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -7601,7 +7618,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               StoreU32(ctx, i0 + 96u, i1);
               goto block_517;
             }
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l4;
@@ -7633,10 +7650,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -7677,7 +7694,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = LoadU32(ctx, i0);
             i0 = LoadU32(ctx, i0 + 8u);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -7700,10 +7717,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l2;
@@ -7728,7 +7745,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = LoadU32(ctx, i0);
             i0 = LoadU32(ctx, i0 + 12u);
             l2 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -7751,10 +7768,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
@@ -7769,7 +7786,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           if (i0) {
             i0 = l4;
             i0 = LoadS8(ctx, i0 + 139u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3293ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l4;
@@ -7778,7 +7795,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             }
             i0 = l4;
             i0 = LoadS8(ctx, i0 + 51u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3293ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             if (i0) {
               i0 = l4;
@@ -7787,7 +7804,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             }
             i0 = l4;
             i0 = LoadS8(ctx, i0 + 219u);
-            i1 = kDataFFFFFFFF;
+            i1 = kF3293ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             l2 = i0;
             if (i0) {goto block_289;}
@@ -7826,7 +7843,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = HostTempRet0(ctx);
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 139u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_488;}
@@ -7841,7 +7858,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 51u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_487;}
@@ -7856,7 +7873,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 219u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_298;}
@@ -7871,7 +7888,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 203u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_288;}
@@ -7941,7 +7958,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           l2 = i0;
           i0 = LoadU32(ctx, i0 + 8u);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -7964,10 +7981,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -8001,7 +8018,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             l2 = i0;
             i0 = LoadU32(ctx, i0 + 12u);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -8024,10 +8041,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF3293ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -8039,7 +8056,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         }
         i0 = ResumePhase(ctx);
         i0 = !(i0);
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         block_293:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -8055,7 +8072,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 139u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_291;}
@@ -8070,7 +8087,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 51u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_290;}
@@ -8085,7 +8102,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 219u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_288;}
@@ -8101,7 +8118,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 235u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -8110,7 +8127,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           }
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 251u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -8119,7 +8136,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           }
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 267u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -8128,7 +8145,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           }
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 283u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           l2 = i0;
           if (i0) {
@@ -8149,7 +8166,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 235u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3293ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_21;}
@@ -8162,7 +8179,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         block_287:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         block_280:;
         i0 = l2;
         i1 = l2;
@@ -8186,7 +8203,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 235u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -8195,7 +8212,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 251u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -8204,7 +8221,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 267u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -8213,7 +8230,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 283u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -8237,7 +8254,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -8263,10 +8280,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -8293,14 +8310,14 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = 0u;
         StoreU8(ctx, i0 + 12u, i1);
         i0 = b;
-        i1 = kDataB8466;
+        i1 = kF3293ConstB8466;
         i1 = LoadU32(ctx, i1);
         StoreU32(ctx, i0 + 8u, i1);
         i0 = b;
-        i1 = kMsgContentType;
+        i1 = kF3293MsgContentType;
         j1 = LoadU64(ctx, i1);
         StoreU64(ctx, i0, j1);
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -8340,7 +8357,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = b;
         i2 = l2;
         i3 = l3;
-        i4 = kDataB84F3;
+        i4 = kF3293ConstB84F3;
         i5 = l6;
         i6 = l8;
         HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -8353,10 +8370,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -8364,7 +8381,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i0 == i1;
         b = i0;
         if (i0) {goto block_573;}
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -8382,7 +8399,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {
         i0 = 996u;
         i1 = b;
-        i2 = kMsgApplicationXWwwForm;
+        i2 = kF3293MsgApplicationXWwwForm;
         i0 = HostOsQuery(ctx, i0, i1, i2);
         l7 = i0;
         i0 = 99u;
@@ -8396,10 +8413,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -8409,7 +8426,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {goto block_573;}
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 139u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3293ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l4;
@@ -8431,7 +8448,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -8443,10 +8460,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kMsgPx;
-          i2 = kMsgSmartPtrPath;
+          i1 = kF3293MsgPx;
+          i2 = kF3293MsgBoostBoostSmartPtr;
           i3 = 734u;
-          i4 = kMsgOperator;
+          i4 = kF3293MsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 100u;
           i1 = ResumePhase(ctx);
@@ -8457,10 +8474,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -8468,7 +8485,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = i0 != i1;
           a = i0;
           if (i0) {goto block_23;}
-          goto exit_path;
+          goto running_exit;
         }
       }
       i0 = ResumePhase(ctx);
@@ -8478,7 +8495,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 52u);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -8506,10 +8523,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -8532,7 +8549,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -8544,10 +8561,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kMsgPx;
-          i2 = kMsgSmartPtrPath;
+          i1 = kF3293MsgPx;
+          i2 = kF3293MsgBoostBoostSmartPtr;
           i3 = 734u;
-          i4 = kMsgOperator;
+          i4 = kF3293MsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 102u;
           i1 = ResumePhase(ctx);
@@ -8558,10 +8575,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -8569,13 +8586,13 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = i0 != i1;
           a = i0;
           if (i0) {goto block_23;}
-          goto exit_path;
+          goto running_exit;
         }
       }
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -8603,10 +8620,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -8618,7 +8635,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 28u);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -8686,10 +8703,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -8699,7 +8716,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {goto block_571;}
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 139u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3293ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         l2 = i0;
         if (i0) {
@@ -8712,7 +8729,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = !(i0);
         b = i0;
         if (i0) {goto block_567;}
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -8725,8 +8742,8 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {
         i0 = 3127u;
         i1 = a;
-        i2 = kDataFFFFFFFF;
-        i3 = kDataB834E;
+        i2 = kF3293ConstFFFFFFFF;
+        i3 = kF3293ConstB834E;
         HostSyncSlot(ctx, i0, i1, i2, i3);
         i0 = 105u;
         i1 = ResumePhase(ctx);
@@ -8737,10 +8754,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -8783,7 +8800,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 8u);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -8806,17 +8823,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
         i1 = 1u;
         i0 = i0 == i1;
         a = i0;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         i0 = b;
         i1 = b;
         i1 = LoadU32(ctx, i1 + 8u);
@@ -8834,7 +8851,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -8857,17 +8874,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
         i1 = 1u;
         i0 = i0 == i1;
         a = i0;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
       }
       block_603:;
       i0 = ResumePhase(ctx);
@@ -8936,7 +8953,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = LoadU32(ctx, i0);
               i0 = LoadU32(ctx, i0 + 8u);
               l2 = i0;
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
             }
@@ -8959,16 +8976,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i0 = LoadU32(ctx, i0);
               l2 = i0;
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l2;
               i1 = 1u;
               i0 = i0 == i1;
-              if (i0) {goto exit_path;}
+              if (i0) {goto running_exit;}
               i0 = a;
               i1 = a;
               i1 = LoadU32(ctx, i1 + 8u);
@@ -8986,7 +9003,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = LoadU32(ctx, i0);
               i0 = LoadU32(ctx, i0 + 12u);
               l2 = i0;
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
             }
@@ -9009,17 +9026,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i0 = LoadU32(ctx, i0);
               a = i0;
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = a;
               i1 = 1u;
               i0 = i0 == i1;
               a = i0;
-              if (i0) {goto exit_path;}
+              if (i0) {goto running_exit;}
             }
             block_616:;
             i0 = ResumePhase(ctx);
@@ -9119,7 +9136,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = LoadU32(ctx, i0);
               i0 = LoadU32(ctx, i0 + 8u);
               l2 = i0;
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
             }
@@ -9142,16 +9159,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i0 = LoadU32(ctx, i0);
               l2 = i0;
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = l2;
               i1 = 1u;
               i0 = i0 == i1;
-              if (i0) {goto exit_path;}
+              if (i0) {goto running_exit;}
               i0 = a;
               i1 = a;
               i1 = LoadU32(ctx, i1 + 8u);
@@ -9169,7 +9186,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
               i0 = LoadU32(ctx, i0);
               i0 = LoadU32(ctx, i0 + 12u);
               l2 = i0;
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
             }
@@ -9192,17 +9209,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
             i0 = ResumePhase(ctx);
             i0 = !(i0);
             if (i0) {
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i0 = LoadU32(ctx, i0);
               a = i0;
-              i0 = kDataD015C;
+              i0 = kF3293ConstD015C;
               i1 = 0u;
               StoreU32(ctx, i0, i1);
               i0 = a;
               i1 = 1u;
               i0 = i0 == i1;
               a = i0;
-              if (i0) {goto exit_path;}
+              if (i0) {goto running_exit;}
             }
             block_632:;
             i0 = ResumePhase(ctx);
@@ -9241,7 +9258,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 331u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3293ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         a = i0;
         if (i0) {goto block_213;}
@@ -9270,7 +9287,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = HostTempRet0(ctx);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 139u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_15;}
@@ -9299,7 +9316,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = HostTempRet0(ctx);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 139u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_15;}
@@ -9313,7 +9330,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -9340,10 +9357,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -9378,7 +9395,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 += i2;
         StoreU32(ctx, i0 + 4u, i1);
       }
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -9415,10 +9432,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -9463,7 +9480,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         l2 = i0;
         i0 = LoadU32(ctx, i0 + 8u);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -9486,16 +9503,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
         i1 = 1u;
         i0 = i0 == i1;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         i0 = b;
         i1 = b;
         i1 = LoadU32(ctx, i1 + 8u);
@@ -9513,7 +9530,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         l2 = i0;
         i0 = LoadU32(ctx, i0 + 12u);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -9536,23 +9553,23 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
         i1 = 1u;
         i0 = i0 == i1;
         b = i0;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
       }
       block_674:;
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -9578,10 +9595,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -9599,22 +9616,22 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = 0u;
         StoreU8(ctx, i0 + 30u, i1);
         i0 = b;
-        i1 = kDataB8481;
+        i1 = kF3293ConstB8481;
         j1 = LoadU64(ctx, i1);
         StoreU64(ctx, i0 + 22u, j1);
         i0 = b;
-        i1 = kDataB847B;
+        i1 = kF3293ConstB847B;
         j1 = LoadU64(ctx, i1);
         StoreU64(ctx, i0 + 16u, j1);
         i0 = b;
-        i1 = kDataB8473;
+        i1 = kF3293ConstB8473;
         j1 = LoadU64(ctx, i1);
         StoreU64(ctx, i0 + 8u, j1);
         i0 = b;
-        i1 = kMsgMultipartFormDataBoundary;
+        i1 = kF3293MsgMultipartFormDataBoundary;
         j1 = LoadU64(ctx, i1);
         StoreU64(ctx, i0, j1);
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -9670,10 +9687,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -9701,7 +9718,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = b;
         i1 = 0u;
         StoreU32(ctx, i0 + 8u, i1);
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -9727,10 +9744,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         l12 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l12;
@@ -9748,14 +9765,14 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = 0u;
         StoreU8(ctx, i0 + 12u, i1);
         i0 = b;
-        i1 = kDataB8466;
+        i1 = kF3293ConstB8466;
         i1 = LoadU32(ctx, i1);
         StoreU32(ctx, i0 + 8u, i1);
         i0 = b;
-        i1 = kMsgContentType;
+        i1 = kF3293MsgContentType;
         j1 = LoadU64(ctx, i1);
         StoreU64(ctx, i0, j1);
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -9795,7 +9812,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i1 = b;
         i2 = l6;
         i3 = l8;
-        i4 = kDataB84F3;
+        i4 = kF3293ConstB84F3;
         i5 = l9;
         i6 = l12;
         HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -9808,10 +9825,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -9823,7 +9840,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0 + 256u);
         b = i0;
         i0 = LoadS8(ctx, i0 + 39u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3293ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         l6 = i0;
         if (i0) {
@@ -9849,7 +9866,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         StoreU8(ctx, i0 + 39u, i1);
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 283u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3293ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l4;
@@ -9858,7 +9875,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         }
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 51u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3293ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l4;
@@ -9880,7 +9897,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -9892,10 +9909,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kMsgPx;
-          i2 = kMsgSmartPtrPath;
+          i1 = kF3293MsgPx;
+          i2 = kF3293MsgBoostBoostSmartPtr;
           i3 = 734u;
-          i4 = kMsgOperator;
+          i4 = kF3293MsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 120u;
           i1 = ResumePhase(ctx);
@@ -9906,10 +9923,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -9917,7 +9934,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = i0 != i1;
           a = i0;
           if (i0) {goto block_23;}
-          goto exit_path;
+          goto running_exit;
         }
       }
       i0 = ResumePhase(ctx);
@@ -9927,7 +9944,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 52u);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -9955,10 +9972,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -9981,7 +9998,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -9993,10 +10010,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kMsgPx;
-          i2 = kMsgSmartPtrPath;
+          i1 = kF3293MsgPx;
+          i2 = kF3293MsgBoostBoostSmartPtr;
           i3 = 734u;
-          i4 = kMsgOperator;
+          i4 = kF3293MsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 122u;
           i1 = ResumePhase(ctx);
@@ -10007,10 +10024,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -10018,13 +10035,13 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = i0 != i1;
           a = i0;
           if (i0) {goto block_23;}
-          goto exit_path;
+          goto running_exit;
         }
       }
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -10052,10 +10069,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -10078,7 +10095,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -10090,10 +10107,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kMsgPx;
-          i2 = kMsgSmartPtrPath;
+          i1 = kF3293MsgPx;
+          i2 = kF3293MsgBoostBoostSmartPtr;
           i3 = 734u;
-          i4 = kMsgOperator;
+          i4 = kF3293MsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 124u;
           i1 = ResumePhase(ctx);
@@ -10104,10 +10121,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -10115,13 +10132,13 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = i0 != i1;
           a = i0;
           if (i0) {goto block_23;}
-          goto exit_path;
+          goto running_exit;
         }
       }
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -10149,10 +10166,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -10175,7 +10192,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -10187,10 +10204,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = i2 ? i0 : i1;
         if (i0) {
           i0 = 857u;
-          i1 = kMsgPx;
-          i2 = kMsgSmartPtrPath;
+          i1 = kF3293MsgPx;
+          i2 = kF3293MsgBoostBoostSmartPtr;
           i3 = 734u;
-          i4 = kMsgOperator;
+          i4 = kF3293MsgOperator;
           HostFailAssertion(ctx, i0, i1, i2, i3, i4);
           i0 = 126u;
           i1 = ResumePhase(ctx);
@@ -10201,10 +10218,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -10212,7 +10229,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = i0 != i1;
           a = i0;
           if (i0) {goto block_23;}
-          goto exit_path;
+          goto running_exit;
         }
       }
       i0 = ResumePhase(ctx);
@@ -10231,7 +10248,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = b;
         i0 = LoadU32(ctx, i0 + 4u);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -10275,10 +10292,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -10288,7 +10305,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {goto block_661;}
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 51u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3293ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         l2 = i0;
         if (i0) {
@@ -10301,7 +10318,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = !(i0);
         b = i0;
         if (i0) {goto block_648;}
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -10314,8 +10331,8 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {
         i0 = 3127u;
         i1 = a;
-        i2 = kDataFFFFFFFF;
-        i3 = kDataB834E;
+        i2 = kF3293ConstFFFFFFFF;
+        i3 = kF3293ConstB834E;
         HostSyncSlot(ctx, i0, i1, i2, i3);
         i0 = 128u;
         i1 = ResumePhase(ctx);
@@ -10326,10 +10343,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -10372,7 +10389,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 8u);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -10395,17 +10412,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
         i1 = 1u;
         i0 = i0 == i1;
         a = i0;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         i0 = b;
         i1 = b;
         i1 = LoadU32(ctx, i1 + 8u);
@@ -10423,7 +10440,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -10446,17 +10463,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
         i1 = 1u;
         i0 = i0 == i1;
         a = i0;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
       }
       block_726:;
       i0 = ResumePhase(ctx);
@@ -10490,7 +10507,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 8u);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -10513,16 +10530,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
         i1 = 1u;
         i0 = i0 == i1;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         i0 = a;
         i1 = a;
         i1 = LoadU32(ctx, i1 + 8u);
@@ -10540,7 +10557,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -10563,17 +10580,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
         i1 = 1u;
         i0 = i0 == i1;
         a = i0;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
       }
       block_733:;
       i0 = ResumePhase(ctx);
@@ -10581,7 +10598,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 139u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3293ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l4;
@@ -10611,7 +10628,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 8u);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -10634,10 +10651,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -10671,7 +10688,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 12u);
           b = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -10694,10 +10711,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -10709,7 +10726,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       }
       i0 = ResumePhase(ctx);
       i0 = !(i0);
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -10740,7 +10757,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       l2 = i0;
       i0 = LoadU32(ctx, i0 + 8u);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -10763,10 +10780,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -10800,7 +10817,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         l2 = i0;
         i0 = LoadU32(ctx, i0 + 12u);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -10823,10 +10840,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -10838,7 +10855,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     block_669:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -10882,7 +10899,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = HostTempRet0(ctx);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 283u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_665;}
@@ -10896,7 +10913,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = !(i0);
     if (i0) {
       i0 = l2;
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_664;}
@@ -10913,7 +10930,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       l2 = i0;
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 51u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_656;}
@@ -10956,7 +10973,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = HostTempRet0(ctx);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 51u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_659;}
@@ -11002,7 +11019,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       l2 = i0;
       i0 = LoadU32(ctx, i0 + 8u);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -11025,10 +11042,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -11062,7 +11079,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         l2 = i0;
         i0 = LoadU32(ctx, i0 + 12u);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -11085,10 +11102,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -11100,7 +11117,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     block_658:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -11124,7 +11141,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     if (i0) {
       i0 = l2;
       i0 = LoadS8(ctx, i0 + 11u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3293ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_655;}
@@ -11160,7 +11177,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       l2 = i0;
       i0 = LoadU32(ctx, i0 + 8u);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -11183,10 +11200,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF3293ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -11220,7 +11237,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         l2 = i0;
         i0 = LoadU32(ctx, i0 + 12u);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -11243,10 +11260,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3293ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -11258,7 +11275,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -11301,7 +11318,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -11324,16 +11341,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
     i1 = 1u;
     i0 = i0 == i1;
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     i0 = a;
     i1 = a;
     i1 = LoadU32(ctx, i1 + 8u);
@@ -11351,7 +11368,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 12u);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -11374,17 +11391,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
     i1 = 1u;
     i0 = i0 == i1;
     a = i0;
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
   }
   block_786:;
   i0 = ResumePhase(ctx);
@@ -11392,7 +11409,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 139u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -11422,7 +11439,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -11445,16 +11462,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
     i1 = 1u;
     i0 = i0 == i1;
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     i0 = a;
     i1 = a;
     i1 = LoadU32(ctx, i1 + 8u);
@@ -11472,7 +11489,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 12u);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -11495,17 +11512,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3293ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
     i1 = 1u;
     i0 = i0 == i1;
     a = i0;
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
   }
   block_567:;
   i0 = ResumePhase(ctx);
@@ -11574,7 +11591,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 8u);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -11597,16 +11614,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
           i1 = 1u;
           i0 = i0 == i1;
-          if (i0) {goto exit_path;}
+          if (i0) {goto running_exit;}
           i0 = a;
           i1 = a;
           i1 = LoadU32(ctx, i1 + 8u);
@@ -11624,7 +11641,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 12u);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -11647,17 +11664,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
           i1 = 1u;
           i0 = i0 == i1;
           a = i0;
-          if (i0) {goto exit_path;}
+          if (i0) {goto running_exit;}
         }
         block_805:;
         i0 = ResumePhase(ctx);
@@ -11757,7 +11774,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 8u);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -11780,16 +11797,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
           i1 = 1u;
           i0 = i0 == i1;
-          if (i0) {goto exit_path;}
+          if (i0) {goto running_exit;}
           i0 = a;
           i1 = a;
           i1 = LoadU32(ctx, i1 + 8u);
@@ -11807,7 +11824,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 12u);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -11830,17 +11847,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
           i1 = 1u;
           i0 = i0 == i1;
           a = i0;
-          if (i0) {goto exit_path;}
+          if (i0) {goto running_exit;}
         }
         block_821:;
         i0 = ResumePhase(ctx);
@@ -11879,7 +11896,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 331u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_213;}
@@ -11966,7 +11983,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 8u);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -11989,16 +12006,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
           i1 = 1u;
           i0 = i0 == i1;
-          if (i0) {goto exit_path;}
+          if (i0) {goto running_exit;}
           i0 = a;
           i1 = a;
           i1 = LoadU32(ctx, i1 + 8u);
@@ -12016,7 +12033,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 12u);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -12039,17 +12056,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
           i1 = 1u;
           i0 = i0 == i1;
           a = i0;
-          if (i0) {goto exit_path;}
+          if (i0) {goto running_exit;}
         }
         block_839:;
         i0 = ResumePhase(ctx);
@@ -12149,7 +12166,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 8u);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -12172,16 +12189,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
           i1 = 1u;
           i0 = i0 == i1;
-          if (i0) {goto exit_path;}
+          if (i0) {goto running_exit;}
           i0 = a;
           i1 = a;
           i1 = LoadU32(ctx, i1 + 8u);
@@ -12199,7 +12216,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = LoadU32(ctx, i0);
           i0 = LoadU32(ctx, i0 + 12u);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -12222,17 +12239,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
           i1 = 1u;
           i0 = i0 == i1;
           a = i0;
-          if (i0) {goto exit_path;}
+          if (i0) {goto running_exit;}
         }
         block_855:;
         i0 = ResumePhase(ctx);
@@ -12271,7 +12288,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 331u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_213;}
@@ -12292,11 +12309,11 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     b = i1;
     ReleaseNodeTree(ctx, i0, i1);
     i0 = l11;
-    i1 = kDataAEE0C;
+    i1 = kF3293ConstAEE0C;
     StoreU32(ctx, i0, i1);
     i0 = l11;
     i0 = LoadS8(ctx, i0 + 83u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l11;
@@ -12305,7 +12322,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = l11;
     i0 = LoadS8(ctx, i0 + 71u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l11;
@@ -12314,7 +12331,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = l11;
     i0 = LoadS8(ctx, i0 + 59u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l11;
@@ -12323,7 +12340,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = l11;
     i0 = LoadS8(ctx, i0 + 47u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l11;
@@ -12332,7 +12349,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = l11;
     i0 = LoadS8(ctx, i0 + 35u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l11;
@@ -12340,11 +12357,11 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       DeallocateRawBlock(ctx, i0);
     }
     i0 = l11;
-    i1 = kData8B830;
+    i1 = kF3293Const8B830;
     StoreU32(ctx, i0, i1);
     i0 = l11;
     i0 = LoadS8(ctx, i0 + 15u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_24;}
@@ -12378,7 +12395,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = HostTempRet0(ctx);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 139u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_21;}
@@ -12393,7 +12410,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 251u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_19;}
@@ -12412,7 +12429,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = HostTempRet0(ctx);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 139u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_19;}
@@ -12427,7 +12444,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 267u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_17;}
@@ -12446,7 +12463,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = HostTempRet0(ctx);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 139u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_17;}
@@ -12461,7 +12478,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 283u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_15;}
@@ -12547,7 +12564,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           l6 = i0;
           i0 = LoadU32(ctx, i0 + 8u);
           l12 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -12570,16 +12587,16 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l12 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l12;
           i1 = 1u;
           i0 = i0 == i1;
-          if (i0) {goto exit_path;}
+          if (i0) {goto running_exit;}
           i0 = a;
           i1 = a;
           i1 = LoadU32(ctx, i1 + 8u);
@@ -12597,7 +12614,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           l6 = i0;
           i0 = LoadU32(ctx, i0 + 12u);
           l12 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -12620,17 +12637,17 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
           i1 = 1u;
           i0 = i0 == i1;
           a = i0;
-          if (i0) {goto exit_path;}
+          if (i0) {goto running_exit;}
         }
         block_887:;
         i0 = ResumePhase(ctx);
@@ -12730,7 +12747,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           l6 = i0;
           i0 = LoadU32(ctx, i0 + 8u);
           l12 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -12753,10 +12770,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           l12 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l12;
@@ -12780,7 +12797,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
           l6 = i0;
           i0 = LoadU32(ctx, i0 + 12u);
           l12 = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -12803,10 +12820,10 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3293ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -12852,7 +12869,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 331u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_7;}
@@ -12865,7 +12882,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   block_896:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_14:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -12875,7 +12892,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = HostTempRet0(ctx);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 315u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_9;}
@@ -12904,7 +12921,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = HostTempRet0(ctx);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 331u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_8;}
@@ -12940,7 +12957,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 51u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_8;}
@@ -12955,7 +12972,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 139u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_7;}
@@ -12981,11 +12998,11 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = !(i0);
   if (i0) {
     i0 = l11;
-    i1 = kDataAEE0C;
+    i1 = kF3293ConstAEE0C;
     StoreU32(ctx, i0, i1);
     i0 = l11;
     i0 = LoadS8(ctx, i0 + 83u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l11;
@@ -12994,7 +13011,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = l11;
     i0 = LoadS8(ctx, i0 + 71u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l11;
@@ -13003,7 +13020,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = l11;
     i0 = LoadS8(ctx, i0 + 59u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l11;
@@ -13012,7 +13029,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = l11;
     i0 = LoadS8(ctx, i0 + 47u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l11;
@@ -13021,7 +13038,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     }
     i0 = l11;
     i0 = LoadS8(ctx, i0 + 35u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l11;
@@ -13029,11 +13046,11 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
       DeallocateRawBlock(ctx, i0);
     }
     i0 = l11;
-    i1 = kData8B830;
+    i1 = kF3293Const8B830;
     StoreU32(ctx, i0, i1);
     i0 = l11;
     i0 = LoadS8(ctx, i0 + 15u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3293ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_5;}
@@ -13050,7 +13067,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
     HostOsRelease(ctx, i0);
     TrapUnreachable();
   }
-  exit_path:;
+  running_exit:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
@@ -13089,7 +13106,7 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kResumeWordBytes;
+  i2 = kF3293ResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
@@ -13145,11 +13162,11 @@ void HttpDispatch(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kDataFFFFFFC0;
+  i2 = kF3293ConstFFFFFFC0;
   i1 -= i2;
   StoreU32(ctx, i0, i1);
   func_exit:;
   LeaveFrame();
 }
 }
-}  // namespace artc
+}

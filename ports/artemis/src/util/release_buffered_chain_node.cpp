@@ -1,136 +1,237 @@
+// release_buffered_chain_node.cpp -- unlinks one buffered-stream node from the global chain, flushes its pending bytes, runs the virtual teardown hook and frees the node..
+//
+// ReleaseBufferedChainNode -- unlinks one buffered-stream node from the global chain, flushes its pending bytes, runs the virtual teardown hook and frees the node.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 153678-153678 (f360); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Cross-product callees: the raw-block deallocator and the chain flusher.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 uint32_t FlushBufferedChain(EngineContext* ctx, uint32_t a);
 
 namespace {
 
-constexpr uint32_t kReleaseBufferedChainNodeHeadAddr = 0xCF8CCu;
-constexpr uint32_t kReleaseBufferedChainNodeSaveFrameBytes = 20u;
-constexpr uint32_t kReleaseBufferedChainNodeResumeWordBytes = 4u;
+constexpr uint32_t kF360ConstCF8CC = 0xCF8CCu;  // 
+constexpr uint32_t kF360SaveFrameBytes = 20u;
+constexpr uint32_t kF360ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Unlinks one buffered-chain node, flushes the bytes it still buffers, runs the
-// teardown hook it carries and frees the node. Answers the flush result OR-ed
-// with the hook result, or zero when the step re-suspends.
 uint32_t ReleaseBufferedChainNode(EngineContext* ctx, uint32_t a) {
   EnterFrame();
-  uint32_t next_node = 0u;
-  uint32_t prev_node = 0u;
-  uint32_t sign_flag = 0u;
-  uint32_t marked = 0u;
-  uint32_t resume_code = 0u;
-  uint32_t result = 0u;
-
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the saved frame and read its words back in saved order.
-    uint32_t sp = ReturnFrameSp(ctx);
-    uint32_t frame_top = ReturnFrameSp(ctx);
-    frame_top = LoadU32(ctx, frame_top) - kReleaseBufferedChainNodeSaveFrameBytes;
-    StoreU32(ctx, sp, frame_top);
-    uint32_t frame = ReturnFrameSp(ctx);
-    frame = LoadU32(ctx, frame);
-    a = LoadU32(ctx, frame);
-    prev_node = LoadU32(ctx, frame + 8u);
-    sign_flag = LoadU32(ctx, frame + 12u);
-    marked = LoadU32(ctx, frame + 16u);
-    next_node = LoadU32(ctx, frame + 4u);
+  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF360SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l3 = i0;
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l4 = i0;
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l5 = i0;
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume word naming the call that was in flight.
-    uint32_t sp = ReturnFrameSp(ctx);
-    uint32_t word_top = ReturnFrameSp(ctx);
-    word_top = LoadU32(ctx, word_top) - kReleaseBufferedChainNodeResumeWordBytes;
-    StoreU32(ctx, sp, word_top);
-    uint32_t word = ReturnFrameSp(ctx);
-    word = LoadU32(ctx, word);
-    resume_code = LoadU32(ctx, word);
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF360ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l6 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // A fresh pass starts by unlinking the node from the global chain.
-    sign_flag = static_cast<uint32_t>(
-        static_cast<int32_t>(LoadU32(ctx, a + 76u)) >= static_cast<int32_t>(0u));
-    marked = LoadU32(ctx, a) & 1u;
-    if (marked == 0u) {
-      prev_node = LoadU32(ctx, a + 52u);
-      if (prev_node != 0u) {
-        uint32_t successor = LoadU32(ctx, a + 56u);
-        StoreU32(ctx, prev_node + 56u, successor);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 76u);
+    i1 = 0u;
+    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
+    l4 = i0;
+    i0 = a;
+    i0 = LoadU32(ctx, i0);
+    i1 = 1u;
+    i0 &= i1;
+    l5 = i0;
+    i0 = !(i0);
+    l3 = i0;
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 52u);
+      l3 = i0;
+      if (i0) {
+        i0 = l3;
+        i1 = a;
+        i1 = LoadU32(ctx, i1 + 56u);
+        StoreU32(ctx, i0 + 56u, i1);
       }
-      next_node = LoadU32(ctx, a + 56u);
-      if (next_node != 0u) {
-        StoreU32(ctx, next_node + 52u, prev_node);
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 56u);
+      l2 = i0;
+      if (i0) {
+        i0 = l2;
+        i1 = l3;
+        StoreU32(ctx, i0 + 52u, i1);
       }
-      if (LoadU32(ctx, kReleaseBufferedChainNodeHeadAddr) == a) {
-        StoreU32(ctx, kReleaseBufferedChainNodeHeadAddr, next_node);
+      i0 = kF360ConstCF8CC;
+      i0 = LoadU32(ctx, i0);
+      i1 = a;
+      i0 = i0 == i1;
+      l3 = i0;
+      if (i0) {
+        i0 = kF360ConstCF8CC;
+        i1 = l2;
+        StoreU32(ctx, i0, i1);
       }
     }
   }
-  uint32_t phase = ResumePhase(ctx);
-  if (phase == kResumeRunning || resume_code == 0u) {
-    uint32_t flushed = FlushBufferedChain(ctx, a);
-    resume_code = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_here;
-    }
-    prev_node = flushed;
+  i0 = l6;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i0 = FlushBufferedChain(ctx, i0);
+    l1 = i0;
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l1;
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    next_node = LoadU32(ctx, a + 12u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l2 = i0;
   }
-  phase = ResumePhase(ctx);
-  if (phase == kResumeRunning || resume_code == 1u) {
-    uint32_t hook_result = CallTableT2(ctx, next_node, a);
+  i0 = l6;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = l2;
+    i0 = CallTableT2(ctx, i1, i0);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    resume_code = 1u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_here;
-    }
-    next_node = hook_result;
+    l1 = i0;
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l1;
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    uint32_t payload = LoadU32(ctx, a + 96u);
-    if (payload != 0u) {
-      DeallocateRawBlock(ctx, payload);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 96u);
+    l1 = i0;
+    if (i0) {
+      i0 = l1;
+      DeallocateRawBlock(ctx, i0);
     }
-    // The node block goes back only when the low flag bit is clear.
-    if (marked == 0u) {
-      DeallocateRawBlock(ctx, a);
+    i0 = l5;
+    i0 = !(i0);
+    if (i0) {
+      i0 = a;
+      DeallocateRawBlock(ctx, i0);
+      goto block_13;
     }
-    result = next_node | prev_node;  // flush result OR hook result
-    LeaveFrame();
-    return result;
+    i0 = l4;
+    i0 = !(i0);
+    if (i0) {goto block_13;}
+    block_13:;
+    i0 = l2;
+    i1 = l3;
+    i0 |= i1;
+    goto func_exit;
   }
   TrapUnreachable();
-suspend_here:;
-  // Push the resume word naming the call that was in flight, then the saved
-  // frame; the words go back in the order the rewind pops them.
-  uint32_t slot = ReturnFrameSp(ctx);
-  slot = LoadU32(ctx, slot);
-  StoreU32(ctx, slot, resume_code);
-  uint32_t sp = ReturnFrameSp(ctx);
-  uint32_t word_top = ReturnFrameSp(ctx);
-  word_top = LoadU32(ctx, word_top) + kReleaseBufferedChainNodeResumeWordBytes;
-  StoreU32(ctx, sp, word_top);
-  uint32_t frame = ReturnFrameSp(ctx);
-  frame = LoadU32(ctx, frame);
-  StoreU32(ctx, frame, a);
-  StoreU32(ctx, frame + 4u, next_node);
-  StoreU32(ctx, frame + 8u, prev_node);
-  StoreU32(ctx, frame + 12u, sign_flag);
-  StoreU32(ctx, frame + 16u, marked);
-  sp = ReturnFrameSp(ctx);
-  word_top = ReturnFrameSp(ctx);
-  word_top = LoadU32(ctx, word_top) + kReleaseBufferedChainNodeSaveFrameBytes;
-  StoreU32(ctx, sp, word_top);
+  spill_frame:;
+  l1 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l1;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF360ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l1 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l1;
+  i1 = l2;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l1;
+  i1 = l3;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l1;
+  i1 = l4;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l1;
+  i1 = l5;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 20u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return 0u;
+  return i0;
 }
-
-}  // namespace artc
+}

@@ -1,61 +1,127 @@
+// raise_syntax_error.cpp -- raises a syntax error: the source position is formatted into the message and the error goes out through the script error route..
+//
+// RaiseSyntaxError -- raises a syntax error: the source position is formatted into the message and the error goes out through the script error route.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 123318-123318 (f243); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// The lexer error the refusal is reported through.
-void LexError(EngineContext* ctx, uint32_t lex_state, uint32_t message, uint32_t token);
+// Forward declarations -- batch-mates and registered callees.
+void LexError(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 
-// Raises the syntax error the lexer reports, taking the token word out of the
-// lexer state. Suspendable: the state, the message word and the token travel
-// through the return frame.
-void RaiseSyntaxError(EngineContext* ctx, uint32_t lex_state, uint32_t message) {
+namespace {
+
+constexpr uint32_t kF243SaveFrameBytes = 12u;
+constexpr uint32_t kF243ResumeWordBytes = 4u;
+
+}  // namespace
+
+void RaiseSyntaxError(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  // The token word the error carries; a running pass reads it fresh from the
-  // lexer state below.
-  uint32_t token = 0u;
-  // Zero means the error below never completed, so it is issued again.
-  uint32_t resume_point = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 12-byte frame the suspend path saved.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 12u);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    lex_state = LoadU32(ctx, frame);
-    message = LoadU32(ctx, frame + 4u);
-    token = LoadU32(ctx, frame + 8u);
+  uint32_t l2 = 0u; uint32_t l3 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF243SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 4u);
+    b = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume point pushed with that frame.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF243ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    token = LoadU32(ctx, lex_state + 16u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l2 = i0;
   }
-  // A running pass always owes the error; a rewinding one owes it only at the
-  // resume point it popped above.
-  uint32_t issue_error = static_cast<uint32_t>(!resume_point);
-  issue_error = ResumePhase(ctx) != kResumeRunning ? issue_error : 1u;
-  if (issue_error) {
-    LexError(ctx, lex_state, message, token);
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      // The error reports zero, which is also the resume point saved below.
-      goto spill_point;
-    }
+  i0 = l3;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = b;
+    i2 = l2;
+    LexError(ctx, i0, i1, i2);
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
+  goto func_exit;
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF243ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = b;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = l2;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 12u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
-  return;
-spill_point:;
-  // Suspend: push the resume point, then a 12-byte frame holding the lexer state,
-  // the message word and the token the rewinding pop restores.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), 0u);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
-  uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, saved_frame, lex_state);
-  StoreU32(ctx, saved_frame + 4u, message);
-  StoreU32(ctx, saved_frame + 8u, token);
-  StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 12u);
-  LeaveFrame();
-  return;
 }
-
-}  // namespace artc
+}

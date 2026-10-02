@@ -1,33 +1,51 @@
+// compositor_tween.cpp -- the compositor tween dispatch: one suspendable step that carries a tween through the compositor tween table..
+//
+// Compositor::TweenDispatch -- the compositor tween dispatch: one suspendable step that carries a tween through the compositor tween table.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 1843846-1843846 (f3655); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations for the callees this step calls.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 void ReleaseNodeTree(EngineContext* ctx, uint32_t state, uint32_t node);
 uint32_t FindOrderedChainEntry(EngineContext* ctx, uint32_t a, uint32_t b);
 uint32_t CombineComparisonResults(EngineContext* ctx, uint32_t left, uint32_t right, uint32_t result, uint32_t box);
 
-namespace Compositor {
-// Compositor::TweenDispatch -- the compositor tween dispatch: one suspendable
-// step that carries a tween through the compositor tween table.
+namespace {
 
+constexpr uint32_t kF3655Const8C564 = 0x8C564u;  // 
+constexpr uint32_t kF3655MsgLytween = 0xAF675u;  // lytween
+constexpr uint32_t kF3655ConstAF678 = 0xAF678u;  // 
+constexpr uint32_t kF3655ConstB5265 = 0xB5265u;  // 
+constexpr uint32_t kF3655ConstB5E30 = 0xB5E30u;  // 
+constexpr uint32_t kF3655MsgPx = 0xB5E31u;  // px != 0
+constexpr uint32_t kF3655MsgBoostBoostSmartPtr = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
+constexpr uint32_t kF3655MsgOperator = 0xB5E71u;  // operator->
+constexpr uint32_t kF3655ConstB8F8C = 0xB8F8Cu;  // 
+constexpr uint32_t kF3655ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF3655ConstFFFFFFC0 = 0xFFFFFFC0u;  // 
+constexpr uint32_t kF3655ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF3655SaveFrameBytes = 40u;
+constexpr uint32_t kF3655ResumeWordBytes = 4u;
+
+}  // namespace
+
+namespace Compositor {
 void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   EnterFrame();
-  constexpr uint32_t kData8C564 = 0x8C564u;
-  constexpr uint32_t kMsgLytween = 0xAF675u;  // lytween
-  constexpr uint32_t kDataAF678 = 0xAF678u;
-  constexpr uint32_t kDataB5265 = 0xB5265u;
-  constexpr uint32_t kDataB5E30 = 0xB5E30u;
-  constexpr uint32_t kMsgPx = 0xB5E31u;  // px != 0
-  constexpr uint32_t kMsgSmartPtrPath = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
-  constexpr uint32_t kMsgOperator = 0xB5E71u;  // operator->
-  constexpr uint32_t kDataB8F8C = 0xB8F8Cu;
-  constexpr uint32_t kDataFFFFFFC0 = 0xFFFFFFC0u;
-  constexpr uint32_t kDataFFFFFFFF = 0xFFFFFFFFu;
-  constexpr uint32_t kSaveFrameBytes = 40u;
-  constexpr uint32_t kResumeWordBytes = 4u;
   uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u; uint32_t i6 = 0u;
   uint64_t j1 = 0;
@@ -39,7 +57,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kSaveFrameBytes;
+    i2 = kF3655SaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -82,7 +100,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kResumeWordBytes;
+    i2 = kF3655ResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -113,7 +131,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -124,10 +142,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3655MsgPx;
+      i2 = kF3655MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3655MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 0u;
       i1 = ResumePhase(ctx);
@@ -138,17 +156,17 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
       i1 = 1u;
       i0 = i0 != i1;
       a = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       goto block_3;
     }
   }
@@ -170,7 +188,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -182,10 +200,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3655MsgPx;
+      i2 = kF3655MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3655MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 1u;
       i1 = ResumePhase(ctx);
@@ -196,17 +214,17 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
       i1 = 1u;
       i0 = i0 != i1;
       a = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       goto block_3;
     }
   }
@@ -222,12 +240,12 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = l3;
     i1 = 2u;
     StoreU8(ctx, i0 + 75u, i1);
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
     i1 = l3;
-    i2 = kDataFFFFFFC0;
+    i2 = kF3655ConstFFFFFFC0;
     i1 -= i2;
     StoreU32(ctx, i0 + 8u, i1);
     i0 = l3;
@@ -247,7 +265,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 += i1;
     l9 = i0;
     i0 = l3;
-    i1 = kDataFFFFFFC0;
+    i1 = kF3655ConstFFFFFFC0;
     i0 -= i1;
     b = i0;
   }
@@ -262,7 +280,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l6;
     i2 = l10;
     i3 = b;
-    i4 = kDataB5E30;
+    i4 = kF3655ConstB5E30;
     i5 = l5;
     i6 = l9;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -275,10 +293,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -298,7 +316,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 304u);
     l6 = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -331,10 +349,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -370,8 +388,8 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = b;
-    i1 = kData8C564;
-    i2 = kDataB8F8C;
+    i1 = kF3655Const8C564;
+    i2 = kF3655ConstB8F8C;
     i3 = 0u;
     i0 = CombineComparisonResults(ctx, i0, i1, i2, i3);
     l8 = i0;
@@ -441,7 +459,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -464,10 +482,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -491,7 +509,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 12u);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -514,10 +532,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     l6 = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l6;
@@ -532,7 +550,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 75u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3655ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l3;
@@ -554,12 +572,12 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = l3;
     i1 = 2u;
     StoreU8(ctx, i0 + 75u, i1);
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
     i1 = l3;
-    i2 = kDataFFFFFFC0;
+    i2 = kF3655ConstFFFFFFC0;
     i1 -= i2;
     StoreU32(ctx, i0 + 24u, i1);
     i0 = l3;
@@ -567,7 +585,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 += i1;
     l6 = i0;
     i0 = l3;
-    i1 = kDataFFFFFFC0;
+    i1 = kF3655ConstFFFFFFC0;
     i0 -= i1;
     l5 = i0;
     i0 = l3;
@@ -592,7 +610,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l6;
     i2 = l10;
     i3 = l5;
-    i4 = kDataB5E30;
+    i4 = kF3655ConstB5E30;
     i5 = l9;
     i6 = l11;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -605,10 +623,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     l6 = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l6;
@@ -648,7 +666,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l6;
@@ -666,8 +684,8 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = b;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kDataB5265;
+      i3 = kF3655ConstFFFFFFFF;
+      i4 = kF3655ConstB5265;
       i5 = 1u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l8 = i0;
@@ -683,10 +701,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = b;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i0 = LoadU32(ctx, i0);
       l6 = i0;
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l6;
@@ -704,7 +722,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 75u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3655ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l3;
@@ -734,7 +752,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -746,10 +764,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3655MsgPx;
+      i2 = kF3655MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3655MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 9u;
       i1 = ResumePhase(ctx);
@@ -760,17 +778,17 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
       i1 = 1u;
       i0 = i0 != i1;
       a = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       goto block_3;
     }
   }
@@ -812,7 +830,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -835,10 +853,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -872,7 +890,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -895,10 +913,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i0 = LoadU32(ctx, i0);
       l4 = i0;
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -920,7 +938,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 75u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3655ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_20;}
@@ -939,7 +957,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 75u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3655ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_21;}
@@ -966,7 +984,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 388u);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -989,10 +1007,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -1019,16 +1037,16 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = l3;
     i1 = 2u;
     StoreU8(ctx, i0 + 75u, i1);
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
     i1 = l3;
-    i2 = kDataFFFFFFC0;
+    i2 = kF3655ConstFFFFFFC0;
     i1 -= i2;
     StoreU32(ctx, i0 + 24u, i1);
     i0 = l3;
-    i1 = kDataFFFFFFC0;
+    i1 = kF3655ConstFFFFFFC0;
     i0 -= i1;
     l4 = i0;
     i0 = l3;
@@ -1055,7 +1073,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = b;
     i2 = l10;
     i3 = l4;
-    i4 = kDataB5E30;
+    i4 = kF3655ConstB5E30;
     i5 = l5;
     i6 = l9;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -1068,10 +1086,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -1087,7 +1105,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     l5 = i0;
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 39u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3655ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -1099,7 +1117,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     b = i0;
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 75u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3655ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     l4 = i0;
     if (i0) {
@@ -1128,7 +1146,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1140,10 +1158,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3655MsgPx;
+      i2 = kF3655MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3655MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 14u;
       i1 = ResumePhase(ctx);
@@ -1154,17 +1172,17 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
       i1 = 1u;
       i0 = i0 != i1;
       a = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       goto block_3;
     }
   }
@@ -1180,7 +1198,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = l3;
     i1 = 2u;
     StoreU8(ctx, i0 + 59u, i1);
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -1216,7 +1234,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l4;
     i2 = l10;
     i3 = l5;
-    i4 = kDataB5E30;
+    i4 = kF3655ConstB5E30;
     i5 = l9;
     i6 = l11;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -1229,10 +1247,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     l4 = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -1240,11 +1258,11 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i0 == i1;
     l4 = i0;
     if (i0) {goto block_25;}
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
-    i1 = kDataFFFFFFC0;
+    i1 = kF3655ConstFFFFFFC0;
     i0 -= i1;
     l5 = i0;
     i0 = l3;
@@ -1264,7 +1282,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l5;
     i2 = l4;
     i3 = 1u;
-    i4 = kDataFFFFFFFF;
+    i4 = kF3655ConstFFFFFFFF;
     i5 = l4;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l8 = i0;
@@ -1279,17 +1297,17 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
     i1 = 1u;
     i0 = i0 == i1;
     if (i0) {goto block_25;}
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -1298,10 +1316,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l4;
     i0 = FindOrderedChainEntry(ctx, i0, i1);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -1311,7 +1329,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {goto block_26;}
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3655ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -1320,7 +1338,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     }
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 59u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3655ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l3;
@@ -1342,7 +1360,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1354,10 +1372,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3655MsgPx;
+      i2 = kF3655MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3655MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 17u;
       i1 = ResumePhase(ctx);
@@ -1368,17 +1386,17 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
       i1 = 1u;
       i0 = i0 != i1;
       a = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       goto block_3;
     }
   }
@@ -1412,7 +1430,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = b;
       i0 = LoadU32(ctx, i0 + 16u);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1435,10 +1453,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -1519,7 +1537,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1531,10 +1549,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3655MsgPx;
+      i2 = kF3655MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3655MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 19u;
       i1 = ResumePhase(ctx);
@@ -1545,17 +1563,17 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
       i1 = 1u;
       i0 = i0 != i1;
       a = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       goto block_3;
     }
   }
@@ -1571,7 +1589,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = l3;
     i1 = 2u;
     StoreU8(ctx, i0 + 35u, i1);
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -1592,7 +1610,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 += i1;
     l5 = i0;
     i0 = l3;
-    i1 = kDataFFFFFFC0;
+    i1 = kF3655ConstFFFFFFC0;
     i0 -= i1;
     b = i0;
   }
@@ -1607,7 +1625,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = b;
     i2 = l10;
     i3 = c;
-    i4 = kDataB5E30;
+    i4 = kF3655ConstB5E30;
     i5 = l6;
     i6 = l5;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -1620,10 +1638,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -1638,11 +1656,11 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 7u;
     StoreU8(ctx, i0 + 19u, i1);
     i0 = l3;
-    i1 = kMsgLytween;
+    i1 = kF3655MsgLytween;
     i1 = LoadU32(ctx, i1);
     StoreU32(ctx, i0 + 8u, i1);
     i0 = l3;
-    i1 = kDataAF678;
+    i1 = kF3655ConstAF678;
     i1 = LoadU32(ctx, i1);
     StoreU32(ctx, i0 + 11u, i1);
     i0 = l3;
@@ -1663,12 +1681,12 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     StoreU64(ctx, i0 + 68u, j1);
     i0 = l3;
     i1 = l3;
-    i2 = kDataFFFFFFC0;
+    i2 = kF3655ConstFFFFFFC0;
     i1 -= i2;
     i2 = 4u;
     i1 |= i2;
     StoreU32(ctx, i0 + 64u, i1);
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -1707,10 +1725,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -1727,7 +1745,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = LoadU32(ctx, i1 + 52u);
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
-      i1 = kDataFFFFFFC0;
+      i1 = kF3655ConstFFFFFFC0;
       i0 -= i1;
       i1 = l3;
       i1 = LoadU32(ctx, i1 + 68u);
@@ -1751,7 +1769,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = LoadU32(ctx, i1 + 52u);
     ReleaseNodeTree(ctx, i0, i1);
     i0 = l3;
-    i1 = kDataFFFFFFC0;
+    i1 = kF3655ConstFFFFFFC0;
     i0 -= i1;
     i1 = l3;
     i1 = LoadU32(ctx, i1 + 68u);
@@ -1759,7 +1777,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     ReleaseNodeTree(ctx, i0, i1);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 19u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3655ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l3;
@@ -1768,7 +1786,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     }
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 35u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3655ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_114;}
@@ -1802,7 +1820,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -1825,10 +1843,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -1862,7 +1880,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1885,10 +1903,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3655ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -1916,7 +1934,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 35u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3655ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_21;}
@@ -1955,7 +1973,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 11u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3655ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_24;}
@@ -1980,7 +1998,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 59u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3655ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_22;}
@@ -1999,7 +2017,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l3;
     i0 = LoadS8(ctx, i0 + 75u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3655ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_22;}
@@ -2038,7 +2056,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2061,10 +2079,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -2088,7 +2106,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 12u);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2111,10 +2129,10 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3655ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -2130,7 +2148,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = b;
     HostOsRelease(ctx, i0);
   }
-  exit_path:;
+  running_exit:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
@@ -2175,7 +2193,7 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kResumeWordBytes;
+  i2 = kF3655ResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
@@ -2220,4 +2238,4 @@ void TweenDispatch(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   LeaveFrame();
 }
 }
-}  // namespace artc
+}

@@ -1,157 +1,244 @@
+// unordered_get_bucket.cpp -- answers the bucket that owns a hash: the index is recomputed from the table bucket count and the low-order mask, and the table not being queryable panics through ReleaseNodeTree's assertion route..
+//
+// UnorderedGetBucket -- answers the bucket that owns a hash: the index is recomputed from the table bucket count and the low-order mask, and the table not being queryable panics through ReleaseNodeTree's assertion route.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 1570965-1570965 (f3403); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations of callees defined elsewhere in the tree.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 
 namespace {
 
-constexpr uint32_t kUnorderedGetBucketMsgBuckets = 0xB5B6Cu;      // buckets_
-constexpr uint32_t kUnorderedGetBucketMsgBoostHeader = 0xB5B75u;  // unordered/detail/implementation.hpp
-constexpr uint32_t kUnorderedGetBucketMsgGetBucket = 0xB5BB8u;    // get_bucket
-constexpr uint32_t kUnorderedGetBucketLastException = 0xD015Cu;   // pending exception slot
-constexpr uint32_t kUnorderedGetBucketSignedLimit = 0xFFFFFFFFu;  // -1 as the signed bound tested below
-constexpr uint32_t kUnorderedGetBucketSaveFrameBytes = 8u;
-constexpr uint32_t kUnorderedGetBucketResumeWordBytes = 4u;
+constexpr uint32_t kF3403MsgBuckets = 0xB5B6Cu;  // buckets_
+constexpr uint32_t kF3403MsgBoostBoostUnorderedDetail = 0xB5B75u;  // ../../../../boost_1_66_0/boost/unordered/detail/implementation.hpp
+constexpr uint32_t kF3403MsgGetBucket = 0xB5BB8u;  // get_bucket
+constexpr uint32_t kF3403ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF3403ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF3403SaveFrameBytes = 8u;
+constexpr uint32_t kF3403ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Answers the bucket that owns a hash: the index is the chain head plus the
-// table's bucket count scaled by the low-order mask, and a table that cannot be
-// queried panics through the boost assertion route before its chain is drained.
-void UnorderedGetBucket(EngineContext* ctx, uint32_t table) {
-  uint32_t chain = 0u;         // bucket chain head taken from the table
-  uint32_t current = 0u;       // node being drained from that chain
-  uint32_t next_node = 0u;     // its successor while draining
-  uint32_t resume_code = 0u;   // which call a rewinding pass replays
-  uint32_t frame_base = 0u;    // where a suspended call left its frame
-  uint32_t suspend_code = 0u;  // resume word pushed when a call suspends
-  uint32_t tmp = 0u;
-  uint32_t tmp2 = 0u;
+void UnorderedGetBucket(EngineContext* ctx, uint32_t a) {
   EnterFrame();
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    tmp = ReturnFrameSp(ctx);
-    tmp2 = ReturnFrameSp(ctx);
-    tmp2 = LoadU32(ctx, tmp2);
-    tmp2 -= kUnorderedGetBucketSaveFrameBytes;
-    StoreU32(ctx, tmp, tmp2);
-    frame_base = ReturnFrameSp(ctx);
-    frame_base = LoadU32(ctx, frame_base);
-    table = LoadU32(ctx, frame_base);
-    frame_base = LoadU32(ctx, frame_base + 4u);
-    chain = frame_base;
+  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+  uint64_t j1 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF3403SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    tmp = ReturnFrameSp(ctx);
-    tmp2 = ReturnFrameSp(ctx);
-    tmp2 = LoadU32(ctx, tmp2);
-    tmp2 -= kUnorderedGetBucketResumeWordBytes;
-    StoreU32(ctx, tmp, tmp2);
-    tmp = ReturnFrameSp(ctx);
-    tmp = LoadU32(ctx, tmp);
-    tmp = LoadU32(ctx, tmp);
-    resume_code = tmp;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF3403ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    chain = LoadU32(ctx, table + 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 32u);
+    l1 = i0;
   }
-  if ((chain != 0u) | (ResumePhase(ctx) == kResumeRewinding)) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      tmp = LoadU32(ctx, table + 16u);
-      tmp <<= (2u & 31u);
-      current = LoadU32(ctx, chain + tmp);
+  i0 = l1;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l1;
+      i1 = a;
+      i1 = LoadU32(ctx, i1 + 16u);
+      i2 = 2u;
+      i1 <<= (i2 & 31);
+      i0 += i1;
+      i0 = LoadU32(ctx, i0);
+      l2 = i0;
+      i0 = !(i0);
+      l4 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      if (current == 0u) {
-        goto drop_chain;
-      }
-      // Drain the bucket chain, then re-read the head: the table grew under us.
-      while (current != 0u) {
-        next_node = LoadU32(ctx, current);
-        DeallocateRawBlock(ctx, current);
-        current = next_node;
-      }
-      chain = LoadU32(ctx, table + 32u);
-      if (chain != 0u) {
-        goto drop_chain;
-      }
-      StoreU32(ctx, kUnorderedGetBucketLastException, 0u);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l4;
+      if (i0) {goto block_8;}
+      loop_10: 
+        i0 = l2;
+        i0 = LoadU32(ctx, i0);
+        l1 = i0;
+        i0 = l2;
+        DeallocateRawBlock(ctx, i0);
+        i0 = l1;
+        l2 = i0;
+        if (i0) {goto loop_10;}
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 32u);
+      l1 = i0;
+      if (i0) {goto block_8;}
+      i0 = kF3403ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
     }
-    if ((resume_code == 0u) | (ResumePhase(ctx) == kResumeRunning)) {
-      HostFailAssertion(ctx, 857u, kUnorderedGetBucketMsgBuckets,
-                        kUnorderedGetBucketMsgBoostHeader, 2956u,
-                        kUnorderedGetBucketMsgGetBucket);
-      suspend_code = 0u;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto save_suspend_frame;
-      }
+    i0 = l3;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = 857u;
+      i1 = kF3403MsgBuckets;
+      i2 = kF3403MsgBoostBoostUnorderedDetail;
+      i3 = 2956u;
+      i4 = kF3403MsgGetBucket;
+      HostFailAssertion(ctx, i0, i1, i2, i3, i4);
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      tmp = LoadU32(ctx, kUnorderedGetBucketLastException);
-      table = tmp;
-      StoreU32(ctx, kUnorderedGetBucketLastException, 0u);
-      if (table != 1u) {
-        goto trap_path;
-      }
-      table = FindMatchingCatch(ctx, 0u);
-      HostTempRet0(ctx);
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF3403ConstD015C;
+      i0 = LoadU32(ctx, i0);
+      a = i0;
+      i0 = kF3403ConstD015C;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = a;
+      i1 = 1u;
+      i0 = i0 != i1;
+      if (i0) {goto block_3;}
+      i0 = 0u;
+      i0 = FindMatchingCatch(ctx, i0);
+      a = i0;
+      i0 = HostTempRet0(ctx);
     }
-    if ((resume_code == 1u) | (ResumePhase(ctx) == kResumeRunning)) {
-      Panic(ctx, table);
-      suspend_code = 1u;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto save_suspend_frame;
-      }
+    i0 = l3;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = a;
+      Panic(ctx, i0);
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
       TrapUnreachable();
     }
-  drop_chain:;
-    if (ResumePhase(ctx) == kResumeRunning) {
-      DeallocateRawBlock(ctx, chain);
-      StoreU64(ctx, table + 28u, 0ull);
-      StoreU32(ctx, table + 20u, 0u);
+    block_8:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l1;
+      DeallocateRawBlock(ctx, i0);
+      i0 = a;
+      j1 = 0ull;
+      StoreU64(ctx, i0 + 28u, j1);
+      i0 = a;
+      i1 = 0u;
+      StoreU32(ctx, i0 + 20u, i1);
     }
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    tmp = LoadS8(ctx, table + 11u);
-    tmp2 = kUnorderedGetBucketSignedLimit;
-    tmp = (uint32_t)((int32_t)tmp <= (int32_t)tmp2);
-    if (tmp != 0u) {
-      tmp = LoadU32(ctx, table);
-      DeallocateRawBlock(ctx, tmp);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadS8(ctx, i0 + 11u);
+    i1 = kF3403ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0);
+      DeallocateRawBlock(ctx, i0);
     }
-    goto frame_stored;
+    goto func_exit;
   }
-trap_path:;
-  if (ResumePhase(ctx) == kResumeRunning) {
+  block_3:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
     TrapUnreachable();
   }
-  goto frame_stored;
-save_suspend_frame:;
-  // A call suspended: push the resume word, then save the live words in the
-  // frame above the stack pointer.
-  tmp = ReturnFrameSp(ctx);
-  tmp = LoadU32(ctx, tmp);
-  StoreU32(ctx, tmp, suspend_code);
-  tmp = ReturnFrameSp(ctx);
-  tmp2 = ReturnFrameSp(ctx);
-  tmp2 = LoadU32(ctx, tmp2);
-  tmp2 += kUnorderedGetBucketResumeWordBytes;
-  StoreU32(ctx, tmp, tmp2);
-  tmp = ReturnFrameSp(ctx);
-  tmp = LoadU32(ctx, tmp);
-  frame_base = tmp;
-  StoreU32(ctx, frame_base, table);
-  StoreU32(ctx, frame_base + 4u, chain);
-  tmp = ReturnFrameSp(ctx);
-  tmp2 = ReturnFrameSp(ctx);
-  tmp2 = LoadU32(ctx, tmp2);
-  tmp2 += kUnorderedGetBucketSaveFrameBytes;
-  StoreU32(ctx, tmp, tmp2);
-frame_stored:;
+  goto func_exit;
+  spill_frame:;
+  l2 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF3403ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l2 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l2;
+  i1 = l1;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 8u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-}  // namespace artc
+}

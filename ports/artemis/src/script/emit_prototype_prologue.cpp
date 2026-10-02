@@ -1,160 +1,268 @@
+// emit_prototype_prologue.cpp -- emits a prototype prologue: the parameter slots and the upvalue binding words are laid out..
+//
+// EmitPrototypePrologue -- emits a prototype prologue: the parameter slots and the upvalue binding words are laid out.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 492971-492971 (f1131); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Appends one instruction word to a function's code array.
-uint32_t EmitInstruction(EngineContext* ctx, uint32_t func_state, uint32_t instruction, uint32_t line);
+// Forward declarations -- batch-mates and registered callees.
+uint32_t EmitInstruction(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 
 namespace {
 
-// The flag word that means the prototype takes no flags.
-constexpr uint32_t kEmitPrototypePrologueNoFlags = 0xFFFFFFFFu;
-
-// Where each field of a prologue word starts: the flags, the upvalue count and
-// the parameter words, below the opcode.
-constexpr uint32_t kEmitPrototypePrologueFlagShift = 23u;
-constexpr uint32_t kEmitPrototypePrologueUpvalueShift = 6u;
-constexpr uint32_t kEmitPrototypePrologueWordsShift = 14u;
-constexpr uint32_t kEmitPrototypePrologueOpcode = 34u;
-
-// The parameter count lives in one field as a number of full words; the count
-// itself may not run past what the fields can name.
-constexpr uint32_t kEmitPrototypePrologueParametersPerWord = 50u;
-constexpr uint32_t kEmitPrototypePrologueMaxParameterCount = 25550u;
-
-// The suspend frame: the words this body saves, and the resume word pushed with
-// them, whose number names the word that was in flight.
-constexpr uint32_t kEmitPrototypePrologueSaveFrameBytes = 24u;
-constexpr uint32_t kEmitPrototypePrologueResumeWordBytes = 4u;
-constexpr uint32_t kEmitPrototypePrologueFirstWordCall = 0u;
-constexpr uint32_t kEmitPrototypePrologueSecondWordCall = 1u;
-constexpr uint32_t kEmitPrototypePrologueParameterCall = 2u;
+constexpr uint32_t kF1131ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF1131SaveFrameBytes = 24u;
+constexpr uint32_t kF1131ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Emits a prototype prologue: the first word reserves the function's registers
-// and lays out the parameters, the second carries the same fields without them
-// and the third carries the parameter words alone. A parameter count the operand
-// fields cannot hold is reported as a flag rather than as a count.
-void EmitPrototypePrologue(EngineContext* ctx, uint32_t func_state, uint32_t upvalue_count,
-                           uint32_t parameter_count, uint32_t flag_word) {
+void EmitPrototypePrologue(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
   EnterFrame();
-  // The suspend frame base: a rewind pops it and the suspend path writes its six
-  // words into it.
-  uint32_t frame = 0u;
-  // The word being built; once the word is emitted the same cell carries the pc
-  // it took and then the line the next word goes at.
-  uint32_t word = 0u;
-  // The upvalue count moved into its field, and the number of words the
-  // parameters need.
-  uint32_t upvalue_bits = 0u;
-  uint32_t parameter_words = 0u;
-  // The guarded call a rewinding pass re-issues, and the number a spilling pass
-  // saves.
-  uint32_t resume_code = 0u;
-  // Whether the parameter count fits the fields at all.
-  uint32_t parameters_fit = 0u;
-
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 24-byte frame and read its words back in the saved
-    // order.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kEmitPrototypePrologueSaveFrameBytes);
-    frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    func_state = LoadU32(ctx, frame);
-    word = LoadU32(ctx, frame + 8u);
-    flag_word = LoadU32(ctx, frame + 12u);
-    upvalue_bits = LoadU32(ctx, frame + 16u);
-    parameter_words = LoadU32(ctx, frame + 20u);
-    upvalue_count = LoadU32(ctx, frame + 4u);
+  uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1131SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 8u);
+    c = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 12u);
+    d = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l5 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l6 = i0;
+    i0 = l4;
+    i0 = LoadU32(ctx, i0 + 4u);
+    b = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume word pushed with that frame. It names the word
-    // that was in flight, so only that word is emitted again.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kEmitPrototypePrologueResumeWordBytes);
-    resume_code = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1131ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l7 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The flags move up to their own field — all ones means none — and the
-    // parameter count becomes the number of words it needs, or the flag that
-    // says it fits the fields at all.
-    flag_word = flag_word == kEmitPrototypePrologueNoFlags ? 0u : flag_word << kEmitPrototypePrologueFlagShift;
-    upvalue_bits = upvalue_count << kEmitPrototypePrologueUpvalueShift;
-    parameter_words = I32_DIV_S(parameter_count - 1u, kEmitPrototypePrologueParametersPerWord) + 1u;
-    parameters_fit = static_cast<uint32_t>(parameter_count <= kEmitPrototypePrologueMaxParameterCount);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = 0u;
+    i1 = d;
+    i2 = 23u;
+    i1 <<= (i2 & 31);
+    i2 = d;
+    i3 = kF1131ConstFFFFFFFF;
+    i2 = i2 == i3;
+    i0 = i2 ? i0 : i1;
+    d = i0;
+    i0 = b;
+    i1 = 6u;
+    i0 <<= (i1 & 31);
+    l5 = i0;
+    i0 = c;
+    i1 = 1u;
+    i0 -= i1;
+    i1 = 50u;
+    i0 = I32_DIV_S(i0, i1);
+    i1 = 1u;
+    i0 += i1;
+    l6 = i0;
+    i0 = c;
+    i1 = 25550u;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    c = i0;
   }
-  // A running pass owes the whole prologue, a rewinding one owes only the words
-  // it has not replayed yet; the two are merged into the one gate here.
-  parameters_fit |= static_cast<uint32_t>(ResumePhase(ctx) == kResumeRewinding);
-  if (parameters_fit) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The first word: the flags, the upvalue field, the parameter words' field
-      // and the opcode, with the line the function's line record holds.
-      word = flag_word | upvalue_bits | (parameter_words << kEmitPrototypePrologueWordsShift) |
-             kEmitPrototypePrologueOpcode;
-      flag_word = LoadU32(ctx, LoadU32(ctx, func_state + 12u) + 8u);
+  i0 = c;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = d;
+      i1 = l5;
+      i0 |= i1;
+      i1 = l6;
+      i2 = 14u;
+      i1 <<= (i2 & 31);
+      i0 |= i1;
+      i1 = 34u;
+      i0 |= i1;
+      c = i0;
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 12u);
+      i0 = LoadU32(ctx, i0 + 8u);
+      d = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_code == kEmitPrototypePrologueFirstWordCall) {
-      uint32_t const answer = EmitInstruction(ctx, func_state, word, flag_word);
-      resume_code = kEmitPrototypePrologueFirstWordCall;
-      if (ResumePhase(ctx) == kResumeSuspended) {
-        goto suspend_point;
-      }
-      word = answer;
+    i0 = l7;
+    i0 = !(i0);
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = a;
+      i1 = c;
+      i2 = d;
+      i0 = EmitInstruction(ctx, i0, i1, i2);
+      l4 = i0;
+      i0 = 0u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l4;
+      c = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // The running pass has no earlier word left to replay.
-      goto second_half;
-    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {goto block_3;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The second word: the same fields, this time without the parameter words.
-    word = flag_word | upvalue_bits | kEmitPrototypePrologueOpcode;
-    flag_word = LoadU32(ctx, LoadU32(ctx, func_state + 12u) + 8u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = d;
+    i1 = l5;
+    i0 |= i1;
+    i1 = 34u;
+    i0 |= i1;
+    c = i0;
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 12u);
+    i0 = LoadU32(ctx, i0 + 8u);
+    d = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_code == kEmitPrototypePrologueSecondWordCall) {
-    uint32_t const answer = EmitInstruction(ctx, func_state, word, flag_word);
-    resume_code = kEmitPrototypePrologueSecondWordCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    word = answer;
+  i0 = l7;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = c;
+    i2 = d;
+    i0 = EmitInstruction(ctx, i0, i1, i2);
+    l4 = i0;
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l4;
+    c = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    flag_word = LoadU32(ctx, LoadU32(ctx, func_state + 12u) + 8u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 12u);
+    i0 = LoadU32(ctx, i0 + 8u);
+    c = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_code == kEmitPrototypePrologueParameterCall) {
-    EmitInstruction(ctx, func_state, parameter_words, flag_word);
-    resume_code = kEmitPrototypePrologueParameterCall;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
+  i0 = l7;
+  i1 = 2u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = l6;
+    i2 = c;
+    i0 = EmitInstruction(ctx, i0, i1, i2);
+    i0 = 2u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-second_half:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The prologue leaves the function one register past its upvalue count.
-    StoreU32(ctx, func_state + 36u, upvalue_count + 1u);
+  block_3:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = b;
+    i2 = 1u;
+    i1 += i2;
+    StoreU32(ctx, i0 + 36u, i1);
   }
-  // Nothing is in flight here, so no frame is saved.
-  goto done;
-suspend_point:;
-  // Push the resume word naming the word that was in flight, then the frame the
-  // rewind pops; the words are saved in the order that pop reads them.
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-           LoadU32(ctx, ReturnFrameSp(ctx)) + kEmitPrototypePrologueResumeWordBytes);
-  frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, frame, func_state);
-  StoreU32(ctx, frame + 4u, upvalue_count);
-  StoreU32(ctx, frame + 8u, word);
-  StoreU32(ctx, frame + 12u, flag_word);
-  StoreU32(ctx, frame + 16u, upvalue_bits);
-  StoreU32(ctx, frame + 20u, parameter_words);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-           LoadU32(ctx, ReturnFrameSp(ctx)) + kEmitPrototypePrologueSaveFrameBytes);
-done:;
+  goto func_exit;
+  spill_frame:;
+  l4 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l4;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF1131ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l4 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l4;
+  i1 = b;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l4;
+  i1 = c;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l4;
+  i1 = d;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l4;
+  i1 = l5;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l4;
+  i1 = l6;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 24u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

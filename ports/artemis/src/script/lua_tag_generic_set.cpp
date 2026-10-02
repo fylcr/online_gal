@@ -1,8 +1,23 @@
+// lua_tag_generic_set.cpp -- the seton* tag registry: matches the tag name against the setonautomodein ..
+//
+// TagGenericSetOn -- the seton* tag registry: matches the tag name against the setonautomodein .. setonwindowbutton handler table, deep-copies the script block and assigns it into the tagged tree.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 1813838-1813838 (f3651); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations for the callees this step calls.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 uint32_t CompareBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
@@ -14,58 +29,60 @@ uint32_t CombineComparisonResults(EngineContext* ctx, uint32_t left, uint32_t ri
 uint32_t CopyScriptBlock(EngineContext* ctx, uint32_t a, uint32_t b);
 void AssignTaggedTreeRange(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c);
 
-namespace LuaEngine {
-// TagGenericSetOn -- the seton* tag registry: it matches the tag name against
-// the setonautomodein .. setonwindowbutton handler table and deep-copies the
-// handler description into the registry entry.
+namespace {
 
+constexpr uint32_t kF3651Const8C564 = 0x8C564u;  // 
+constexpr uint32_t kF3651MsgSetonclick = 0xAF698u;  // setonclick
+constexpr uint32_t kF3651MsgSetonrollover = 0xAF6AEu;  // setonrollover
+constexpr uint32_t kF3651MsgSetonrollout = 0xAF6CAu;  // setonrollout
+constexpr uint32_t kF3651MsgSetondragin = 0xAF6E4u;  // setondragin
+constexpr uint32_t kF3651MsgSetondrag = 0xAF6FCu;  // setondrag
+constexpr uint32_t kF3651MsgSetondragout = 0xAF710u;  // setondragout
+constexpr uint32_t kF3651MsgSetonpush = 0xAF72Au;  // setonpush
+constexpr uint32_t kF3651MsgSetonautomodein = 0xAF73Eu;  // setonautomodein
+constexpr uint32_t kF3651MsgSetonautomodeout = 0xAF75Eu;  // setonautomodeout
+constexpr uint32_t kF3651MsgSetoncommandskipin = 0xAF780u;  // setoncommandskipin
+constexpr uint32_t kF3651MsgSetoncommandskipout = 0xAF7A6u;  // setoncommandskipout
+constexpr uint32_t kF3651MsgSetoncontrolskipin = 0xAF7CEu;  // setoncontrolskipin
+constexpr uint32_t kF3651MsgSetoncontrolskipout = 0xAF7F4u;  // setoncontrolskipout
+constexpr uint32_t kF3651MsgSetonhidein = 0xAF81Cu;  // setonhidein
+constexpr uint32_t kF3651MsgSetonhideout = 0xAF834u;  // setonhideout
+constexpr uint32_t kF3651MsgSetonbacklogin = 0xAF84Eu;  // setonbacklogin
+constexpr uint32_t kF3651MsgSetonbacklogout = 0xAF86Cu;  // setonbacklogout
+constexpr uint32_t kF3651MsgSetonwindowbutton = 0xAF88Cu;  // setonwindowbutton
+constexpr uint32_t kF3651MsgSetondirchg = 0xAF8B0u;  // setondirchg
+constexpr uint32_t kF3651MsgSetonvideofinish = 0xAF8C8u;  // setonvideofinish
+constexpr uint32_t kF3651MsgSetonsoundfinish = 0xAF8EAu;  // setonsoundfinish
+constexpr uint32_t kF3651MsgLabel = 0xB4B1Bu;  // label
+constexpr uint32_t kF3651ConstB4B1F = 0xB4B1Fu;  // 
+constexpr uint32_t kF3651ConstB4B29 = 0xB4B29u;  // 
+constexpr uint32_t kF3651MsgPenetration = 0xB5339u;  // penetration
+constexpr uint32_t kF3651ConstB5340 = 0xB5340u;  // 
+constexpr uint32_t kF3651MsgKeyrepeat = 0xB53EDu;  // keyrepeat
+constexpr uint32_t kF3651ConstB53F5 = 0xB53F5u;  // 
+constexpr uint32_t kF3651ConstB53F7 = 0xB53F7u;  // 
+constexpr uint32_t kF3651ConstB53F9 = 0xB53F9u;  // 
+constexpr uint32_t kF3651MsgButton = 0xB53FBu;  // button
+constexpr uint32_t kF3651ConstB53FF = 0xB53FFu;  // 
+constexpr uint32_t kF3651ConstB5E30 = 0xB5E30u;  // 
+constexpr uint32_t kF3651MsgPx = 0xB5E31u;  // px != 0
+constexpr uint32_t kF3651MsgBoostBoostSmartPtr = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
+constexpr uint32_t kF3651MsgOperator = 0xB5E71u;  // operator->
+constexpr uint32_t kF3651ConstB5F40 = 0xB5F40u;  // 
+constexpr uint32_t kF3651ConstB8F8C = 0xB8F8Cu;  // 
+constexpr uint32_t kF3651ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF3651Const656C6966 = 0x656C6966u;  // 
+constexpr uint32_t kF3651ConstFFFFFFC0 = 0xFFFFFFC0u;  // 
+constexpr uint32_t kF3651ConstFFFFFFFE = 0xFFFFFFFEu;  // 
+constexpr uint32_t kF3651ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF3651SaveFrameBytes = 52u;
+constexpr uint32_t kF3651ResumeWordBytes = 4u;
+
+}  // namespace
+
+namespace LuaEngine {
 void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   EnterFrame();
-  constexpr uint32_t kData8C564 = 0x8C564u;
-  constexpr uint32_t kMsgSetonclick = 0xAF698u;  // setonclick
-  constexpr uint32_t kMsgSetonrollover = 0xAF6AEu;  // setonrollover
-  constexpr uint32_t kMsgSetonrollout = 0xAF6CAu;  // setonrollout
-  constexpr uint32_t kMsgSetondragin = 0xAF6E4u;  // setondragin
-  constexpr uint32_t kMsgSetondrag = 0xAF6FCu;  // setondrag
-  constexpr uint32_t kMsgSetondragout = 0xAF710u;  // setondragout
-  constexpr uint32_t kMsgSetonpush = 0xAF72Au;  // setonpush
-  constexpr uint32_t kMsgSetonautomodein = 0xAF73Eu;  // setonautomodein
-  constexpr uint32_t kMsgSetonautomodeout = 0xAF75Eu;  // setonautomodeout
-  constexpr uint32_t kMsgSetoncommandskipin = 0xAF780u;  // setoncommandskipin
-  constexpr uint32_t kMsgSetoncommandskipout = 0xAF7A6u;  // setoncommandskipout
-  constexpr uint32_t kMsgSetoncontrolskipin = 0xAF7CEu;  // setoncontrolskipin
-  constexpr uint32_t kMsgSetoncontrolskipout = 0xAF7F4u;  // setoncontrolskipout
-  constexpr uint32_t kMsgSetonhidein = 0xAF81Cu;  // setonhidein
-  constexpr uint32_t kMsgSetonhideout = 0xAF834u;  // setonhideout
-  constexpr uint32_t kMsgSetonbacklogin = 0xAF84Eu;  // setonbacklogin
-  constexpr uint32_t kMsgSetonbacklogout = 0xAF86Cu;  // setonbacklogout
-  constexpr uint32_t kMsgSetonwindowbutton = 0xAF88Cu;  // setonwindowbutton
-  constexpr uint32_t kMsgSetondirchg = 0xAF8B0u;  // setondirchg
-  constexpr uint32_t kMsgSetonvideofinish = 0xAF8C8u;  // setonvideofinish
-  constexpr uint32_t kMsgSetonsoundfinish = 0xAF8EAu;  // setonsoundfinish
-  constexpr uint32_t kMsgLabel = 0xB4B1Bu;  // label
-  constexpr uint32_t kDataB4B1F = 0xB4B1Fu;
-  constexpr uint32_t kDataB4B29 = 0xB4B29u;
-  constexpr uint32_t kMsgPenetration = 0xB5339u;  // penetration
-  constexpr uint32_t kDataB5340 = 0xB5340u;
-  constexpr uint32_t kMsgKeyrepeat = 0xB53EDu;  // keyrepeat
-  constexpr uint32_t kDataB53F5 = 0xB53F5u;
-  constexpr uint32_t kDataB53F7 = 0xB53F7u;
-  constexpr uint32_t kDataB53F9 = 0xB53F9u;
-  constexpr uint32_t kMsgButton = 0xB53FBu;  // button
-  constexpr uint32_t kDataB53FF = 0xB53FFu;
-  constexpr uint32_t kDataB5E30 = 0xB5E30u;
-  constexpr uint32_t kMsgPx = 0xB5E31u;  // px != 0
-  constexpr uint32_t kMsgSmartPtrPath = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
-  constexpr uint32_t kMsgOperator = 0xB5E71u;  // operator->
-  constexpr uint32_t kDataB5F40 = 0xB5F40u;
-  constexpr uint32_t kDataB8F8C = 0xB8F8Cu;
-  constexpr uint32_t kData656C6966 = 0x656C6966u;
-  constexpr uint32_t kDataFFFFFFC0 = 0xFFFFFFC0u;
-  constexpr uint32_t kDataFFFFFFFE = 0xFFFFFFFEu;
-  constexpr uint32_t kDataFFFFFFFF = 0xFFFFFFFFu;
-  constexpr uint32_t kSaveFrameBytes = 52u;
-  constexpr uint32_t kResumeWordBytes = 4u;
   uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l13 = 0u; uint32_t l14 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u; uint32_t i5 = 0u; uint32_t i6 = 0u;
   uint64_t j1 = 0; uint64_t j3 = 0;
@@ -77,7 +94,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kSaveFrameBytes;
+    i2 = kF3651SaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -129,7 +146,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kResumeWordBytes;
+    i2 = kF3651ResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -150,7 +167,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 0u;
     StoreU8(ctx, i0 + 1324u, i1);
     i0 = l4;
-    i1 = kData656C6966;
+    i1 = kF3651Const656C6966;
     StoreU32(ctx, i0 + 1320u, i1);
     i0 = l4;
     i1 = 4u;
@@ -224,7 +241,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             goto block_13;
           }
           i0 = l13;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           l6 = i0;
           if (i0) {goto block_13;}
@@ -240,7 +257,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           l10 = i0;
           if (i0) {goto block_15;}
           i0 = l6;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           l6 = i0;
           if (i0) {goto block_9;}
@@ -274,11 +291,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = 0u;
     StoreU8(ctx, i0 + 1309u, i1);
     i0 = l4;
-    i1 = kMsgLabel;
+    i1 = kF3651MsgLabel;
     i1 = LoadU32(ctx, i1);
     StoreU32(ctx, i0 + 1304u, i1);
     i0 = l4;
-    i1 = kDataB4B1F;
+    i1 = kF3651ConstB4B1F;
     i1 = LoadU8(ctx, i1);
     StoreU8(ctx, i0 + 1308u, i1);
     i0 = l5;
@@ -347,7 +364,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           goto block_22;
         }
         i0 = l11;
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         l3 = i0;
         if (i0) {goto block_22;}
@@ -363,7 +380,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l6 = i0;
         if (i0) {goto block_26;}
         i0 = l3;
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         l3 = i0;
         if (i0) {goto block_25;}
@@ -382,12 +399,12 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 0u;
       StoreU8(ctx, i0 + 1324u, i1);
       i0 = l4;
-      i1 = kData656C6966;
+      i1 = kF3651Const656C6966;
       StoreU32(ctx, i0 + 1320u, i1);
       i0 = l4;
       i1 = 4u;
       StoreU8(ctx, i0 + 1331u, i1);
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -422,7 +439,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = l3;
       i2 = l14;
       i3 = l6;
-      i4 = kDataB5E30;
+      i4 = kF3651ConstB5E30;
       i5 = l5;
       i6 = l11;
       HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -435,10 +452,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -446,7 +463,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i0 == i1;
       l3 = i0;
       if (i0) {goto block_20;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -482,10 +499,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -495,7 +512,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {goto block_20;}
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 1331u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       l3 = i0;
       if (i0) {goto block_9;}
@@ -532,7 +549,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 1331u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3651ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     b = i0;
     if (i0) {goto block_8;}
@@ -576,7 +593,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -590,8 +607,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l10;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kMsgSetonclick;
+      i3 = kF3651ConstFFFFFFFF;
+      i4 = kF3651MsgSetonclick;
       i5 = 10u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l7 = i0;
@@ -607,17 +624,17 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l5;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
       i1 = 1u;
       i0 = i0 == i1;
       l6 = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       i0 = l3;
       i0 = !(i0);
       l3 = i0;
@@ -657,7 +674,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -671,8 +688,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l10;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kMsgSetonrollover;
+      i3 = kF3651ConstFFFFFFFF;
+      i4 = kF3651MsgSetonrollover;
       i5 = 13u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l7 = i0;
@@ -688,17 +705,17 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l5;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
       i1 = 1u;
       i0 = i0 == i1;
       l6 = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       i0 = l3;
       i0 = !(i0);
       l3 = i0;
@@ -738,7 +755,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -752,8 +769,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l10;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kMsgSetonrollout;
+      i3 = kF3651ConstFFFFFFFF;
+      i4 = kF3651MsgSetonrollout;
       i5 = 12u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l7 = i0;
@@ -769,17 +786,17 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l5;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
       i1 = 1u;
       i0 = i0 == i1;
       l6 = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       i0 = l3;
       i0 = !(i0);
       l3 = i0;
@@ -819,7 +836,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -833,8 +850,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l10;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kMsgSetondragin;
+      i3 = kF3651ConstFFFFFFFF;
+      i4 = kF3651MsgSetondragin;
       i5 = 11u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l7 = i0;
@@ -850,17 +867,17 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l5;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
       i1 = 1u;
       i0 = i0 == i1;
       l6 = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       i0 = l3;
       i0 = !(i0);
       l3 = i0;
@@ -900,7 +917,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -914,8 +931,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l10;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kMsgSetondrag;
+      i3 = kF3651ConstFFFFFFFF;
+      i4 = kF3651MsgSetondrag;
       i5 = 9u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l7 = i0;
@@ -931,17 +948,17 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l5;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
       i1 = 1u;
       i0 = i0 == i1;
       l6 = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       i0 = l3;
       i0 = !(i0);
       l3 = i0;
@@ -981,7 +998,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -995,8 +1012,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l10;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kMsgSetondragout;
+      i3 = kF3651ConstFFFFFFFF;
+      i4 = kF3651MsgSetondragout;
       i5 = 12u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l7 = i0;
@@ -1012,10 +1029,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l5;
     } else {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -1074,7 +1091,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1086,10 +1103,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3651MsgPx;
+      i2 = kF3651MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3651MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 8u;
       i1 = ResumePhase(ctx);
@@ -1100,10 +1117,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -1111,7 +1128,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i0 != i1;
       a = i0;
       if (i0) {goto block_37;}
-      goto exit_path;
+      goto running_exit;
     }
   }
   i0 = ResumePhase(ctx);
@@ -1132,7 +1149,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1144,10 +1161,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3651MsgPx;
+      i2 = kF3651MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3651MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 9u;
       i1 = ResumePhase(ctx);
@@ -1158,10 +1175,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -1169,7 +1186,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i0 != i1;
       a = i0;
       if (i0) {goto block_37;}
-      goto exit_path;
+      goto running_exit;
     }
   }
   i0 = ResumePhase(ctx);
@@ -1184,7 +1201,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = l4;
     i1 = 2u;
     StoreU8(ctx, i0 + 1331u, i1);
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -1220,7 +1237,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l6;
     i2 = l14;
     i3 = l5;
-    i4 = kDataB5E30;
+    i4 = kF3651ConstB5E30;
     i5 = l11;
     i6 = l12;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -1233,10 +1250,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -1256,7 +1273,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 304u);
     l6 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -1289,10 +1306,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -1302,7 +1319,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {goto block_100;}
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 1331u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3651ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -1346,7 +1363,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 1331u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3651ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     b = i0;
     if (i0) {goto block_8;}
@@ -1356,7 +1373,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -1370,8 +1387,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetonclick;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetonclick;
     i5 = 10u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -1386,10 +1403,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -1432,7 +1449,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1444,10 +1461,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3651MsgPx;
+        i2 = kF3651MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3651MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 13u;
         i1 = ResumePhase(ctx);
@@ -1458,10 +1475,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -1469,13 +1486,13 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_37;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = 0u;
@@ -1506,10 +1523,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i2 = ResumePhase(ctx);
     i2 = !(i2);
     if (i2) {
-      i2 = kDataD015C;
+      i2 = kF3651ConstD015C;
       i2 = LoadU32(ctx, i2);
       l3 = i2;
-      i2 = kDataD015C;
+      i2 = kF3651ConstD015C;
       i3 = 0u;
       StoreU32(ctx, i2, i3);
       i2 = 1u;
@@ -1520,11 +1537,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       l3 = i2;
       if (i2) {goto block_43;}
       i2 = l10;
-      i3 = kDataB5340;
+      i3 = kF3651ConstB5340;
       i3 = LoadU32(ctx, i3);
       StoreU32(ctx, i2 + 7u, i3);
       i2 = l10;
-      i3 = kMsgPenetration;
+      i3 = kF3651MsgPenetration;
       j3 = LoadU64(ctx, i3);
       StoreU64(ctx, i2, j3);
       i2 = l10;
@@ -1596,7 +1613,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             goto block_136;
           }
           i0 = l7;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           l5 = i0;
           if (i0) {goto block_136;}
@@ -1610,7 +1627,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           l9 = i0;
           if (i0) {goto block_140;}
           i0 = l5;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           l5 = i0;
           if (i0) {goto block_139;}
@@ -1625,7 +1642,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l13;
         if (i0) {goto block_137;}
         block_139:;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1651,10 +1668,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -1672,14 +1689,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = 0u;
         StoreU8(ctx, i0 + 11u, i1);
         i0 = l3;
-        i1 = kDataB5340;
+        i1 = kF3651ConstB5340;
         i1 = LoadU32(ctx, i1);
         StoreU32(ctx, i0 + 7u, i1);
         i0 = l3;
-        i1 = kMsgPenetration;
+        i1 = kF3651MsgPenetration;
         j1 = LoadU64(ctx, i1);
         StoreU64(ctx, i0, j1);
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -1715,7 +1732,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = l3;
         i2 = l14;
         i3 = l6;
-        i4 = kDataB5E30;
+        i4 = kF3651ConstB5E30;
         i5 = l5;
         i6 = l9;
         HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -1728,10 +1745,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -1800,7 +1817,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i0 != i1;
       l9 = i0;
       if (i0) {goto block_130;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -1818,8 +1835,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l3;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kDataB4B29;
+      i3 = kF3651ConstFFFFFFFF;
+      i4 = kF3651ConstB4B29;
       i5 = 1u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l7 = i0;
@@ -1834,16 +1851,16 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
       i1 = 1u;
       i0 = i0 == i1;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       i0 = l3;
       i1 = 0u;
       i0 = i0 != i1;
@@ -1853,7 +1870,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1884,10 +1901,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -1901,7 +1918,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l4;
       i1 = 2648u;
       StoreU32(ctx, i0 + 1160u, i1);
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1937,10 +1954,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -1948,7 +1965,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i0 == i1;
       l5 = i0;
       if (i0) {goto block_127;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -1984,10 +2001,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -1999,7 +2016,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 272u);
       l9 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -2024,10 +2041,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -2058,20 +2075,20 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l11;
         if (i0) {goto block_164;}
         i0 = l9;
-        i1 = kDataFFFFFFFE;
+        i1 = kF3651ConstFFFFFFFE;
         i0 &= i1;
         i0 = LoadU32(ctx, i0);
         l9 = i0;
         i0 = !(i0);
         l11 = i0;
         if (i0) {goto block_164;}
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l9;
         l11 = i0;
         i0 = l5;
-        i1 = kResumeWordBytes;
+        i1 = kF3651ResumeWordBytes;
         i0 += i1;
         l9 = i0;
       }
@@ -2096,10 +2113,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l9 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l9;
@@ -2123,13 +2140,13 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l4;
       i1 = 1236u;
       i0 += i1;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = 1275u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -2148,7 +2165,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 1251u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -2156,11 +2173,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         DeallocateRawBlock(ctx, i0);
       }
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -2176,7 +2193,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l5 = i0;
       if (i0) {
@@ -2189,7 +2206,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {goto block_174;}
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 1331u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       l3 = i0;
       if (i0) {goto block_174;}
@@ -2261,14 +2278,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = c;
       if (i0) {goto block_180;}
       i0 = b;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3651ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       b = i0;
       i0 = !(i0);
       c = i0;
       if (i0) {goto block_180;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -2299,10 +2316,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -2323,7 +2340,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     block_179:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     block_125:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -2340,13 +2357,13 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l4;
       i1 = 1236u;
       i0 += i1;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = 1275u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -2366,7 +2383,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 1251u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       b = i0;
       if (i0) {goto block_123;}
@@ -2380,11 +2397,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = !(i0);
     if (i0) {
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -2400,7 +2417,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       b = i0;
       if (i0) {
@@ -2418,7 +2435,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 1331u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       b = i0;
       if (i0) {goto block_121;}
@@ -2438,11 +2455,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     block_120:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_45:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -2475,7 +2492,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -2489,8 +2506,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetonpush;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetonpush;
     i5 = 9u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -2505,10 +2522,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -2545,14 +2562,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i2 = l4;
       i3 = 1328u;
       i2 += i3;
-      i3 = kDataB53F5;
+      i3 = kF3651ConstB53F5;
       i3 = LoadU8(ctx, i3);
       StoreU8(ctx, i2, i3);
       i2 = l4;
       i3 = 9u;
       StoreU8(ctx, i2 + 1331u, i3);
       i2 = l4;
-      i3 = kMsgKeyrepeat;
+      i3 = kF3651MsgKeyrepeat;
       j3 = LoadU64(ctx, i3);
       StoreU64(ctx, i2 + 1320u, j3);
       i2 = l9;
@@ -2624,7 +2641,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             goto block_206;
           }
           i0 = l11;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           c = i0;
           if (i0) {goto block_206;}
@@ -2640,7 +2657,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           l6 = i0;
           if (i0) {goto block_210;}
           i0 = c;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           c = i0;
           if (i0) {goto block_209;}
@@ -2660,7 +2677,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l4;
         i1 = 1312u;
         i0 += i1;
-        i1 = kDataB53F5;
+        i1 = kF3651ConstB53F5;
         i1 = LoadU8(ctx, i1);
         StoreU8(ctx, i0, i1);
         i0 = l4;
@@ -2670,10 +2687,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = 0u;
         StoreU8(ctx, i0 + 1313u, i1);
         i0 = l4;
-        i1 = kMsgKeyrepeat;
+        i1 = kF3651MsgKeyrepeat;
         j1 = LoadU64(ctx, i1);
         StoreU64(ctx, i0 + 1304u, j1);
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -2709,7 +2726,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = c;
         i2 = l14;
         i3 = l6;
-        i4 = kDataB5E30;
+        i4 = kF3651ConstB5E30;
         i5 = l5;
         i6 = l11;
         HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -2722,10 +2739,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         c = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = c;
@@ -2774,7 +2791,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = c;
@@ -2792,8 +2809,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = 1354u;
             i1 = c;
             i2 = 0u;
-            i3 = kDataFFFFFFFF;
-            i4 = kDataB4B29;
+            i3 = kF3651ConstFFFFFFFF;
+            i4 = kF3651ConstB4B29;
             i5 = 1u;
             i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
             l7 = i0;
@@ -2809,16 +2826,16 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           if (i0) {
             i0 = l3;
           } else {
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i0 = LoadU32(ctx, i0);
             l3 = i0;
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l3;
             i1 = 1u;
             i0 = i0 == i1;
-            if (i0) {goto exit_path;}
+            if (i0) {goto running_exit;}
             i0 = c;
             i0 = !(i0);
           }
@@ -2829,7 +2846,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 1315u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           c = i0;
           if (i0) {
@@ -2847,14 +2864,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = 0u;
           StoreU8(ctx, i0 + 1323u, i1);
           i0 = l4;
-          i1 = kDataB53F7;
+          i1 = kF3651ConstB53F7;
           i1 = LoadU16(ctx, i1);
           StoreU16(ctx, i0 + 1320u, i1);
           i0 = l4;
-          i1 = kDataB53F9;
+          i1 = kF3651ConstB53F9;
           i1 = LoadU8(ctx, i1);
           StoreU8(ctx, i0 + 1322u, i1);
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -2890,7 +2907,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = c;
           i2 = l14;
           i3 = l3;
-          i4 = kDataB5E30;
+          i4 = kF3651ConstB5E30;
           i5 = l6;
           i6 = l5;
           HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -2903,10 +2920,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -2927,7 +2944,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           c = i0;
           i0 = l3;
           i0 = LoadS8(ctx, i0 + 39u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = c;
@@ -3004,7 +3021,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -3030,10 +3047,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i0 = LoadU32(ctx, i0);
             l14 = i0;
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l14;
@@ -3045,7 +3062,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             j1 = 0ull;
             StoreU64(ctx, i0 + 24u, j1);
             i0 = l6;
-            i1 = kDataB5F40;
+            i1 = kF3651ConstB5F40;
             StoreU32(ctx, i0 + 20u, i1);
             i0 = l6;
             i1 = c;
@@ -3117,7 +3134,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -3148,10 +3165,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -3178,7 +3195,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = b;
             i0 = LoadU32(ctx, i0 + 16u);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = l6;
@@ -3207,10 +3224,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -3223,7 +3240,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = b;
@@ -3258,10 +3275,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -3275,7 +3292,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           StoreU32(ctx, i0 + 60u, i1);
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 1331u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_6;}
@@ -3294,7 +3311,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = HostTempRet0(ctx);
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 1331u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           b = i0;
           if (i0) {goto block_8;}
@@ -3309,7 +3326,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = HostTempRet0(ctx);
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 1315u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         b = i0;
         if (i0) {goto block_8;}
@@ -3348,14 +3365,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 0u;
       StoreU8(ctx, i0 + 1323u, i1);
       i0 = l4;
-      i1 = kDataB53F7;
+      i1 = kF3651ConstB53F7;
       i1 = LoadU16(ctx, i1);
       StoreU16(ctx, i0 + 1320u, i1);
       i0 = l4;
-      i1 = kDataB53F9;
+      i1 = kF3651ConstB53F9;
       i1 = LoadU8(ctx, i1);
       StoreU8(ctx, i0 + 1322u, i1);
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -3391,7 +3408,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = c;
       i2 = l14;
       i3 = l3;
-      i4 = kDataB5E30;
+      i4 = kF3651ConstB5E30;
       i5 = l6;
       i6 = l5;
       HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -3404,10 +3421,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = c;
@@ -3428,7 +3445,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       c = i0;
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = c;
@@ -3505,7 +3522,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -3531,10 +3548,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l14 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l14;
@@ -3546,7 +3563,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         j1 = 0ull;
         StoreU64(ctx, i0 + 24u, j1);
         i0 = l6;
-        i1 = kDataB5F40;
+        i1 = kF3651ConstB5F40;
         StoreU32(ctx, i0 + 20u, i1);
         i0 = l6;
         i1 = c;
@@ -3618,7 +3635,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l6;
@@ -3649,10 +3666,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -3679,7 +3696,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = b;
         i0 = LoadU32(ctx, i0 + 16u);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l6;
@@ -3708,10 +3725,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -3724,7 +3741,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -3759,10 +3776,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -3776,7 +3793,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       StoreU32(ctx, i0 + 60u, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 1331u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -3795,7 +3812,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = HostTempRet0(ctx);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 1331u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       b = i0;
       if (i0) {goto block_8;}
@@ -3804,7 +3821,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_43:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -3838,7 +3855,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l11;
     if (i0) {goto block_285;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -3852,8 +3869,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetonrollover;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetonrollover;
     i5 = 13u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -3868,10 +3885,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -3914,7 +3931,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -3926,10 +3943,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3651MsgPx;
+        i2 = kF3651MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3651MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 39u;
         i1 = ResumePhase(ctx);
@@ -3940,10 +3957,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -3951,13 +3968,13 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_37;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = 0u;
@@ -3988,10 +4005,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i2 = ResumePhase(ctx);
     i2 = !(i2);
     if (i2) {
-      i2 = kDataD015C;
+      i2 = kF3651ConstD015C;
       i2 = LoadU32(ctx, i2);
       l3 = i2;
-      i2 = kDataD015C;
+      i2 = kF3651ConstD015C;
       i3 = 0u;
       StoreU32(ctx, i2, i3);
       i2 = 1u;
@@ -4002,11 +4019,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       l3 = i2;
       if (i2) {goto block_288;}
       i2 = l10;
-      i3 = kDataB5340;
+      i3 = kF3651ConstB5340;
       i3 = LoadU32(ctx, i3);
       StoreU32(ctx, i2 + 7u, i3);
       i2 = l10;
-      i3 = kMsgPenetration;
+      i3 = kF3651MsgPenetration;
       j3 = LoadU64(ctx, i3);
       StoreU64(ctx, i2, j3);
       i2 = l10;
@@ -4078,7 +4095,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             goto block_317;
           }
           i0 = l7;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           l5 = i0;
           if (i0) {goto block_317;}
@@ -4092,7 +4109,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           l9 = i0;
           if (i0) {goto block_321;}
           i0 = l5;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           l5 = i0;
           if (i0) {goto block_320;}
@@ -4107,7 +4124,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l13;
         if (i0) {goto block_318;}
         block_320:;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -4133,10 +4150,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l5 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -4154,14 +4171,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = 0u;
         StoreU8(ctx, i0 + 11u, i1);
         i0 = l3;
-        i1 = kDataB5340;
+        i1 = kF3651ConstB5340;
         i1 = LoadU32(ctx, i1);
         StoreU32(ctx, i0 + 7u, i1);
         i0 = l3;
-        i1 = kMsgPenetration;
+        i1 = kF3651MsgPenetration;
         j1 = LoadU64(ctx, i1);
         StoreU64(ctx, i0, j1);
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -4197,7 +4214,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = l3;
         i2 = l14;
         i3 = l6;
-        i4 = kDataB5E30;
+        i4 = kF3651ConstB5E30;
         i5 = l5;
         i6 = l9;
         HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -4210,10 +4227,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l3 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l3;
@@ -4282,7 +4299,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i0 != i1;
       l9 = i0;
       if (i0) {goto block_311;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -4300,8 +4317,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = 1354u;
       i1 = l3;
       i2 = 0u;
-      i3 = kDataFFFFFFFF;
-      i4 = kDataB4B29;
+      i3 = kF3651ConstFFFFFFFF;
+      i4 = kF3651ConstB4B29;
       i5 = 1u;
       i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
       l7 = i0;
@@ -4316,16 +4333,16 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
       i1 = 1u;
       i0 = i0 == i1;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       i0 = l3;
       i1 = 0u;
       i0 = i0 != i1;
@@ -4335,7 +4352,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -4366,10 +4383,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -4383,7 +4400,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l4;
       i1 = 2648u;
       StoreU32(ctx, i0 + 1024u, i1);
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -4423,10 +4440,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -4434,7 +4451,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i0 == i1;
       l5 = i0;
       if (i0) {goto block_308;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -4470,10 +4487,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -4485,7 +4502,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 272u);
       l9 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -4510,10 +4527,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -4544,20 +4561,20 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l11;
         if (i0) {goto block_345;}
         i0 = l9;
-        i1 = kDataFFFFFFFE;
+        i1 = kF3651ConstFFFFFFFE;
         i0 &= i1;
         i0 = LoadU32(ctx, i0);
         l9 = i0;
         i0 = !(i0);
         l11 = i0;
         if (i0) {goto block_345;}
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l9;
         l11 = i0;
         i0 = l5;
-        i1 = kResumeWordBytes;
+        i1 = kF3651ResumeWordBytes;
         i0 += i1;
         l9 = i0;
       }
@@ -4582,10 +4599,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l9 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l9;
@@ -4609,13 +4626,13 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l4;
       i1 = 1100u;
       i0 += i1;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = 1139u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -4634,7 +4651,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 1115u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -4642,11 +4659,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         DeallocateRawBlock(ctx, i0);
       }
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -4662,7 +4679,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       l5 = i0;
       if (i0) {
@@ -4675,7 +4692,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       if (i0) {goto block_355;}
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 1331u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       l3 = i0;
       if (i0) {goto block_355;}
@@ -4747,14 +4764,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = c;
       if (i0) {goto block_361;}
       i0 = b;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3651ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       b = i0;
       i0 = !(i0);
       c = i0;
       if (i0) {goto block_361;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -4785,10 +4802,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -4809,7 +4826,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     block_360:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     block_306:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -4826,13 +4843,13 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l4;
       i1 = 1100u;
       i0 += i1;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l4;
       i1 = 1139u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -4852,7 +4869,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 1115u;
       i0 += i1;
       i0 = LoadS8(ctx, i0);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       b = i0;
       if (i0) {goto block_304;}
@@ -4866,11 +4883,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = !(i0);
     if (i0) {
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -4886,7 +4903,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       b = i0;
       if (i0) {
@@ -4904,7 +4921,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 1331u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       b = i0;
       if (i0) {goto block_302;}
@@ -4924,11 +4941,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     block_301:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_288:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -4962,7 +4979,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l9;
     if (i0) {goto block_377;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -4976,8 +4993,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetonrollout;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetonrollout;
     i5 = 12u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -4992,10 +5009,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -5038,7 +5055,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5050,10 +5067,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3651MsgPx;
+        i2 = kF3651MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3651MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 51u;
         i1 = ResumePhase(ctx);
@@ -5064,10 +5081,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -5075,13 +5092,13 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_37;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -5112,10 +5129,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -5129,7 +5146,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l4;
       i1 = 2648u;
       StoreU32(ctx, i0 + 888u, i1);
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -5169,10 +5186,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -5189,7 +5206,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -5225,10 +5242,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l10 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l10;
@@ -5241,7 +5258,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = LoadU32(ctx, i0 + 272u);
         l10 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5266,10 +5283,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l6 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l6;
@@ -5300,14 +5317,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = l9;
           if (i0) {goto block_409;}
           i0 = l6;
-          i1 = kDataFFFFFFFE;
+          i1 = kF3651ConstFFFFFFFE;
           i0 &= i1;
           i0 = LoadU32(ctx, i0);
           l6 = i0;
           i0 = !(i0);
           l9 = i0;
           if (i0) {goto block_409;}
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -5338,10 +5355,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           l6 = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -5363,11 +5380,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = !(i0);
       if (i0) {
         i0 = l4;
-        i1 = kDataB5F40;
+        i1 = kF3651ConstB5F40;
         StoreU32(ctx, i0 + 964u, i1);
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 1003u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l4;
@@ -5382,7 +5399,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 979u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l4;
@@ -5390,11 +5407,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           DeallocateRawBlock(ctx, i0);
         }
         i0 = l3;
-        i1 = kDataB5F40;
+        i1 = kF3651ConstB5F40;
         StoreU32(ctx, i0, i1);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 39u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l3;
@@ -5410,7 +5427,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 15u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         l6 = i0;
         if (i0) {goto block_41;}
@@ -5454,14 +5471,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = c;
       if (i0) {goto block_421;}
       i0 = b;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3651ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       b = i0;
       i0 = !(i0);
       c = i0;
       if (i0) {goto block_421;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -5492,10 +5509,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -5516,7 +5533,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     block_420:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     block_397:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -5531,11 +5548,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = !(i0);
     if (i0) {
       i0 = l4;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0 + 964u, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 1003u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -5551,7 +5568,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 979u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       b = i0;
       if (i0) {goto block_395;}
@@ -5565,11 +5582,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = !(i0);
     if (i0) {
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -5585,7 +5602,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       b = i0;
       if (i0) {goto block_40;}
@@ -5598,11 +5615,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_380:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_377:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -5626,7 +5643,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l9;
     if (i0) {goto block_432;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -5640,8 +5657,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetondragin;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetondragin;
     i5 = 11u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -5656,10 +5673,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -5702,7 +5719,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5714,10 +5731,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3651MsgPx;
+        i2 = kF3651MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3651MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 59u;
         i1 = ResumePhase(ctx);
@@ -5728,10 +5745,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -5739,13 +5756,13 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_37;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -5776,10 +5793,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -5793,7 +5810,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l4;
       i1 = 2648u;
       StoreU32(ctx, i0 + 752u, i1);
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -5833,10 +5850,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -5853,7 +5870,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -5889,10 +5906,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l10 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l10;
@@ -5905,7 +5922,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = LoadU32(ctx, i0 + 272u);
         l10 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -5930,10 +5947,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l6 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l6;
@@ -5964,14 +5981,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = l9;
           if (i0) {goto block_464;}
           i0 = l6;
-          i1 = kDataFFFFFFFE;
+          i1 = kF3651ConstFFFFFFFE;
           i0 &= i1;
           i0 = LoadU32(ctx, i0);
           l6 = i0;
           i0 = !(i0);
           l9 = i0;
           if (i0) {goto block_464;}
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -6002,10 +6019,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           l6 = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -6027,11 +6044,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = !(i0);
       if (i0) {
         i0 = l4;
-        i1 = kDataB5F40;
+        i1 = kF3651ConstB5F40;
         StoreU32(ctx, i0 + 828u, i1);
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 867u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l4;
@@ -6046,7 +6063,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 843u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l4;
@@ -6054,11 +6071,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           DeallocateRawBlock(ctx, i0);
         }
         i0 = l3;
-        i1 = kDataB5F40;
+        i1 = kF3651ConstB5F40;
         StoreU32(ctx, i0, i1);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 39u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l3;
@@ -6074,7 +6091,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 15u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         l6 = i0;
         if (i0) {goto block_41;}
@@ -6118,14 +6135,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = c;
       if (i0) {goto block_476;}
       i0 = b;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3651ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       b = i0;
       i0 = !(i0);
       c = i0;
       if (i0) {goto block_476;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -6156,10 +6173,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -6180,7 +6197,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     block_475:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     block_452:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -6195,11 +6212,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = !(i0);
     if (i0) {
       i0 = l4;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0 + 828u, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 867u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -6215,7 +6232,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 843u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       b = i0;
       if (i0) {goto block_450;}
@@ -6229,11 +6246,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = !(i0);
     if (i0) {
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -6249,7 +6266,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       b = i0;
       if (i0) {goto block_40;}
@@ -6262,11 +6279,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_435:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_432:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -6290,7 +6307,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l9;
     if (i0) {goto block_487;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -6304,8 +6321,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetondrag;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetondrag;
     i5 = 9u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -6320,10 +6337,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -6366,7 +6383,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -6378,10 +6395,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3651MsgPx;
+        i2 = kF3651MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3651MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 67u;
         i1 = ResumePhase(ctx);
@@ -6392,10 +6409,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -6403,13 +6420,13 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_37;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -6440,10 +6457,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -6457,7 +6474,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l4;
       i1 = 2648u;
       StoreU32(ctx, i0 + 616u, i1);
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -6497,10 +6514,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -6517,7 +6534,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -6553,10 +6570,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l10 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l10;
@@ -6569,7 +6586,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = LoadU32(ctx, i0 + 272u);
         l10 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -6594,10 +6611,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l6 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l6;
@@ -6628,14 +6645,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = l9;
           if (i0) {goto block_519;}
           i0 = l6;
-          i1 = kDataFFFFFFFE;
+          i1 = kF3651ConstFFFFFFFE;
           i0 &= i1;
           i0 = LoadU32(ctx, i0);
           l6 = i0;
           i0 = !(i0);
           l9 = i0;
           if (i0) {goto block_519;}
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -6666,10 +6683,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           l6 = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -6691,11 +6708,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = !(i0);
       if (i0) {
         i0 = l4;
-        i1 = kDataB5F40;
+        i1 = kF3651ConstB5F40;
         StoreU32(ctx, i0 + 692u, i1);
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 731u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l4;
@@ -6710,7 +6727,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 707u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l4;
@@ -6718,11 +6735,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           DeallocateRawBlock(ctx, i0);
         }
         i0 = l3;
-        i1 = kDataB5F40;
+        i1 = kF3651ConstB5F40;
         StoreU32(ctx, i0, i1);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 39u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l3;
@@ -6738,7 +6755,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 15u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         l6 = i0;
         if (i0) {goto block_41;}
@@ -6782,14 +6799,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = c;
       if (i0) {goto block_531;}
       i0 = b;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3651ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       b = i0;
       i0 = !(i0);
       c = i0;
       if (i0) {goto block_531;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -6820,10 +6837,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -6844,7 +6861,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     block_530:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     block_507:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -6859,11 +6876,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = !(i0);
     if (i0) {
       i0 = l4;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0 + 692u, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 731u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -6879,7 +6896,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 707u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       b = i0;
       if (i0) {goto block_505;}
@@ -6893,11 +6910,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = !(i0);
     if (i0) {
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -6913,7 +6930,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       b = i0;
       if (i0) {goto block_40;}
@@ -6926,11 +6943,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_490:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_487:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -6950,7 +6967,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i0 != i1;
     l3 = i0;
     if (i0) {goto block_41;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -6964,8 +6981,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetondragout;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetondragout;
     i5 = 12u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -6980,10 +6997,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -7017,7 +7034,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -7029,10 +7046,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3651MsgPx;
+        i2 = kF3651MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3651MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 75u;
         i1 = ResumePhase(ctx);
@@ -7043,10 +7060,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -7054,13 +7071,13 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_37;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -7091,10 +7108,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -7108,7 +7125,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l4;
       i1 = 2648u;
       StoreU32(ctx, i0 + 480u, i1);
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -7148,10 +7165,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -7168,7 +7185,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -7204,10 +7221,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l10 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l10;
@@ -7220,7 +7237,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         l9 = i0;
         i0 = LoadU32(ctx, i0 + 272u);
         l10 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -7245,10 +7262,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l6 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l6;
@@ -7279,14 +7296,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = l9;
           if (i0) {goto block_571;}
           i0 = l6;
-          i1 = kDataFFFFFFFE;
+          i1 = kF3651ConstFFFFFFFE;
           i0 &= i1;
           i0 = LoadU32(ctx, i0);
           l6 = i0;
           i0 = !(i0);
           l9 = i0;
           if (i0) {goto block_571;}
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -7317,10 +7334,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           l6 = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l6;
@@ -7342,11 +7359,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = !(i0);
       if (i0) {
         i0 = l4;
-        i1 = kDataB5F40;
+        i1 = kF3651ConstB5F40;
         StoreU32(ctx, i0 + 556u, i1);
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 595u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l4;
@@ -7361,7 +7378,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 571u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l4;
@@ -7369,11 +7386,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           DeallocateRawBlock(ctx, i0);
         }
         i0 = l3;
-        i1 = kDataB5F40;
+        i1 = kF3651ConstB5F40;
         StoreU32(ctx, i0, i1);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 39u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
         if (i0) {
           i0 = l3;
@@ -7389,7 +7406,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         ReleaseNodeTree(ctx, i0, i1);
         i0 = l3;
         i0 = LoadS8(ctx, i0 + 15u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         l6 = i0;
         if (i0) {goto block_41;}
@@ -7433,14 +7450,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = c;
       if (i0) {goto block_583;}
       i0 = b;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3651ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       b = i0;
       i0 = !(i0);
       c = i0;
       if (i0) {goto block_583;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -7471,10 +7488,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -7495,7 +7512,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     block_582:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     block_559:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -7510,11 +7527,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = !(i0);
     if (i0) {
       i0 = l4;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0 + 556u, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 595u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -7530,7 +7547,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 571u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       b = i0;
       if (i0) {goto block_557;}
@@ -7544,11 +7561,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = !(i0);
     if (i0) {
       i0 = l3;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l3;
@@ -7564,7 +7581,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       b = i0;
       if (i0) {goto block_40;}
@@ -7577,11 +7594,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_543:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_376:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -7613,7 +7630,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -7625,10 +7642,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3651MsgPx;
+      i2 = kF3651MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3651MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 82u;
       i1 = ResumePhase(ctx);
@@ -7639,10 +7656,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -7650,7 +7667,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i0 != i1;
       a = i0;
       if (i0) {goto block_37;}
-      goto exit_path;
+      goto running_exit;
     }
   }
   i0 = ResumePhase(ctx);
@@ -7665,7 +7682,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = l4;
     i1 = 2u;
     StoreU8(ctx, i0 + 1315u, i1);
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -7701,7 +7718,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = c;
     i2 = l14;
     i3 = l3;
-    i4 = kDataB5E30;
+    i4 = kF3651ConstB5E30;
     i5 = l6;
     i6 = l5;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -7714,10 +7731,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     c = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = c;
@@ -7737,7 +7754,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 += i2;
     c = i1;
     StoreU32(ctx, i0 + 1344u, i1);
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -7768,7 +7785,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i1 = l3;
     i2 = a;
     i3 = c;
-    i4 = kDataB5E30;
+    i4 = kF3651ConstB5E30;
     i5 = l6;
     i6 = l5;
     HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -7781,10 +7798,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -7812,7 +7829,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -7839,10 +7856,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -7871,7 +7888,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = c;
@@ -7899,10 +7916,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -7917,7 +7934,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 1315u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3651ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     a = i0;
     if (i0) {goto block_39;}
@@ -7942,7 +7959,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 1315u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3651ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     b = i0;
     if (i0) {goto block_40;}
@@ -7978,7 +7995,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     c = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -8001,10 +8018,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     c = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = c;
@@ -8038,7 +8055,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -8061,10 +8078,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -8076,7 +8093,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_39:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -8109,7 +8126,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -8132,10 +8149,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     b = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = b;
@@ -8169,7 +8186,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -8192,10 +8209,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -8207,7 +8224,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_630:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -8241,7 +8258,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_641;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -8255,8 +8272,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetonvideofinish;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetonvideofinish;
     i5 = 16u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -8271,10 +8288,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -8317,7 +8334,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -8329,10 +8346,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3651MsgPx;
+        i2 = kF3651MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3651MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 92u;
         i1 = ResumePhase(ctx);
@@ -8343,10 +8360,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -8354,7 +8371,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_37;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
@@ -8375,7 +8392,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -8387,10 +8404,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i2 ? i0 : i1;
       if (i0) {
         i0 = 857u;
-        i1 = kMsgPx;
-        i2 = kMsgSmartPtrPath;
+        i1 = kF3651MsgPx;
+        i2 = kF3651MsgBoostBoostSmartPtr;
         i3 = 734u;
-        i4 = kMsgOperator;
+        i4 = kF3651MsgOperator;
         HostFailAssertion(ctx, i0, i1, i2, i3, i4);
         i0 = 93u;
         i1 = ResumePhase(ctx);
@@ -8401,10 +8418,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -8412,7 +8429,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = i0 != i1;
         a = i0;
         if (i0) {goto block_37;}
-        goto exit_path;
+        goto running_exit;
       }
     }
     i0 = ResumePhase(ctx);
@@ -8427,7 +8444,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l4;
       i1 = 2u;
       StoreU8(ctx, i0 + 1331u, i1);
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -8463,7 +8480,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = l3;
       i2 = l14;
       i3 = l6;
-      i4 = kDataB5E30;
+      i4 = kF3651ConstB5E30;
       i5 = l5;
       i6 = l9;
       HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -8476,10 +8493,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -8499,7 +8516,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 304u);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -8532,10 +8549,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = c;
@@ -8571,8 +8588,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = c;
-      i1 = kData8C564;
-      i2 = kDataB8F8C;
+      i1 = kF3651Const8C564;
+      i2 = kF3651ConstB8F8C;
       i3 = 0u;
       i0 = CombineComparisonResults(ctx, i0, i1, i2, i3);
       l7 = i0;
@@ -8642,7 +8659,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -8665,16 +8682,16 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
       i1 = 1u;
       i0 = i0 == i1;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       i0 = c;
       i1 = c;
       i1 = LoadU32(ctx, i1 + 8u);
@@ -8692,7 +8709,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -8715,17 +8732,17 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = c;
       i1 = 1u;
       i0 = i0 == i1;
       c = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
     }
     block_684:;
     i0 = ResumePhase(ctx);
@@ -8733,7 +8750,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 1331u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -8753,7 +8770,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 372u);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -8781,10 +8798,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = c;
@@ -8803,7 +8820,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     if (i0) {
       i0 = c;
       if (i0) {goto block_696;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -8834,10 +8851,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = c;
@@ -8851,7 +8868,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l4;
       i1 = 2648u;
       StoreU32(ctx, i0 + 344u, i1);
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -8891,10 +8908,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -8902,7 +8919,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i0 == i1;
       a = i0;
       if (i0) {goto block_671;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -8938,10 +8955,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -8953,7 +8970,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 24u);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -8977,10 +8994,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -9011,14 +9028,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l6;
         if (i0) {goto block_708;}
         i0 = a;
-        i1 = kDataFFFFFFFE;
+        i1 = kF3651ConstFFFFFFFE;
         i0 &= i1;
         i0 = LoadU32(ctx, i0);
         a = i0;
         i0 = !(i0);
         l6 = i0;
         if (i0) {goto block_708;}
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -9049,17 +9066,17 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
         i1 = 1u;
         i0 = i0 == i1;
         a = i0;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
       }
       block_708:;
       i0 = ResumePhase(ctx);
@@ -9074,11 +9091,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = !(i0);
     if (i0) {
       i0 = l4;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0 + 420u, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 459u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -9093,7 +9110,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 435u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -9101,11 +9118,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         DeallocateRawBlock(ctx, i0);
       }
       i0 = b;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = b;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -9121,7 +9138,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = b;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_696;}
@@ -9157,7 +9174,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -9180,10 +9197,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -9208,7 +9225,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -9231,10 +9248,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -9268,7 +9285,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -9291,10 +9308,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -9328,7 +9345,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -9351,10 +9368,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -9366,7 +9383,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     block_673:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -9376,7 +9393,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = HostTempRet0(ctx);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 1331u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       b = i0;
       if (i0) {goto block_8;}
@@ -9426,14 +9443,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = l6;
       if (i0) {goto block_735;}
       i0 = l5;
-      i1 = kDataFFFFFFFE;
+      i1 = kF3651ConstFFFFFFFE;
       i0 &= i1;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
       i0 = !(i0);
       l6 = i0;
       if (i0) {goto block_735;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -9464,10 +9481,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       l5 = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -9488,7 +9505,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     block_734:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     block_669:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -9503,11 +9520,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = !(i0);
     if (i0) {
       i0 = l4;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0 + 420u, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 459u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -9523,7 +9540,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 435u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       c = i0;
       if (i0) {goto block_667;}
@@ -9537,11 +9554,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = !(i0);
     if (i0) {
       i0 = b;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = b;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -9557,7 +9574,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = b;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       c = i0;
       if (i0) {goto block_666;}
@@ -9593,7 +9610,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -9616,10 +9633,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       c = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = c;
@@ -9653,7 +9670,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         c = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -9676,10 +9693,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -9691,7 +9708,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     block_665:;
     i0 = ResumePhase(ctx);
     i0 = !(i0);
@@ -9726,7 +9743,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 8u);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -9749,10 +9766,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       b = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -9786,7 +9803,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 12u);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -9809,10 +9826,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         b = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = b;
@@ -9824,15 +9841,15 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     }
     i0 = ResumePhase(ctx);
     i0 = !(i0);
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_644:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_641:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -9851,7 +9868,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i0 != i1;
     c = i0;
     if (i0) {goto block_36;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -9865,8 +9882,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetonsoundfinish;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetonsoundfinish;
     i5 = 16u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -9881,16 +9898,16 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
     i1 = 1u;
     i0 = i0 == i1;
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     i0 = c;
     if (i0) {
       i0 = b;
@@ -9982,7 +9999,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             goto block_770;
           }
           i0 = l9;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           c = i0;
           if (i0) {goto block_770;}
@@ -9998,7 +10015,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           l6 = i0;
           if (i0) {goto block_774;}
           i0 = c;
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           c = i0;
           if (i0) {goto block_773;}
@@ -10022,7 +10039,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l4;
         i1 = 2u;
         StoreU8(ctx, i0 + 1331u, i1);
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -10058,7 +10075,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i1 = c;
         i2 = l14;
         i3 = l3;
-        i4 = kDataB5E30;
+        i4 = kF3651ConstB5E30;
         i5 = l6;
         i6 = l5;
         HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -10071,10 +10088,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         c = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = 1u;
@@ -10177,7 +10194,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
                 goto block_785;
               }
               i0 = l13;
-              i1 = kDataFFFFFFFF;
+              i1 = kF3651ConstFFFFFFFF;
               i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
               l6 = i0;
               if (i0) {goto block_785;}
@@ -10191,7 +10208,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               l9 = i0;
               if (i0) {goto block_787;}
               i0 = l6;
-              i1 = kDataFFFFFFFF;
+              i1 = kF3651ConstFFFFFFFF;
               i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
               l6 = i0;
               if (i0) {goto block_786;}
@@ -10223,7 +10240,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           block_783:;
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 1331u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -10247,7 +10264,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
           }
@@ -10259,10 +10276,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = i2 ? i0 : i1;
           if (i0) {
             i0 = 857u;
-            i1 = kMsgPx;
-            i2 = kMsgSmartPtrPath;
+            i1 = kF3651MsgPx;
+            i2 = kF3651MsgBoostBoostSmartPtr;
             i3 = 734u;
-            i4 = kMsgOperator;
+            i4 = kF3651MsgOperator;
             HostFailAssertion(ctx, i0, i1, i2, i3, i4);
             i0 = 116u;
             i1 = ResumePhase(ctx);
@@ -10273,10 +10290,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -10284,7 +10301,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = i0 != i1;
             a = i0;
             if (i0) {goto block_37;}
-            goto exit_path;
+            goto running_exit;
           }
         }
         i0 = ResumePhase(ctx);
@@ -10299,7 +10316,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = l4;
           i1 = 2u;
           StoreU8(ctx, i0 + 1331u, i1);
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -10335,7 +10352,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = c;
           i2 = l14;
           i3 = l6;
-          i4 = kDataB5E30;
+          i4 = kF3651ConstB5E30;
           i5 = l5;
           i6 = l9;
           HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -10348,10 +10365,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -10371,7 +10388,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 += i2;
           c = i1;
           StoreU32(ctx, i0 + 1352u, i1);
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -10402,7 +10419,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = l6;
           i2 = l5;
           i3 = c;
-          i4 = kDataB5E30;
+          i4 = kF3651ConstB5E30;
           i5 = l9;
           i6 = l11;
           HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -10415,10 +10432,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -10430,7 +10447,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = LoadU32(ctx, i0 + 1304u);
           i0 = LoadU32(ctx, i0 + 28u);
           l5 = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -10461,10 +10478,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -10478,7 +10495,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = l4;
           i1 = 2648u;
           StoreU32(ctx, i0 + 72u, i1);
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -10486,7 +10503,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           j1 = LoadU64(ctx, i1 + 72u);
           StoreU64(ctx, i0 + 64u, j1);
           i0 = l4;
-          i1 = kDataFFFFFFC0;
+          i1 = kF3651ConstFFFFFFC0;
           i0 -= i1;
           l6 = i0;
           i0 = l4;
@@ -10518,10 +10535,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -10529,7 +10546,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = i0 == i1;
           a = i0;
           if (i0) {goto block_805;}
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -10565,10 +10582,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -10576,7 +10593,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = i0 == i1;
           a = i0;
           if (i0) {goto block_803;}
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -10601,10 +10618,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -10635,14 +10652,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             i0 = l3;
             if (i0) {goto block_820;}
             i0 = a;
-            i1 = kDataFFFFFFFE;
+            i1 = kF3651ConstFFFFFFFE;
             i0 &= i1;
             i0 = LoadU32(ctx, i0);
             a = i0;
             i0 = !(i0);
             l3 = i0;
             if (i0) {goto block_820;}
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -10673,10 +10690,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = ResumePhase(ctx);
           i0 = !(i0);
           if (i0) {
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i0 = LoadU32(ctx, i0);
             a = i0;
-            i0 = kDataD015C;
+            i0 = kF3651ConstD015C;
             i1 = 0u;
             StoreU32(ctx, i0, i1);
             i0 = a;
@@ -10698,11 +10715,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = !(i0);
         if (i0) {
           i0 = l4;
-          i1 = kDataB5F40;
+          i1 = kF3651ConstB5F40;
           StoreU32(ctx, i0 + 148u, i1);
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 187u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -10717,7 +10734,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           ReleaseNodeTree(ctx, i0, i1);
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 163u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -10725,11 +10742,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             DeallocateRawBlock(ctx, i0);
           }
           i0 = b;
-          i1 = kDataB5F40;
+          i1 = kF3651ConstB5F40;
           StoreU32(ctx, i0, i1);
           i0 = b;
           i0 = LoadS8(ctx, i0 + 39u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = b;
@@ -10744,7 +10761,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           ReleaseNodeTree(ctx, i0, i1);
           i0 = b;
           i0 = LoadS8(ctx, i0 + 15u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = b;
@@ -10753,7 +10770,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           }
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 1331u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           a = i0;
           if (i0) {goto block_6;}
@@ -10807,14 +10824,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i0 = l6;
           if (i0) {goto block_834;}
           i0 = l3;
-          i1 = kDataFFFFFFFE;
+          i1 = kF3651ConstFFFFFFFE;
           i0 &= i1;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
           i0 = !(i0);
           l6 = i0;
           if (i0) {goto block_834;}
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -10845,10 +10862,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           l3 = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l3;
@@ -10869,7 +10886,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         block_833:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
         block_803:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
@@ -10884,11 +10901,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = !(i0);
         if (i0) {
           i0 = l4;
-          i1 = kDataB5F40;
+          i1 = kF3651ConstB5F40;
           StoreU32(ctx, i0 + 148u, i1);
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 187u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = l4;
@@ -10904,7 +10921,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           ReleaseNodeTree(ctx, i0, i1);
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 163u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           c = i0;
           if (i0) {goto block_801;}
@@ -10918,11 +10935,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = !(i0);
         if (i0) {
           i0 = b;
-          i1 = kDataB5F40;
+          i1 = kF3651ConstB5F40;
           StoreU32(ctx, i0, i1);
           i0 = b;
           i0 = LoadS8(ctx, i0 + 39u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
           if (i0) {
             i0 = b;
@@ -10938,7 +10955,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           ReleaseNodeTree(ctx, i0, i1);
           i0 = b;
           i0 = LoadS8(ctx, i0 + 15u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           c = i0;
           if (i0) {goto block_800;}
@@ -10953,7 +10970,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         if (i0) {
           i0 = l4;
           i0 = LoadS8(ctx, i0 + 1331u);
-          i1 = kDataFFFFFFFF;
+          i1 = kF3651ConstFFFFFFFF;
           i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
           b = i0;
           if (i0) {goto block_8;}
@@ -10962,7 +10979,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         block_799:;
         i0 = ResumePhase(ctx);
         i0 = !(i0);
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
       }
       i0 = ResumePhase(ctx);
       i0 = !(i0);
@@ -10972,7 +10989,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = HostTempRet0(ctx);
         i0 = l4;
         i0 = LoadS8(ctx, i0 + 1331u);
-        i1 = kDataFFFFFFFF;
+        i1 = kF3651ConstFFFFFFFF;
         i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
         b = i0;
         if (i0) {goto block_8;}
@@ -11014,7 +11031,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -11026,10 +11043,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF3651MsgPx;
+      i2 = kF3651MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF3651MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 125u;
       i1 = ResumePhase(ctx);
@@ -11040,10 +11057,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -11051,7 +11068,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i0 != i1;
       a = i0;
       if (i0) {goto block_37;}
-      goto exit_path;
+      goto running_exit;
     }
   }
   i0 = ResumePhase(ctx);
@@ -11093,7 +11110,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = l4;
     i1 = 2648u;
     StoreU32(ctx, i0 + 208u, i1);
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l4;
@@ -11133,10 +11150,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -11153,7 +11170,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l4;
@@ -11189,10 +11206,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -11200,7 +11217,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = i0 == i1;
       a = i0;
       if (i0) {goto block_859;}
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -11225,10 +11242,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -11259,14 +11276,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = l3;
         if (i0) {goto block_871;}
         i0 = a;
-        i1 = kDataFFFFFFFE;
+        i1 = kF3651ConstFFFFFFFE;
         i0 &= i1;
         i0 = LoadU32(ctx, i0);
         a = i0;
         i0 = !(i0);
         l3 = i0;
         if (i0) {goto block_871;}
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -11297,17 +11314,17 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
         i1 = 1u;
         i0 = i0 == i1;
         a = i0;
-        if (i0) {goto exit_path;}
+        if (i0) {goto running_exit;}
       }
       block_871:;
       i0 = ResumePhase(ctx);
@@ -11322,11 +11339,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = !(i0);
     if (i0) {
       i0 = l4;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0 + 284u, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 323u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -11341,7 +11358,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 299u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = l4;
@@ -11349,11 +11366,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         DeallocateRawBlock(ctx, i0);
       }
       i0 = b;
-      i1 = kDataB5F40;
+      i1 = kF3651ConstB5F40;
       StoreU32(ctx, i0, i1);
       i0 = b;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = b;
@@ -11368,7 +11385,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       ReleaseNodeTree(ctx, i0, i1);
       i0 = b;
       i0 = LoadS8(ctx, i0 + 15u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -11412,14 +11429,14 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = l6;
     if (i0) {goto block_883;}
     i0 = l3;
-    i1 = kDataFFFFFFFE;
+    i1 = kF3651ConstFFFFFFFE;
     i0 &= i1;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
     i0 = !(i0);
     l6 = i0;
     if (i0) {goto block_883;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -11450,10 +11467,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -11474,7 +11491,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   block_882:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_859:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -11489,11 +11506,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = !(i0);
   if (i0) {
     i0 = l4;
-    i1 = kDataB5F40;
+    i1 = kF3651ConstB5F40;
     StoreU32(ctx, i0 + 284u, i1);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 323u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3651ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = l4;
@@ -11509,7 +11526,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     ReleaseNodeTree(ctx, i0, i1);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 299u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3651ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     c = i0;
     if (i0) {goto block_857;}
@@ -11523,11 +11540,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = !(i0);
   if (i0) {
     i0 = b;
-    i1 = kDataB5F40;
+    i1 = kF3651ConstB5F40;
     StoreU32(ctx, i0, i1);
     i0 = b;
     i0 = LoadS8(ctx, i0 + 39u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3651ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
     if (i0) {
       i0 = b;
@@ -11543,7 +11560,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     ReleaseNodeTree(ctx, i0, i1);
     i0 = b;
     i0 = LoadS8(ctx, i0 + 15u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3651ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     c = i0;
     if (i0) {goto block_8;}
@@ -11577,7 +11594,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i0 != i1;
     c = i0;
     if (i0) {goto block_7;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -11591,8 +11608,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetonwindowbutton;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetonwindowbutton;
     i5 = 17u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -11607,10 +11624,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -11645,11 +11662,11 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i1 = 0u;
       StoreU8(ctx, i0 + 1326u, i1);
       i0 = l4;
-      i1 = kDataB53FF;
+      i1 = kF3651ConstB53FF;
       i1 = LoadU16(ctx, i1);
       StoreU16(ctx, i0 + 1324u, i1);
       i0 = l4;
-      i1 = kMsgButton;
+      i1 = kF3651MsgButton;
       i1 = LoadU32(ctx, i1);
       c = i1;
       StoreU32(ctx, i0 + 1320u, i1);
@@ -11722,7 +11739,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
               goto block_907;
             }
             i0 = l11;
-            i1 = kDataFFFFFFFF;
+            i1 = kF3651ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
             c = i0;
             if (i0) {goto block_907;}
@@ -11738,7 +11755,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
             l6 = i0;
             if (i0) {goto block_911;}
             i0 = c;
-            i1 = kDataFFFFFFFF;
+            i1 = kF3651ConstFFFFFFFF;
             i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
             c = i0;
             if (i0) {goto block_910;}
@@ -11757,17 +11774,17 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = 6u;
           StoreU8(ctx, i0 + 1331u, i1);
           i0 = l4;
-          i1 = kMsgButton;
+          i1 = kF3651MsgButton;
           i1 = LoadU32(ctx, i1);
           StoreU32(ctx, i0 + 1320u, i1);
           i0 = l4;
-          i1 = kDataB53FF;
+          i1 = kF3651ConstB53FF;
           i1 = LoadU16(ctx, i1);
           StoreU16(ctx, i0 + 1324u, i1);
           i0 = l4;
           i1 = 0u;
           StoreU8(ctx, i0 + 1326u, i1);
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l4;
@@ -11803,7 +11820,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
           i1 = c;
           i2 = l14;
           i3 = l3;
-          i4 = kDataB5E30;
+          i4 = kF3651ConstB5E30;
           i5 = l6;
           i6 = l5;
           HostInvokeViiiiii(ctx, i0, i1, i2, i3, i4, i5, i6);
@@ -11816,10 +11833,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i0 = LoadU32(ctx, i0);
           c = i0;
-          i0 = kDataD015C;
+          i0 = kF3651ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = c;
@@ -11971,7 +11988,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       c = i0;
       i0 = l3;
       i0 = LoadS8(ctx, i0 + 39u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
       if (i0) {
         i0 = c;
@@ -12048,7 +12065,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -12074,10 +12091,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         l14 = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l14;
@@ -12088,7 +12105,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         j1 = 0ull;
         StoreU64(ctx, i0 + 24u, j1);
         i0 = l6;
-        i1 = kDataB5F40;
+        i1 = kF3651ConstB5F40;
         StoreU32(ctx, i0 + 20u, i1);
         i0 = l6;
         i1 = c;
@@ -12158,7 +12175,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l6;
@@ -12189,10 +12206,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -12219,7 +12236,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
         i0 = b;
         i0 = LoadU32(ctx, i0 + 16u);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l6;
@@ -12248,10 +12265,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF3651ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -12264,7 +12281,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = b;
@@ -12299,10 +12316,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF3651ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
@@ -12316,7 +12333,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
       StoreU32(ctx, i0 + 60u, i1);
       i0 = l4;
       i0 = LoadS8(ctx, i0 + 1331u);
-      i1 = kDataFFFFFFFF;
+      i1 = kF3651ConstFFFFFFFF;
       i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
       a = i0;
       if (i0) {goto block_6;}
@@ -12329,7 +12346,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_896:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -12339,7 +12356,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = HostTempRet0(ctx);
     i0 = l4;
     i0 = LoadS8(ctx, i0 + 1331u);
-    i1 = kDataFFFFFFFF;
+    i1 = kF3651ConstFFFFFFFF;
     i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
     b = i0;
     if (i0) {goto block_8;}
@@ -12376,7 +12393,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_951;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -12390,8 +12407,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetonautomodein;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetonautomodein;
     i5 = 15u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -12406,10 +12423,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -12550,7 +12567,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_951:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -12574,7 +12591,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_967;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -12588,8 +12605,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetonautomodeout;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetonautomodeout;
     i5 = 16u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -12604,10 +12621,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -12748,7 +12765,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_967:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -12772,7 +12789,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_983;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -12786,8 +12803,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetoncommandskipin;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetoncommandskipin;
     i5 = 18u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -12802,10 +12819,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -12946,7 +12963,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_983:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -12970,7 +12987,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_999;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -12984,8 +13001,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetoncommandskipout;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetoncommandskipout;
     i5 = 19u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -13000,10 +13017,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -13144,7 +13161,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_999:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -13168,7 +13185,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_1015;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -13182,8 +13199,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetoncontrolskipin;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetoncontrolskipin;
     i5 = 18u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -13198,10 +13215,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -13342,7 +13359,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_1015:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -13366,7 +13383,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_1031;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -13380,8 +13397,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetoncontrolskipout;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetoncontrolskipout;
     i5 = 19u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -13396,10 +13413,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -13540,7 +13557,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_1031:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -13564,7 +13581,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_1047;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -13578,8 +13595,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetonhidein;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetonhidein;
     i5 = 11u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -13594,10 +13611,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -13738,7 +13755,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_1047:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -13762,7 +13779,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_1063;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -13776,8 +13793,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetonhideout;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetonhideout;
     i5 = 12u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -13792,10 +13809,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -13936,7 +13953,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_1063:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -13960,7 +13977,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_1079;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -13974,8 +13991,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetonbacklogin;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetonbacklogin;
     i5 = 14u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -13990,10 +14007,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -14134,7 +14151,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_1079:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -14158,7 +14175,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   if (i0) {
     i0 = c;
     if (i0) {goto block_1095;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -14172,8 +14189,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetonbacklogout;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetonbacklogout;
     i5 = 15u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -14188,10 +14205,10 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -14332,7 +14349,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   }
   i0 = ResumePhase(ctx);
   i0 = !(i0);
-  if (i0) {goto exit_path;}
+  if (i0) {goto running_exit;}
   block_1095:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
@@ -14351,7 +14368,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = i0 != i1;
     c = i0;
     if (i0) {goto block_6;}
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -14365,8 +14382,8 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     i0 = 1354u;
     i1 = l10;
     i2 = 0u;
-    i3 = kDataFFFFFFFF;
-    i4 = kMsgSetondirchg;
+    i3 = kF3651ConstFFFFFFFF;
+    i4 = kF3651MsgSetondirchg;
     i5 = 11u;
     i0 = HostInvokeIiiiii(ctx, i0, i1, i2, i3, i4, i5);
     l7 = i0;
@@ -14381,17 +14398,17 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF3651ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
     i1 = 1u;
     i0 = i0 == i1;
     l3 = i0;
-    if (i0) {goto exit_path;}
+    if (i0) {goto running_exit;}
     i0 = c;
     if (i0) {goto block_6;}
     i0 = a;
@@ -14521,7 +14538,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
     HostOsRelease(ctx, i0);
     TrapUnreachable();
   }
-  exit_path:;
+  running_exit:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
@@ -14560,7 +14577,7 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kResumeWordBytes;
+  i2 = kF3651ResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
@@ -14614,4 +14631,4 @@ void TagGenericSetOn(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
   LeaveFrame();
 }
 }
-}  // namespace artc
+}

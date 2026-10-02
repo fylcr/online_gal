@@ -1,8 +1,23 @@
+// format_number_value.cpp -- formats a number for output, honouring the 14 significant digit default and the string length limit..
+//
+// FormatNumberValue -- formats a number for output, honouring the 14 significant digit default and the string length limit.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 478991-478991 (f1110); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations for the callees this step drives.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t CopyBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 uint32_t StringLength(EngineContext* ctx, uint32_t text);
 uint32_t InternString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
@@ -16,334 +31,869 @@ uint32_t ReallocateFormatBuffer(EngineContext* ctx, uint32_t a, uint32_t b, uint
 
 namespace {
 
-constexpr uint32_t kFormatNumberValueFormat = 0x2BED9u;          // "%.14g", the number format
-constexpr uint32_t kFormatNumberValueOverflowMessage = 0x2BF07u; // "string length overflow"
-constexpr uint32_t kFormatNumberValueLengthLimit = 0xFFFFFFFDu;  // largest usable string length
-constexpr uint32_t kFormatNumberValueFrameBytes = 44u;           // saved frame: eleven words
-constexpr uint32_t kFormatNumberValueResumeWordBytes = 4u;       // resume word written before it
+constexpr uint32_t kF1110MsgG = 0x2BED9u;  // %.14g
+constexpr uint32_t kF1110MsgStringLengthOverflow = 0x2BF07u;  // string length overflow
+constexpr uint32_t kF1110ConstFFFFFFFD = 0xFFFFFFFDu;  // 
+constexpr uint32_t kF1110SaveFrameBytes = 44u;
+constexpr uint32_t kF1110ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Turns the run of `value` values starting at constant index `options` into
-// strings: a double is measured with the "%.14g" format and interned, a string
-// keeps its pieces, and anything else is converted through its metamethod.
 void FormatNumberValue(EngineContext* ctx, uint32_t state, uint32_t value, uint32_t options) {
   EnterFrame();
-  uint32_t slot = 0u;        // constant slot pointer, or a piece's tag
-  uint32_t length = 0u;      // string length, or the byte count written so far
-  uint32_t count = 0u;       // value slot pointer, or the bytes of one piece
-  uint32_t target = 0u;      // slot pointer being filled
-  uint32_t piece = 0u;       // a slot's tag, or the string of one piece
-  uint32_t scratch = 0u;     // base of the 80-byte scratch area
-  uint32_t entry = 0u;       // slot pointer, or the format buffer
-  uint32_t staged = 0u;      // value staged for the next call
-  uint32_t span = 0u;        // byte length of one piece
-  uint32_t resume_point = 0u;
-  uint32_t frame = 0u;
-  uint32_t call_result = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the frame this step saved when it suspended.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kFormatNumberValueFrameBytes);
-    frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    state = LoadU32(ctx, frame);
-    options = LoadU32(ctx, frame + 8u);
-    slot = LoadU32(ctx, frame + 12u);
-    length = LoadU32(ctx, frame + 16u);
-    count = LoadU32(ctx, frame + 20u);
-    target = LoadU32(ctx, frame + 24u);
-    piece = LoadU32(ctx, frame + 28u);
-    scratch = LoadU32(ctx, frame + 32u);
-    entry = LoadU32(ctx, frame + 36u);
-    staged = LoadU32(ctx, frame + 40u);
-    value = LoadU32(ctx, frame + 4u);
+  uint32_t l10 = 0u; uint32_t l11 = 0u; uint32_t l12 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  uint64_t j1 = 0;
+  double d1 = 0;
+      l11 = 0, l12 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1110SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l5 = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 8u);
+    options = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l3 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l4 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l6 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l7 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 28u);
+    l8 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 32u);
+    l9 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 36u);
+    l11 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 40u);
+    l12 = i0;
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 4u);
+    value = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume word naming the call this step stopped at.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kFormatNumberValueResumeWordBytes);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF1110ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l10 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Claim the 80-byte scratch area the pieces are formatted through.
-    slot = GuestStackSp(ctx);
-    scratch = slot - 80u;
-    GuestStackSp(ctx) = scratch;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = GuestStackSp(ctx);
+    l3 = i0;
+    i1 = 80u;
+    i0 -= i1;
+    l9 = i0;
+    GuestStackSp(ctx) = i0;
   }
-next_argument:
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The constant slot this argument names, plus the slots on both sides.
-    slot = LoadU32(ctx, state + 12u) + (options << 4u);
-    count = slot - 16u;
-    entry = slot + 16u;
-    slot = (LoadU32(ctx, slot - 8u) - 3u) > 1u;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (slot) goto via_metamethod;
-    target = entry - 16u;
-    slot = LoadU32(ctx, entry - 8u) - 3u;
-    switch (slot) {
-      case 0: goto format_double;
-      case 1: goto value_is_string;
-      default: goto via_metamethod;
+  loop_4: 
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 12u);
+      i1 = options;
+      i2 = 4u;
+      i1 <<= (i2 & 31);
+      i0 += i1;
+      l3 = i0;
+      i1 = 16u;
+      i0 -= i1;
+      l6 = i0;
+      i0 = l3;
+      i1 = 16u;
+      i0 += i1;
+      l11 = i0;
+      i0 = l3;
+      i1 = 8u;
+      i0 -= i1;
+      i0 = LoadU32(ctx, i0);
+      i1 = 3u;
+      i0 -= i1;
+      i1 = 1u;
+      i0 = i0 > i1;
+      l3 = i0;
     }
-  via_metamethod:
-    length = FetchObjectMetamethod(ctx, state, count, 15u);
-    piece = !LoadU32(ctx, length + 8u);
-    slot = entry - 16u;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (piece) {
-      length = FetchObjectMetamethod(ctx, state, slot, 15u);
-      piece = !LoadU32(ctx, length + 8u);
-      if (piece) goto raise_concat_error;
-    }
-    // Push the metamethod, its argument and the format options for the call.
-    entry = LoadU32(ctx, state + 32u);
-    target = LoadU32(ctx, state + 8u);
-    StoreU64(ctx, target, LoadU64(ctx, length));
-    StoreU32(ctx, target + 8u, LoadU32(ctx, length + 8u));
-    length = LoadU32(ctx, state + 8u);
-    StoreU64(ctx, length + 16u, LoadU64(ctx, count));
-    StoreU32(ctx, length + 24u, LoadU32(ctx, count + 8u));
-    length = LoadU32(ctx, state + 8u);
-    StoreU64(ctx, length + 32u, LoadU64(ctx, slot));
-    StoreU32(ctx, length + 40u, LoadU32(ctx, slot + 8u));
-    target = LoadU32(ctx, state + 8u);
-    slot = (uint32_t)((int32_t)(LoadU32(ctx, state + 28u) - target) <= (int32_t)48u);
-  }
-  if (slot || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
-      GrowValueStack(ctx, state, 3u);
-      resume_point = 0u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-    }
-    if (ResumePhase(ctx) == kResumeRunning) target = LoadU32(ctx, state + 8u);
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    slot = target + 48u;
-    StoreU32(ctx, state + 8u, slot);
-  }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
-    CallValue(ctx, state, target, 1u);
-    resume_point = 1u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Pop the call's result and copy it back into the format buffer.
-    slot = LoadU32(ctx, state + 8u) - 16u;
-    StoreU32(ctx, state + 8u, slot);
-    length = LoadU32(ctx, state + 32u);
-    count = length + (count - entry);
-    StoreU64(ctx, count, LoadU64(ctx, slot));
-    StoreU32(ctx, count + 8u, LoadU32(ctx, slot + 8u));
-    slot = 2u;
-    goto advance_argument;
-  }
-raise_concat_error:
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 2u) {
-    FormatConcatenationError(ctx, state, count, slot);
-    resume_point = 2u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    slot = 2u;
-    goto advance_argument;
-  }
-format_double:
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Stage the double, measure it, then intern the measured text.
-    StoreF64(ctx, scratch + 32u, LoadF64(ctx, target));
-    slot = scratch + 48u;
-    length = scratch + 32u;
-  }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 3u) {
-    call_result = MeasureFormattedNumber(ctx, slot, kFormatNumberValueFormat, length);
-    resume_point = 3u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-    slot = call_result;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    slot = scratch + 48u;
-    length = StringLength(ctx, scratch + 48u);
-  }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 4u) {
-    call_result = InternString(ctx, state, slot, length);
-    resume_point = 4u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-    slot = call_result;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, target + 8u, 4u);
-    StoreU32(ctx, target, slot);
-  }
-value_is_string:
-  if (ResumePhase(ctx) == kResumeRunning) {
-    slot = LoadU32(ctx, target);
-    length = LoadU32(ctx, slot + 12u);
-  }
-  if (length || ResumePhase(ctx) == kResumeRewinding) {
-    if (ResumePhase(ctx) == kResumeRunning) {
-      count = (uint32_t)((int32_t)value <= (int32_t)1u);
-      slot = 1u;
-    }
-    if (count && ResumePhase(ctx) == kResumeRunning) goto buffer_ready;
-    for (;;) {
-      if (ResumePhase(ctx) == kResumeRunning) {
-        count = target - (slot << 4u);
-        piece = LoadU32(ctx, count + 8u) - 3u;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l3;
+      if (i0) {goto block_10;}
+      i0 = l11;
+      i1 = 16u;
+      i0 -= i1;
+      l7 = i0;
+      i0 = l11;
+      i1 = 8u;
+      i0 -= i1;
+      i0 = LoadU32(ctx, i0);
+      i1 = 3u;
+      i0 -= i1;
+      l3 = i0;
+      switch (i0) {
+        case 0: goto block_8;
+        case 1: goto block_7;
+        default: goto block_10;
       }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        switch (piece) {
-          case 0: goto copy_piece_double;
-          case 1: goto piece_ready;
-          default: goto buffer_ready;
+      block_10:;
+      i0 = state;
+      i1 = l6;
+      i2 = 15u;
+      i0 = FetchObjectMetamethod(ctx, i0, i1, i2);
+      l4 = i0;
+      i0 = LoadU32(ctx, i0 + 8u);
+      i0 = !(i0);
+      l7 = i0;
+      i0 = l11;
+      i1 = 16u;
+      i0 -= i1;
+      l3 = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l7;
+      if (i0) {
+        i0 = state;
+        i1 = l3;
+        i2 = 15u;
+        i0 = FetchObjectMetamethod(ctx, i0, i1, i2);
+        l4 = i0;
+        i0 = LoadU32(ctx, i0 + 8u);
+        i0 = !(i0);
+        l7 = i0;
+        if (i0) {goto block_11;}
+      }
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 32u);
+      l11 = i0;
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l7 = i0;
+      i1 = l4;
+      j1 = LoadU64(ctx, i1);
+      StoreU64(ctx, i0, j1);
+      i0 = l7;
+      i1 = l4;
+      i1 = LoadU32(ctx, i1 + 8u);
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l4 = i0;
+      i1 = l6;
+      j1 = LoadU64(ctx, i1);
+      StoreU64(ctx, i0 + 16u, j1);
+      i0 = l4;
+      i1 = l6;
+      i1 = LoadU32(ctx, i1 + 8u);
+      StoreU32(ctx, i0 + 24u, i1);
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l4 = i0;
+      i1 = l3;
+      j1 = LoadU64(ctx, i1);
+      StoreU64(ctx, i0 + 32u, j1);
+      i0 = l4;
+      i1 = l3;
+      i1 = LoadU32(ctx, i1 + 8u);
+      StoreU32(ctx, i0 + 40u, i1);
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 28u);
+      i1 = state;
+      i1 = LoadU32(ctx, i1 + 8u);
+      l7 = i1;
+      i0 -= i1;
+      i1 = 48u;
+      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+      l3 = i0;
+    }
+    i0 = l3;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = l10;
+      i0 = !(i0);
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = state;
+        i1 = 3u;
+        GrowValueStack(ctx, i0, i1);
+        i0 = 0u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+      }
+      i0 = ResumePhase(ctx);
+      if (i0) {
+        i0 = l7;
+      } else {
+        i0 = state;
+        i0 = LoadU32(ctx, i0 + 8u);
+      }
+      l7 = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = state;
+      i1 = l7;
+      i2 = 48u;
+      i1 += i2;
+      l3 = i1;
+      StoreU32(ctx, i0 + 8u, i1);
+    }
+    i0 = l10;
+    i1 = 1u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = l7;
+      i2 = 1u;
+      CallValue(ctx, i0, i1, i2);
+      i0 = 1u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = state;
+      i1 = state;
+      i1 = LoadU32(ctx, i1 + 8u);
+      i2 = 16u;
+      i1 -= i2;
+      l3 = i1;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 32u);
+      l4 = i0;
+      i1 = l6;
+      i2 = l11;
+      i1 -= i2;
+      i0 += i1;
+      l6 = i0;
+      i1 = l3;
+      j1 = LoadU64(ctx, i1);
+      StoreU64(ctx, i0, j1);
+      i0 = l6;
+      i1 = l3;
+      i1 = LoadU32(ctx, i1 + 8u);
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = 2u;
+      l3 = i0;
+      goto block_6;
+    }
+    block_11:;
+    i0 = l10;
+    i1 = 2u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = l6;
+      i2 = l3;
+      FormatConcatenationError(ctx, i0, i1, i2);
+      i0 = 2u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = 2u;
+      l3 = i0;
+      goto block_6;
+    }
+    block_8:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l9;
+      i1 = l7;
+      d1 = LoadF64(ctx, i1);
+      StoreF64(ctx, i0 + 32u, d1);
+      i0 = l9;
+      i1 = 48u;
+      i0 += i1;
+      l3 = i0;
+      i0 = l9;
+      i1 = 32u;
+      i0 += i1;
+      l4 = i0;
+    }
+    i0 = l10;
+    i1 = 3u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l3;
+      i1 = kF1110MsgG;
+      i2 = l4;
+      i0 = MeasureFormattedNumber(ctx, i0, i1, i2);
+      l5 = i0;
+      i0 = 3u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l5;
+      l3 = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l9;
+      i1 = 48u;
+      i0 += i1;
+      l3 = i0;
+      i0 = l9;
+      i1 = 48u;
+      i0 += i1;
+      i0 = StringLength(ctx, i0);
+      l4 = i0;
+    }
+    i0 = l10;
+    i1 = 4u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = l3;
+      i2 = l4;
+      i0 = InternString(ctx, i0, i1, i2);
+      l5 = i0;
+      i0 = 4u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l5;
+      l3 = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l7;
+      i1 = 4u;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = l7;
+      i1 = l3;
+      StoreU32(ctx, i0, i1);
+    }
+    block_7:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l7;
+      i0 = LoadU32(ctx, i0);
+      l3 = i0;
+      i0 = LoadU32(ctx, i0 + 12u);
+      l4 = i0;
+    }
+    i0 = l4;
+    i1 = ResumePhase(ctx);
+    i2 = 2u;
+    i1 = i1 == i2;
+    i0 |= i1;
+    if (i0) {
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = value;
+        i1 = 1u;
+        i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+        l6 = i0;
+        i0 = 1u;
+        l3 = i0;
+      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      i1 = 0u;
+      i2 = l6;
+      i0 = i2 ? i0 : i1;
+      if (i0) {goto block_31;}
+      loop_32: 
+        i0 = ResumePhase(ctx);
+        i0 = !(i0);
+        if (i0) {
+          i0 = l7;
+          i1 = l3;
+          i2 = 4u;
+          i1 <<= (i2 & 31);
+          i0 -= i1;
+          l6 = i0;
+          i0 = LoadU32(ctx, i0 + 8u);
+          i1 = 3u;
+          i0 -= i1;
+          l8 = i0;
         }
-      copy_piece_double:
-        StoreF64(ctx, scratch + 16u, LoadF64(ctx, count));
-        staged = scratch + 16u;
-        piece = scratch + 48u;
-      }
-      if (ResumePhase(ctx) == kResumeRunning || resume_point == 5u) {
-        call_result = MeasureFormattedNumber(ctx, piece, kFormatNumberValueFormat, staged);
-        resume_point = 5u;
-        if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-        piece = call_result;
-      }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        staged = StringLength(ctx, scratch + 48u);
-        piece = scratch + 48u;
-      }
-      if (ResumePhase(ctx) == kResumeRunning || resume_point == 6u) {
-        call_result = InternString(ctx, state, piece, staged);
-        resume_point = 6u;
-        if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-        piece = call_result;
-      }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        StoreU32(ctx, count + 8u, 4u);
-        StoreU32(ctx, count, piece);
-      }
-      piece_ready:
-      if (ResumePhase(ctx) == kResumeRunning) {
-        count = LoadU32(ctx, LoadU32(ctx, count) + 12u);
-        piece = count >= kFormatNumberValueLengthLimit - length;
-      }
-      if (piece || ResumePhase(ctx) == kResumeRewinding) {
-        if (ResumePhase(ctx) == kResumeRunning || resume_point == 7u) {
-          RaiseScriptError(ctx, state, kFormatNumberValueOverflowMessage, 0u);
-          resume_point = 7u;
-          if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
+        i0 = ResumePhase(ctx);
+        i0 = !(i0);
+        if (i0) {
+          i0 = l8;
+          switch (i0) {
+            case 0: goto block_36;
+            case 1: goto block_34;
+            default: goto block_31;
+          }
+          block_36:;
+          i0 = l9;
+          i1 = l6;
+          d1 = LoadF64(ctx, i1);
+          StoreF64(ctx, i0 + 16u, d1);
+          i0 = l9;
+          i1 = 16u;
+          i0 += i1;
+          l12 = i0;
+          i0 = l9;
+          i1 = 48u;
+          i0 += i1;
+          l8 = i0;
         }
+        i0 = l10;
+        i1 = 5u;
+        i0 = i0 == i1;
+        i1 = 1u;
+        i2 = ResumePhase(ctx);
+        i0 = i2 ? i0 : i1;
+        if (i0) {
+          i0 = l8;
+          i1 = kF1110MsgG;
+          i2 = l12;
+          i0 = MeasureFormattedNumber(ctx, i0, i1, i2);
+          l5 = i0;
+          i0 = 5u;
+          i1 = ResumePhase(ctx);
+          i2 = 1u;
+          i1 = i1 == i2;
+          if (i1) {goto spill_frame;}
+          i0 = l5;
+          l8 = i0;
+        }
+        i0 = ResumePhase(ctx);
+        i0 = !(i0);
+        if (i0) {
+          i0 = l9;
+          i1 = 48u;
+          i0 += i1;
+          i0 = StringLength(ctx, i0);
+          l12 = i0;
+          i0 = l9;
+          i1 = 48u;
+          i0 += i1;
+          l8 = i0;
+        }
+        i0 = l10;
+        i1 = 6u;
+        i0 = i0 == i1;
+        i1 = 1u;
+        i2 = ResumePhase(ctx);
+        i0 = i2 ? i0 : i1;
+        if (i0) {
+          i0 = state;
+          i1 = l8;
+          i2 = l12;
+          i0 = InternString(ctx, i0, i1, i2);
+          l5 = i0;
+          i0 = 6u;
+          i1 = ResumePhase(ctx);
+          i2 = 1u;
+          i1 = i1 == i2;
+          if (i1) {goto spill_frame;}
+          i0 = l5;
+          l8 = i0;
+        }
+        i0 = ResumePhase(ctx);
+        i0 = !(i0);
+        if (i0) {
+          i0 = l6;
+          i1 = 4u;
+          StoreU32(ctx, i0 + 8u, i1);
+          i0 = l6;
+          i1 = l8;
+          StoreU32(ctx, i0, i1);
+        }
+        block_34:;
+        i0 = ResumePhase(ctx);
+        i0 = !(i0);
+        if (i0) {
+          i0 = l6;
+          i0 = LoadU32(ctx, i0);
+          i0 = LoadU32(ctx, i0 + 12u);
+          l6 = i0;
+          i1 = kF1110ConstFFFFFFFD;
+          i2 = l4;
+          i1 -= i2;
+          i0 = i0 >= i1;
+          l8 = i0;
+        }
+        i0 = l8;
+        i1 = ResumePhase(ctx);
+        i2 = 2u;
+        i1 = i1 == i2;
+        i0 |= i1;
+        if (i0) {
+          i0 = l10;
+          i1 = 7u;
+          i0 = i0 == i1;
+          i1 = 1u;
+          i2 = ResumePhase(ctx);
+          i0 = i2 ? i0 : i1;
+          if (i0) {
+            i0 = state;
+            i1 = kF1110MsgStringLengthOverflow;
+            i2 = 0u;
+            RaiseScriptError(ctx, i0, i1, i2);
+            i0 = 7u;
+            i1 = ResumePhase(ctx);
+            i2 = 1u;
+            i1 = i1 == i2;
+            if (i1) {goto spill_frame;}
+          }
+        }
+        i0 = ResumePhase(ctx);
+        i0 = !(i0);
+        if (i0) {
+          i0 = l4;
+          i1 = l6;
+          i0 += i1;
+          l4 = i0;
+          i0 = l3;
+          i1 = 1u;
+          i0 += i1;
+          l3 = i0;
+          i1 = value;
+          i0 = i0 != i1;
+          l6 = i0;
+          if (i0) {goto loop_32;}
+        }
+      i0 = l3;
+      i1 = value;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      l3 = i0;
+      block_31:;
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = 0u;
+        l7 = i0;
+        i0 = state;
+        i0 = LoadU32(ctx, i0 + 16u);
+        i1 = 52u;
+        i0 += i1;
+        l6 = i0;
       }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        length = length + count;
-        slot = slot + 1u;
-        count = slot != value;
-        if (count) continue;
+      i0 = l10;
+      i1 = 8u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = state;
+        i1 = l6;
+        i2 = l4;
+        i0 = ReallocateFormatBuffer(ctx, i0, i1, i2);
+        l5 = i0;
+        i0 = 8u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+        i0 = l5;
+        l4 = i0;
       }
-      break;
-    }
-    slot = (ResumePhase(ctx) == kResumeRunning) ? value : slot;
-  buffer_ready:
-    if (ResumePhase(ctx) == kResumeRunning) {
-      target = 0u;
-      count = LoadU32(ctx, state + 16u) + 52u;
-    }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 8u) {
-      call_result = ReallocateFormatBuffer(ctx, state, count, length);
-      resume_point = 8u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-      length = call_result;
-    }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      // Copy the formatted pieces into the freshly sized buffer.
-      count = slot;
-      for (;;) {
-        piece = LoadU32(ctx, entry - (count << 4u));
-        span = LoadU32(ctx, piece + 12u);
-        staged = CopyBytes(ctx, length + target, piece + 16u, span);
-        target = target + span;
-        piece = (uint32_t)((int32_t)count > (int32_t)1u);
-        count = count - 1u;
-        if (piece) continue;
-        break;
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = l3;
+        l6 = i0;
+        loop_49: 
+          i0 = l4;
+          i1 = l7;
+          i0 += i1;
+          i1 = l11;
+          i2 = l6;
+          i3 = 4u;
+          i2 <<= (i3 & 31);
+          i1 -= i2;
+          i1 = LoadU32(ctx, i1);
+          l8 = i1;
+          i2 = 16u;
+          i1 += i2;
+          i2 = l8;
+          i2 = LoadU32(ctx, i2 + 12u);
+          l8 = i2;
+          i0 = CopyBytes(ctx, i0, i1, i2);
+          l12 = i0;
+          i0 = l7;
+          i1 = l8;
+          i0 += i1;
+          l7 = i0;
+          i0 = l6;
+          i1 = 1u;
+          i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+          l8 = i0;
+          i0 = l6;
+          i1 = 1u;
+          i0 -= i1;
+          l6 = i0;
+          i0 = l8;
+          if (i0) {goto loop_49;}
+      }
+      i0 = l10;
+      i1 = 9u;
+      i0 = i0 == i1;
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = state;
+        i1 = l4;
+        i2 = l7;
+        i0 = InternString(ctx, i0, i1, i2);
+        l5 = i0;
+        i0 = 9u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
+        i0 = l5;
+        l6 = i0;
+      }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = l11;
+        i1 = l3;
+        i2 = 4u;
+        i1 <<= (i2 & 31);
+        i0 -= i1;
+        l4 = i0;
+        i1 = 4u;
+        StoreU32(ctx, i0 + 8u, i1);
+        i0 = l4;
+        i1 = l6;
+        StoreU32(ctx, i0, i1);
+        goto block_6;
       }
     }
-    if (ResumePhase(ctx) == kResumeRunning || resume_point == 9u) {
-      call_result = InternString(ctx, state, length, target);
-      resume_point = 9u;
-      if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-      count = call_result;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = 2u;
+      l3 = i0;
+      i0 = l6;
+      i0 = LoadU32(ctx, i0 + 8u);
+      i1 = 3u;
+      i0 = i0 != i1;
+      l4 = i0;
+      if (i0) {goto block_6;}
+      i0 = l9;
+      i1 = l6;
+      d1 = LoadF64(ctx, i1);
+      StoreF64(ctx, i0, d1);
+      i0 = l9;
+      i1 = 48u;
+      i0 += i1;
+      l4 = i0;
     }
-    if (ResumePhase(ctx) == kResumeRunning) {
-      length = entry - (slot << 4u);
-      StoreU32(ctx, length + 8u, 4u);
-      StoreU32(ctx, length, count);
-      goto advance_argument;
+    i0 = l10;
+    i1 = 10u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = l4;
+      i1 = kF1110MsgG;
+      i2 = l9;
+      i0 = MeasureFormattedNumber(ctx, i0, i1, i2);
+      l5 = i0;
+      i0 = 10u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l5;
+      l4 = i0;
     }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l9;
+      i1 = 48u;
+      i0 += i1;
+      i0 = StringLength(ctx, i0);
+      l7 = i0;
+      i0 = l9;
+      i1 = 48u;
+      i0 += i1;
+      l4 = i0;
+    }
+    i0 = l10;
+    i1 = 11u;
+    i0 = i0 == i1;
+    i1 = 1u;
+    i2 = ResumePhase(ctx);
+    i0 = i2 ? i0 : i1;
+    if (i0) {
+      i0 = state;
+      i1 = l4;
+      i2 = l7;
+      i0 = InternString(ctx, i0, i1, i2);
+      l5 = i0;
+      i0 = 11u;
+      i1 = ResumePhase(ctx);
+      i2 = 1u;
+      i1 = i1 == i2;
+      if (i1) {goto spill_frame;}
+      i0 = l5;
+      l4 = i0;
+    }
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = l6;
+      i1 = 4u;
+      StoreU32(ctx, i0 + 8u, i1);
+      i0 = l6;
+      i1 = l4;
+      StoreU32(ctx, i0, i1);
+    }
+    block_6:;
+    i0 = ResumePhase(ctx);
+    i0 = !(i0);
+    if (i0) {
+      i0 = options;
+      i1 = l3;
+      i2 = 1u;
+      i1 -= i2;
+      l3 = i1;
+      i0 -= i1;
+      options = i0;
+      i0 = value;
+      i1 = l3;
+      i0 -= i1;
+      value = i0;
+      i1 = 1u;
+      i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+      l3 = i0;
+      if (i0) {goto loop_4;}
+    }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l9;
+    i1 = 80u;
+    i0 += i1;
+    GuestStackSp(ctx) = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The value was not the string the run expected: format its double.
-    slot = 2u;
-    length = LoadU32(ctx, count + 8u) != 3u;
-    if (length) goto advance_argument;
-    StoreF64(ctx, scratch, LoadF64(ctx, count));
-    length = scratch + 48u;
-  }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 10u) {
-    call_result = MeasureFormattedNumber(ctx, length, kFormatNumberValueFormat, scratch);
-    resume_point = 10u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-    length = call_result;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    target = StringLength(ctx, scratch + 48u);
-    length = scratch + 48u;
-  }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 11u) {
-    call_result = InternString(ctx, state, length, target);
-    resume_point = 11u;
-    if (ResumePhase(ctx) == kResumeSuspended) goto suspend_point;
-    length = call_result;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU32(ctx, count + 8u, 4u);
-    StoreU32(ctx, count, length);
-  }
-advance_argument:
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // One argument is done: step the format index and the count forward.
-    slot = slot - 1u;
-    options = options - slot;
-    value = value - slot;
-    slot = (uint32_t)((int32_t)value > (int32_t)1u);
-    if (slot) goto next_argument;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    GuestStackSp(ctx) = scratch + 80u;
-  }
-  goto step_done;
-suspend_point:
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-           LoadU32(ctx, ReturnFrameSp(ctx)) + kFormatNumberValueResumeWordBytes);
-  frame = LoadU32(ctx, ReturnFrameSp(ctx));
-  StoreU32(ctx, frame, state);
-  StoreU32(ctx, frame + 4u, value);
-  StoreU32(ctx, frame + 8u, options);
-  StoreU32(ctx, frame + 12u, slot);
-  StoreU32(ctx, frame + 16u, length);
-  StoreU32(ctx, frame + 20u, count);
-  StoreU32(ctx, frame + 24u, target);
-  StoreU32(ctx, frame + 28u, piece);
-  StoreU32(ctx, frame + 32u, scratch);
-  StoreU32(ctx, frame + 36u, entry);
-  StoreU32(ctx, frame + 40u, staged);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-           LoadU32(ctx, ReturnFrameSp(ctx)) + kFormatNumberValueFrameBytes);
-step_done:
+  goto func_exit;
+  spill_frame:;
+  l5 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l5;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF1110ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l5 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l5;
+  i1 = value;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l5;
+  i1 = options;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l5;
+  i1 = l3;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l5;
+  i1 = l4;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = l5;
+  i1 = l6;
+  StoreU32(ctx, i0 + 20u, i1);
+  i0 = l5;
+  i1 = l7;
+  StoreU32(ctx, i0 + 24u, i1);
+  i0 = l5;
+  i1 = l8;
+  StoreU32(ctx, i0 + 28u, i1);
+  i0 = l5;
+  i1 = l9;
+  StoreU32(ctx, i0 + 32u, i1);
+  i0 = l5;
+  i1 = l11;
+  StoreU32(ctx, i0 + 36u, i1);
+  i0 = l5;
+  i1 = l12;
+  StoreU32(ctx, i0 + 40u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 44u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

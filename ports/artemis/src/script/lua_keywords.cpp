@@ -1,360 +1,813 @@
+// lua_keywords.cpp -- the keyword table initialiser: one suspendable step that builds the table the lexer matches keywords against..
+//
+// LuaKeywords::Init -- the keyword table initialiser: one suspendable step that builds the table the lexer matches keywords against.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 2722264-2722264 (f5596); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations for the callees this step calls.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t InternString(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 
 namespace {
 
-// The Lua reserved words the lexer's table holds, as pointers into the module's data
-// section, listed in the order the table stores them: and, break, do, else, elseif,
-// end, false, for, function, if, in, local, nil, not, or, repeat, return, then, true,
-// until, while.
-constexpr uint32_t kLuaKeywordAnd = 0x2AB8Bu;
-constexpr uint32_t kLuaKeywordBreak = 0x2AB8Fu;
-constexpr uint32_t kLuaKeywordDo = 0x2AB95u;
-constexpr uint32_t kLuaKeywordElse = 0x2AB98u;
-constexpr uint32_t kLuaKeywordElseif = 0x2AB9Du;
-constexpr uint32_t kLuaKeywordEnd = 0x2ABA4u;
-constexpr uint32_t kLuaKeywordFalse = 0x2ABA8u;
-constexpr uint32_t kLuaKeywordFor = 0x2ABAEu;
-constexpr uint32_t kLuaKeywordFunction = 0x2ABB2u;
-constexpr uint32_t kLuaKeywordIf = 0x2ABBBu;
-constexpr uint32_t kLuaKeywordIn = 0x2ABBEu;
-constexpr uint32_t kLuaKeywordLocal = 0x2ABC1u;
-constexpr uint32_t kLuaKeywordNil = 0x2ABC7u;
-constexpr uint32_t kLuaKeywordNot = 0x2ABCBu;
-constexpr uint32_t kLuaKeywordOr = 0x2ABCFu;
-constexpr uint32_t kLuaKeywordRepeat = 0x2ABD2u;
-constexpr uint32_t kLuaKeywordReturn = 0x2ABD9u;
-constexpr uint32_t kLuaKeywordThen = 0x2ABE0u;
-constexpr uint32_t kLuaKeywordTrue = 0x2ABE5u;
-constexpr uint32_t kLuaKeywordUntil = 0x2ABEAu;
-constexpr uint32_t kLuaKeywordWhile = 0x2ABF0u;
+constexpr uint32_t kF5596Const2AB8B = 0x2AB8Bu;  // 
+constexpr uint32_t kF5596MsgBreak = 0x2AB8Fu;  // break
+constexpr uint32_t kF5596Const2AB95 = 0x2AB95u;  // 
+constexpr uint32_t kF5596MsgElse = 0x2AB98u;  // else
+constexpr uint32_t kF5596MsgElseif = 0x2AB9Du;  // elseif
+constexpr uint32_t kF5596Const2ABA4 = 0x2ABA4u;  // 
+constexpr uint32_t kF5596MsgFalse = 0x2ABA8u;  // false
+constexpr uint32_t kF5596Const2ABAE = 0x2ABAEu;  // 
+constexpr uint32_t kF5596MsgFunction = 0x2ABB2u;  // function
+constexpr uint32_t kF5596Const2ABBB = 0x2ABBBu;  // 
+constexpr uint32_t kF5596Const2ABBE = 0x2ABBEu;  // 
+constexpr uint32_t kF5596MsgLocal = 0x2ABC1u;  // local
+constexpr uint32_t kF5596Const2ABC7 = 0x2ABC7u;  // 
+constexpr uint32_t kF5596Const2ABCB = 0x2ABCBu;  // 
+constexpr uint32_t kF5596Const2ABCF = 0x2ABCFu;  // 
+constexpr uint32_t kF5596MsgRepeat = 0x2ABD2u;  // repeat
+constexpr uint32_t kF5596MsgReturn = 0x2ABD9u;  // return
+constexpr uint32_t kF5596MsgThen = 0x2ABE0u;  // then
+constexpr uint32_t kF5596MsgTrue = 0x2ABE5u;  // true
+constexpr uint32_t kF5596MsgUntil = 0x2ABEAu;  // until
+constexpr uint32_t kF5596MsgWhile = 0x2ABF0u;  // while
+constexpr uint32_t kF5596SaveFrameBytes = 8u;
+constexpr uint32_t kF5596ResumeWordBytes = 4u;
 
 }  // namespace
 
 namespace LuaKeywords {
-
-// Builds the reserved-word table the lexer matches against: every spelling below is
-// interned once, and the entry the intern returns takes its 1-based reserved index at
-// +6 and the 32 bit in its +5 flag byte. Interning can run guest code, so the walk is
-// suspendable: a rewinding pass restores the state object and the current entry, and
-// the one site whose resume code matches replays its intern call.
-void Init(EngineContext* ctx, uint32_t state) {
+void Init(EngineContext* ctx, uint32_t a) {
   EnterFrame();
-  uint32_t const kSaveFrameBytes = 8u;
-  uint32_t const kResumeWordBytes = 4u;
-  // The codes the intern sites below spill, one per reserved word in table order.
-  uint32_t const kAndIntern = 0u;
-  uint32_t const kBreakIntern = 1u;
-  uint32_t const kDoIntern = 2u;
-  uint32_t const kElseIntern = 3u;
-  uint32_t const kElseifIntern = 4u;
-  uint32_t const kEndIntern = 5u;
-  uint32_t const kFalseIntern = 6u;
-  uint32_t const kForIntern = 7u;
-  uint32_t const kFunctionIntern = 8u;
-  uint32_t const kIfIntern = 9u;
-  uint32_t const kInIntern = 10u;
-  uint32_t const kLocalIntern = 11u;
-  uint32_t const kNilIntern = 12u;
-  uint32_t const kNotIntern = 13u;
-  uint32_t const kOrIntern = 14u;
-  uint32_t const kRepeatIntern = 15u;
-  uint32_t const kReturnIntern = 16u;
-  uint32_t const kThenIntern = 17u;
-  uint32_t const kTrueIntern = 18u;
-  uint32_t const kUntilIntern = 19u;
-  uint32_t const kWhileIntern = 20u;
-  uint32_t entry = 0u;
-  uint32_t call_result = 0u;
-  uint32_t resume_code = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the eight-byte frame the suspend path saved and restore the
-    // state object and the entry the last intern returned, in that order.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kSaveFrameBytes);
-    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    state = LoadU32(ctx, saved_frame);
-    entry = LoadU32(ctx, saved_frame + 4u);
+  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5596SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // The second pop names the intern call that was in flight. The two pops stay
-    // separate -- the driver keeps one region at a time.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - kResumeWordBytes);
-    resume_code = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5596ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kAndIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordAnd, 3u);
-    resume_code = kAndIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596Const2AB8B;
+    i2 = 3u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 1u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 1u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kBreakIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordBreak, 5u);
-    resume_code = kBreakIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596MsgBreak;
+    i2 = 5u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 2u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 2u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kDoIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordDo, 2u);
-    resume_code = kDoIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 2u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596Const2AB95;
+    i2 = 2u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 2u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 3u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 3u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kElseIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordElse, 4u);
-    resume_code = kElseIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 3u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596MsgElse;
+    i2 = 4u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 3u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 4u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 4u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kElseifIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordElseif, 6u);
-    resume_code = kElseifIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 4u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596MsgElseif;
+    i2 = 6u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 4u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 5u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 5u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kEndIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordEnd, 3u);
-    resume_code = kEndIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 5u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596Const2ABA4;
+    i2 = 3u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 5u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 6u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 6u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFalseIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordFalse, 5u);
-    resume_code = kFalseIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 6u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596MsgFalse;
+    i2 = 5u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 6u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 7u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 7u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kForIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordFor, 3u);
-    resume_code = kForIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 7u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596Const2ABAE;
+    i2 = 3u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 7u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 8u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 8u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kFunctionIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordFunction, 8u);
-    resume_code = kFunctionIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 8u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596MsgFunction;
+    i2 = 8u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 8u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 9u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 9u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kIfIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordIf, 2u);
-    resume_code = kIfIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 9u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596Const2ABBB;
+    i2 = 2u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 9u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 10u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 10u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kInIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordIn, 2u);
-    resume_code = kInIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 10u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596Const2ABBE;
+    i2 = 2u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 10u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 11u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 11u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kLocalIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordLocal, 5u);
-    resume_code = kLocalIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 11u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596MsgLocal;
+    i2 = 5u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 11u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 12u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 12u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kNilIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordNil, 3u);
-    resume_code = kNilIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 12u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596Const2ABC7;
+    i2 = 3u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 12u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 13u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 13u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kNotIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordNot, 3u);
-    resume_code = kNotIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 13u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596Const2ABCB;
+    i2 = 3u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 13u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 14u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 14u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kOrIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordOr, 2u);
-    resume_code = kOrIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 14u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596Const2ABCF;
+    i2 = 2u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 14u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 15u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 15u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kRepeatIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordRepeat, 6u);
-    resume_code = kRepeatIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 15u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596MsgRepeat;
+    i2 = 6u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 15u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 16u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 16u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kReturnIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordReturn, 6u);
-    resume_code = kReturnIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 16u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596MsgReturn;
+    i2 = 6u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 16u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 17u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 17u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kThenIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordThen, 4u);
-    resume_code = kThenIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 17u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596MsgThen;
+    i2 = 4u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 17u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 18u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 18u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kTrueIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordTrue, 4u);
-    resume_code = kTrueIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 18u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596MsgTrue;
+    i2 = 4u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 18u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 19u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 19u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kUntilIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordUntil, 5u);
-    resume_code = kUntilIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 19u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596MsgUntil;
+    i2 = 5u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 19u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 20u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    i1 = 20u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = l1;
+    i1 = l1;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_code == kWhileIntern) : 1u) {
-    call_result = InternString(ctx, state, kLuaKeywordWhile, 5u);
-    resume_code = kWhileIntern;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
-    entry = call_result;
+  i0 = l3;
+  i1 = 20u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = kF5596MsgWhile;
+    i2 = 5u;
+    i0 = InternString(ctx, i0, i1, i2);
+    l2 = i0;
+    i0 = 20u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l2;
+    a = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    StoreU8(ctx, entry + 6u, 21u);
-    StoreU8(ctx, entry + 5u, LoadU8(ctx, entry + 5u) | 32u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = 21u;
+    StoreU8(ctx, i0 + 6u, i1);
+    i0 = a;
+    i1 = a;
+    i1 = LoadU8(ctx, i1 + 5u);
+    i2 = 32u;
+    i1 |= i2;
+    StoreU8(ctx, i0 + 5u, i1);
   }
-  goto exit_path;
-suspend_point:;
-  {
-    // Suspend: push the code naming the intern in flight, step past it, then push the
-    // eight-byte frame a rewinding pass reads back -- the state object and the entry
-    // the last intern returned, in that order. The stack pointer lives in the word the
-    // frame pointer itself names, so every push is a read-modify-write of that word.
-    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_code);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kResumeWordBytes);
-    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    StoreU32(ctx, saved_frame, state);
-    StoreU32(ctx, saved_frame + 4u, entry);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + kSaveFrameBytes);
-  }
-exit_path:;
+  goto func_exit;
+  spill_frame:;
+  l2 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF5596ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l2 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l2;
+  i1 = l1;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 8u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace LuaKeywords
-
-}  // namespace artc
+}
+}

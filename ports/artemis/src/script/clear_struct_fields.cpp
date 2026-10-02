@@ -1,38 +1,109 @@
+// clear_struct_fields.cpp -- clears the struct fields: the field words of the structure are zeroed..
+//
+// ClearStructFields -- clears the struct fields: the field words of the structure are zeroed.
+//
+// The step is a plain call: the body holds no suspend point, so the
+// frame pair is bookkeeping only. Judgment order is untouched -- the
+// goto graph is the generated driver's own flattening, renamed labels
+// only.
+//
+// src: artemis.wasm2c.c 294668-294668 (f763); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Resets the field words of the structure at `structure`: the embedded
-// sub-objects go back to their defaults and the whole block is rewritten from
-// +0 up to +156. Answers the structure it was handed.
-uint32_t ClearStructFields(EngineContext* ctx, uint32_t structure) {
-  EnterFrame();
-  StoreU64(ctx, structure + 64u, 0ull);
-  StoreU32(ctx, structure + 60u, 0x3F800000u);  // 1.0f
-  StoreU64(ctx, structure + 52u, 0x3F8000003F800000ull);  // two 1.0f
-  StoreU8(ctx, structure + 48u, 1u);
-  StoreU32(ctx, structure + 44u, 0u);
-  StoreU64(ctx, structure + 36u, 0x3F800000ull);  // 1.0f, zero above
-  StoreU64(ctx, structure + 28u, 0x3F8000003F800000ull);
-  StoreU8(ctx, structure + 24u, 1u);
-  StoreU64(ctx, structure + 16u, 0ull);
-  StoreU64(ctx, structure + 8u, 0x43F0000044200000ull);  // 480.0f, 640.0f
-  StoreU64(ctx, structure + 0u, 0ull);
-  StoreU64(ctx, structure + 92u, 24ull);
-  StoreU64(ctx, structure + 100u, 34359738368ull);  // eight in the high half
-  StoreU64(ctx, structure + 108u, 0ull);
-  StoreU64(ctx, structure + 72u, 0ull);
-  StoreU64(ctx, structure + 80u, 0ull);
-  StoreU32(ctx, structure + 88u, 0u);
-  StoreU64(ctx, structure + 116u, 0ull);
-  StoreU64(ctx, structure + 124u, 0ull);
-  StoreU32(ctx, structure + 132u, 0u);
-  StoreU64(ctx, structure + 140u, 0ull);
-  StoreU32(ctx, structure + 136u, 0xFFFFFFu);
-  StoreU64(ctx, structure + 148u, 0ull);
-  StoreU16(ctx, structure + 156u, 256u);
-  LeaveFrame();
-  return structure;
-}
 
-}  // namespace artc
+namespace {
+
+constexpr uint32_t kF763ConstFFFFFF = 0xFFFFFFu;  // 
+constexpr uint32_t kF763Const3F800000 = 0x3F800000u;  // 
+
+}  // namespace
+
+uint32_t ClearStructFields(EngineContext* ctx, uint32_t a) {
+  EnterFrame();
+  uint32_t i0 = 0u; uint32_t i1 = 0u;
+  uint64_t j1 = 0;
+  i0 = a;
+  j1 = 0ull;
+  StoreU64(ctx, i0 + 64u, j1);
+  i0 = a;
+  i1 = kF763Const3F800000;
+  StoreU32(ctx, i0 + 60u, i1);
+  i0 = a;
+  j1 = 4575657222473777152ull;
+  StoreU64(ctx, i0 + 52u, j1);
+  i0 = a;
+  i1 = 1u;
+  StoreU8(ctx, i0 + 48u, i1);
+  i0 = a;
+  i1 = 0u;
+  StoreU32(ctx, i0 + 44u, i1);
+  i0 = a;
+  j1 = 1065353216ull;
+  StoreU64(ctx, i0 + 36u, j1);
+  i0 = a;
+  j1 = 4575657222473777152ull;
+  StoreU64(ctx, i0 + 28u, j1);
+  i0 = a;
+  i1 = 1u;
+  StoreU8(ctx, i0 + 24u, i1);
+  i0 = a;
+  j1 = 0ull;
+  StoreU64(ctx, i0 + 16u, j1);
+  i0 = a;
+  j1 = 4895412796094676992ull;
+  StoreU64(ctx, i0 + 8u, j1);
+  i0 = a;
+  j1 = 0ull;
+  StoreU64(ctx, i0, j1);
+  i0 = a;
+  j1 = 24ull;
+  StoreU64(ctx, i0 + 92u, j1);
+  i0 = a;
+  j1 = 34359738368ull;
+  StoreU64(ctx, i0 + 100u, j1);
+  i0 = a;
+  j1 = 0ull;
+  StoreU64(ctx, i0 + 108u, j1);
+  i0 = a;
+  j1 = 0ull;
+  StoreU64(ctx, i0 + 72u, j1);
+  i0 = a;
+  j1 = 0ull;
+  StoreU64(ctx, i0 + 80u, j1);
+  i0 = a;
+  i1 = 0u;
+  StoreU32(ctx, i0 + 88u, i1);
+  i0 = a;
+  j1 = 0ull;
+  StoreU64(ctx, i0 + 116u, j1);
+  i0 = a;
+  j1 = 0ull;
+  StoreU64(ctx, i0 + 124u, j1);
+  i0 = a;
+  i1 = 0u;
+  StoreU32(ctx, i0 + 132u, i1);
+  i0 = a;
+  j1 = 0ull;
+  StoreU64(ctx, i0 + 140u, j1);
+  i0 = a;
+  i1 = kF763ConstFFFFFF;
+  StoreU32(ctx, i0 + 136u, i1);
+  i0 = a;
+  j1 = 0ull;
+  StoreU64(ctx, i0 + 148u, j1);
+  i0 = a;
+  i1 = 256u;
+  StoreU16(ctx, i0 + 156u, i1);
+  i0 = a;
+  LeaveFrame();
+  return i0;
+}
+}

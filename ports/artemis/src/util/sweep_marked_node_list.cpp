@@ -1,88 +1,183 @@
+// sweep_marked_node_list.cpp -- the first sweep list: the mark byte is cleared, the mask takes the cleared bit back out, and every live node on the chain gets its finaliser called through the table..
+//
+// SweepMarkedNodeList -- the first sweep list: the mark byte is cleared, the mask takes the cleared bit back out, and every live node on the chain gets its finaliser called through the table.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 2327430-2327588 (f4230); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Sweeps the pool's marked node list: the list is unhooked and its bits cleared
-// out of the pool's mask, then every live node on it has its finaliser called
-// through the table. Returns nothing.
+
+namespace {
+
+constexpr uint32_t kF4230ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF4230SaveFrameBytes = 16u;
+constexpr uint32_t kF4230ResumeWordBytes = 4u;
+
+}  // namespace
+
 void SweepMarkedNodeList(EngineContext* ctx, uint32_t pool) {
   EnterFrame();
-  // The slots the suspend path carries: the sweep cursor, the node whose finaliser
-  // is being called, its table slot, the word naming the call that was in flight,
-  // and the value handed over on the way out.
-  uint32_t cursor = 0u;
-  uint32_t node = 0u;
-  uint32_t finaliser = 0u;
-  uint32_t more = 0u;
-  uint32_t resume_word = 0u;
-  uint32_t spilled = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 16-byte frame the suspend path pushed and rebuild the
-    // pool, the cursor, the node and the finaliser from it.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 16u);
-    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    pool = LoadU32(ctx, saved_frame);
-    cursor = LoadU32(ctx, saved_frame + 4u);
-    node = LoadU32(ctx, saved_frame + 8u);
-    finaliser = LoadU32(ctx, saved_frame + 12u);
+  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF4230SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i0 = LoadU32(ctx, i0);
+    pool = i0;
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l3 = i0;
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l4 = i0;
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: the second pop names the call that was in flight. The two pops
-    // stay separate -- the driver keeps one region at a time.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
-    resume_word = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF4230ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Unhook the marked list and clear its bits out of the pool's mask.
-    uint32_t const marked = LoadU32(ctx, pool + 56u);
-    StoreU32(ctx, pool + 56u, 0u);
-    StoreU32(ctx, pool + 44u, LoadU32(ctx, pool + 44u) & (marked ^ 0xFFFFFFFFu));
-    // The sweep runs over the live node array, one pointer per slot.
-    cursor = LoadU32(ctx, pool + 824u);
-    more = static_cast<uint32_t>(cursor != LoadU32(ctx, pool + 828u));
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = pool;
+    i0 = LoadU32(ctx, i0 + 56u);
+    l3 = i0;
+    i0 = pool;
+    i1 = 0u;
+    StoreU32(ctx, i0 + 56u, i1);
+    i0 = pool;
+    i1 = pool;
+    i1 = LoadU32(ctx, i1 + 44u);
+    i2 = l3;
+    i3 = kF4230ConstFFFFFFFF;
+    i2 ^= i3;
+    i1 &= i2;
+    StoreU32(ctx, i0 + 44u, i1);
+    i0 = pool;
+    i0 = LoadU32(ctx, i0 + 824u);
+    l3 = i0;
+    i1 = pool;
+    i1 = LoadU32(ctx, i1 + 828u);
+    i0 = i0 != i1;
+    l4 = i0;
   }
-  if (more | static_cast<uint32_t>(ResumePhase(ctx) == kResumeRewinding)) {
-    for (;;) {
-      if (ResumePhase(ctx) == kResumeRunning) {
-        node = LoadU32(ctx, cursor);
-        finaliser = LoadU32(ctx, LoadU32(ctx, node) + 140u);
+  i0 = l4;
+  i1 = ResumePhase(ctx);
+  i2 = 2u;
+  i1 = i1 == i2;
+  i0 |= i1;
+  if (i0) {
+    loop_6: 
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = l3;
+        i0 = LoadU32(ctx, i0);
+        l4 = i0;
+        i0 = LoadU32(ctx, i0);
+        i0 = LoadU32(ctx, i0 + 140u);
+        l1 = i0;
       }
-      if (ResumePhase(ctx) ? static_cast<uint32_t>(!resume_word) : 1u) {
-        CallTableT1(ctx, finaliser, node);
+      i0 = l2;
+      i0 = !(i0);
+      i1 = 1u;
+      i2 = ResumePhase(ctx);
+      i0 = i2 ? i0 : i1;
+      if (i0) {
+        i0 = l4;
+        i1 = l1;
+        CallTableT1(ctx, i1, i0);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
 #endif
-        spilled = 0u;
-        if (ResumePhase(ctx) == kResumeSuspended) {
-          goto suspend_point;
-        }
+        i0 = 0u;
+        i1 = ResumePhase(ctx);
+        i2 = 1u;
+        i1 = i1 == i2;
+        if (i1) {goto spill_frame;}
       }
-      if (ResumePhase(ctx) == kResumeRunning) {
-        cursor += 4u;
-        more = static_cast<uint32_t>(cursor != LoadU32(ctx, pool + 828u));
-        if (more) {
-          continue;
-        }
+      i0 = ResumePhase(ctx);
+      i0 = !(i0);
+      if (i0) {
+        i0 = l3;
+        i1 = 4u;
+        i0 += i1;
+        l3 = i0;
+        i1 = pool;
+        i1 = LoadU32(ctx, i1 + 828u);
+        i0 = i0 != i1;
+        l4 = i0;
+        if (i0) {goto loop_6;}
       }
-      break;
-    }
   }
-  goto exit_path;
- suspend_point:;
-  {
-    // The stack pointer lives in the word the frame pointer names, so every push
-    // is a read-modify-write of that word.
-    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), spilled);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
-    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    StoreU32(ctx, saved_frame, pool);
-    StoreU32(ctx, saved_frame + 4u, cursor);
-    StoreU32(ctx, saved_frame + 8u, node);
-    StoreU32(ctx, saved_frame + 12u, finaliser);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 16u);
-  }
- exit_path:;
+  goto func_exit;
+  spill_frame:;
+  l2 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF4230ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l2 = i0;
+  i1 = pool;
+  StoreU32(ctx, i0, i1);
+  i0 = l2;
+  i1 = l3;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l2;
+  i1 = l4;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = l2;
+  i1 = l1;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 16u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

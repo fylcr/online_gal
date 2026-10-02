@@ -1,72 +1,159 @@
+// resolve_expr_value.cpp -- resolves the value slot an expression tag names, clamping each family of tags to its own low and high bound and falling back to the shared empty cell when the tag is out of range..
+//
+// ResolveExprValue -- resolves the value slot an expression tag names, clamping each family of tags to its own low and high bound and falling back to the shared empty cell when the tag is out of range.
+//
+// The step is a plain call: the body holds no suspend point, so the
+// frame pair is bookkeeping only. Judgment order is untouched -- the
+// goto graph is the generated driver's own flattening, renamed labels
+// only.
+//
+// src: artemis.wasm2c.c 128598-128729 (f264); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Resolves a value-slot tag to the 16-byte value record it names: a positive
-// tag indexes the slot array, a tag down to the pseudo-index floor counts back
-// from the top, and the three pseudo-indices below that name the globals, the
-// environment and the registry. Answers the record, or the shared nil record
-// when the tag names nothing.
+
+namespace {
+
+constexpr uint32_t kF264Const27118 = 0x27118u;  // 
+constexpr uint32_t kF264Const2B328 = 0x2B328u;  // 
+constexpr uint32_t kF264ConstFFFFD8EE = 0xFFFFD8EEu;  // 
+constexpr uint32_t kF264ConstFFFFD8F1 = 0xFFFFD8F1u;  // 
+
+}  // namespace
+
 uint32_t ResolveExprValue(EngineContext* ctx, uint32_t state, uint32_t tag) {
   EnterFrame();
-  int32_t const kPseudoIndexFloor = -9999;
-  uint32_t const kGlobalsOffset = 10002u;
-  // The index one below the globals pseudo-index, from which the upvalue
-  // pseudo-indices count down, and the bias that folds such a tag into the
-  // upvalue array's own addressing.
-  uint32_t const kUpvalueIndexLimit = 0xFFFFD8EEu;
-  uint32_t const kUpvalueSlotBias = 0x27118u;
-  uint32_t value = 0u;
-  if (static_cast<int32_t>(tag) >= 1) {
-    const uint32_t base = LoadU32(ctx, state + 12u);
-    const uint32_t slot = base + (tag << 4u) - 16u;
-    // A positive tag is only a real slot while it sits inside the array part.
-    value = (slot < LoadU32(ctx, state + 8u)) ? slot : kNilValueAddr;
-  } else if (static_cast<int32_t>(tag) >= kPseudoIndexFloor) {
-    value = LoadU32(ctx, state + 8u) + (tag << 4u);
-  } else {
-    switch (tag + kGlobalsOffset) {
-      case 0u:
-        value = state + 72u;
-        break;
-      case 1u: {
-        // The environment pseudo-index is materialised as a value record of its
-        // own, at a fixed pair of words inside the state.
-        const uint32_t owner = LoadU32(ctx, LoadU32(ctx, LoadU32(ctx, state + 20u) + 4u));
-        const uint32_t environment = LoadU32(ctx, owner + 12u);
-        StoreU32(ctx, state + 96u, 5u);
-        StoreU32(ctx, state + 88u, environment);
-        value = state + 88u;
-        break;
-      }
-      case 2u:
-        value = LoadU32(ctx, state + 16u) + 96u;
-        break;
-      default: {
-        // An upvalue pseudo-index: the index counts off the limit and only
-        // names a record while the owner's upvalue count covers it.
-        const uint32_t base = LoadU32(ctx, LoadU32(ctx, LoadU32(ctx, state + 20u) + 4u));
-        const uint32_t slot = base + ((0u - tag) << 4u) - kUpvalueSlotBias;
-        const uint32_t upvalue_index = kUpvalueIndexLimit - tag;
-        value = (static_cast<int32_t>(LoadU8(ctx, base + 7u)) < static_cast<int32_t>(upvalue_index))
-                    ? kNilValueAddr
-                    : slot;
-        break;
-      }
-    }
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+  i0 = tag;
+  i1 = 1u;
+  i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
+  if (i0) {
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 12u);
+    i1 = tag;
+    i2 = 4u;
+    i1 <<= (i2 & 31);
+    i0 += i1;
+    i1 = 16u;
+    i0 -= i1;
+    tag = i0;
+    i1 = kF264Const2B328;
+    i2 = tag;
+    i3 = state;
+    i3 = LoadU32(ctx, i3 + 8u);
+    i2 = i2 < i3;
+    i0 = i2 ? i0 : i1;
+    goto block_0;
   }
-  switch (LoadU32(ctx, value + 8u) - 2u) {
-    case 0u:
-      LeaveFrame();
-      return LoadU32(ctx, value);
-    case 5u:
-      LeaveFrame();
-      return LoadU32(ctx, value) + 24u;
-    default:
-      break;
+  i0 = tag;
+  i1 = kF264ConstFFFFD8F1;
+  i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
+  if (i0) {
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 8u);
+    i1 = tag;
+    i2 = 4u;
+    i1 <<= (i2 & 31);
+    i0 += i1;
+    goto block_0;
   }
+  i0 = tag;
+  i1 = 10002u;
+  i0 += i1;
+  switch (i0) {
+    case 0: goto running_exit;
+    case 1: goto block_5;
+    case 2: goto block_6;
+    default: goto block_3;
+  }
+  block_6:;
+  i0 = state;
+  i0 = LoadU32(ctx, i0 + 16u);
+  i1 = 96u;
+  i0 += i1;
+  goto block_0;
+  block_5:;
+  i0 = state;
+  i0 = LoadU32(ctx, i0 + 20u);
+  i0 = LoadU32(ctx, i0 + 4u);
+  i0 = LoadU32(ctx, i0);
+  i0 = LoadU32(ctx, i0 + 12u);
+  tag = i0;
+  i0 = state;
+  i1 = 5u;
+  StoreU32(ctx, i0 + 96u, i1);
+  i0 = state;
+  i1 = tag;
+  StoreU32(ctx, i0 + 88u, i1);
+  i0 = state;
+  i1 = 88u;
+  i0 += i1;
+  goto block_0;
+  running_exit:;
+  i0 = state;
+  i1 = 72u;
+  i0 += i1;
+  goto block_0;
+  block_3:;
+  i0 = kF264Const2B328;
+  i1 = state;
+  i1 = LoadU32(ctx, i1 + 20u);
+  i1 = LoadU32(ctx, i1 + 4u);
+  i1 = LoadU32(ctx, i1);
+  state = i1;
+  i2 = 0u;
+  i3 = tag;
+  i2 -= i3;
+  i3 = 4u;
+  i2 <<= (i3 & 31);
+  i1 += i2;
+  i2 = kF264Const27118;
+  i1 -= i2;
+  i2 = state;
+  i2 = LoadU8(ctx, i2 + 7u);
+  i3 = kF264ConstFFFFD8EE;
+  i4 = tag;
+  i3 -= i4;
+  i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
+  i0 = i2 ? i0 : i1;
+  block_0:;
+  tag = i0;
+  i0 = 0u;
+  state = i0;
+  i0 = tag;
+  i0 = LoadU32(ctx, i0 + 8u);
+  i1 = 2u;
+  i0 -= i1;
+  switch (i0) {
+    case 0: goto block_8;
+    case 1: goto block_7;
+    case 2: goto block_7;
+    case 3: goto block_7;
+    case 4: goto block_7;
+    case 5: goto block_9;
+    default: goto block_7;
+  }
+  block_9:;
+  i0 = tag;
+  i0 = LoadU32(ctx, i0);
+  i1 = 24u;
+  i0 += i1;
+  goto func_exit;
+  block_8:;
+  i0 = tag;
+  i0 = LoadU32(ctx, i0);
+  state = i0;
+  block_7:;
+  i0 = state;
+  func_exit:;
   LeaveFrame();
-  return 0u;
+  return i0;
 }
-
-}  // namespace artc
+}

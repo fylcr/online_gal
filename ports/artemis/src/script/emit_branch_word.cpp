@@ -1,107 +1,216 @@
+// emit_branch_word.cpp -- emits one branch word, choosing the short and the long encoding..
+//
+// EmitBranchWord -- emits one branch word, choosing the short and the long encoding.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 2748861-2748861 (f5680); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// The instruction sink a fresh branch word is appended through
-// (script/emit_instruction.cpp).
-uint32_t EmitInstruction(EngineContext* ctx, uint32_t func_state, uint32_t opcode, uint32_t operands);
+// Forward declarations -- batch-mates and registered callees.
+uint32_t EmitInstruction(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 
 namespace {
 
-// A branch word reads `(end << 23) | (opcode << 6) | kind`: the branch's own
-// opcode in the eight-bit field, the last opcode it covers in the nine-bit field
-// above it, and the branch kind in the low six bits. `end` is built by
-// subtracting one from the shifted first-opcode-plus-count so the low tail stays
-// untouched.
-constexpr uint32_t kEmitBranchWordKind = 3u;
-constexpr uint32_t kEmitBranchWordKindMask = 0x3Fu;
-constexpr uint32_t kEmitBranchWordOpcodeShift = 6u;
-constexpr uint32_t kEmitBranchWordOpcodeMask = 0xFFu;
-constexpr uint32_t kEmitBranchWordEndShift = 23u;
-constexpr uint32_t kEmitBranchWordEndMask = 0x7FFFFFu;
-constexpr uint32_t kEmitBranchWordEndBias = 0x800000u;  // one << 23
-constexpr uint32_t kEmitBranchWordSaveFrameBytes = 12u;
-constexpr uint32_t kEmitBranchWordResumeWordBytes = 4u;
+constexpr uint32_t kF5680Const7FFFFF = 0x7FFFFFu;  // 
+constexpr uint32_t kF5680Const800000 = 0x800000u;  // 
+constexpr uint32_t kF5680SaveFrameBytes = 12u;
+constexpr uint32_t kF5680ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Makes the word that carries a branch cover the `operands` opcodes starting at
-// `opcode`. When the word already sitting in front of the code cursor is a branch
-// of the same kind whose range contains `opcode`, its range is widened in place;
-// otherwise a fresh word is built and appended through the instruction sink.
-void EmitBranchWord(EngineContext* ctx, uint32_t func_state, uint32_t opcode, uint32_t operands) {
+void EmitBranchWord(EngineContext* ctx, uint32_t state, uint32_t opcode, uint32_t operands) {
   EnterFrame();
-  uint32_t target = 0u;
-  uint32_t pending = 0u;
-
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the saved parameters back out of the event frame.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kEmitBranchWordSaveFrameBytes);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    func_state = LoadU32(ctx, frame);
-    opcode = LoadU32(ctx, frame + 4u);
-    operands = LoadU32(ctx, frame + 8u);
+  uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5680SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    operands = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = operands;
+    i0 = LoadU32(ctx, i0 + 4u);
+    opcode = i0;
+    i0 = operands;
+    i0 = LoadU32(ctx, i0 + 8u);
+    operands = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: the second pop names the value the suspended call produced. The
-    // two pops stay separate -- the driver keeps one region at a time.
-    StoreU32(ctx, ReturnFrameSp(ctx),
-             LoadU32(ctx, ReturnFrameSp(ctx)) - kEmitBranchWordResumeWordBytes);
-    pending = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF5680ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
   }
-
-  if (ResumePhase(ctx) == kResumeRunning) {
-    target = LoadU32(ctx, func_state + 24u);
-    if (static_cast<int32_t>(target) > static_cast<int32_t>(LoadU32(ctx, func_state + 28u))) {
-      if (target == 0) {
-        // No word to widen yet: the caller's own limit decides whether one is
-        // needed at all.
-        if (static_cast<int32_t>(LoadU8(ctx, func_state + 50u)) <= static_cast<int32_t>(opcode)) {
-          LeaveFrame();
-          return;
-        }
-      } else {
-        uint32_t const entry = LoadU32(ctx, LoadU32(ctx, func_state) + 12u) + (target << 2) - 4u;
-        uint32_t const word = LoadU32(ctx, entry);
-        if ((word & kEmitBranchWordKindMask) == kEmitBranchWordKind &&
-            static_cast<int32_t>((word >> kEmitBranchWordOpcodeShift) & kEmitBranchWordOpcodeMask) <=
-                static_cast<int32_t>(opcode) &&
-            static_cast<int32_t>((word >> kEmitBranchWordEndShift) + 1u) >=
-                static_cast<int32_t>(opcode)) {
-          uint32_t const end = opcode + operands - 1u;
-          if ((word >> kEmitBranchWordEndShift) < end) {
-            StoreU32(ctx, entry,
-                     (word & kEmitBranchWordEndMask) | (end << kEmitBranchWordEndShift));
-          }
-          LeaveFrame();
-          return;
-        }
-      }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l3 = i0;
+    i1 = state;
+    i1 = LoadU32(ctx, i1 + 28u);
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {goto running_exit;}
+    i0 = l3;
+    i0 = !(i0);
+    if (i0) {
+      i0 = state;
+      i0 = LoadU8(ctx, i0 + 50u);
+      i1 = opcode;
+      i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+      if (i0) {goto block_5;}
+      goto running_exit;
     }
-    // The word in front of the cursor does not cover the branch, so a fresh one
-    // is built with the range the branch needs.
-    opcode = (((opcode + operands) << kEmitBranchWordEndShift) - kEmitBranchWordEndBias) |
-             (opcode << kEmitBranchWordOpcodeShift) | kEmitBranchWordKind;
-    operands = LoadU32(ctx, LoadU32(ctx, func_state + 12u) + 8u);
+    i0 = state;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 12u);
+    i1 = l3;
+    i2 = 2u;
+    i1 <<= (i2 & 31);
+    i0 += i1;
+    i1 = 4u;
+    i0 -= i1;
+    l5 = i0;
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i1 = 63u;
+    i0 &= i1;
+    i1 = 3u;
+    i0 = i0 != i1;
+    if (i0) {goto running_exit;}
+    i0 = l3;
+    i1 = 6u;
+    i0 >>= (i1 & 31);
+    i1 = 255u;
+    i0 &= i1;
+    i1 = opcode;
+    i0 = (uint32_t)((int32_t)i0 > (int32_t)i1);
+    if (i0) {goto running_exit;}
+    i0 = l3;
+    i1 = 23u;
+    i0 >>= (i1 & 31);
+    l6 = i0;
+    i1 = 1u;
+    i0 += i1;
+    i1 = opcode;
+    i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+    if (i0) {goto running_exit;}
+    i0 = l6;
+    i1 = opcode;
+    i2 = operands;
+    i1 += i2;
+    i2 = 1u;
+    i1 -= i2;
+    state = i1;
+    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
+    if (i0) {goto block_5;}
+    i0 = l5;
+    i1 = l3;
+    i2 = kF5680Const7FFFFF;
+    i1 &= i2;
+    i2 = state;
+    i3 = 23u;
+    i2 <<= (i3 & 31);
+    i1 |= i2;
+    StoreU32(ctx, i0, i1);
+    block_5:;
+    goto func_exit;
+    running_exit:;
+    i0 = opcode;
+    i1 = operands;
+    i0 += i1;
+    i1 = 23u;
+    i0 <<= (i1 & 31);
+    i1 = kF5680Const800000;
+    i0 -= i1;
+    i1 = opcode;
+    i2 = 6u;
+    i1 <<= (i2 & 31);
+    i0 |= i1;
+    i1 = 3u;
+    i0 |= i1;
+    opcode = i0;
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 12u);
+    i0 = LoadU32(ctx, i0 + 8u);
+    operands = i0;
   }
-
-  // The sink is entered unless a suspended frame already carries its answer.
-  if (ResumePhase(ctx) == kResumeRunning || pending == 0u) {
-    EmitInstruction(ctx, func_state, opcode, operands);
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      // Suspended inside the sink: push the parameters so the rewind above can
-      // rebuild them, and hand the driver zero.
-      StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), 0u);
-      StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
-      uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-      StoreU32(ctx, frame, func_state);
-      StoreU32(ctx, frame + 4u, opcode);
-      StoreU32(ctx, frame + 8u, operands);
-      StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 12u);
-    }
+  i0 = l4;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = opcode;
+    i2 = operands;
+    i0 = EmitInstruction(ctx, i0, i1, i2);
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
+  goto func_exit;
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF5680ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = opcode;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = operands;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 12u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

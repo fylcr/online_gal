@@ -75,7 +75,10 @@ inline uint32_t FinishTableIndex(EngineContext* ctx, uint32_t a, uint32_t b, uin
 inline void GrowStringAndReplace(EngineContext* ctx, uint32_t arg0, uint32_t arg1, uint32_t arg2,
                                  uint32_t arg3, uint32_t arg4, uint32_t arg5, uint32_t arg6,
                                  uint32_t arg7);
-// Batch-2 table-array resize (f1114). Declared before the legacy
+// Batch-2 table-array resize (f1114). Declared before the legacy alias below
+// so the alias body sees it. The product that defines the callee sits later in
+// the TU, so the forward declaration has to live here.
+void ResizeTableArray(EngineContext* ctx, uint32_t state, uint32_t capacity);
 // The string-table spelling the intern path already calls: same generated
 // callee, product-facing name ResizeTableArray (batch 2). Delete this alias
 // when script/intern_string.cpp takes the new name.
@@ -720,6 +723,15 @@ inline uint32_t UnlinkChainEntry(EngineContext* ctx, uint32_t chain, uint32_t en
 // One item action of the event flow runner; no product file yet.
 inline void IetItemAction(EngineContext* ctx, uint32_t item, uint32_t command, uint32_t arg) {
   w2c_artemis_f3221(ctx, item, command, arg);
+}
+// Reads the number a node carries in its first field; no product file yet.
+inline double UnorderedLookupNumber(EngineContext* ctx, uint32_t node) {
+  return w2c_artemis_f271(ctx, node);
+}
+// Formats one message into an output stream.
+inline void FormatStreamMessage(EngineContext* ctx, uint32_t stream, uint32_t one,
+                                uint32_t format, uint32_t args, uint32_t zero) {
+  w2c_artemis_f344(ctx, stream, one, format, args, zero);
 }
 
 }  // namespace artc

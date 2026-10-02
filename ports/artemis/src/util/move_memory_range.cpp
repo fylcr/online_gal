@@ -1,133 +1,228 @@
+// move_memory_range.cpp -- moves a memory range: the overlapping case is ordered so the copy survives a destination that sits inside the source..
+//
+// MoveMemoryRange -- moves a memory range: the overlapping case is ordered so the copy survives a destination that sits inside the source.
+//
+// The step is a plain call: the body holds no suspend point, so the
+// frame pair is bookkeeping only. Judgment order is untouched -- the
+// goto graph is the generated driver's own flattening, renamed labels
+// only.
+//
+// src: artemis.wasm2c.c 129655-129655 (f268); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
+// Forward declarations -- batch-mates and registered callees.
 uint32_t CopyBytes(EngineContext* ctx, uint32_t a0, uint32_t a1, uint32_t a2);
 
-// Moves `count` bytes from `src` to `dst`, choosing a copy direction and a store
-// width that keep an overlapping destination from clobbering bytes it has not
-// read yet. Answers the destination, or the bulk copy's own result.
-uint32_t MoveMemoryRange(EngineContext* ctx, uint32_t dst, uint32_t src, uint32_t count) {
-  EnterFrame();
-  uint32_t gap_limit = 0u;
-  uint32_t mismatch = 0u;
-  uint32_t cursor = 0u;
-  uint32_t byte = 0u;
-  uint32_t word = 0u;
-  uint32_t copied = 0u;
-  if (dst == src) {
-    goto finish;
-  }
-  // The ranges cannot touch when the source sits at least `count` bytes above
-  // the destination, or vice versa. Taking the wrapped negative of twice the
-  // length folds both directions into a single comparison.
-  gap_limit = 0u - (count << (1u & 31));
-  if (src - dst - count <= gap_limit) {
-    copied = CopyBytes(ctx, dst, src, count);
-    LeaveFrame();
-    return copied;
-  }
-  // The low pair of bits says whether word stores can ever line up at all.
-  mismatch = (dst ^ src) & 3u;
-  if (dst < src) {
-    if (mismatch != 0u) {
-      cursor = dst;
-      goto byte_forward;
-    }
-    if ((dst & 3u) == 0u) {
-      cursor = dst;
-      goto word_forward;
-    }
-    // Copying upwards: consume the leading bytes until the destination is
-    // word-aligned, since the source trails behind the writes.
-    cursor = dst;
-  align_forward:;
-    if (count == 0u) {
-      goto finish;
-    }
-    byte = LoadU8(ctx, src);
-    StoreU8(ctx, cursor, byte);
-    src += 1u;
-    count -= 1u;
-    cursor += 1u;
-    if ((cursor & 3u) != 0u) {
-      goto align_forward;
-    }
-    goto word_forward;
-  } else {
-    // Copying downwards: the tail goes first, so every byte is read before the
-    // destination can have overwritten it.
-    if (mismatch != 0u) {
-      goto byte_backward;
-    }
-    if (((dst + count) & 3u) != 0u) {
-    align_backward:;
-      if (count == 0u) {
-        goto finish;
-      }
-      count -= 1u;
-      cursor = dst + count;
-      byte = LoadU8(ctx, src + count);
-      StoreU8(ctx, cursor, byte);
-      if ((cursor & 3u) != 0u) {
-        goto align_backward;
-      }
-    }
-    if (count <= 3u) {
-      goto byte_backward;
-    }
-  word_backward:;
-    count -= 4u;
-    cursor = dst + count;
-    word = LoadU32(ctx, src + count);
-    StoreU32(ctx, cursor, word);
-    if (count > 3u) {
-      goto word_backward;
-    }
-  byte_backward:;
-    if (count == 0u) {
-      goto finish;
-    }
-  byte_backward_loop:;
-    count -= 1u;
-    cursor = dst + count;
-    byte = LoadU8(ctx, src + count);
-    StoreU8(ctx, cursor, byte);
-    if (count != 0u) {
-      goto byte_backward_loop;
-    }
-    goto finish;
-  }
-word_forward:;
-  // Whole words while four or more bytes remain, then the trailing bytes.
-  if (count <= 3u) {
-    goto byte_forward;
-  }
-word_forward_loop:;
-  word = LoadU32(ctx, src);
-  StoreU32(ctx, cursor, word);
-  src += 4u;
-  cursor += 4u;
-  count -= 4u;
-  if (count > 3u) {
-    goto word_forward_loop;
-  }
-byte_forward:;
-  if (count == 0u) {
-    goto finish;
-  }
-byte_forward_loop:;
-  byte = LoadU8(ctx, src);
-  StoreU8(ctx, cursor, byte);
-  cursor += 1u;
-  src += 1u;
-  count -= 1u;
-  if (count != 0u) {
-    goto byte_forward_loop;
-  }
-finish:;
-  LeaveFrame();
-  return dst;
-}
+namespace {
 
-}  // namespace artc
+
+}  // namespace
+
+uint32_t MoveMemoryRange(EngineContext* ctx, uint32_t a, uint32_t b, uint32_t c) {
+  EnterFrame();
+  uint32_t l3 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  i0 = a;
+  i1 = b;
+  i0 = i0 == i1;
+  if (i0) {goto block_0;}
+  i0 = b;
+  i1 = a;
+  i0 -= i1;
+  i1 = c;
+  i0 -= i1;
+  i1 = 0u;
+  i2 = c;
+  i3 = 1u;
+  i2 <<= (i3 & 31);
+  i1 -= i2;
+  i0 = i0 <= i1;
+  if (i0) {
+    i0 = a;
+    i1 = b;
+    i2 = c;
+    i0 = CopyBytes(ctx, i0, i1, i2);
+    goto func_exit;
+  }
+  i0 = a;
+  i1 = b;
+  i0 ^= i1;
+  i1 = 3u;
+  i0 &= i1;
+  l3 = i0;
+  i0 = a;
+  i1 = b;
+  i0 = i0 < i1;
+  if (i0) {
+    i0 = l3;
+    if (i0) {
+      i0 = a;
+      l3 = i0;
+      goto block_2;
+    }
+    i0 = a;
+    i1 = 3u;
+    i0 &= i1;
+    i0 = !(i0);
+    if (i0) {
+      i0 = a;
+      l3 = i0;
+      goto block_3;
+    }
+    i0 = a;
+    l3 = i0;
+    loop_7: 
+      i0 = c;
+      i0 = !(i0);
+      if (i0) {goto block_0;}
+      i0 = l3;
+      i1 = b;
+      i1 = LoadU8(ctx, i1);
+      StoreU8(ctx, i0, i1);
+      i0 = b;
+      i1 = 1u;
+      i0 += i1;
+      b = i0;
+      i0 = c;
+      i1 = 1u;
+      i0 -= i1;
+      c = i0;
+      i0 = l3;
+      i1 = 1u;
+      i0 += i1;
+      l3 = i0;
+      i1 = 3u;
+      i0 &= i1;
+      if (i0) {goto loop_7;}
+    goto block_3;
+  }
+  i0 = l3;
+  if (i0) {goto block_8;}
+  i0 = a;
+  i1 = c;
+  i0 += i1;
+  i1 = 3u;
+  i0 &= i1;
+  if (i0) {
+    loop_10: 
+      i0 = c;
+      i0 = !(i0);
+      if (i0) {goto block_0;}
+      i0 = c;
+      i1 = 1u;
+      i0 -= i1;
+      c = i0;
+      i1 = a;
+      i0 += i1;
+      l3 = i0;
+      i1 = b;
+      i2 = c;
+      i1 += i2;
+      i1 = LoadU8(ctx, i1);
+      StoreU8(ctx, i0, i1);
+      i0 = l3;
+      i1 = 3u;
+      i0 &= i1;
+      if (i0) {goto loop_10;}
+  }
+  i0 = c;
+  i1 = 3u;
+  i0 = i0 <= i1;
+  if (i0) {goto block_8;}
+  loop_11: 
+    i0 = c;
+    i1 = 4u;
+    i0 -= i1;
+    c = i0;
+    i1 = a;
+    i0 += i1;
+    i1 = b;
+    i2 = c;
+    i1 += i2;
+    i1 = LoadU32(ctx, i1);
+    StoreU32(ctx, i0, i1);
+    i0 = c;
+    i1 = 3u;
+    i0 = i0 > i1;
+    if (i0) {goto loop_11;}
+  block_8:;
+  i0 = c;
+  i0 = !(i0);
+  if (i0) {goto block_0;}
+  loop_12: 
+    i0 = c;
+    i1 = 1u;
+    i0 -= i1;
+    c = i0;
+    i1 = a;
+    i0 += i1;
+    i1 = b;
+    i2 = c;
+    i1 += i2;
+    i1 = LoadU8(ctx, i1);
+    StoreU8(ctx, i0, i1);
+    i0 = c;
+    if (i0) {goto loop_12;}
+  goto block_0;
+  block_3:;
+  i0 = c;
+  i1 = 3u;
+  i0 = i0 <= i1;
+  if (i0) {goto block_2;}
+  loop_13: 
+    i0 = l3;
+    i1 = b;
+    i1 = LoadU32(ctx, i1);
+    StoreU32(ctx, i0, i1);
+    i0 = b;
+    i1 = 4u;
+    i0 += i1;
+    b = i0;
+    i0 = l3;
+    i1 = 4u;
+    i0 += i1;
+    l3 = i0;
+    i0 = c;
+    i1 = 4u;
+    i0 -= i1;
+    c = i0;
+    i1 = 3u;
+    i0 = i0 > i1;
+    if (i0) {goto loop_13;}
+  block_2:;
+  i0 = c;
+  i0 = !(i0);
+  if (i0) {goto block_0;}
+  loop_14: 
+    i0 = l3;
+    i1 = b;
+    i1 = LoadU8(ctx, i1);
+    StoreU8(ctx, i0, i1);
+    i0 = l3;
+    i1 = 1u;
+    i0 += i1;
+    l3 = i0;
+    i0 = b;
+    i1 = 1u;
+    i0 += i1;
+    b = i0;
+    i0 = c;
+    i1 = 1u;
+    i0 -= i1;
+    c = i0;
+    if (i0) {goto loop_14;}
+  block_0:;
+  i0 = a;
+  func_exit:;
+  LeaveFrame();
+  return i0;
+}
+}

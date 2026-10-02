@@ -1,8 +1,9 @@
 # Third-party notices
 
-This project is distributed under **GPL-3.0-or-later** (see [`LICENSE`](LICENSE)).
-The following third-party material is included or reproduced, with the licence
-each part is used under.
+Project-authored code is declared **GPL-3.0-or-later** (see [`LICENSE`](LICENSE)).
+The following records third-party provenance, applicable notices and unresolved
+permissions. The root licence does not replace those notices or grant rights to
+material whose redistribution permission has not been established.
 
 ---
 
@@ -67,17 +68,20 @@ upstream files it patches in place, `platforms/web/vlfs.js` and
 `13dda190` — pinned in `docs/kirikiri-web-plan.md`)
 
 Its architecture (JSPI + VLFS) is the basis of this project's KiriKiri
-WebAssembly build, and `ports/krkr/kirikiroid2/run-build.sh` drives its CMake
-preset. The build recipe carries two idempotent in-place patches to those two
-files; no upstream source is redistributed from this repository, because the
-build consumes a `.ref/` checkout that is gitignored.
+WebAssembly build. The local [`run-build.sh`](ports/krkr/kirikiroid2/run-build.sh)
+is Windows-specific; Linux CI uses [`build-krkr.sh`](.github/scripts/build-krkr.sh).
+Both apply the host-source seam to an upstream checkout. Not committing the full
+checkout does **not** remove the obligations of distributing the resulting wasm,
+patched web-platform files or bundled libraries.
 
-**Licence:** the upstream `README.md` says "MIT License", but the repository's
-`LICENSE` file is the BSD-style Kirikiri/W.Dee text quoted above for
-Kirikiroid2, followed by the notices of the libraries it bundles. The two are
-not in agreement, so the more restrictive file is the one treated as
-authoritative here. Both are permissive and compatible with this project's
-GPL-3.0-or-later.
+**Licence:** the upstream README says "MIT License", but the actual LICENSE is
+the Japanese BSD-style Kirikiri/W.Dee text plus individual dependency notices.
+Use those applicable texts, not the README label or a blanket MIT assumption.
+The Japanese conditions include retaining the copyright/conditions in source and
+binary distributions and not using contributor names for endorsement without
+permission. The abbreviated English notice above is not a replacement for the
+full upstream LICENSE or dependency notices. Preserve them with the actual
+source and binary distributions and review each bundled component separately.
 
 ---
 
@@ -129,20 +133,19 @@ into a GPL-3.0-or-later project permissible.
 ## artemis-compat — engine structure and house style
 
 **Upstream:** <https://github.com/Weiss-UltimateSavior/artemis-compat> — **GPL-3.0**
-(commit `9f622629f595db85e6f76c45c06edde29d7d9961`, pinned in `ports/README.md`)
+(reference commit `9f622629f595db85e6f76c45c06edde29d7d9961`, recorded in the
+[`bridge workflow`](.github/workflows/build-wasm-artemis-bridge.yml)).
 
-No upstream source is redistributed here, and no file is copied: `ports/artemis/src/`
-is hand-written C++ that was checked against that project's conventions rather than
-lifted from it. What the rewrite takes from artemis-compat is **naming and shape** —
-the file-per-concept layout, the `Class::Method` vocabulary, the `// file.cpp — purpose.`
-header form, and the specific class names it already uses for the subsystems this
-port needed. `ports/artemis/REWRITE.md` calls this "对齐 house style" and states
-explicitly that no "Adapted from artemis-compat" attribution is written into the
-sources.
+The current bridge CI skips that upstream checkout; it does not build the complete
+artemis-compat engine. The project's C++ products use it as a **naming and structural
+reference**: file-per-concept organization, class/method vocabulary and purpose
+comments. [`REWRITE.md`](ports/artemis/REWRITE.md) records the intended house style,
+not proof that the whole current product tree conforms to it.
 
-Both projects are GPL-3.0, so the alignment raises no combination question. The
-notice is recorded because the naming is a deliberate derivation and a reader
-comparing the two trees should find the reason stated rather than inferred.
+This reference explains the deliberate naming relationship. Its GPL declaration
+cannot grant rights to the official Artemis SDK or automatically resolve the
+provenance of products checked against SDK-generated code. Those materials and
+remaining generated function bodies are addressed separately below.
 
 ---
 
@@ -201,7 +204,7 @@ against a real shipping artefact instead of a hand-written fixture.
 
 ---
 
-## Artemis Engine SDK — **proprietary, committed deliberately**
+## Artemis Engine SDK — retained reference inputs, redistribution unresolved
 
 **Files:** `ports/artemis/vendor/artemis-sdk/` (9 files, 24 MB)
 
@@ -213,57 +216,62 @@ against a real shipping artefact instead of a hand-written fixture.
 | `Android/arm64-v8a/libartemis.so` | 8,149,024 |
 | `Android/armeabi-v7a/libartemis.so` | 7,395,052 |
 
-**Upstream:** the official Artemis Engine SDK, by Mikage. Its own `Copyright.txt`
-is reproduced verbatim at `ports/artemis/vendor/artemis-sdk/Copyright.txt`. It is
-**not** a free licence: it grants use only to parties who obtained permission from
-the author, and it charges a fee for commercial use. It is incompatible with this
-repository's GPL-3.0-or-later.
+**Upstream:** the official Artemis Engine SDK, by Mikage. The retained
+[`Copyright.txt`](ports/artemis/vendor/artemis-sdk/Copyright.txt) begins with:
 
-**This is a known, accepted licence violation, not an oversight.** The material is
-included because the port's central claims cannot be checked without it: the
-official-wasm deployment route (`ports/artemis/build/official-web-deploy.py`)
-reads these exact bytes as a drop-in for a licensed `.ref/artemis`, and the
-reverse-engineering recipes under `ports/artemis/reverse/` assert byte-identity
-and export-surface equality *against these files*. Removing them would turn those
-assertions into unverifiable statements.
+> Artemis Engine — Copyright (C)2009 Daiju Hanaoka (Mikage) All rights reserved.
 
-The decision and its reasoning are recorded in
-[`docs/artemis-web-port.md`](docs/artemis-web-port.md) §15. A licensed
-`.ref/artemis` takes precedence whenever one is present, so a properly licensed
-user still builds against their own tree. Anyone redistributing this repository
-should remove `ports/artemis/vendor/` unless they hold a licence from the author.
+The remainder includes bundled-library notices. Those grants are **not a grant to
+redistribute Artemis itself**. This file does not establish the earlier claims of
+commercial fees or a particular permission procedure; those claims are withdrawn.
+No verified Artemis redistribution grant is recorded here. The root GPL declaration
+cannot supply that missing permission, and retaining these bytes is not approval to publish them.
+
+**Current use:** the asyncify wasm is the tracked input to
+[`build-artemis-bridge.sh`](.github/scripts/build-artemis-bridge.sh), which regenerates
+wasm2c source and combines it with handwritten products. Official HTML / minified JS
+and Android binaries remain reference or historical diagnostic material, **not the
+shipping browser host**. This organization pass preserves their bytes and notices;
+it does not remove them, claim authorization, or release an SDK-derived artifact.
+
+Historical decisions remain in [`artemis-web-port.md`](docs/artemis-web-port.md) §15,
+but that history is not evidence of an applicable grant. Before redistribution,
+review the SDK input, remaining generated bodies and resulting products together
+and establish the necessary rights or replace the affected material. Removing only
+the vendor directory does not by itself resolve provenance in already derived outputs.
 
 ---
 
 ## Artemis Engine — `ports/artemis/src/` (rewritten from the official decompile)
 
-**Files:** `ports/artemis/src/` — 159 files, ~71,000 lines of hand-written C++
-(`namespace artc`), beside its style constitution `ports/artemis/REWRITE.md`
-and its rename ledger `ports/artemis/rewrite-names.tsv`
+**Files:** [`ports/artemis/src/`](ports/artemis/src/) — the current worktree ledger
+maps **340 functions to 340 C++ product files** in `namespace artc`. Four new products
+are not yet in the index; this count is not a claim about the committed snapshot.
+The rules and ledger are [`REWRITE.md`](ports/artemis/REWRITE.md) and
+[`rewrite-names.tsv`](ports/artemis/rewrite-names.tsv).
 
-**Derived from:** the proprietary SDK's WebAssembly builds, via the `wasm2c`
-output in `.ref/artemis-official/`. Each product records its source range in its
-own header, e.g. `// src: artemis.wasm2c.c 780308-780308 (f1700); R1 transcribe-keep.`
+**Provenance:** the products re-express behaviour checked against the official SDK's
+wasm2c output in `.ref/artemis-official/`. They are not a build of the complete
+artemis-compat upstream source tree. That project supplies naming and structural
+reference; it does not grant rights to the official SDK or settle the provenance
+of this rewrite. Existing source-range annotations and historical records are preserved.
 
-This is a **descent question, not a copying question**, and it is recorded here
-rather than left implicit. Every file in that tree reproduces the control flow of
-a function the official SDK compiled, so the provenance of the *behaviour* is the
-proprietary binary above. What the rewrite removes is the artefact: it is
-hand-written C++ in `artemis-compat`'s house style, renamed per the ledger,
-with the generated driver's goto graph and pool addresses replaced, held to
-`ports/artemis/REWRITE.md` and checked by `ports/artemis/reverse/style-gate.sh`.
+The asyncify bridge still contains **unreplaced SDK-generated bodies** alongside
+these products. Renaming functions or writing new C++ does not establish that all
+resulting code is independently redistributable. Conversely, this notice does not
+make a categorical legal finding that every product has identical licensing status:
+that boundary requires separate review of the actual material and applicable rights.
+The project's GPL declaration cannot substitute for missing third-party permission.
 
-The practical consequence is the same as for the SDK itself: **this tree cannot
-be relicensed by this project, and it inherits the SDK's licensing risk.**
-`ports/artemis/vendor/artemis-sdk/` and `ports/artemis/src/` stand or fall
-together — redistributing one without the other does not remove the problem.
-`REWRITE.md` §4 states the position taken at the time (the products are
-re-expressed original code, not a transliteration of pseudocode, and no
-"Adapted from artemis-compat" attribution is written into the sources); it also
-records that the GPL-3.0 attribution question is left open.
+[`REWRITE.md`](ports/artemis/REWRITE.md) records the rewriting policy, not proof of
+completed compliance. Generated-like labels, numeric pool references and style debt
+remain; the full handwritten cold-game gate and modern-host public session are not
+accepted. The earlier claims of a fully replaced goto/address graph, passed full-tree
+style gate and complete engine semantics are withdrawn.
 
-The reverse-engineering recipes that produce and verify this tree live in
-`ports/artemis/reverse/`; §16 of
-[`docs/artemis-web-port.md`](docs/artemis-web-port.md) describes what each one
-asserts.
+Recipes under [`ports/artemis/reverse/`](ports/artemis/reverse/) and historical
+[`artemis-web-port.md`](docs/artemis-web-port.md) §16 explain the diagnostic work.
+Synthetic or generated-body success does not establish game usability or a
+redistribution grant. This organization pass changes navigation and upload checks,
+not the engine, third-party copyright text, or authorization status.
 

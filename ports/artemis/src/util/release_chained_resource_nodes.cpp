@@ -1,32 +1,49 @@
+// release_chained_resource_nodes.cpp -- frees a chain of resource nodes: the walk starts at the head, each node's payload is released, and the head slot is cleared last..
+//
+// ReleaseChainedResourceNodes -- frees a chain of resource nodes: the walk starts at the head, each node's payload is released, and the head slot is cleared last.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 410216-410216 (f1032); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Forward declarations for the callees this step calls.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
 void Panic(EngineContext* ctx, uint32_t a0);
 uint32_t CombineComparisonResults(EngineContext* ctx, uint32_t left, uint32_t right, uint32_t result, uint32_t box);
 
-// ReleaseChainedResourceNodes -- frees a chain of resource nodes: the walk
-// starts at the head, each node's payload is released, and the head slot is
-// cleared last.
+namespace {
+
+constexpr uint32_t kF1032Const8C564 = 0x8C564u;  // 
+constexpr uint32_t kF1032Const8DDB4 = 0x8DDB4u;  // 
+constexpr uint32_t kF1032MsgPx = 0xB5E31u;  // px != 0
+constexpr uint32_t kF1032MsgBoostBoostSmartPtr = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
+constexpr uint32_t kF1032MsgOperator = 0xB5E71u;  // operator->
+constexpr uint32_t kF1032ConstB8F8C = 0xB8F8Cu;  // 
+constexpr uint32_t kF1032ConstC81C8 = 0xC81C8u;  // 
+constexpr uint32_t kF1032ConstCF130 = 0xCF130u;  // 
+constexpr uint32_t kF1032ConstCF148 = 0xCF148u;  // 
+constexpr uint32_t kF1032ConstCF14C = 0xCF14Cu;  // 
+constexpr uint32_t kF1032ConstD015C = 0xD015Cu;  // 
+constexpr uint32_t kF1032ConstFFFFFFC0 = 0xFFFFFFC0u;  // 
+constexpr uint32_t kF1032ConstFFFFFFFE = 0xFFFFFFFEu;  // 
+constexpr uint32_t kF1032SaveFrameBytes = 40u;
+constexpr uint32_t kF1032ResumeWordBytes = 4u;
+
+}  // namespace
 
 void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   EnterFrame();
-  constexpr uint32_t kData8C564 = 0x8C564u;
-  constexpr uint32_t kData8DDB4 = 0x8DDB4u;
-  constexpr uint32_t kMsgPx = 0xB5E31u;  // px != 0
-  constexpr uint32_t kMsgSmartPtrPath = 0xB5E39u;  // ../../../../boost_1_66_0/boost/smart_ptr/shared_ptr.hpp
-  constexpr uint32_t kMsgOperator = 0xB5E71u;  // operator->
-  constexpr uint32_t kDataB8F8C = 0xB8F8Cu;
-  constexpr uint32_t kDataC81C8 = 0xC81C8u;
-  constexpr uint32_t kDataCF130 = 0xCF130u;
-  constexpr uint32_t kDataCF148 = 0xCF148u;
-  constexpr uint32_t kDataCF14C = 0xCF14Cu;
-  constexpr uint32_t kDataFFFFFFC0 = 0xFFFFFFC0u;
-  constexpr uint32_t kDataFFFFFFFE = 0xFFFFFFFEu;
-  constexpr uint32_t kSaveFrameBytes = 40u;
-  constexpr uint32_t kResumeWordBytes = 4u;
   uint32_t l10 = 0u; float l11 = 0; float l12 = 0; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u; uint32_t l8 = 0u; uint32_t l9 = 0u;
   uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
   uint64_t j1 = 0;
@@ -40,7 +57,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kSaveFrameBytes;
+    i2 = kF1032SaveFrameBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -83,7 +100,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ReturnFrameSp(ctx);
     i1 = ReturnFrameSp(ctx);
     i1 = LoadU32(ctx, i1);
-    i2 = kResumeWordBytes;
+    i2 = kF1032ResumeWordBytes;
     i1 -= i2;
     StoreU32(ctx, i0, i1);
     i0 = ReturnFrameSp(ctx);
@@ -95,7 +112,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = !(i0);
   if (i0) {
     i0 = GuestStackSp(ctx);
-    i1 = kDataFFFFFFC0;
+    i1 = kF1032ConstFFFFFFC0;
     i0 += i1;
     l5 = i0;
     GuestStackSp(ctx) = i0;
@@ -114,7 +131,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF1032ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -125,10 +142,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF1032MsgPx;
+      i2 = kF1032MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF1032MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 0u;
       i1 = ResumePhase(ctx);
@@ -139,17 +156,17 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF1032ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF1032ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
       i1 = 1u;
       i0 = i0 != i1;
       a = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       goto block_3;
     }
   }
@@ -171,7 +188,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF1032ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -183,10 +200,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = i2 ? i0 : i1;
     if (i0) {
       i0 = 857u;
-      i1 = kMsgPx;
-      i2 = kMsgSmartPtrPath;
+      i1 = kF1032MsgPx;
+      i2 = kF1032MsgBoostBoostSmartPtr;
       i3 = 734u;
-      i4 = kMsgOperator;
+      i4 = kF1032MsgOperator;
       HostFailAssertion(ctx, i0, i1, i2, i3, i4);
       i0 = 1u;
       i1 = ResumePhase(ctx);
@@ -197,17 +214,17 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF1032ConstD015C;
       i0 = LoadU32(ctx, i0);
       a = i0;
-      i0 = kDataD015C;
+      i0 = kF1032ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = a;
       i1 = 1u;
       i0 = i0 != i1;
       a = i0;
-      if (i0) {goto exit_path;}
+      if (i0) {goto running_exit;}
       goto block_3;
     }
   }
@@ -273,8 +290,8 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = i2 ? i0 : i1;
   if (i0) {
     i0 = a;
-    i1 = kData8C564;
-    i2 = kDataB8F8C;
+    i1 = kF1032Const8C564;
+    i2 = kF1032ConstB8F8C;
     i3 = 0u;
     i0 = CombineComparisonResults(ctx, i0, i1, i2, i3);
     l7 = i0;
@@ -347,7 +364,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     l2 = i0;
     i0 = LoadU32(ctx, i0 + 8u);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -370,10 +387,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -397,7 +414,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     l2 = i0;
     i0 = LoadU32(ctx, i0 + 12u);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -420,10 +437,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -448,7 +465,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 388u);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -471,10 +488,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -482,7 +499,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = i0 == i1;
     a = i0;
     if (i0) {goto block_38;}
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -508,10 +525,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -537,7 +554,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l5;
     j1 = 4294967388ull;
     StoreU64(ctx, i0 + 8u, j1);
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -573,10 +590,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = 1u;
@@ -595,7 +612,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF1032ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l5;
@@ -631,10 +648,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF1032ConstD015C;
       i0 = LoadU32(ctx, i0);
       l9 = i0;
-      i0 = kDataD015C;
+      i0 = kF1032ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l9;
@@ -656,7 +673,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
         l2 = i0;
         i0 = LoadU32(ctx, i0 + 44u);
         l9 = i0;
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -682,10 +699,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = 1u;
@@ -699,7 +716,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
         j1 = 0ull;
         StoreU64(ctx, i0 + 4u, j1);
         i0 = a;
-        i1 = kData8DDB4;
+        i1 = kF1032Const8DDB4;
         StoreU32(ctx, i0, i1);
         i0 = a;
         i1 = 0u;
@@ -763,11 +780,11 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
           goto block_58;
         }
         i0 = l2;
-        i1 = kDataFFFFFFFE;
+        i1 = kF1032ConstFFFFFFFE;
         i0 &= i1;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -800,10 +817,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -824,7 +841,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = a;
         i1 = 0u;
         StoreU32(ctx, i0 + 88u, i1);
-        i0 = kDataCF148;
+        i0 = kF1032ConstCF148;
         i0 = LoadU8(ctx, i0);
         i0 = !(i0);
         l2 = i0;
@@ -838,7 +855,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF1032ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l5;
@@ -855,8 +872,8 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
         if (i0) {
           i0 = 1800u;
           i1 = l2;
-          i2 = kDataCF130;
-          i3 = kDataC81C8;
+          i2 = kF1032ConstCF130;
+          i3 = kF1032ConstC81C8;
           HostSyncSlot(ctx, i0, i1, i2, i3);
           i0 = 12u;
           i1 = ResumePhase(ctx);
@@ -867,10 +884,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF1032ConstD015C;
           i0 = LoadU32(ctx, i0);
           l2 = i0;
-          i0 = kDataD015C;
+          i0 = kF1032ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = l2;
@@ -884,7 +901,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l5;
@@ -901,8 +918,8 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
       if (i0) {
         i0 = 1800u;
         i1 = l2;
-        i2 = kDataCF14C;
-        i3 = kDataC81C8;
+        i2 = kF1032ConstCF14C;
+        i3 = kF1032ConstC81C8;
         HostSyncSlot(ctx, i0, i1, i2, i3);
         i0 = 13u;
         i1 = ResumePhase(ctx);
@@ -913,10 +930,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i0 = LoadU32(ctx, i0);
         l2 = i0;
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l2;
@@ -933,8 +950,8 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0 + 56u);
         i1 = a;
         StoreU32(ctx, i0 + 12u, i1);
-        i0 = kDataC81C8;
-        i1 = kDataC81C8;
+        i0 = kF1032ConstC81C8;
+        i1 = kF1032ConstC81C8;
         i1 = LoadU32(ctx, i1);
         l2 = i1;
         i2 = 1u;
@@ -944,7 +961,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = LoadU32(ctx, i0);
         i0 = LoadU32(ctx, i0 + 380u);
         l8 = i0;
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -968,10 +985,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -1002,14 +1019,14 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
           i0 = l2;
           if (i0) {goto block_78;}
           i0 = a;
-          i1 = kDataFFFFFFFE;
+          i1 = kF1032ConstFFFFFFFE;
           i0 &= i1;
           i0 = LoadU32(ctx, i0);
           a = i0;
           i0 = !(i0);
           l2 = i0;
           if (i0) {goto block_78;}
-          i0 = kDataD015C;
+          i0 = kF1032ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -1040,10 +1057,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF1032ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF1032ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -1092,7 +1109,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
         l2 = i0;
         i0 = LoadU32(ctx, i0 + 8u);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1115,10 +1132,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -1142,7 +1159,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
         l2 = i0;
         i0 = LoadU32(ctx, i0 + 12u);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1165,10 +1182,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i0 = LoadU32(ctx, i0);
         a = i0;
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = a;
@@ -1204,7 +1221,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
         l2 = i0;
         i0 = LoadU32(ctx, i0 + 8u);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
       }
@@ -1227,10 +1244,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = ResumePhase(ctx);
       i0 = !(i0);
       if (i0) {
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i0 = LoadU32(ctx, i0);
         l4 = i0;
-        i0 = kDataD015C;
+        i0 = kF1032ConstD015C;
         i1 = 0u;
         StoreU32(ctx, i0, i1);
         i0 = l4;
@@ -1264,7 +1281,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
           l2 = i0;
           i0 = LoadU32(ctx, i0 + 12u);
           l4 = i0;
-          i0 = kDataD015C;
+          i0 = kF1032ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
         }
@@ -1287,10 +1304,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
         i0 = ResumePhase(ctx);
         i0 = !(i0);
         if (i0) {
-          i0 = kDataD015C;
+          i0 = kF1032ConstD015C;
           i0 = LoadU32(ctx, i0);
           a = i0;
-          i0 = kDataD015C;
+          i0 = kF1032ConstD015C;
           i1 = 0u;
           StoreU32(ctx, i0, i1);
           i0 = a;
@@ -1354,7 +1371,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -1377,10 +1394,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -1405,7 +1422,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 12u);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -1428,10 +1445,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -1445,7 +1462,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = !(i0);
   if (i0) {
     i0 = l5;
-    i1 = kDataFFFFFFC0;
+    i1 = kF1032ConstFFFFFFC0;
     i0 -= i1;
     GuestStackSp(ctx) = i0;
     goto func_exit;
@@ -1483,13 +1500,13 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l8;
     if (i0) {goto block_110;}
     i0 = l2;
-    i1 = kDataFFFFFFFE;
+    i1 = kF1032ConstFFFFFFFE;
     i0 &= i1;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
     i0 = !(i0);
     if (i0) {goto block_110;}
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -1520,10 +1537,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -1571,7 +1588,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     l2 = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -1594,10 +1611,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i0 = LoadU32(ctx, i0);
     l2 = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l2;
@@ -1630,7 +1647,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
       i0 = LoadU32(ctx, i0);
       i0 = LoadU32(ctx, i0 + 12u);
       l2 = i0;
-      i0 = kDataD015C;
+      i0 = kF1032ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
     }
@@ -1653,10 +1670,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = ResumePhase(ctx);
     i0 = !(i0);
     if (i0) {
-      i0 = kDataD015C;
+      i0 = kF1032ConstD015C;
       i0 = LoadU32(ctx, i0);
       l3 = i0;
-      i0 = kDataD015C;
+      i0 = kF1032ConstD015C;
       i1 = 0u;
       StoreU32(ctx, i0, i1);
       i0 = l3;
@@ -1699,7 +1716,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -1722,10 +1739,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i0 = LoadU32(ctx, i0);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l3;
@@ -1747,7 +1764,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 12u);
     l3 = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -1770,10 +1787,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i0 = LoadU32(ctx, i0);
     l5 = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = l5;
@@ -1819,7 +1836,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 8u);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -1842,10 +1859,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -1869,7 +1886,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = LoadU32(ctx, i0);
     i0 = LoadU32(ctx, i0 + 12u);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
   }
@@ -1892,10 +1909,10 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i0 = LoadU32(ctx, i0);
     a = i0;
-    i0 = kDataD015C;
+    i0 = kF1032ConstD015C;
     i1 = 0u;
     StoreU32(ctx, i0, i1);
     i0 = a;
@@ -1911,7 +1928,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
     i0 = l4;
     HostOsRelease(ctx, i0);
   }
-  exit_path:;
+  running_exit:;
   i0 = ResumePhase(ctx);
   i0 = !(i0);
   if (i0) {
@@ -1956,7 +1973,7 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   i0 = ReturnFrameSp(ctx);
   i1 = ReturnFrameSp(ctx);
   i1 = LoadU32(ctx, i1);
-  i2 = kResumeWordBytes;
+  i2 = kF1032ResumeWordBytes;
   i1 += i2;
   StoreU32(ctx, i0, i1);
   i0 = ReturnFrameSp(ctx);
@@ -2000,4 +2017,4 @@ void ReleaseChainedResourceNodes(EngineContext* ctx, uint32_t a, uint32_t b) {
   func_exit:;
   LeaveFrame();
 }
-}  // namespace artc
+}

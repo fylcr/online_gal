@@ -1,63 +1,137 @@
+// invoke_node_handler.cpp -- reads the handler slot out of the node and calls it through the numeric builtin table with the node and the scale in hand..
+//
+// InvokeNodeHandler -- reads the handler slot out of the node and calls it through the numeric builtin table with the node and the scale in hand.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 2600518-2600632 (f4881); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Calls a node's own handler through the numeric builtin table, handing it the
-// node, the scale and the call number. The slot and the table word survive a
-// suspend inside the step's frame. Returns nothing.
+
+namespace {
+
+constexpr uint32_t kF4881ResumeWordBytes = 4u;
+
+}  // namespace
+
 void InvokeNodeHandler(EngineContext* ctx, uint32_t node, uint32_t slot, float scale) {
   EnterFrame();
-  // The reused slots: the handler table word, and the resume word naming the
-  // call in flight.
-  uint32_t handler_table = 0u;
-  uint32_t resume_word = 0u;
-  uint32_t spilled = 0u;
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the 16-byte frame the suspend path pushed and rebuild the
-    // node, the slot, the scale and the table word from it.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 16u);
-    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    node = LoadU32(ctx, saved_frame);
-    slot = LoadU32(ctx, saved_frame + 4u);
-    scale = LoadF32(ctx, saved_frame + 8u);
-    handler_table = LoadU32(ctx, saved_frame + 12u);
+  uint32_t l3 = 0u; uint32_t l4 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+  float f0 = 0; float f1 = 0; float f2 = 0;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = 16u;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    i0 = LoadU32(ctx, i0);
+    node = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 4u);
+    slot = i0;
+    i0 = l3;
+    f0 = LoadF32(ctx, i0 + 8u);
+    scale = f0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: the second pop names the call that was in flight. The two pops
-    // stay separate -- the driver keeps one region at a time.
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) - 4u);
-    resume_word = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF4881ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The table the slot indexes hangs one indirection off the node.
-    handler_table = LoadU32(ctx, LoadU32(ctx, node) + 148u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = node;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 148u);
+    l3 = i0;
   }
-  if (ResumePhase(ctx) ? static_cast<uint32_t>(resume_word == 0u) : 1u) {
-    CallTableT16(ctx, handler_table, node, slot, scale, 1u);
+  i0 = l4;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = node;
+    i1 = slot;
+    f2 = scale;
+    i3 = 1u;
+    i4 = l3;
+    CallTableT16(ctx, i4, i0, i1, f2, i3);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    spilled = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto suspend_point;
-    }
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  goto exit_path;
- suspend_point:;
-  {
-    // The stack pointer lives in the word the frame pointer names, so every push
-    // is a read-modify-write of that word.
-    StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), spilled);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 4u);
-    uint32_t const saved_frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    StoreU32(ctx, saved_frame, node);
-    StoreU32(ctx, saved_frame + 4u, slot);
-    StoreF32(ctx, saved_frame + 8u, scale);
-    StoreU32(ctx, saved_frame + 12u, handler_table);
-    StoreU32(ctx, ReturnFrameSp(ctx), LoadU32(ctx, ReturnFrameSp(ctx)) + 16u);
-  }
- exit_path:;
+  goto func_exit;
+  spill_frame:;
+  l4 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l4;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF4881ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l4 = i0;
+  i1 = node;
+  StoreU32(ctx, i0, i1);
+  i0 = l4;
+  i1 = slot;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l4;
+  f1 = scale;
+  StoreF32(ctx, i0 + 8u, f1);
+  i0 = l4;
+  i1 = l3;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 16u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

@@ -1,160 +1,333 @@
+// reset_global_slot_table.cpp -- resets the global slot table: the table is rebuilt empty and its slot count is reset..
+//
+// ResetGlobalSlotTable -- resets the global slot table: the table is rebuilt empty and its slot count is reset.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 292924-292924 (f761); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
+
 namespace {
 
-constexpr uint32_t kResetGlobalSlotTableCountAddr = 0xCF134u;      // table 1: bucket count
-constexpr uint32_t kResetGlobalSlotTableSizeAddr = 0xCF138u;       // table 1: size word
-constexpr uint32_t kResetGlobalSlotTableBucketsAddr = 0xCF144u;    // table 1: bucket array
-constexpr uint32_t kResetGlobalSlotTableCount2Addr = 0xCF150u;     // table 2: bucket count
-constexpr uint32_t kResetGlobalSlotTableSize2Addr = 0xCF154u;      // table 2: size word
-constexpr uint32_t kResetGlobalSlotTableBuckets2Addr = 0xCF160u;   // table 2: bucket array
-constexpr uint32_t kResetGlobalSlotTableSlotMask = 0x7FFFFFFFu;    // bucket index bits
-constexpr uint32_t kResetGlobalSlotTableAssertMsg = 0x8FAFCu;      // "buckets_"
-constexpr uint32_t kResetGlobalSlotTableAssertFile = 0x8FB05u;     // boost header path
-constexpr uint32_t kResetGlobalSlotTableAssertLine = 2956u;        // line in that header
-constexpr uint32_t kResetGlobalSlotTableAssertFunc = 0x8FB48u;     // "get_bucket"
-constexpr uint32_t kResetGlobalSlotTableSaveFrameBytes = 12u;      // live state pushed on suspend
-constexpr uint32_t kResetGlobalSlotTableResumeWordBytes = 4u;      // resume word above that frame
+constexpr uint32_t kF761MsgBuckets = 0x8FAFCu;  // buckets_
+constexpr uint32_t kF761MsgBoostBoostUnorderedDetail = 0x8FB05u;  // ../../../../boost_1_66_0/boost/unordered/detail/implementation.hpp
+constexpr uint32_t kF761MsgGetBucket = 0x8FB48u;  // get_bucket
+constexpr uint32_t kF761ConstCF134 = 0xCF134u;  // 
+constexpr uint32_t kF761ConstCF138 = 0xCF138u;  // 
+constexpr uint32_t kF761ConstCF144 = 0xCF144u;  // 
+constexpr uint32_t kF761ConstCF150 = 0xCF150u;  // 
+constexpr uint32_t kF761ConstCF154 = 0xCF154u;  // 
+constexpr uint32_t kF761ConstCF160 = 0xCF160u;  // 
+constexpr uint32_t kF761Const7FFFFFFF = 0x7FFFFFFFu;  // 
+constexpr uint32_t kF761SaveFrameBytes = 12u;
+constexpr uint32_t kF761ResumeWordBytes = 4u;
 
 }  // namespace
 
-// Drops the entry named by the slot id `a` from both global slot tables.  For
-// each table the bucket is `a % bucket count`, the bucket chain is walked for
-// the entry whose key word at +8 equals `a`, and that entry's pending call is
-// issued through the call table.  An empty table or a chain that runs out is
-// skipped; a null bucket array reaches the get_bucket assertion instead.
-// Suspendable: the two calls are gated on resume codes 0 and 1.
-//
-// Frame, 12 bytes: [0] a, [4] entry, [8] slot.
 void ResetGlobalSlotTable(EngineContext* ctx, uint32_t a) {
   EnterFrame();
-  uint32_t entry = 0u;       // the chain entry walked; also a table's size/array word
-  uint32_t slot = 0u;        // the bucket index of `a`
-  uint32_t hash = 0u;        // the entry's stored hash word
-  uint32_t resume_point = 0u;
-
-  // Rewinding: pop the 12-byte frame the suspend path saved.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx),
-        LoadU32(ctx, ReturnFrameSp(ctx)) - kResetGlobalSlotTableSaveFrameBytes);
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    a = LoadU32(ctx, frame);
-    entry = LoadU32(ctx, frame + 4u);
-    slot = LoadU32(ctx, frame + 8u);
+  uint32_t l1 = 0u; uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF761SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l1 = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l2 = i0;
   }
-
-  // Rewinding: pop the resume word pushed below that frame.
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    StoreU32(ctx, ReturnFrameSp(ctx),
-        LoadU32(ctx, ReturnFrameSp(ctx)) - kResetGlobalSlotTableResumeWordBytes);
-    resume_point = LoadU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)));
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF761ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
   }
-
-  if (ResumePhase(ctx) == kResumeRunning) {
-    slot = REM_U(a, LoadU32(ctx, kResetGlobalSlotTableCountAddr));
-    entry = static_cast<uint32_t>(LoadU32(ctx, kResetGlobalSlotTableSizeAddr) == 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = kF761ConstCF134;
+    i1 = LoadU32(ctx, i1);
+    i0 = REM_U(i0, i1);
+    l2 = i0;
+    i0 = kF761ConstCF138;
+    i0 = LoadU32(ctx, i0);
+    i0 = !(i0);
+    l1 = i0;
   }
-
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (entry != 0u) { goto second_table; }
-    entry = LoadU32(ctx, kResetGlobalSlotTableBucketsAddr);
-    if (entry == 0u) { goto assert_bucket; }
-    entry = LoadU32(ctx, entry + (slot << 2u));
-    if (entry == 0u) { goto second_table; }
-    entry = LoadU32(ctx, entry);
-    if (entry == 0u) { goto second_table; }
-    if (LoadU32(ctx, entry + 8u) != a) {
-      hash = LoadU32(ctx, entry + 4u);
-match_first:;
-      if (slot != (hash & kResetGlobalSlotTableSlotMask)) { goto second_table; }
-walk_first:;
-      entry = LoadU32(ctx, entry);
-      if (entry == 0u) { goto second_table; }
-      hash = LoadU32(ctx, entry + 4u);
-      if (static_cast<int32_t>(hash) < 0) { goto walk_first; }
-      if (LoadU32(ctx, entry + 8u) != a) { goto match_first; }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    if (i0) {goto block_5;}
+    i0 = kF761ConstCF144;
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i0 = !(i0);
+    if (i0) {goto running_exit;}
+    i0 = l2;
+    i1 = 2u;
+    i0 <<= (i1 & 31);
+    i1 = l1;
+    i0 += i1;
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i0 = !(i0);
+    if (i0) {goto block_5;}
+    i0 = l1;
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i0 = !(i0);
+    if (i0) {goto block_5;}
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 8u);
+    i1 = a;
+    i0 = i0 != i1;
+    if (i0) {
+      i0 = l1;
+      i0 = LoadU32(ctx, i0 + 4u);
+      l3 = i0;
+      dispatch_loop: 
+        i0 = l2;
+        i1 = l3;
+        i2 = kF761Const7FFFFFFF;
+        i1 &= i2;
+        i0 = i0 != i1;
+        if (i0) {goto block_5;}
+        loop_9: 
+          i0 = l1;
+          i0 = LoadU32(ctx, i0);
+          l1 = i0;
+          i0 = !(i0);
+          if (i0) {goto block_5;}
+          i0 = l1;
+          i0 = LoadU32(ctx, i0 + 4u);
+          l3 = i0;
+          i1 = 0u;
+          i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+          if (i0) {goto loop_9;}
+        i0 = l1;
+        i0 = LoadU32(ctx, i0 + 8u);
+        i1 = a;
+        i0 = i0 != i1;
+        if (i0) {goto dispatch_loop;}
     }
-    entry = LoadU32(ctx, entry + 12u);
-    if (entry == 0u) { goto second_table; }
-    a = LoadU32(ctx, LoadU32(ctx, entry) + 16u);
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l1 = i0;
+    i0 = !(i0);
+    if (i0) {goto block_5;}
+    i0 = l1;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 16u);
+    a = i0;
   }
-
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
-    CallTableT1(ctx, a, entry);
+  i0 = l4;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l1;
+    i1 = a;
+    CallTableT1(ctx, i1, i0);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    resume_point = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) { goto exit_path; }
-
-second_table:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    slot = REM_U(a, LoadU32(ctx, kResetGlobalSlotTableCount2Addr));
-    entry = static_cast<uint32_t>(LoadU32(ctx, kResetGlobalSlotTableSize2Addr) == 0u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    goto func_exit;
   }
-
-  if (ResumePhase(ctx) == kResumeRunning) {
-    if (entry != 0u) { goto second_done; }
-    entry = LoadU32(ctx, kResetGlobalSlotTableBuckets2Addr);
-    if (entry == 0u) { goto assert_bucket; }
-    entry = LoadU32(ctx, entry + (slot << 2u));
-    if (entry == 0u) { goto second_done; }
-    entry = LoadU32(ctx, entry);
-    if (entry == 0u) { goto second_done; }
-    if (LoadU32(ctx, entry + 8u) != a) {
-      hash = LoadU32(ctx, entry + 4u);
-match_second:;
-      if (slot != (hash & kResetGlobalSlotTableSlotMask)) { goto second_done; }
-walk_second:;
-      entry = LoadU32(ctx, entry);
-      if (entry == 0u) { goto second_done; }
-      hash = LoadU32(ctx, entry + 4u);
-      if (static_cast<int32_t>(hash) < 0) { goto walk_second; }
-      if (LoadU32(ctx, entry + 8u) != a) { goto match_second; }
+  block_5:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = kF761ConstCF150;
+    i1 = LoadU32(ctx, i1);
+    i0 = REM_U(i0, i1);
+    l2 = i0;
+    i0 = kF761ConstCF154;
+    i0 = LoadU32(ctx, i0);
+    i0 = !(i0);
+    l1 = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l1;
+    if (i0) {goto block_14;}
+    i0 = kF761ConstCF160;
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i0 = !(i0);
+    if (i0) {goto block_13;}
+    i0 = l2;
+    i1 = 2u;
+    i0 <<= (i1 & 31);
+    i1 = l1;
+    i0 += i1;
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i0 = !(i0);
+    if (i0) {goto block_14;}
+    i0 = l1;
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i0 = !(i0);
+    if (i0) {goto block_14;}
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 8u);
+    i1 = a;
+    i0 = i0 != i1;
+    if (i0) {
+      i0 = l1;
+      i0 = LoadU32(ctx, i0 + 4u);
+      l3 = i0;
+      loop_17: 
+        i0 = l2;
+        i1 = l3;
+        i2 = kF761Const7FFFFFFF;
+        i1 &= i2;
+        i0 = i0 != i1;
+        if (i0) {goto block_14;}
+        loop_18: 
+          i0 = l1;
+          i0 = LoadU32(ctx, i0);
+          l1 = i0;
+          i0 = !(i0);
+          if (i0) {goto block_14;}
+          i0 = l1;
+          i0 = LoadU32(ctx, i0 + 4u);
+          l3 = i0;
+          i1 = 0u;
+          i0 = (uint32_t)((int32_t)i0 < (int32_t)i1);
+          if (i0) {goto loop_18;}
+        i0 = l1;
+        i0 = LoadU32(ctx, i0 + 8u);
+        i1 = a;
+        i0 = i0 != i1;
+        if (i0) {goto loop_17;}
     }
-    a = LoadU32(ctx, entry + 12u);
-    if (a == 0u) { goto second_done; }
-    entry = LoadU32(ctx, LoadU32(ctx, a) + 16u);
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 12u);
+    a = i0;
+    i0 = !(i0);
+    if (i0) {goto block_14;}
+    i0 = a;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 16u);
+    l1 = i0;
   }
-
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 1u) {
-    CallTableT1(ctx, entry, a);
+  i0 = l4;
+  i1 = 1u;
+  i0 = i0 == i1;
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = a;
+    i1 = l1;
+    CallTableT1(ctx, i1, i0);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
 #endif
-    resume_point = 1u;
-    if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+    i0 = 1u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-
-second_done:;
-  if (ResumePhase(ctx) == kResumeRunning) { goto exit_path; }
-
-assert_bucket:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    HostAssertFail(ctx, kResetGlobalSlotTableAssertMsg, kResetGlobalSlotTableAssertFile,
-        kResetGlobalSlotTableAssertLine, kResetGlobalSlotTableAssertFunc);
+  block_14:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    goto func_exit;
+  }
+  block_13:;
+  running_exit:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF761MsgBuckets;
+    i1 = kF761MsgBoostBoostUnorderedDetail;
+    i2 = 2956u;
+    i3 = kF761MsgGetBucket;
+    HostAssertFail(ctx, i0, i1, i2, i3);
     TrapUnreachable();
   }
-  goto exit_path;
-
-suspend_point:;
-  StoreU32(ctx, LoadU32(ctx, ReturnFrameSp(ctx)), resume_point);
-  StoreU32(ctx, ReturnFrameSp(ctx),
-      LoadU32(ctx, ReturnFrameSp(ctx)) + kResetGlobalSlotTableResumeWordBytes);
-  {
-    uint32_t const frame = LoadU32(ctx, ReturnFrameSp(ctx));
-    StoreU32(ctx, frame, a);
-    StoreU32(ctx, frame + 4u, entry);
-    StoreU32(ctx, frame + 8u, slot);
-  }
-  StoreU32(ctx, ReturnFrameSp(ctx),
-      LoadU32(ctx, ReturnFrameSp(ctx)) + kResetGlobalSlotTableSaveFrameBytes);
-
-exit_path:;
+  goto func_exit;
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF761ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = l1;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = l2;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 12u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  func_exit:;
   LeaveFrame();
 }
-}  // namespace artc
+}

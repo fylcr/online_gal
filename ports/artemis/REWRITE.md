@@ -352,7 +352,12 @@ instrument-profile.py 计数锚 = 产品体 `  EnterFrame();`（索引取自 rw-
   f1322=`WideCharToMultibyteStateless`（wctomb，543280）· f1344=`ParseDecimalNumber`（getint，551552）·
   f2752=`FormatUnsignedOctal`（fmt_o 反向写，1173990）· f2753=`FormatUnsignedHex`（fmt_x，1174027）·
   f672=`FormatUnsignedDecimal`（fmt_u，259113）· f1343=`PopVarArg`（pop_arg 的十路类型分派，551300）·
-  f411=`WritePadding`（pad 的 256 字节块刷，178729）；父函数 f1014 = printf_core、f344 = 对外入口。
+  f411=`WritePadding`（pad 的 256 字节块刷，178729）；父函数 f1014 = printf_core、f344 = 对外入口
+  （把一条消息格式化进输出流；六参 `(stream, 1u, format, args, 0u)` 形，返回 void，
+  官方调用点全是裸语句，如 `artemis.wasm2c.c:434786`）。f344 本身没有 tsv 行、也没有产品文件，
+  只在 `src/util/engine_context.h` 里以 `inline void FormatStreamMessage(EngineContext* ctx,
+  uint32_t stream, uint32_t one, uint32_t format, uint32_t args, uint32_t zero)` 一行转发存在
+  （见 §12 第 2 条例外：产品里裸写它的原名会在 `namespace artc` 内歧义）。
   教训：**先认 errno / locale / 数字表这三个数据段地址，再决定整族的命名。**
 
 - **桥与引擎共用一块内存，桥自己的 malloc 竞技场就是保留区（2026-10-02 实地定位）**：桥按 `-sIMPORTED_MEMORY=1 -Xlinker --import-memory=a,a`
@@ -404,3 +409,52 @@ instrument-profile.py 计数锚 = 产品体 `  EnterFrame();`（索引取自 rw-
 - 体内部寄存器局部与 `goto` 标签**不动**（避免在单一巨型函数里做不可验证的大面积改名）；
 - 体内部可在自明分节处（同族 callee 串、一大段字符串常量处理）加一行 `// ---- … ----` 分节注释，逻辑一字不动。
 
+
+## 12. 跨产品调用的书写约定（写手必读）
+
+切片重写时，「调用谁」只有四种合法写法，选错会让整棵树链接失败或语义漂移：
+
+1. **tsv 有行的被调函数** —— 用真实名字（`rewrite-names.tsv` 第 4 列的最后一段），
+   且该名字通常已在 `src/util/engine_context.h` 或本文件的
+   `// Forward declarations of the callees below.` 块里声明过。
+   产品之间用**裸名字**互调（不加 `artc::`），因为它们最终拼进同一个
+   `namespace artc`。
+2. **tsv 没有行的被调函数** —— 分两种情况，取决于这个名字是否已在 `namespace artc` 里被声明过：
+   - **默认**：直接写**生成层原名** `w2c_artemis_fNNN(ctx, <实参>)`。生成层符号在拼接后的 TU 里
+     只有 `::w2c_artemis_fNNN` 一个声明，产品里写裸名会找到它。不要为它编一个「有意义的名字」：
+     那种名字在整棵树里没有定义，链接必然失败。
+   - **例外（同一个 `namespace artc` 里已有同名声明时必须走包装）**：若本文件（或另一件产品、
+     或 `src/util/engine_context.h`）已经在 `namespace artc` 里声明过**同一个 `w2c_artemis_fNNN` 名字**，
+     那么裸名调用会**歧义**——因为 `EngineContext` 是 `::w2c_artemis` 的别名
+     （`using EngineContext = ::w2c_artemis;`），`artc::w2c_artemis_fNNN` 与 `::w2c_artemis_fNNN`
+     的形参类型完全等价，编译器报 `call of overloaded ... is ambiguous / there are 2 candidates`。
+     此时**不要**在 `namespace artc` 里声明生成层原名，改在 `src/util/engine_context.h` 里加一个
+     一行 `inline` 包装（`static inline` 转发也行），产品改叫包装名。例：f344 曾在
+     `lua_tags_builtin.part01.cpp` 里被写成 `void w2c_artemis_f344(EngineContext* ctx, …);`，
+     与生成层同名 ⇒ 五处 `w2c_artemis_f344(ctx, …)` 全部歧义；已改为
+     `engine_context.h` 的 `inline void FormatStreamMessage(EngineContext* ctx, uint32_t stream,
+     uint32_t one, uint32_t format, uint32_t args, uint32_t zero)` 一行转发。
+   - 判据：**产品文件里有没有对同一个 `w2c_artemis_fNNN` 的 `namespace artc` 声明**。
+     有 ⇒ 走包装；没有 ⇒ 裸名安全。`engine_context.h` 自身是唯一可以裸写生成层原名的翻译单元。
+3. **宿主调用**（官方写作 `w2c_a_XXX(instance->w2c_a_instance, 选择子, …)`）——
+   用 `src/util/engine_context.h` 里对应的包装函数，选择子保持字面量：
+   `w2c_a_c → HostRet0`、`w2c_a_b → HostTempRet0`、`w2c_a_l → HostInvokeViiiiii`、
+   `w2c_a_n → HostInvokeIiiiii`、`w2c_a_m → HostDispatchInvoke`、
+   `w2c_a_j → HostOsSchedule`、`w2c_a_d → HostReleaseSlotPair`、
+   `w2c_a_e → HostFailAssertion(word, expr, file, line, fn)`、
+   `w2c_a_h → HostFoldLayoutOffset`。
+4. **已经是纯load/store 的** —— 保持内存访问，不要把它「提炼」成一次函数调用。
+
+### 其它三条硬规矩
+
+- `var_iN = 4294967232u; var_iM -= var_iN;` 是**帧内 +64 字节**，一律写 `frame + 64u`；
+  写 `frame - 64u` 是错的（那是另一个地址）。
+- `i32.div_u` / `i32.rem_u` 写普通的 `x / 24u`、`x % 24u`；本项目没有 `DIV_U`。
+- 汇合标签若在官方里「先把臂值存进临时、标签首行再拷进另一个变量」，
+  临时赋值和标签首行的拷贝**两处都要保留**：少一处就是冷路径上的臂值丢失。
+
+### 切片边界
+
+切片首行的**绝对花括号深度**必须等于官方同位置的深度（官方自身的缩进会漂移，
+不要照抄）；切片末尾若官方还有未闭合的块，就在切片末行保持未闭合，
+不要替下一片补 `}`。拼装方会逐条核对边界深度链。

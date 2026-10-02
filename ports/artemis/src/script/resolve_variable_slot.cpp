@@ -1,197 +1,280 @@
+// resolve_variable_slot.cpp -- turns a variable descriptor into the local or upvalue slot the emitter will write..
+//
+// ResolveVariableSlot -- turns a variable descriptor into the local or upvalue slot the emitter will write.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 168808-168808 (f382); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Reads a script string as a number, keeping its text for the error it may raise.
+// Forward declarations -- batch-mates and registered callees.
 uint32_t NumberToString(EngineContext* ctx, uint32_t value, uint32_t options);
-// Looks up the slot a numeric key already holds in the frame's key table.
 uint32_t FindNumericKeySlot(EngineContext* ctx, uint32_t state);
 
 namespace {
-// The variable table's first entry, and the address a variable without a slot
-// resolves to.
-constexpr uint32_t kResolveVariableSlotEntryBase = 0x27118u;
-constexpr uint32_t kResolveVariableSlotNilValue = 0x2B328u;
-// How many entries the table keeps, and the lowest upvalue index it can name.
-constexpr uint32_t kResolveVariableSlotSlotCount = 0xFFFFD8EEu;
-constexpr uint32_t kResolveVariableSlotIndexFloor = 0xFFFFD8F1u;
-// The words a save frame costs, and the word that names a call in flight.
-constexpr uint32_t kResolveVariableSlotSaveFrameBytes = 12u;
-constexpr uint32_t kResolveVariableSlotResumeWordBytes = 4u;
+
+constexpr uint32_t kF382Const27118 = 0x27118u;  // 
+constexpr uint32_t kF382Const2B328 = 0x2B328u;  // 
+constexpr uint32_t kF382ConstFFFFD8EE = 0xFFFFD8EEu;  // 
+constexpr uint32_t kF382ConstFFFFD8F1 = 0xFFFFD8F1u;  // 
+constexpr uint32_t kF382SaveFrameBytes = 12u;
+constexpr uint32_t kF382ResumeWordBytes = 4u;
+
 }  // namespace
 
-// Turns a variable descriptor into the slot address the emitter writes to. The
-// descriptor's header holds a kind that says whether the variable is a plain
-// slot, an upvalue, a numeric key or one still to be looked up by name; looking
-// a name up is the only step here that can suspend.
 uint32_t ResolveVariableSlot(EngineContext* ctx, uint32_t state, uint32_t variable) {
   EnterFrame();
-  // The scratch value the current step computes.
-  uint32_t top = 0u;
-  // The frame's variable table.
-  uint32_t base = 0u;
-  // The descriptor table's own index, and the address kept for a miss.
-  uint32_t offset = 0u;
-  uint32_t fallback = 0u;
-  // The kind of variable the descriptor names, and the slot that comes of it.
-  uint32_t kind = 0u;
-  uint32_t slot = 0u;
-  // The base of the save frame and the stack pointer it comes off.
-  uint32_t frame = 0u;
-  uint32_t sp = 0u;
-  // The call a rewinding pass re-issues, and the word a suspending pass pushes.
-  uint32_t resume_point = 0u;
-  uint32_t resume_code = 0u;
-
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the save frame and read its words back in the order they
-    // were written.
-    sp = ReturnFrameSp(ctx);
-    top = ReturnFrameSp(ctx);
-    top = LoadU32(ctx, top) - kResolveVariableSlotSaveFrameBytes;
-    StoreU32(ctx, sp, top);
-    sp = ReturnFrameSp(ctx);
-    frame = LoadU32(ctx, sp);
-    state = LoadU32(ctx, frame);
-    variable = LoadU32(ctx, frame + 4u);
-    slot = LoadU32(ctx, frame + 8u);
+  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF382SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = LoadU32(ctx, i0);
+    state = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 4u);
+    variable = i0;
+    i0 = l2;
+    i0 = LoadU32(ctx, i0 + 8u);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume word. It names the call that was in flight, so
-    // only that call is issued again.
-    sp = ReturnFrameSp(ctx);
-    top = ReturnFrameSp(ctx);
-    top = LoadU32(ctx, top) - kResolveVariableSlotResumeWordBytes;
-    StoreU32(ctx, sp, top);
-    sp = ReturnFrameSp(ctx);
-    top = LoadU32(ctx, sp);
-    resume_point = LoadU32(ctx, top);
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF382ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // A positive descriptor is an index into the frame's local table, whose
-    // entries are sixteen bytes; an entry past the table's own bound resolves to
-    // the nil address instead.
-    if ((int32_t)variable >= 1) {
-      top = LoadU32(ctx, state + 12u) + (variable << (4u & 31)) - 16u;
-      variable = kResolveVariableSlotNilValue;
-      if (LoadU32(ctx, state + 8u) > top) {
-        variable = top;
-      }
-    } else if ((int32_t)variable >= (int32_t)kResolveVariableSlotIndexFloor) {
-      // A negative index names an upvalue, which sits in the frame's upvalue
-      // table.
-      variable = LoadU32(ctx, state + 8u) + (variable << (4u & 31));
-    } else {
-      // Otherwise the descriptor is an index into the variable table, told apart
-      // by the offset it carries.
-      offset = variable + 10002u;
-      if (offset == 2u) {
-        // A slot stored in the frame's own record.
-        variable = LoadU32(ctx, state + 16u) + 96u;
-      } else if (offset == 1u) {
-        // The variable already owns a slot: hand back the address pair it holds.
-        top = LoadU32(ctx, state + 20u);
-        top = LoadU32(ctx, top + 4u);
-        top = LoadU32(ctx, top);
-        variable = LoadU32(ctx, top + 12u);
-        top = 5u;
-        StoreU32(ctx, state + 96u, top);
-        StoreU32(ctx, state + 88u, variable);
-        variable = state + 88u;
-      } else if (offset == 0u) {
-        // The frame's argument area.
-        variable = state + 72u;
-      } else {
-        // The table keeps its entry count in its own header; an index past that
-        // count resolves to the nil address instead.
-        fallback = kResolveVariableSlotNilValue;
-        base = LoadU32(ctx, state + 20u);
-        base = LoadU32(ctx, base + 4u);
-        base = LoadU32(ctx, base);
-        top = base + ((0u - variable) << (4u & 31)) - kResolveVariableSlotEntryBase;
-        if ((int32_t)LoadU8(ctx, base + 7u) < (int32_t)(kResolveVariableSlotSlotCount - variable)) {
-          variable = fallback;
-        } else {
-          variable = top;
-        }
-      }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = variable;
+    i1 = 1u;
+    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
+    if (i0) {
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 12u);
+      i1 = variable;
+      i2 = 4u;
+      i1 <<= (i2 & 31);
+      i0 += i1;
+      i1 = 16u;
+      i0 -= i1;
+      variable = i0;
+      i1 = kF382Const2B328;
+      i2 = state;
+      i2 = LoadU32(ctx, i2 + 8u);
+      i3 = variable;
+      i2 = i2 > i3;
+      i0 = i2 ? i0 : i1;
+      goto running_exit;
     }
-    // The descriptor's header names the kind three steps below the base.
-    kind = LoadU32(ctx, variable + 8u) - 3u;
-    slot = 0u;
-  }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // The kind decides where the slot text comes from. Kind zero is looked up by
-    // name below; three and anything else fall straight through to the answer.
-    switch (kind) {
-      case 0: goto lookup_by_name;
-      case 1: goto use_upvalue;
-      case 2: goto use_numeric_key;
-      case 3: goto have_slot;
-      case 4: goto use_local;
-      default: goto have_slot;
+    i0 = variable;
+    i1 = kF382ConstFFFFD8F1;
+    i0 = (uint32_t)((int32_t)i0 >= (int32_t)i1);
+    if (i0) {
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 8u);
+      i1 = variable;
+      i2 = 4u;
+      i1 <<= (i2 & 31);
+      i0 += i1;
+      goto running_exit;
     }
-  use_upvalue:;
-    slot = LoadU32(ctx, variable);
-    slot = LoadU32(ctx, slot + 12u);
-    LeaveFrame();
-    return slot;
-  use_local:;
-    slot = LoadU32(ctx, variable);
-    slot = LoadU32(ctx, slot + 16u);
-    LeaveFrame();
-    return slot;
-  use_numeric_key:;
-    slot = LoadU32(ctx, variable);
-    slot = FindNumericKeySlot(ctx, slot);
-    LeaveFrame();
-    return slot;
-  lookup_by_name:;
-  }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
-    // Look the name up in the frame's string tables; this is the step that can
-    // suspend. Until it returns, the state keeps its old value.
-    top = NumberToString(ctx, state, variable);
-    resume_code = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto save_frame;
+    i0 = variable;
+    i1 = 10002u;
+    i0 += i1;
+    switch (i0) {
+      case 0: goto block_8;
+      case 1: goto block_9;
+      case 2: goto block_10;
+      default: goto block_7;
     }
-    state = top;
+    block_10:;
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 16u);
+    i1 = 96u;
+    i0 += i1;
+    goto running_exit;
+    block_9:;
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 20u);
+    i0 = LoadU32(ctx, i0 + 4u);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 12u);
+    variable = i0;
+    i0 = state;
+    i1 = 5u;
+    StoreU32(ctx, i0 + 96u, i1);
+    i0 = state;
+    i1 = variable;
+    StoreU32(ctx, i0 + 88u, i1);
+    i0 = state;
+    i1 = 88u;
+    i0 += i1;
+    goto running_exit;
+    block_8:;
+    i0 = state;
+    i1 = 72u;
+    i0 += i1;
+    goto running_exit;
+    block_7:;
+    i0 = kF382Const2B328;
+    i1 = state;
+    i1 = LoadU32(ctx, i1 + 20u);
+    i1 = LoadU32(ctx, i1 + 4u);
+    i1 = LoadU32(ctx, i1);
+    l2 = i1;
+    i2 = 0u;
+    i3 = variable;
+    i2 -= i3;
+    i3 = 4u;
+    i2 <<= (i3 & 31);
+    i1 += i2;
+    i2 = kF382Const27118;
+    i1 -= i2;
+    i2 = l2;
+    i2 = LoadU8(ctx, i2 + 7u);
+    i3 = kF382ConstFFFFD8EE;
+    i4 = variable;
+    i3 -= i4;
+    i2 = (uint32_t)((int32_t)i2 < (int32_t)i3);
+    i0 = i2 ? i0 : i1;
+    running_exit:;
+    variable = i0;
+    i0 = LoadU32(ctx, i0 + 8u);
+    i1 = 3u;
+    i0 -= i1;
+    l3 = i0;
+    i0 = 0u;
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // A lookup that found nothing leaves the state clear, and there is no slot.
-    if (state != 0u) {
-      top = LoadU32(ctx, variable);
-      slot = LoadU32(ctx, top + 12u);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l3;
+    switch (i0) {
+      case 0: goto block_13;
+      case 1: goto block_16;
+      case 2: goto block_14;
+      case 3: goto block_11;
+      case 4: goto block_15;
+      default: goto block_11;
     }
+    block_16:;
+    i0 = variable;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 12u);
+    goto func_exit;
+    block_15:;
+    i0 = variable;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 16u);
+    goto func_exit;
+    block_14:;
+    i0 = variable;
+    i0 = LoadU32(ctx, i0);
+    i0 = FindNumericKeySlot(ctx, i0);
+    goto func_exit;
+    block_13:;
   }
-have_slot:;
-  if (ResumePhase(ctx) == kResumeRunning) {
-    LeaveFrame();
-    return slot;
+  i0 = l4;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = state;
+    i1 = variable;
+    i0 = NumberToString(ctx, i0, i1);
+    l3 = i0;
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
+    i0 = l3;
+    state = i0;
+  }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = state;
+    i0 = !(i0);
+    if (i0) {goto block_11;}
+    i0 = variable;
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0 + 12u);
+    l2 = i0;
+  }
+  block_11:;
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = l2;
+    goto func_exit;
   }
   TrapUnreachable();
-save_frame:;
-  // Push the word naming the call in flight, then the save frame itself; the
-  // words go out in the order a rewind reads them back.
-  frame = ReturnFrameSp(ctx);
-  top = LoadU32(ctx, frame);
-  StoreU32(ctx, top, resume_code);
-  sp = ReturnFrameSp(ctx);
-  top = ReturnFrameSp(ctx);
-  top = LoadU32(ctx, top) + kResolveVariableSlotResumeWordBytes;
-  StoreU32(ctx, sp, top);
-  sp = ReturnFrameSp(ctx);
-  frame = LoadU32(ctx, sp);
-  StoreU32(ctx, frame, state);
-  StoreU32(ctx, frame + 4u, variable);
-  StoreU32(ctx, frame + 8u, slot);
-  sp = ReturnFrameSp(ctx);
-  top = ReturnFrameSp(ctx);
-  top = LoadU32(ctx, top) + 12u;
-  StoreU32(ctx, sp, top);
+  spill_frame:;
+  l3 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l3;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF382ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  i1 = state;
+  StoreU32(ctx, i0, i1);
+  i0 = l3;
+  i1 = variable;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l3;
+  i1 = l2;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 12u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return 0u;
+  return i0;
 }
-
-}  // namespace artc
+}

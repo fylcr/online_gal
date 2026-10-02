@@ -1,158 +1,243 @@
+// destroy_node_object.cpp -- destroys a node object: the payload is released, the header is cleared, and the storage returns to the pool..
+//
+// DestroyNodeObject -- destroys a node object: the payload is released, the header is cleared, and the storage returns to the pool.
+//
+// The step is suspendable: every gate below replays the call its resume
+// code names. Judgment order is untouched -- the goto graph is the
+// generated driver's own flattening, renamed labels only.
+//
+// src: artemis.wasm2c.c 185795-185795 (f437); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
-// Returns a raw block to the pool.
+// Forward declarations -- batch-mates and registered callees.
 void DeallocateRawBlock(EngineContext* ctx, uint32_t a0);
-// Releases everything a node holds, child nodes included.
 void ReleaseNodeTree(EngineContext* ctx, uint32_t state, uint32_t node);
-// Points a node at its own empty storage.
 void InitNodeStorage(EngineContext* ctx, uint32_t a);
 
 namespace {
-// The tags a destroyed node leaves behind, and the negated offset of the slot
-// range it releases.
-constexpr uint32_t kDestroyNodeObjectHeaderTag = 0xB5E84u;
-constexpr uint32_t kDestroyNodeObjectPayloadTag = 0xB5F40u;
-constexpr uint32_t kDestroyNodeObjectRangeBase = 0xFFFFFFC0u;
-constexpr uint32_t kDestroyNodeObjectAllBits = 0xFFFFFFFFu;
-// The words a save frame costs, and the word that names a call in flight.
-constexpr uint32_t kDestroyNodeObjectSaveFrameBytes = 8u;
-constexpr uint32_t kDestroyNodeObjectResumeWordBytes = 4u;
+
+constexpr uint32_t kF437ConstB5E84 = 0xB5E84u;  // 
+constexpr uint32_t kF437ConstB5F40 = 0xB5F40u;  // 
+constexpr uint32_t kF437ConstFFFFFFC0 = 0xFFFFFFC0u;  // 
+constexpr uint32_t kF437ConstFFFFFFFF = 0xFFFFFFFFu;  // 
+constexpr uint32_t kF437SaveFrameBytes = 8u;
+constexpr uint32_t kF437ResumeWordBytes = 4u;
+
 }  // namespace
 
-// Destroys a node object: the payload it holds and the slots it owns go back to
-// the pool, its storage is reset, and its own tags are cleared.
 uint32_t DestroyNodeObject(EngineContext* ctx, uint32_t a) {
   EnterFrame();
-  // The base of the save frame and the stack pointer it comes off.
-  uint32_t frame = 0u;
-  uint32_t sp = 0u;
-  uint32_t top = 0u;
-  // The word the save frame carries: the node's storage, then the slot range
-  // being released.
-  uint32_t cursor = 0u;
-  // The call a rewinding pass replays, and the word a suspending pass pushes.
-  uint32_t resume_point = 0u;
-  uint32_t resume_code = 0u;
-  // The far end of the slot range, and the count the range is left with.
-  uint32_t bound = 0u;
-  uint32_t left = 0u;
-  // The second operand of the one call below that needs two of them.
-  uint32_t arg = 0u;
-
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the save frame and read its words back.
-    sp = ReturnFrameSp(ctx);
-    top = ReturnFrameSp(ctx);
-    top = LoadU32(ctx, top) - kDestroyNodeObjectSaveFrameBytes;
-    StoreU32(ctx, sp, top);
-    sp = ReturnFrameSp(ctx);
-    frame = LoadU32(ctx, sp);
-    a = LoadU32(ctx, frame);
-    cursor = LoadU32(ctx, frame + 4u);
+  uint32_t l1 = 0u; uint32_t l2 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u;
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF437SaveFrameBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i0 = LoadU32(ctx, i0);
+    a = i0;
+    i0 = l1;
+    i0 = LoadU32(ctx, i0 + 4u);
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRewinding) {
-    // Rewinding: pop the resume word, which names the call that was in flight.
-    sp = ReturnFrameSp(ctx);
-    top = ReturnFrameSp(ctx);
-    top = LoadU32(ctx, top) - kDestroyNodeObjectResumeWordBytes;
-    StoreU32(ctx, sp, top);
-    sp = ReturnFrameSp(ctx);
-    top = LoadU32(ctx, sp);
-    resume_point = LoadU32(ctx, top);
+  i0 = ResumePhase(ctx);
+  i1 = 2u;
+  i0 = i0 == i1;
+  if (i0) {
+    i0 = ReturnFrameSp(ctx);
+    i1 = ReturnFrameSp(ctx);
+    i1 = LoadU32(ctx, i1);
+    i2 = kF437ResumeWordBytes;
+    i1 -= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = ReturnFrameSp(ctx);
+    i0 = LoadU32(ctx, i0);
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Stamp the object as dead, then give back the payload it held and the
-    // children it owned.
-    top = kDestroyNodeObjectPayloadTag;
-    StoreU32(ctx, a + 84u, top);
-    StoreU32(ctx, a, kDestroyNodeObjectHeaderTag);
-    if ((int32_t)LoadS8(ctx, a + 123u) <= (int32_t)kDestroyNodeObjectAllBits) {
-      top = LoadU32(ctx, a + 112u);
-      DeallocateRawBlock(ctx, top);
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = kF437ConstB5F40;
+    StoreU32(ctx, i0 + 84u, i1);
+    i0 = a;
+    i1 = kF437ConstB5E84;
+    StoreU32(ctx, i0, i1);
+    i0 = a;
+    i0 = LoadS8(ctx, i0 + 123u);
+    i1 = kF437ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 112u);
+      DeallocateRawBlock(ctx, i0);
     }
-    arg = a + 100u;
-    top = LoadU32(ctx, a + 104u);
-    ReleaseNodeTree(ctx, arg, top);
-    if ((int32_t)LoadS8(ctx, a + 99u) <= (int32_t)kDestroyNodeObjectAllBits) {
-      top = LoadU32(ctx, a + 88u);
-      DeallocateRawBlock(ctx, top);
+    i0 = a;
+    i1 = 100u;
+    i0 += i1;
+    i1 = a;
+    i1 = LoadU32(ctx, i1 + 104u);
+    ReleaseNodeTree(ctx, i0, i1);
+    i0 = a;
+    i0 = LoadS8(ctx, i0 + 99u);
+    i1 = kF437ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 88u);
+      DeallocateRawBlock(ctx, i0);
     }
-    cursor = a + 60u;
+    i0 = a;
+    i1 = 60u;
+    i0 += i1;
+    l1 = i0;
   }
-  if (ResumePhase(ctx) == kResumeRunning || resume_point == 0u) {
-    // Reset the node's own storage. This is the call that can suspend.
-    InitNodeStorage(ctx, cursor);
-    resume_code = 0u;
-    if (ResumePhase(ctx) == kResumeSuspended) {
-      goto save_frame;
-    }
+  i0 = l2;
+  i0 = !(i0);
+  i1 = 1u;
+  i2 = ResumePhase(ctx);
+  i0 = i2 ? i0 : i1;
+  if (i0) {
+    i0 = l1;
+    InitNodeStorage(ctx, i0);
+    i0 = 0u;
+    i1 = ResumePhase(ctx);
+    i2 = 1u;
+    i1 = i1 == i2;
+    if (i1) {goto spill_frame;}
   }
-  if (ResumePhase(ctx) == kResumeRunning) {
-    // Hand back the slots the node owns, one at a time.
-    cursor = LoadU32(ctx, a - kDestroyNodeObjectRangeBase);
-    bound = LoadU32(ctx, a + 68u);
-    if (cursor != bound) {
-      do {
-        top = LoadU32(ctx, cursor);
-        DeallocateRawBlock(ctx, top);
-        cursor = cursor + 4u;
-      } while (bound != cursor);
-      cursor = LoadU32(ctx, a + 68u);
-      bound = LoadU32(ctx, a + 64u);
-      if (cursor != bound) {
-        // The range loses one slot: the far end is stepped back over it.
-        left = cursor - bound;
-        left = left - 4u;
-        left = left >> (2u & 31);
-        left = left ^ kDestroyNodeObjectAllBits;
-        left = left << (2u & 31);
-        left = left + cursor;
-        StoreU32(ctx, a + 68u, left);
-      }
+  i0 = ResumePhase(ctx);
+  i0 = !(i0);
+  if (i0) {
+    i0 = a;
+    i1 = kF437ConstFFFFFFC0;
+    i0 -= i1;
+    i0 = LoadU32(ctx, i0);
+    l1 = i0;
+    i1 = a;
+    i1 = LoadU32(ctx, i1 + 68u);
+    l2 = i1;
+    i0 = i0 == i1;
+    if (i0) {goto block_8;}
+    loop_9: 
+      i0 = l1;
+      i0 = LoadU32(ctx, i0);
+      DeallocateRawBlock(ctx, i0);
+      i0 = l2;
+      i1 = l1;
+      i2 = 4u;
+      i1 += i2;
+      l1 = i1;
+      i0 = i0 != i1;
+      if (i0) {goto loop_9;}
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 68u);
+    l1 = i0;
+    i1 = a;
+    i1 = LoadU32(ctx, i1 + 64u);
+    l2 = i1;
+    i0 = i0 == i1;
+    if (i0) {goto block_8;}
+    i0 = a;
+    i1 = l1;
+    i2 = l2;
+    i1 -= i2;
+    i2 = 4u;
+    i1 -= i2;
+    i2 = 2u;
+    i1 >>= (i2 & 31);
+    i2 = kF437ConstFFFFFFFF;
+    i1 ^= i2;
+    i2 = 2u;
+    i1 <<= (i2 & 31);
+    i2 = l1;
+    i1 += i2;
+    StoreU32(ctx, i0 + 68u, i1);
+    block_8:;
+    i0 = a;
+    i0 = LoadU32(ctx, i0 + 60u);
+    l1 = i0;
+    if (i0) {
+      i0 = l1;
+      DeallocateRawBlock(ctx, i0);
     }
-    // Then the storage the node pointed at, and the buffers it owned.
-    cursor = LoadU32(ctx, a + 60u);
-    if (cursor != 0u) {
-      DeallocateRawBlock(ctx, cursor);
+    i0 = a;
+    i0 = LoadS8(ctx, i0 + 59u);
+    i1 = kF437ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 48u);
+      DeallocateRawBlock(ctx, i0);
     }
-    if ((int32_t)LoadS8(ctx, a + 59u) <= (int32_t)kDestroyNodeObjectAllBits) {
-      top = LoadU32(ctx, a + 48u);
-      DeallocateRawBlock(ctx, top);
+    i0 = a;
+    i0 = LoadS8(ctx, i0 + 39u);
+    i1 = kF437ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 28u);
+      DeallocateRawBlock(ctx, i0);
     }
-    if ((int32_t)LoadS8(ctx, a + 39u) <= (int32_t)kDestroyNodeObjectAllBits) {
-      top = LoadU32(ctx, a + 28u);
-      DeallocateRawBlock(ctx, top);
+    i0 = a;
+    i0 = LoadS8(ctx, i0 + 15u);
+    i1 = kF437ConstFFFFFFFF;
+    i0 = (uint32_t)((int32_t)i0 <= (int32_t)i1);
+    if (i0) {
+      i0 = a;
+      i0 = LoadU32(ctx, i0 + 4u);
+      DeallocateRawBlock(ctx, i0);
     }
-    if ((int32_t)LoadS8(ctx, a + 15u) <= (int32_t)kDestroyNodeObjectAllBits) {
-      top = LoadU32(ctx, a + 4u);
-      DeallocateRawBlock(ctx, top);
-    }
-    LeaveFrame();
-    return a;
+    i0 = a;
+    goto func_exit;
   }
   TrapUnreachable();
-save_frame:;
-  // Push the word naming the call in flight, then the save frame itself; both
-  // go out in the order a rewind reads them back.
-  sp = ReturnFrameSp(ctx);
-  top = LoadU32(ctx, sp);
-  StoreU32(ctx, top, resume_code);
-  sp = ReturnFrameSp(ctx);
-  top = ReturnFrameSp(ctx);
-  top = LoadU32(ctx, top) + kDestroyNodeObjectResumeWordBytes;
-  StoreU32(ctx, sp, top);
-  sp = ReturnFrameSp(ctx);
-  frame = LoadU32(ctx, sp);
-  StoreU32(ctx, frame, a);
-  StoreU32(ctx, frame + 4u, cursor);
-  sp = ReturnFrameSp(ctx);
-  top = ReturnFrameSp(ctx);
-  top = LoadU32(ctx, top) + 8u;
-  StoreU32(ctx, sp, top);
+  spill_frame:;
+  l2 = i0;
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  i1 = l2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = kF437ResumeWordBytes;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = ReturnFrameSp(ctx);
+  i0 = LoadU32(ctx, i0);
+  l2 = i0;
+  i1 = a;
+  StoreU32(ctx, i0, i1);
+  i0 = l2;
+  i1 = l1;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = ReturnFrameSp(ctx);
+  i1 = ReturnFrameSp(ctx);
+  i1 = LoadU32(ctx, i1);
+  i2 = 8u;
+  i1 += i2;
+  StoreU32(ctx, i0, i1);
+  i0 = 0u;
+  func_exit:;
   LeaveFrame();
-  return 0u;
+  return i0;
 }
-
-}  // namespace artc
+}

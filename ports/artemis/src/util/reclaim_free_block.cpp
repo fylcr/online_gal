@@ -1,293 +1,806 @@
+// reclaim_free_block.cpp -- returns one block to the free list, coalesging with the neighbours when they are free too..
+//
+// ReclaimFreeBlock -- returns one block to the free list, coalesging with the neighbours when they are free too.
+//
+// The step is a plain call: the body holds no suspend point, so the
+// frame pair is bookkeeping only. Judgment order is untouched -- the
+// goto graph is the generated driver's own flattening, renamed labels
+// only.
+//
+// src: artemis.wasm2c.c 526678-526678 (f1212); R1 transcribe-keep.
+//
+// Written against artemis-compat, with the official WebAssembly decompile
+// as the reference: this body reproduces the asyncify module's generated C
+// call for call.  The prose below records what this particular step does.
+//
+
 #include "util/engine_context.h"
 
 namespace artc {
 
+
 namespace {
 
-constexpr uint32_t kFreeLog2Bias3C000 = 0x3C000u;  // log2 probe: contributes the 2s bit
-constexpr uint32_t kFreeLog2Bias7F000 = 0x7F000u;  // log2 probe: contributes the 4s bit
-constexpr uint32_t kFreeLog2BiasFFF00 = 0xFFF00u;  // log2 probe: contributes the 8s bit
-constexpr uint32_t kFreeSmallMap = 0xD1370u;  // bitmap of the occupied small bins
-constexpr uint32_t kFreeTreeMap = 0xD1374u;  // bitmap of the occupied tree bins
-constexpr uint32_t kFreeDvSize = 0xD1378u;  // size of the designated victim chunk
-constexpr uint32_t kFreeTopSize = 0xD137Cu;  // size of the wilderness chunk
-constexpr uint32_t kFreeLeastAddr = 0xD1380u;  // lowest address the arena has handed out
-constexpr uint32_t kFreeDv = 0xD1384u;  // the designated victim chunk
-constexpr uint32_t kFreeTop = 0xD1388u;  // the wilderness chunk
-constexpr uint32_t kFreeSmallBins = 0xD1398u;  // base of the small-bin array
-constexpr uint32_t kFreeTreeBins = 0xD14A0u;  // base of the tree-bin array
-constexpr uint32_t kFreeTreeIndexLimit = 0xFFFFFFu;  // largest size with a computed tree index
-constexpr uint32_t kFreeChunkSizeMask = 0xFFFFFFF8u;  // masks the size out of a chunk head word
-constexpr uint32_t kFreeUseFlagMask = 0xFFFFFFFEu;  // masks the in-use flag out of a head word
+constexpr uint32_t kF1212Const3C000 = 0x3C000u;  // 
+constexpr uint32_t kF1212Const7F000 = 0x7F000u;  // 
+constexpr uint32_t kF1212ConstD1370 = 0xD1370u;  // 
+constexpr uint32_t kF1212ConstD1374 = 0xD1374u;  // 
+constexpr uint32_t kF1212ConstD1378 = 0xD1378u;  // 
+constexpr uint32_t kF1212ConstD137C = 0xD137Cu;  // 
+constexpr uint32_t kF1212ConstD1380 = 0xD1380u;  // 
+constexpr uint32_t kF1212ConstD1384 = 0xD1384u;  // 
+constexpr uint32_t kF1212ConstD1388 = 0xD1388u;  // 
+constexpr uint32_t kF1212ConstD1398 = 0xD1398u;  // 
+constexpr uint32_t kF1212ConstD14A0 = 0xD14A0u;  // 
+constexpr uint32_t kF1212ConstFFF00 = 0xFFF00u;  // 
+constexpr uint32_t kF1212ConstFFFFFF = 0xFFFFFFu;  // 
+constexpr uint32_t kF1212ConstFFFFFFF8 = 0xFFFFFFF8u;  // 
+constexpr uint32_t kF1212ConstFFFFFFFE = 0xFFFFFFFEu;  // 
 
 }  // namespace
 
-// Returns a block to the free list, coalescing it with the free chunks in
-// front of and behind it and threading the merged block into the small-bin
-// or tree-bin array of the allocator.
-//
-// state is the block's offset, block its size and next_chunk the block that
-// follows it; cursor, scratch, value and slot walk the bin and treebin links,
-// parent is the node above the one being unlinked, and link is the link the
-// block is threaded onto.
 void ReclaimFreeBlock(EngineContext* ctx, uint32_t state, uint32_t block) {
   EnterFrame();
-  uint32_t cursor = 0u;
-  uint32_t scratch = 0u;
-  uint32_t value = 0u;
-  uint32_t next_chunk = 0u;
-  uint32_t parent = 0u;
-  uint32_t slot = 0u;
-  uint32_t link = 0u;
-  next_chunk = state + block;
-  scratch = LoadU32(ctx, state + 4u);
-  if ((scratch & 1u) != 0u) goto check_next_chunk;
-  if ((scratch & 3u) == 0u) goto done;
-  cursor = LoadU32(ctx, state);
-  block = cursor + block;
-  state = state - cursor;
-  if (state != LoadU32(ctx, kFreeDv)) {
-    value = LoadU32(ctx, kFreeLeastAddr);
-    if (cursor <= 255u) {
-      value = LoadU32(ctx, state + 8u);
-      cursor = cursor >> (3u & 31);
-      scratch = LoadU32(ctx, state + 12u);
-      if (scratch == value) {
-        StoreU32(ctx, kFreeSmallMap,
-                 LoadU32(ctx, kFreeSmallMap) & I32_ROTL(kFreeUseFlagMask, cursor));
-        goto check_next_chunk;
+  uint32_t l2 = 0u; uint32_t l3 = 0u; uint32_t l4 = 0u; uint32_t l5 = 0u; uint32_t l6 = 0u; uint32_t l7 = 0u;
+  uint32_t i0 = 0u; uint32_t i1 = 0u; uint32_t i2 = 0u; uint32_t i3 = 0u; uint32_t i4 = 0u;
+  uint64_t j1 = 0;
+  i0 = state;
+  i1 = block;
+  i0 += i1;
+  l5 = i0;
+  i0 = state;
+  i0 = LoadU32(ctx, i0 + 4u);
+  l3 = i0;
+  i1 = 1u;
+  i0 &= i1;
+  if (i0) {goto spill_frame;}
+  i0 = l3;
+  i1 = 3u;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {goto block_0;}
+  i0 = state;
+  i0 = LoadU32(ctx, i0);
+  l2 = i0;
+  i1 = block;
+  i0 += i1;
+  block = i0;
+  i0 = state;
+  i1 = l2;
+  i0 -= i1;
+  state = i0;
+  i1 = kF1212ConstD1384;
+  i1 = LoadU32(ctx, i1);
+  i0 = i0 != i1;
+  if (i0) {
+    i0 = kF1212ConstD1380;
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    i0 = l2;
+    i1 = 255u;
+    i0 = i0 <= i1;
+    if (i0) {
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l4 = i0;
+      i1 = l2;
+      i2 = 3u;
+      i1 >>= (i2 & 31);
+      l2 = i1;
+      i2 = 3u;
+      i1 <<= (i2 & 31);
+      i2 = kF1212ConstD1398;
+      i1 += i2;
+      i0 = i0 != i1;
+      i0 = state;
+      i0 = LoadU32(ctx, i0 + 12u);
+      l3 = i0;
+      i1 = l4;
+      i0 = i0 == i1;
+      if (i0) {
+        i0 = kF1212ConstD1370;
+        i1 = kF1212ConstD1370;
+        i1 = LoadU32(ctx, i1);
+        i2 = kF1212ConstFFFFFFFE;
+        i3 = l2;
+        i2 = I32_ROTL(i2, i3);
+        i1 &= i2;
+        StoreU32(ctx, i0, i1);
+        goto spill_frame;
       }
-      StoreU32(ctx, value + 12u, scratch);
-      StoreU32(ctx, scratch + 8u, value);
-      goto check_next_chunk;
+      i0 = l4;
+      i1 = l3;
+      StoreU32(ctx, i0 + 12u, i1);
+      i0 = l3;
+      i1 = l4;
+      StoreU32(ctx, i0 + 8u, i1);
+      goto spill_frame;
     }
-    parent = LoadU32(ctx, state + 24u);
-    scratch = LoadU32(ctx, state + 12u);
-    if (scratch != state) {
-      cursor = LoadU32(ctx, state + 8u);
-      StoreU32(ctx, cursor + 12u, scratch);
-      StoreU32(ctx, scratch + 8u, cursor);
-      goto detach_merged;
-    }
-    cursor = state + 20u;
-    value = LoadU32(ctx, cursor);
-    if (value != 0u) goto walk_tree;
-    cursor = state + 16u;
-    value = LoadU32(ctx, cursor);
-    if (value != 0u) goto walk_tree;
-    scratch = 0u;
-    goto detach_merged;
-    walk_tree:;
-    next_tree_node:;
-    slot = cursor;
-    scratch = value;
-    cursor = scratch + 20u;
-    value = LoadU32(ctx, cursor);
-    if (value != 0u) goto next_tree_node;
-    cursor = scratch + 16u;
-    value = LoadU32(ctx, scratch + 16u);
-    if (value != 0u) goto next_tree_node;
-    StoreU32(ctx, slot, 0u);
-    detach_merged:;
-    if (parent == 0u) goto check_next_chunk;
-    cursor = LoadU32(ctx, state + 28u);
-    value = (cursor << (2u & 31)) + kFreeTreeBins;
-    if (LoadU32(ctx, value) == state) {
-      StoreU32(ctx, value, scratch);
-      if (scratch != 0u) goto relink_subtree;
-      StoreU32(ctx, kFreeTreeMap, LoadU32(ctx, kFreeTreeMap) & I32_ROTL(kFreeUseFlagMask, cursor));
-      goto check_next_chunk;
-    }
-    StoreU32(ctx, (parent + ((LoadU32(ctx, parent + 16u) == state) ? 16u : 20u)), scratch);
-    if (scratch == 0u) goto check_next_chunk;
-    relink_subtree:;
-    StoreU32(ctx, scratch + 24u, parent);
-    cursor = LoadU32(ctx, state + 16u);
-    if (cursor != 0u) {
-      StoreU32(ctx, scratch + 16u, cursor);
-      StoreU32(ctx, cursor + 24u, scratch);
-    }
-    cursor = LoadU32(ctx, state + 20u);
-    if (cursor == 0u) goto check_next_chunk;
-    StoreU32(ctx, scratch + 20u, cursor);
-    StoreU32(ctx, cursor + 24u, scratch);
-    goto check_next_chunk;
-  }
-  scratch = LoadU32(ctx, next_chunk + 4u);
-  if ((scratch & 3u) != 3u) goto check_next_chunk;
-  StoreU32(ctx, kFreeDvSize, block);
-  StoreU32(ctx, next_chunk + 4u, scratch & kFreeUseFlagMask);
-  StoreU32(ctx, state + 4u, block | 1u);
-  StoreU32(ctx, next_chunk, block);
-  goto exit_path;
-  check_next_chunk:;
-  scratch = LoadU32(ctx, next_chunk + 4u);
-  if ((scratch & 2u) == 0u) {
-    if (next_chunk == LoadU32(ctx, kFreeTop)) {
-      StoreU32(ctx, kFreeTop, state);
-      block = LoadU32(ctx, kFreeTopSize) + block;
-      StoreU32(ctx, kFreeTopSize, block);
-      StoreU32(ctx, state + 4u, block | 1u);
-      if (LoadU32(ctx, kFreeDv) != state) goto done;
-      StoreU32(ctx, kFreeDvSize, 0u);
-      StoreU32(ctx, kFreeDv, 0u);
-      goto exit_path;
-    }
-    if (next_chunk == LoadU32(ctx, kFreeDv)) {
-      StoreU32(ctx, kFreeDv, state);
-      block = LoadU32(ctx, kFreeDvSize) + block;
-      StoreU32(ctx, kFreeDvSize, block);
-      StoreU32(ctx, state + 4u, block | 1u);
-      StoreU32(ctx, (state + block), block);
-      goto exit_path;
-    }
-    cursor = LoadU32(ctx, kFreeLeastAddr);
-    block = (scratch & kFreeChunkSizeMask) + block;
-    if (scratch <= 255u) {
-      value = LoadU32(ctx, next_chunk + 8u);
-      scratch = scratch >> (3u & 31);
-      cursor = LoadU32(ctx, next_chunk + 12u);
-      if (value == cursor) {
-        StoreU32(ctx, kFreeSmallMap,
-                 LoadU32(ctx, kFreeSmallMap) & I32_ROTL(kFreeUseFlagMask, scratch));
-        goto merged_ready;
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l6 = i0;
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 12u);
+    l3 = i0;
+    i1 = state;
+    i0 = i0 != i1;
+    if (i0) {
+      i0 = l4;
+      i1 = state;
+      i1 = LoadU32(ctx, i1 + 8u);
+      l2 = i1;
+      i0 = i0 <= i1;
+      if (i0) {
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 12u);
       }
-      StoreU32(ctx, value + 12u, cursor);
-      StoreU32(ctx, cursor + 8u, value);
-      goto merged_ready;
+      i0 = l2;
+      i1 = l3;
+      StoreU32(ctx, i0 + 12u, i1);
+      i0 = l3;
+      i1 = l2;
+      StoreU32(ctx, i0 + 8u, i1);
+      goto block_5;
     }
-    parent = LoadU32(ctx, next_chunk + 24u);
-    scratch = LoadU32(ctx, next_chunk + 12u);
-    if (next_chunk != scratch) {
-      value = cursor;
-      cursor = LoadU32(ctx, next_chunk + 8u);
-      StoreU32(ctx, cursor + 12u, scratch);
-      StoreU32(ctx, scratch + 8u, cursor);
-      goto detach_absorbed;
+    i0 = state;
+    i1 = 20u;
+    i0 += i1;
+    l2 = i0;
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    if (i0) {goto block_8;}
+    i0 = state;
+    i1 = 16u;
+    i0 += i1;
+    l2 = i0;
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    if (i0) {goto block_8;}
+    i0 = 0u;
+    l3 = i0;
+    goto block_5;
+    block_8:;
+    loop_9: 
+      i0 = l2;
+      l7 = i0;
+      i0 = l4;
+      l3 = i0;
+      i1 = 20u;
+      i0 += i1;
+      l2 = i0;
+      i0 = LoadU32(ctx, i0);
+      l4 = i0;
+      if (i0) {goto loop_9;}
+      i0 = l3;
+      i1 = 16u;
+      i0 += i1;
+      l2 = i0;
+      i0 = l3;
+      i0 = LoadU32(ctx, i0 + 16u);
+      l4 = i0;
+      if (i0) {goto loop_9;}
+    i0 = l7;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    block_5:;
+    i0 = l6;
+    i0 = !(i0);
+    if (i0) {goto spill_frame;}
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 28u);
+    l2 = i0;
+    i1 = 2u;
+    i0 <<= (i1 & 31);
+    i1 = kF1212ConstD14A0;
+    i0 += i1;
+    l4 = i0;
+    i0 = LoadU32(ctx, i0);
+    i1 = state;
+    i0 = i0 == i1;
+    if (i0) {
+      i0 = l4;
+      i1 = l3;
+      StoreU32(ctx, i0, i1);
+      i0 = l3;
+      if (i0) {goto block_10;}
+      i0 = kF1212ConstD1374;
+      i1 = kF1212ConstD1374;
+      i1 = LoadU32(ctx, i1);
+      i2 = kF1212ConstFFFFFFFE;
+      i3 = l2;
+      i2 = I32_ROTL(i2, i3);
+      i1 &= i2;
+      StoreU32(ctx, i0, i1);
+      goto spill_frame;
     }
-    cursor = next_chunk + 20u;
-    value = LoadU32(ctx, cursor);
-    if (value != 0u) goto walk_absorbed_tree;
-    cursor = next_chunk + 16u;
-    value = LoadU32(ctx, cursor);
-    if (value != 0u) goto walk_absorbed_tree;
-    scratch = 0u;
-    goto detach_absorbed;
-    walk_absorbed_tree:;
-    next_absorbed_node:;
-    slot = cursor;
-    scratch = value;
-    cursor = scratch + 20u;
-    value = LoadU32(ctx, cursor);
-    if (value != 0u) goto next_absorbed_node;
-    cursor = scratch + 16u;
-    value = LoadU32(ctx, scratch + 16u);
-    if (value != 0u) goto next_absorbed_node;
-    StoreU32(ctx, slot, 0u);
-    detach_absorbed:;
-    if (parent == 0u) goto merged_ready;
-    cursor = LoadU32(ctx, next_chunk + 28u);
-    value = (cursor << (2u & 31)) + kFreeTreeBins;
-    if (next_chunk == LoadU32(ctx, value)) {
-      StoreU32(ctx, value, scratch);
-      if (scratch != 0u) goto relink_absorbed_subtree;
-      StoreU32(ctx, kFreeTreeMap, LoadU32(ctx, kFreeTreeMap) & I32_ROTL(kFreeUseFlagMask, cursor));
-      goto merged_ready;
+    i0 = l6;
+    i1 = 16u;
+    i2 = 20u;
+    i3 = l6;
+    i3 = LoadU32(ctx, i3 + 16u);
+    i4 = state;
+    i3 = i3 == i4;
+    i1 = i3 ? i1 : i2;
+    i0 += i1;
+    i1 = l3;
+    StoreU32(ctx, i0, i1);
+    i0 = l3;
+    i0 = !(i0);
+    if (i0) {goto spill_frame;}
+    block_10:;
+    i0 = l3;
+    i1 = l6;
+    StoreU32(ctx, i0 + 24u, i1);
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l2 = i0;
+    if (i0) {
+      i0 = l3;
+      i1 = l2;
+      StoreU32(ctx, i0 + 16u, i1);
+      i0 = l2;
+      i1 = l3;
+      StoreU32(ctx, i0 + 24u, i1);
     }
-    StoreU32(ctx, (parent + ((next_chunk == LoadU32(ctx, parent + 16u)) ? 16u : 20u)), scratch);
-    if (scratch == 0u) goto merged_ready;
-    relink_absorbed_subtree:;
-    StoreU32(ctx, scratch + 24u, parent);
-    cursor = LoadU32(ctx, next_chunk + 16u);
-    if (cursor != 0u) {
-      StoreU32(ctx, scratch + 16u, cursor);
-      StoreU32(ctx, cursor + 24u, scratch);
-    }
-    cursor = LoadU32(ctx, next_chunk + 20u);
-    if (cursor == 0u) goto merged_ready;
-    StoreU32(ctx, scratch + 20u, cursor);
-    StoreU32(ctx, cursor + 24u, scratch);
-    merged_ready:;
-    StoreU32(ctx, state + 4u, block | 1u);
-    StoreU32(ctx, (state + block), block);
-    if (LoadU32(ctx, kFreeDv) != state) goto link_chunk;
-    StoreU32(ctx, kFreeDvSize, block);
-    goto exit_path;
+    i0 = state;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l2 = i0;
+    i0 = !(i0);
+    if (i0) {goto spill_frame;}
+    i0 = l3;
+    i1 = l2;
+    StoreU32(ctx, i0 + 20u, i1);
+    i0 = l2;
+    i1 = l3;
+    StoreU32(ctx, i0 + 24u, i1);
+    goto spill_frame;
   }
-  StoreU32(ctx, next_chunk + 4u, scratch & kFreeUseFlagMask);
-  StoreU32(ctx, state + 4u, block | 1u);
-  StoreU32(ctx, (state + block), block);
-  link_chunk:;
-  if (block <= 255u) {
-    scratch = block >> (3u & 31);
-    block = (scratch << (3u & 31)) + kFreeSmallBins;
-    cursor = LoadU32(ctx, kFreeSmallMap);
-    scratch = 1u << (scratch & 31);
-    if ((cursor & scratch) == 0u) {
-      StoreU32(ctx, kFreeSmallMap, cursor | scratch);
-      link = block;
-      goto bin_linked;
+  i0 = l5;
+  i0 = LoadU32(ctx, i0 + 4u);
+  l3 = i0;
+  i1 = 3u;
+  i0 &= i1;
+  i1 = 3u;
+  i0 = i0 != i1;
+  if (i0) {goto spill_frame;}
+  i0 = kF1212ConstD1378;
+  i1 = block;
+  StoreU32(ctx, i0, i1);
+  i0 = l5;
+  i1 = l3;
+  i2 = kF1212ConstFFFFFFFE;
+  i1 &= i2;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = state;
+  i1 = block;
+  i2 = 1u;
+  i1 |= i2;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = l5;
+  i1 = block;
+  StoreU32(ctx, i0, i1);
+  goto func_exit;
+  spill_frame:;
+  i0 = l5;
+  i0 = LoadU32(ctx, i0 + 4u);
+  l3 = i0;
+  i1 = 2u;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {
+    i0 = l5;
+    i1 = kF1212ConstD1388;
+    i1 = LoadU32(ctx, i1);
+    i0 = i0 == i1;
+    if (i0) {
+      i0 = kF1212ConstD1388;
+      i1 = state;
+      StoreU32(ctx, i0, i1);
+      i0 = kF1212ConstD137C;
+      i1 = kF1212ConstD137C;
+      i1 = LoadU32(ctx, i1);
+      i2 = block;
+      i1 += i2;
+      block = i1;
+      StoreU32(ctx, i0, i1);
+      i0 = state;
+      i1 = block;
+      i2 = 1u;
+      i1 |= i2;
+      StoreU32(ctx, i0 + 4u, i1);
+      i0 = kF1212ConstD1384;
+      i0 = LoadU32(ctx, i0);
+      i1 = state;
+      i0 = i0 != i1;
+      if (i0) {goto block_0;}
+      i0 = kF1212ConstD1378;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      i0 = kF1212ConstD1384;
+      i1 = 0u;
+      StoreU32(ctx, i0, i1);
+      goto func_exit;
     }
-    link = LoadU32(ctx, block + 8u);
-    bin_linked:;
-    cursor = link;
-    StoreU32(ctx, block + 8u, state);
-    StoreU32(ctx, cursor + 12u, state);
-    StoreU32(ctx, state + 12u, block);
-    StoreU32(ctx, state + 8u, cursor);
-    goto exit_path;
+    i0 = l5;
+    i1 = kF1212ConstD1384;
+    i1 = LoadU32(ctx, i1);
+    i0 = i0 == i1;
+    if (i0) {
+      i0 = kF1212ConstD1384;
+      i1 = state;
+      StoreU32(ctx, i0, i1);
+      i0 = kF1212ConstD1378;
+      i1 = kF1212ConstD1378;
+      i1 = LoadU32(ctx, i1);
+      i2 = block;
+      i1 += i2;
+      block = i1;
+      StoreU32(ctx, i0, i1);
+      i0 = state;
+      i1 = block;
+      i2 = 1u;
+      i1 |= i2;
+      StoreU32(ctx, i0 + 4u, i1);
+      i0 = state;
+      i1 = block;
+      i0 += i1;
+      i1 = block;
+      StoreU32(ctx, i0, i1);
+      goto func_exit;
+    }
+    i0 = kF1212ConstD1380;
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i0 = l3;
+    i1 = kF1212ConstFFFFFFF8;
+    i0 &= i1;
+    i1 = block;
+    i0 += i1;
+    block = i0;
+    i0 = l3;
+    i1 = 255u;
+    i0 = i0 <= i1;
+    if (i0) {
+      i0 = l5;
+      i0 = LoadU32(ctx, i0 + 8u);
+      l4 = i0;
+      i1 = l3;
+      i2 = 3u;
+      i1 >>= (i2 & 31);
+      l3 = i1;
+      i2 = 3u;
+      i1 <<= (i2 & 31);
+      i2 = kF1212ConstD1398;
+      i1 += i2;
+      i0 = i0 != i1;
+      i0 = l4;
+      i1 = l5;
+      i1 = LoadU32(ctx, i1 + 12u);
+      l2 = i1;
+      i0 = i0 == i1;
+      if (i0) {
+        i0 = kF1212ConstD1370;
+        i1 = kF1212ConstD1370;
+        i1 = LoadU32(ctx, i1);
+        i2 = kF1212ConstFFFFFFFE;
+        i3 = l3;
+        i2 = I32_ROTL(i2, i3);
+        i1 &= i2;
+        StoreU32(ctx, i0, i1);
+        goto block_17;
+      }
+      i0 = l4;
+      i1 = l2;
+      StoreU32(ctx, i0 + 12u, i1);
+      i0 = l2;
+      i1 = l4;
+      StoreU32(ctx, i0 + 8u, i1);
+      goto block_17;
+    }
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 24u);
+    l6 = i0;
+    i0 = l5;
+    i1 = l5;
+    i1 = LoadU32(ctx, i1 + 12u);
+    l3 = i1;
+    i0 = i0 != i1;
+    if (i0) {
+      i0 = l2;
+      l4 = i0;
+      i0 = l4;
+      i1 = l5;
+      i1 = LoadU32(ctx, i1 + 8u);
+      l2 = i1;
+      i0 = i0 <= i1;
+      if (i0) {
+        i0 = l2;
+        i0 = LoadU32(ctx, i0 + 12u);
+      }
+      i0 = l2;
+      i1 = l3;
+      StoreU32(ctx, i0 + 12u, i1);
+      i0 = l3;
+      i1 = l2;
+      StoreU32(ctx, i0 + 8u, i1);
+      goto block_20;
+    }
+    i0 = l5;
+    i1 = 20u;
+    i0 += i1;
+    l2 = i0;
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    if (i0) {goto block_23;}
+    i0 = l5;
+    i1 = 16u;
+    i0 += i1;
+    l2 = i0;
+    i0 = LoadU32(ctx, i0);
+    l4 = i0;
+    if (i0) {goto block_23;}
+    i0 = 0u;
+    l3 = i0;
+    goto block_20;
+    block_23:;
+    loop_24: 
+      i0 = l2;
+      l7 = i0;
+      i0 = l4;
+      l3 = i0;
+      i1 = 20u;
+      i0 += i1;
+      l2 = i0;
+      i0 = LoadU32(ctx, i0);
+      l4 = i0;
+      if (i0) {goto loop_24;}
+      i0 = l3;
+      i1 = 16u;
+      i0 += i1;
+      l2 = i0;
+      i0 = l3;
+      i0 = LoadU32(ctx, i0 + 16u);
+      l4 = i0;
+      if (i0) {goto loop_24;}
+    i0 = l7;
+    i1 = 0u;
+    StoreU32(ctx, i0, i1);
+    block_20:;
+    i0 = l6;
+    i0 = !(i0);
+    if (i0) {goto block_17;}
+    i0 = l5;
+    i1 = l5;
+    i1 = LoadU32(ctx, i1 + 28u);
+    l2 = i1;
+    i2 = 2u;
+    i1 <<= (i2 & 31);
+    i2 = kF1212ConstD14A0;
+    i1 += i2;
+    l4 = i1;
+    i1 = LoadU32(ctx, i1);
+    i0 = i0 == i1;
+    if (i0) {
+      i0 = l4;
+      i1 = l3;
+      StoreU32(ctx, i0, i1);
+      i0 = l3;
+      if (i0) {goto block_25;}
+      i0 = kF1212ConstD1374;
+      i1 = kF1212ConstD1374;
+      i1 = LoadU32(ctx, i1);
+      i2 = kF1212ConstFFFFFFFE;
+      i3 = l2;
+      i2 = I32_ROTL(i2, i3);
+      i1 &= i2;
+      StoreU32(ctx, i0, i1);
+      goto block_17;
+    }
+    i0 = l6;
+    i1 = 16u;
+    i2 = 20u;
+    i3 = l5;
+    i4 = l6;
+    i4 = LoadU32(ctx, i4 + 16u);
+    i3 = i3 == i4;
+    i1 = i3 ? i1 : i2;
+    i0 += i1;
+    i1 = l3;
+    StoreU32(ctx, i0, i1);
+    i0 = l3;
+    i0 = !(i0);
+    if (i0) {goto block_17;}
+    block_25:;
+    i0 = l3;
+    i1 = l6;
+    StoreU32(ctx, i0 + 24u, i1);
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 16u);
+    l2 = i0;
+    if (i0) {
+      i0 = l3;
+      i1 = l2;
+      StoreU32(ctx, i0 + 16u, i1);
+      i0 = l2;
+      i1 = l3;
+      StoreU32(ctx, i0 + 24u, i1);
+    }
+    i0 = l5;
+    i0 = LoadU32(ctx, i0 + 20u);
+    l2 = i0;
+    i0 = !(i0);
+    if (i0) {goto block_17;}
+    i0 = l3;
+    i1 = l2;
+    StoreU32(ctx, i0 + 20u, i1);
+    i0 = l2;
+    i1 = l3;
+    StoreU32(ctx, i0 + 24u, i1);
+    block_17:;
+    i0 = state;
+    i1 = block;
+    i2 = 1u;
+    i1 |= i2;
+    StoreU32(ctx, i0 + 4u, i1);
+    i0 = state;
+    i1 = block;
+    i0 += i1;
+    i1 = block;
+    StoreU32(ctx, i0, i1);
+    i0 = kF1212ConstD1384;
+    i0 = LoadU32(ctx, i0);
+    i1 = state;
+    i0 = i0 != i1;
+    if (i0) {goto block_13;}
+    i0 = kF1212ConstD1378;
+    i1 = block;
+    StoreU32(ctx, i0, i1);
+    goto func_exit;
   }
-  cursor = 31u;
-  StoreU64(ctx, state + 16u, 0ull);
-  if (block <= kFreeTreeIndexLimit) {
-    cursor = block >> (8u & 31);
-    scratch = ((cursor + kFreeLog2BiasFFF00) >> (16u & 31)) & 8u;
-    cursor = cursor << (scratch & 31);
-    link = cursor;
-    cursor = ((cursor + kFreeLog2Bias7F000) >> (16u & 31)) & 4u;
-    value = link << (cursor & 31);
-    link = value;
-    value = ((value + kFreeLog2Bias3C000) >> (16u & 31)) & 2u;
-    scratch = ((link << (value & 31)) >> (15u & 31)) - (value | (cursor | scratch));
-    value = scratch << (1u & 31);
-    cursor = (value | ((block >> ((scratch + 21u) & 31)) & 1u)) + 28u;
+  i0 = l5;
+  i1 = l3;
+  i2 = kF1212ConstFFFFFFFE;
+  i1 &= i2;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = state;
+  i1 = block;
+  i2 = 1u;
+  i1 |= i2;
+  StoreU32(ctx, i0 + 4u, i1);
+  i0 = state;
+  i1 = block;
+  i0 += i1;
+  i1 = block;
+  StoreU32(ctx, i0, i1);
+  block_13:;
+  i0 = block;
+  i1 = 255u;
+  i0 = i0 <= i1;
+  if (i0) {
+    i0 = block;
+    i1 = 3u;
+    i0 >>= (i1 & 31);
+    l3 = i0;
+    i1 = 3u;
+    i0 <<= (i1 & 31);
+    i1 = kF1212ConstD1398;
+    i0 += i1;
+    block = i0;
+    i0 = kF1212ConstD1370;
+    i0 = LoadU32(ctx, i0);
+    l2 = i0;
+    i1 = 1u;
+    i2 = l3;
+    i1 <<= (i2 & 31);
+    l3 = i1;
+    i0 &= i1;
+    i0 = !(i0);
+    if (i0) {
+      i0 = kF1212ConstD1370;
+      i1 = l2;
+      i2 = l3;
+      i1 |= i2;
+      StoreU32(ctx, i0, i1);
+      i0 = block;
+      goto block_29;
+    }
+    i0 = block;
+    i0 = LoadU32(ctx, i0 + 8u);
+    block_29:;
+    l2 = i0;
+    i0 = block;
+    i1 = state;
+    StoreU32(ctx, i0 + 8u, i1);
+    i0 = l2;
+    i1 = state;
+    StoreU32(ctx, i0 + 12u, i1);
+    i0 = state;
+    i1 = block;
+    StoreU32(ctx, i0 + 12u, i1);
+    i0 = state;
+    i1 = l2;
+    StoreU32(ctx, i0 + 8u, i1);
+    goto func_exit;
   }
-  StoreU32(ctx, state + 28u, cursor);
-  scratch = (cursor << (2u & 31)) + kFreeTreeBins;
-  value = LoadU32(ctx, kFreeTreeMap);
-  slot = 1u << (cursor & 31);
-  if ((value & slot) == 0u) {
-    StoreU32(ctx, kFreeTreeMap, value | slot);
-    StoreU32(ctx, scratch, state);
-    StoreU32(ctx, state + 24u, scratch);
-    goto tree_bin_root;
+  i0 = 31u;
+  l2 = i0;
+  i0 = state;
+  j1 = 0ull;
+  StoreU64(ctx, i0 + 16u, j1);
+  i0 = block;
+  i1 = kF1212ConstFFFFFF;
+  i0 = i0 <= i1;
+  if (i0) {
+    i0 = block;
+    i1 = 8u;
+    i0 >>= (i1 & 31);
+    l2 = i0;
+    i1 = kF1212ConstFFF00;
+    i0 += i1;
+    i1 = 16u;
+    i0 >>= (i1 & 31);
+    i1 = 8u;
+    i0 &= i1;
+    l3 = i0;
+    i0 = l2;
+    i1 = l3;
+    i0 <<= (i1 & 31);
+    l2 = i0;
+    i1 = l2;
+    i2 = kF1212Const7F000;
+    i1 += i2;
+    i2 = 16u;
+    i1 >>= (i2 & 31);
+    i2 = 4u;
+    i1 &= i2;
+    l2 = i1;
+    i0 <<= (i1 & 31);
+    l4 = i0;
+    i1 = l4;
+    i2 = kF1212Const3C000;
+    i1 += i2;
+    i2 = 16u;
+    i1 >>= (i2 & 31);
+    i2 = 2u;
+    i1 &= i2;
+    l4 = i1;
+    i0 <<= (i1 & 31);
+    i1 = 15u;
+    i0 >>= (i1 & 31);
+    i1 = l4;
+    i2 = l2;
+    i3 = l3;
+    i2 |= i3;
+    i1 |= i2;
+    i0 -= i1;
+    l3 = i0;
+    i1 = 1u;
+    i0 <<= (i1 & 31);
+    l4 = i0;
+    i0 = l4;
+    i1 = block;
+    i2 = l3;
+    i3 = 21u;
+    i2 += i3;
+    i1 >>= (i2 & 31);
+    i2 = 1u;
+    i1 &= i2;
+    i0 |= i1;
+    i1 = 28u;
+    i0 += i1;
+    l2 = i0;
   }
-  cursor = block << (((cursor == 31u) ? 0u : (25u - (cursor >> (1u & 31)))) & 31);
-  scratch = LoadU32(ctx, scratch);
-  descend_tree:;
-  value = scratch;
-  if ((LoadU32(ctx, scratch + 4u) & kFreeChunkSizeMask) == block) goto tree_bin_match;
-  scratch = cursor >> (29u & 31);
-  cursor = cursor << (1u & 31);
-  slot = (scratch & 4u) + value;
-  scratch = LoadU32(ctx, slot + 16u);
-  if (scratch != 0u) goto descend_tree;
-  StoreU32(ctx, slot + 16u, state);
-  StoreU32(ctx, state + 24u, value);
-  tree_bin_root:;
-  StoreU32(ctx, state + 12u, state);
-  StoreU32(ctx, state + 8u, state);
-  goto exit_path;
-  tree_bin_match:;
-  block = LoadU32(ctx, value + 8u);
-  StoreU32(ctx, block + 12u, state);
-  StoreU32(ctx, value + 8u, state);
-  StoreU32(ctx, state + 24u, 0u);
-  StoreU32(ctx, state + 12u, value);
-  StoreU32(ctx, state + 8u, block);
-  done:;
-  exit_path:;
+  i0 = state;
+  i1 = l2;
+  StoreU32(ctx, i0 + 28u, i1);
+  i0 = l2;
+  i1 = 2u;
+  i0 <<= (i1 & 31);
+  i1 = kF1212ConstD14A0;
+  i0 += i1;
+  l3 = i0;
+  i0 = kF1212ConstD1374;
+  i0 = LoadU32(ctx, i0);
+  l4 = i0;
+  i1 = 1u;
+  i2 = l2;
+  i1 <<= (i2 & 31);
+  l7 = i1;
+  i0 &= i1;
+  i0 = !(i0);
+  if (i0) {
+    i0 = kF1212ConstD1374;
+    i1 = l4;
+    i2 = l7;
+    i1 |= i2;
+    StoreU32(ctx, i0, i1);
+    i0 = l3;
+    i1 = state;
+    StoreU32(ctx, i0, i1);
+    i0 = state;
+    i1 = l3;
+    StoreU32(ctx, i0 + 24u, i1);
+    goto block_33;
+  }
+  i0 = block;
+  i1 = 0u;
+  i2 = 25u;
+  i3 = l2;
+  i4 = 1u;
+  i3 >>= (i4 & 31);
+  i2 -= i3;
+  i3 = l2;
+  i4 = 31u;
+  i3 = i3 == i4;
+  i1 = i3 ? i1 : i2;
+  i0 <<= (i1 & 31);
+  l2 = i0;
+  i0 = l3;
+  i0 = LoadU32(ctx, i0);
+  l3 = i0;
+  loop_35: 
+    i0 = l3;
+    l4 = i0;
+    i0 = l3;
+    i0 = LoadU32(ctx, i0 + 4u);
+    i1 = kF1212ConstFFFFFFF8;
+    i0 &= i1;
+    i1 = block;
+    i0 = i0 == i1;
+    if (i0) {goto block_32;}
+    i0 = l2;
+    i1 = 29u;
+    i0 >>= (i1 & 31);
+    l3 = i0;
+    i0 = l2;
+    i1 = 1u;
+    i0 <<= (i1 & 31);
+    l2 = i0;
+    i0 = l3;
+    i1 = 4u;
+    i0 &= i1;
+    i1 = l4;
+    i0 += i1;
+    l7 = i0;
+    i1 = 16u;
+    i0 += i1;
+    i0 = LoadU32(ctx, i0);
+    l3 = i0;
+    if (i0) {goto loop_35;}
+  i0 = l7;
+  i1 = state;
+  StoreU32(ctx, i0 + 16u, i1);
+  i0 = state;
+  i1 = l4;
+  StoreU32(ctx, i0 + 24u, i1);
+  block_33:;
+  i0 = state;
+  i1 = state;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = state;
+  i1 = state;
+  StoreU32(ctx, i0 + 8u, i1);
+  goto func_exit;
+  block_32:;
+  i0 = l4;
+  i0 = LoadU32(ctx, i0 + 8u);
+  block = i0;
+  i1 = state;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = l4;
+  i1 = state;
+  StoreU32(ctx, i0 + 8u, i1);
+  i0 = state;
+  i1 = 0u;
+  StoreU32(ctx, i0 + 24u, i1);
+  i0 = state;
+  i1 = l4;
+  StoreU32(ctx, i0 + 12u, i1);
+  i0 = state;
+  i1 = block;
+  StoreU32(ctx, i0 + 8u, i1);
+  block_0:;
+  func_exit:;
   LeaveFrame();
 }
-
-}  // namespace artc
+}

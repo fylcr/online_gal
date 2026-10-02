@@ -1,14 +1,35 @@
 # @online-gal/runtime-artemis
 
-Runtime support for the Artemis (舰队Collection / 苍翼) engine bridge.
+Recognition, PFS utilities, and modern browser-host work for the Artemis asyncify bridge.
 
-This package holds the **PFS reader** that the existing `src/index.ts` exports,
-the **modern host** under `src/host/` that replaces the official emscripten glue
-for the `fd` bucket, and — since the `runtime` / `eh` / `asyncify` / `async`
-buckets — the first host that **boots `bridge.wasm` with no official glue at
-all** and runs the guest's `main` to a return.
+## Current support boundary
 
-## The host, in one paragraph
+- [`src/index.ts`](src/index.ts) exports SHA-1, PFS, probe and provider code, not a complete host session.
+- [`ArtemisRuntime.load()`](src/runtime.ts) still throws `UnsupportedEngineError`.
+  Registering an `ArtemisEngineHost` does not implement that missing path; provider availability
+  is evaluated when the provider object is created, not as a live getter.
+- [`src/host/`](src/host/) contains an independently written host and boot/import-table components.
+  Boot traces and synthetic tests below are historical diagnostics, **not real-game acceptance**.
+- The shipping target is **asyncify handwritten C++ engine + independent modern host only**.
+  Official SDK/minified glue is retained for reference/diagnostics, not as a shipping host.
+- CI includes its `bridge.wasm` in this private package's `assets/`, but neither those bytes nor
+  a return from guest `main` makes the public runtime ready to play. Host/session integration,
+  handwritten cold-game acceptance and downloaded GitHub-artifact game verification remain open.
+- Root GPL-3.0-or-later does not grant redistribution rights to the retained SDK or automatically
+  settle the provenance of SDK-derived products. See [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md).
+
+Source and build navigation: [`Artemis guide`](../../ports/artemis/README.md) and
+[`source layout`](../../docs/source-layout.md). The detailed measurements below are retained as
+historical host-development records; they must not be read as a current end-to-end usability claim.
+
+## Historical host implementation snapshot
+
+The import counts and startup examples in this section describe the earlier diagnostic module,
+not the ABI of every newly built bridge. The calibrated asyncify bridge used in the later cold
+probe has **207 imports: 206 functions and one table**, not imported memory. Inspect the actual
+artifact before adapting the examples; these notes do not establish a usable public session.
+
+### The host, in one paragraph
 
 `bridge.wasm` declares 208 imports: 207 functions and one memory. The
 authoritative classification of those 207 is
