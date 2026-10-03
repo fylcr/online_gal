@@ -17,6 +17,7 @@
     "check:layout": "node scripts/check-layout.mjs",
     "check:sources": "node scripts/check-sources.mjs",
     "test:sources": "node --test test/check-sources.test.mjs",
+    "test:portable": "node scripts/run-portable-tests.mjs",
     "test": "npm run check:layout && npm run build:packages && node scripts/run-tests.mjs"
   },
   "devDependencies": {

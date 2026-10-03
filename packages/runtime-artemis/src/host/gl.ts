@@ -281,7 +281,7 @@ export interface ArtemisGlHost {
    * only exists after `WebAssembly.instantiate`, and the import table has to be built before that.
    * The table holds this object by reference and fills the field in afterwards.
    */
-  dynCallV?: (entry: number) => void;
+  dynCallV?: (entry: number) => void | Promise<void>;
   /**
    * The guest's `dynCall_iiii` — how every event callback is entered.
    *
@@ -297,7 +297,7 @@ export interface ArtemisGlHost {
    * table entry" and "the forwarder" fail differently and a report that cannot tell them apart cannot
    * tell a wrong index from a wrong arity.
    */
-  dynCallIiii?: (entry: number, a: number, b: number, c: number) => number;
+  dynCallIiii?: (entry: number, a: number, b: number, c: number) => number | Promise<number>;
   /**
    * How the last {@link ArtemisGlHost.dynCallIiii} call was routed — `table`, `forwarder`, both, or
    * `none`. A getter rather than a string so a caller reads the value at the moment it reports it, and
@@ -318,8 +318,57 @@ export interface ArtemisGlHost {
   readonly resizeCanvas?: boolean;
   /** `Module.forcedAspectRatio`, the only canvas-sizing policy the guest can set from JS. */
   readonly forcedAspectRatio?: number;
-  /** Reports a call this host could not serve, so a session can log it instead of swallowing it. */
+  /**
+   * The nineteen audio rows, supplied by a real audio host instead of this bucket's refusals.
+   *
+   * The table is checked for **all nineteen** short names at construction and a table missing any of
+   * them throws {@link ArtemisHostError}. This is the whole point of the field: the audio rows are one
+   * family, the guest's mixer drives them together, and a half-wired table is the failure this bucket
+   * exists to prevent — the rows that *did* get a body would play sound while the row that did not
+   * quietly reported a refusal mid-frame, so the game would be audible and half-deaf with nothing
+   * naming the row that was left out. All or nothing.
+   *
+   * A function is looked up **per call**, not captured, so a host object passed by reference can
+   * still have its rows filled in after the import table exists — the same late-binding reason as
+   * {@link ArtemisGlHost.dynCallV}.
+   */
+  readonly audioImports?: Readonly<Record<string, (...args: number[]) => number | void>>;
+/** Reports a call this host could not serve, so a session can log it instead of swallowing it. */
   readonly onBlocked?: (what: string, detail: string) => void;
+  /**
+   * Serializes one **whole** guest operation — a frame, or a DOM event delivery.
+   *
+   * Optional, and absent means "run inline", which is what every synchronous session and every
+   * existing test already does. When the session supplies it, the host never enters the guest from
+   * inside a frame or a listener: the whole unit is handed over, awaited there, and the host waits for
+   * {@link ArtemisGlHost.waitUntilIdle} before it schedules anything else. That is what keeps two frames
+   * from overlapping when the guest's import is itself asynchronous.
+   */
+  readonly enqueue?: (task: () => void | Promise<void>) => void | Promise<void>;
+  /** Resolves once the guest has no outstanding asynchronous work; awaited between frames and after events. */
+  readonly waitUntilIdle?: () => Promise<void>;
+  /** True after the session disposed the loop, so late frames and late DOM events become no-ops. */
+  readonly isDisposed?: () => boolean;
+  /** The guest allocator, for the five event blocks — and for the one best-effort release at dispose. */
+  free?: (ptr: number) => void;
+  /** Handed the loop's {@link ArtemisGlLifecycle} once the loop exists, so the session can control it. */
+  setLifecycle?: (controller: ArtemisGlLifecycle) => void;
+}
+
+/**
+ * The loop controller a session receives through {@link ArtemisGlHost.setLifecycle}.
+ *
+ * Deliberately three methods and no state: the session can pause for a tab switch, resume, and dispose
+ * for good. `dispose` is the only one that tears the listeners down — a pause is not a teardown, so a
+ * paused game resumes with its canvas listeners, its GL state and its event blocks intact.
+ */
+export interface ArtemisGlLifecycle {
+  /** Stop entering the guest and cancel any pending frame. Idempotent. */
+  pause(): void;
+  /** Start again with **exactly one** pending frame, if the loop is installed, running and not disposed. */
+  resume(): void;
+  /** Idempotent teardown: stop the loop, cancel the pending frame, detach every listener, free the blocks. */
+  dispose(): void | Promise<void>;
 }
 
 /** Just enough of `window` for the listener registration `_glfwInit` performs. */
@@ -413,7 +462,13 @@ const GL_FRAMEBUFFER_COMPLETE = 36053;
 /** Builds the `gl` import table for one instance. */
 export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
   const { memory } = host;
-  const report = (what: string, detail: string): void => host.onBlocked?.(what, detail);
+  const report = (what: string, detail: string): void => {
+    try {
+      host.onBlocked?.(what, detail);
+    } catch {
+      // A diagnostic sink that throws must not become the failure it was describing.
+    }
+  };
 
   /**
    * Refusal reporting, once per short name.
@@ -856,6 +911,204 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
     currentFrameNumber: 0,
     tickStartTime: 0,
     running: false,
+    paused: false,
+    disposed: false,
+    /**
+     * Bumped whenever a pause, a dispose or a resume invalidates whatever was already scheduled.
+     *
+     * `requestFrame` returns nothing — the session owns the cancel, because only it knows whether a
+     * rAF handle or a timer id is what it handed out. So the session cannot be told "cancel this one";
+     * instead every scheduled tick captures the generation it was scheduled under and the tick itself
+     * compares. A tick whose generation is stale runs, finds nothing to do and returns without entering
+     * the guest, which is the only shape that works when the sender cannot be revoked.
+     */
+    generation: 0,
+    /** 1 while a frame is scheduled but has not run yet, 0 otherwise. Prevents two outstanding frames. */
+    tickPending: 0,
+    /**
+     * 1 while an asynchronous frame has been *entered* but has not settled.
+     *
+     * `ticking` cannot serve here: it is cleared in `runMainLoop`'s `finally`, i.e. the moment the
+     * synchronous part of the tick returns, which for an async host is long before the guest's own
+     * `dynCallV` promise has settled. A pause arriving in that window finds `tickPending` clear (the
+     * tick that started the frame consumed it) and sets no `oweFrame`, and the frame's own pump then
+     * sees `paused` and declines to arm — so the loop would stall forever with a frame in flight and
+     * nothing to repay it. This flag is what makes that window observable.
+     */
+    frameInFlight: 0,
+    /** True while the runner is inside a tick. `resume()` refuses to run inside one. */
+    ticking: false,
+    /** A pending frame was cancelled rather than consumed, so `resume()` owes the guest one. */
+    oweFrame: false,
+  };
+
+  const isDisposed = (): boolean => mainLoop.disposed || host.isDisposed?.() === true;
+
+  /**
+   * Runs `task` through the session's serializer when there is one.
+   *
+   * Two reasons this is a helper rather than an `enqueue?.(…)` at each site. The synchronous case has
+   * to stay synchronous all the way out — a session with neither `enqueue` nor a promise-returning
+   * `dynCallV` must keep the exact call shape it has today — and the returned value has to be adopted
+   * immediately so a rejected promise inside the task cannot become an unhandled rejection.
+   */
+  const serialize = (task: () => void | Promise<void>): void | Promise<void> => {
+    if (!host.enqueue) return task();
+    return host.enqueue(task);
+  };
+
+  /**
+   * Adopts a value that may or may not be a promise, reporting a rejection instead of leaking it.
+   *
+   * A guest fault thrown synchronously is *not* routed here: it propagates as it always did, because
+   * the loop's own `try`/`catch` and the session's event dispatch are where a synchronous throw is
+   * supposed to land. This is only for the terminal promise, whose rejection would otherwise be an
+   * unhandled rejection that tears down a Node session with no game state in it.
+   */
+  const settle = (value: void | Promise<void>): void | Promise<void> => {
+    if (!value || typeof (value as Promise<void>).then !== 'function') return undefined;
+    return (value as Promise<void>).then(undefined, (error: unknown) => {
+      report('main loop', `an asynchronous frame or event failed with ${describeFault(error)}`);
+    });
+  };
+
+  /** Hands one unit to the session serializer, adopting any promise. Used by the event path. */
+  const enqueueUnit = (task: () => void | Promise<void>): void => {
+    try {
+      settle(serialize(task));
+    } catch (error) {
+      report('event', `an event handler threw ${describeFault(error)}`);
+    }
+  };
+
+  /**
+   * Resolves once the guest imports are idle, or immediately when the session has no such notion.
+   *
+   * The returned promise is handed straight back rather than routed through {@link settle}: a caller
+   * that asked whether the guest is idle has to receive the real rejection, or a failed wait would
+   * look like a successful one and the next frame would be armed on top of it.
+   */
+  const idle = (): void | Promise<void> => {
+    const wait = host.waitUntilIdle;
+    if (!wait) return undefined;
+    // A synchronous throw is handed to the caller rather than reported and turned into `undefined`:
+    // `undefined` reads as "the wait succeeded", and every caller would pump the next frame on top of
+    // a wait that never finished.
+    return wait();
+  };
+
+  /**
+   * Stops the loop after a failed frame or a failed wait, and says why.
+   *
+   * `running = false` and `func = null` are both set *before* the report: the report is an arbitrary
+   * host callback, and a loop left armed while it runs could be revived by a `resume()` or armed by a
+   * `requestFrame` that fires inside it.
+   */
+  const failFrame = (error: unknown): void => {
+    mainLoop.running = false;
+    mainLoop.func = null;
+    report('main loop', `an asynchronous frame failed with ${describeFault(error)}`);
+  };
+
+  /**
+   * Runs the guest frame and, only once it has fully finished, schedules the next one.
+   *
+   * `enterFrame` is where the "do not enter a reentrant guest" rule is enforced: the guest is only ever
+   * reached from a serialized unit, so a frame cannot overlap an in-flight event delivery. It runs the
+   * guest and waits for its outstanding work, and **nothing else** — the decision to arm the next frame
+   * belongs to `runMainLoop`, which owns the completion exactly once. A pump here would be a second
+   * owner, and a second owner is how a frame gets armed while `frameInFlight` is still set.
+   */
+  const enterFrame = (): void | Promise<void> => {
+    if (!mainLoop.running || mainLoop.paused || isDisposed()) return undefined;
+    const func = mainLoop.func;
+    if (func === null) return undefined;
+    let result: void | Promise<void>;
+    try {
+      result = host.dynCallV?.(func);
+    } catch (error) {
+      // The guest's own `"unwind"` arriving *here* is not a fault and not a failed frame: it is the same
+      // healthy control flow as the one that propagates out of the runner, only raised by the frame
+      // function itself. The loop survives it, and it never reaches `host.enqueue`'s promise — the throw
+      // stays inside `enterFrame` by design, so a serializer cannot mistake it for a fatal queue error.
+      // It is settled through `idle()` exactly like a returned frame, because the guest did return from
+      // its frame: what remains is only the outstanding work the guest left behind.
+      if (error === 'unwind') return idle();
+      if (!isGuestFault(error)) throw error;
+      mainLoop.running = false;
+      mainLoop.func = null;
+      report(
+        'main loop',
+        `frame ${mainLoop.currentFrameNumber} trapped with ${describeFault(error)}; the loop is ` +
+          'stopped because a trapped frame leaves the GL state and the guest heap meaningless',
+      );
+      return undefined;
+    }
+    const waitForResult = (): void | Promise<void> => {
+      if (result && typeof (result as Promise<void>).then === 'function') {
+        return (result as Promise<void>).then(
+          () => idle(),
+          // A *rejected* literal `"unwind"` is the same healthy control flow as the thrown one: the frame
+          // settled, the loop keeps running, and — like the synchronous case above — the idle wait still
+          // has to be honoured before the next frame is armed. Every other rejection, including
+          // `undefined`, is terminal and is re-thrown untouched for the completion owner to record.
+          (error: unknown) => {
+            if (error !== 'unwind') throw error;
+            return idle();
+          },
+        );
+      }
+      // Each step is isolated so a synchronous failure still propagates: a throwing `waitUntilIdle`,
+      // or a `waitUntilIdle` read after the frame, must reach the completion owner rather than leave a
+      // frame flagged as in flight whose wait never completed.
+      const waited = idle();
+      if (waited && typeof waited.then === 'function') return waited;
+      return undefined;
+    };
+    return waitForResult();
+  };
+
+  /**
+   * Settles one frame, **once**, and decides what the loop does next.
+   *
+   * This is the only place `frameInFlight` is cleared and the only place a frame is armed, and that
+   * single ownership is the whole point. A pause or a dispose that arrives while the unit is in flight
+   * wins, because both are re-read here rather than at the moment the frame started: a positive
+   * `frameInFlight` means the guest still owns a frame, so instead of arming a second one the loop
+   * records the debt in `oweFrame` and leaves the repayment to `resume()`.
+   */
+  const failedFrame = (error: unknown): void => {
+    mainLoop.frameInFlight = 0;
+    failFrame(error);
+  };
+
+  const completeFrame = (): void => {
+    mainLoop.frameInFlight = 0;
+    if (!mainLoop.running || isDisposed()) return;
+    if (mainLoop.paused) {
+      mainLoop.oweFrame = true;
+      return;
+    }
+    mainLoop.oweFrame = false;
+    scheduleFrame();
+  };
+
+  /**
+   * Settles the frame through the idle barrier: the guest's `"unwind"` is healthy control flow, and the
+   * wait the guest left behind still has to finish before the next frame is armed. `frameInFlight` stays
+   * set for the whole wait, so a pause or a resume arriving in between finds a frame it must not arm
+   * over. The subscription happens before any synchronous throw can escape, and every rejection —
+   * including a bare `undefined` — is terminal.
+   */
+  const completeAfterIdle = (error: unknown): void => {
+    try {
+      const waited = idle();
+      if (waited && typeof (waited as Promise<void>).then === 'function') {
+        void (waited as Promise<void>).then(() => completeFrame(), failed => failedFrame(failed));
+      } else completeFrame();
+    } catch (failure) {
+      failedFrame(failure);
+    }
   };
 
   /**
@@ -876,9 +1129,30 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
    * `RuntimeError` of any other kind) stops the loop and records the row, because after a trap the
    * frame number, the GL state and the guest heap are all meaningless and continuing would only
    * manufacture a second, less honest failure on top of the first.
+   *
+   * The tick is a *claim* on the pending slot, not a frame: a stale generation (a pause, a dispose or a
+   * resume that happened after this tick was armed) or a pause in force consumes the claim and returns
+   * without entering the guest at all. That claim is also what makes `pause` able to tell "a frame is
+   * scheduled" (repay on resume) from "a frame is running" (`frameInFlight`, repay at completion).
+   *
+   * A failed frame stops the loop through {@link completeFrame}, on **both** paths — the synchronous
+   * one and the adopted promise. A `settle`-style handler is the wrong instrument here and was the
+   * defect: it turns a rejection into a log line and resolves, so a frame that failed asynchronously
+   * left `running` true and the loop armed on top of a guest that never finished its frame. The
+   * synchronous failure is worth propagating as well and it is *not* what this changes: a synchronous
+   * throw out of `serialize` still leaves this function the way it always did, and the caller sees it,
+   * but the frame is settled and the loop stopped first so it cannot be re-entered on top of.
+   *
+   * The guest's own `"unwind"` is not a failure and is never routed to `failFrame`: it is the official
+   * main-loop throw, i.e. healthy control flow, and a string is exactly how both the guest and the
+   * official glue spell it. It *does* settle the frame like any other return, because the guest did
+   * return from `dynCall_v` — only the loop's `running` flag survives it, which is what keeps a
+   * later `resume()` able to arm the next one.
    */
-  const runMainLoop = (): void => {
-    if (!mainLoop.running) return;
+  const runMainLoop = (generation: number): void => {
+    if (generation !== mainLoop.generation) return;
+    if (!mainLoop.running || mainLoop.paused || isDisposed()) return;
+    mainLoop.tickPending = 0;
     mainLoop.currentFrameNumber = (mainLoop.currentFrameNumber + 1) | 0;
     if (
       mainLoop.timingMode === MAIN_LOOP_RAF_MODE &&
@@ -889,22 +1163,48 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
       return;
     }
     if (mainLoop.timingMode === 0) mainLoop.tickStartTime = (host.now ?? Date.now)();
-    const func = mainLoop.func;
-    if (func !== null) {
-      try {
-        host.dynCallV?.(func);
-      } catch (error) {
-        if (!isGuestFault(error)) throw error;
-        mainLoop.running = false;
-        mainLoop.func = null;
-        report(
-          'main loop',
-          `frame ${mainLoop.currentFrameNumber} trapped with ${describeFault(error)}; the loop is ` +
-            'stopped because a trapped frame leaves the GL state and the guest heap meaningless',
-        );
-        return;      }
+    // Marked before the unit is serialized, so a pause arriving between this line and the guest's
+    // first instruction still finds a frame to repay instead of a clear slot it can arm over.
+    mainLoop.frameInFlight = 1;
+    mainLoop.ticking = true;
+    let outcome: void | Promise<void>;
+    try {
+      outcome = serialize(enterFrame);
+    } catch (error) {
+      // Only a `serialize` that throws the guest's own literal `"unwind"` is healthy here. Any other
+      // throw — a wasm trap, `undefined`, anything unrecognised — is a failed frame: the loop stops and
+      // the frame is settled *before* the original error is handed back to the caller. Testing
+      // `isGuestFault` instead would invert this exactly, because `"unwind"` is a string and a string is
+      // precisely what that predicate does *not* call a fault.
+      if (error !== 'unwind') {
+        failedFrame(error);
+        throw error;
+      }
+      // Deliberately left to propagate: this is the runner's own throw, and dropping it would change the
+      // synchronous shape the sibling test pins. What matters is that the frame is settled once, here,
+      // rather than re-entered by the catch.
+      completeAfterIdle(error);
+      throw error;
+    } finally {
+      mainLoop.ticking = false;
     }
-    scheduleFrame();
+    if (outcome && typeof (outcome as Promise<void>).then === 'function') {
+      // Adopted here rather than through `settle`: a rejected frame must stop the loop, and the frame
+      // must not be reported as settled before the scheduler has actually run.
+      void (outcome as Promise<void>).then(
+        () => completeFrame(),
+        // The serialized frame rejected. A literal `"unwind"` is the healthy control signal, so it
+        // settles the frame and lets the loop arm the next one; everything else is terminal and stops
+        // the loop. The distinction is made on the exact value, never on `instanceof`, so a rejection
+        // carrying `undefined` still fails the frame instead of being mistaken for a healthy return.
+        (error: unknown) => {
+          if (error === 'unwind') completeAfterIdle(error);
+          else failedFrame(error);
+        },
+      );
+    } else {
+      completeFrame();
+    }
   };
 
   /**
@@ -945,9 +1245,12 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
   };
 
   const scheduleFrame = (): void => {
-    if (!mainLoop.running) return;
+    if (!mainLoop.running || mainLoop.paused || isDisposed()) return;
+    if (mainLoop.tickPending || mainLoop.frameInFlight) return;
     if (host.requestFrame) {
-      host.requestFrame(runMainLoop);
+      mainLoop.tickPending = 1;
+      const generation = mainLoop.generation;
+      host.requestFrame(() => runMainLoop(generation));
       return;
     }
     // No frame source (a headless host): the loop is installed and armed, but nothing pumps it. The
@@ -955,6 +1258,135 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
     // that matters; reporting keeps "it never drew" from looking like a bug.
     refuse('_b', 'installed a main loop with no frame source, so frames run only when pumped manually');
   };
+
+  /**
+   * Removes every listener the eleven `__emscripten_set_*_callback_on_thread` rows registered.
+   *
+   * A `function` declaration rather than a `const` arrow on purpose: `dispose` may run before the
+   * `jsEvents` object it walks is initialized, and hoisting keeps that from being a temporal-dead-zone
+   * throw in a path whose entire job is to not throw.
+   */
+  function detachAllEventHandlers(): void {
+    for (const handler of jsEvents.eventHandlers.splice(0)) {
+      if (handler.listener) {
+        handler.target.removeEventListener(
+          handler.eventTypeString,
+          handler.listener,
+          handler.useCapture,
+        );
+      }
+    }
+  }
+
+  /** `free(ptr)` for each of the five owned blocks, once; ids are cleared first so a retry is a no-op. */
+  function freeEventBlocks(): void {
+    const blocks = [
+      jsEvents.mouseEvent,
+      jsEvents.keyEvent,
+      jsEvents.wheelEvent,
+      jsEvents.touchEvent,
+      jsEvents.visibilityChangeEvent,
+    ];
+    jsEvents.mouseEvent = 0;
+    jsEvents.keyEvent = 0;
+    jsEvents.wheelEvent = 0;
+    jsEvents.touchEvent = 0;
+    jsEvents.visibilityChangeEvent = 0;
+    const free = host.free;
+    if (!free) return;
+    for (const block of blocks) {
+      if (!block) continue;
+      try {
+        free(block);
+      } catch (error) {
+        report('event', `could not free the event block at ${block}: ${describeFault(error)}`);
+      }
+    }
+  }
+
+  /**
+   * The lifecycle controller, built once the loop object exists and handed to the session.
+   *
+   * `pause` deliberately does **not** touch the listeners: `_glfwTerminate` and the GL context survive a
+   * pause, so a tab that becomes visible again resumes into the same game rather than a torn-down one.
+   * What a pause does invalidate is every frame that was already armed — hence the generation bump —
+   * and `resume` pays back the frame the cancelled tick would have run under exactly one condition:
+   * `oweFrame`, which is only set when the pending frame was cancelled rather than consumed. A stale
+   * generation that fires on its own finds `tickPending` clear and returns without entering the guest,
+   * so the two paths cannot both arm a frame.
+   *
+   * `dispose` is idempotent and terminal. It is the only place listeners come off, and the only place
+   * the five event blocks are released — after `waitUntilIdle`, never before, because a parked root
+   * still points into them.
+   */
+  const lifecycle: ArtemisGlLifecycle = {
+    pause: (): void => {
+      if (mainLoop.disposed) return;
+      mainLoop.paused = true;
+      mainLoop.generation += 1;
+      if (mainLoop.tickPending) {
+        mainLoop.tickPending = 0;
+        mainLoop.oweFrame = true;
+      }
+      // A frame is scheduled but not yet run, or a frame has been entered and has not settled. Either
+      // way the loop owes the guest exactly one frame, and the two conditions are distinct: a tick that
+      // already consumed `tickPending` and is sitting inside the guest must still be repaid, or the
+      // loop stalls with a frame in flight and nothing left to pump it.
+      if (mainLoop.tickPending || mainLoop.frameInFlight) mainLoop.oweFrame = true;
+    },
+    resume: (): void => {
+      if (mainLoop.disposed || !mainLoop.paused) return;
+      mainLoop.paused = false;
+      mainLoop.generation += 1;
+      mainLoop.tickPending = 0;
+      if (mainLoop.running && mainLoop.func !== null) scheduleFrame();
+    },
+    dispose: (): void | Promise<void> => {
+      if (mainLoop.disposed) return undefined;
+      mainLoop.disposed = true;
+      mainLoop.running = false;
+      mainLoop.paused = true;
+      mainLoop.func = null;
+      mainLoop.generation += 1;
+      mainLoop.tickPending = 0;
+      mainLoop.frameInFlight = 0;
+      mainLoop.oweFrame = false;
+      detachAll();
+      detachAllEventHandlers();
+      // Releasing the event blocks is the last step of the returned promise: the guest may still be
+      // inside a frame or a listener when dispose is called, and that code holds live pointers. A
+      // synchronous `waitUntilIdle` puts us on the same turn as that guest code, so a throw from it
+      // must be reported and the blocks released anyway — a dispose that leaked five guest heap
+      // blocks because the wait was inconvenient is worse than the throw it was reporting.
+      const release = (): void => {
+        try {
+          freeEventBlocks();
+        } catch (error) {
+          report('event', `dispose could not release the event blocks: ${describeFault(error)}`);
+        }
+      };
+      let waited: void | Promise<void>;
+      try {
+        waited = idle();
+      } catch (error) {
+        report('event', `a synchronous waitUntilIdle failed during dispose: ${describeFault(error)}`);
+        release();
+        return undefined;
+      }
+      if (waited && typeof waited.then === 'function') return waited.then(release, release);
+      release();
+      return undefined;
+    },
+  };
+
+  /** Hands the controller to the session once. The session owns the scheduling around it. */
+  function registerLifecycle(): void {
+    try {
+      host.setLifecycle?.(lifecycle);
+    } catch (error) {
+      report('lifecycle', `setLifecycle threw ${describeFault(error)}`);
+    }
+  }
 
   /**
    * `_emscripten_set_main_loop_timing(mode, value)`.
@@ -1214,8 +1646,12 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
       if (fps > 0) setMainLoopTiming(0, 1000 / fps);
       else setMainLoopTiming(MAIN_LOOP_RAF_MODE, 1);
       // The first frame runs synchronously, so a headless session can see the guest draw once rather
-      // than waiting for a scheduler that may not exist.
-      runMainLoop();
+      // than waiting for a scheduler that may not exist. Note that the frame itself may be asynchronous
+      // now: `runMainLoop` adopts that promise, and the *scheduling* of the following frame is inside it
+      // and therefore also after the promise settles. This import never returns a promise — the throw
+      // below has to stay synchronous for the guest, which is the one part of the contract that cannot
+      // move — so the frame's tail is reachable only through the loop's own pump.
+      runMainLoop(mainLoop.generation);
       if (simulateInfiniteLoop) throw 'unwind';
     },
 
@@ -1806,6 +2242,78 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
     visibilityChangeEvent: 0,
     eventHandlers: [] as GlEventHandler[],
   };
+  /**
+   * Allocates one of the five event blocks, validating the address before anything may keep it.
+   *
+   * `host.malloc` is guest-adjacent code reached through the session: the wasm unmarshal contract is
+   * that a plain `number` inside `[-0x80000000, 0xffffffff]` is an i32 pointer, so anything else — a
+   * string, `NaN`, a fraction, a value outside that window — is not an address at all and must never
+   * reach a slot the guest is entered with. `>>> 0` normalises the signed form to the unsigned one the
+   * heap views take; 0 stays 0 in both forms, which is the glue's own "no block" value.
+   *
+   * The range check runs *after* `memory.refresh()`, because the allocation may have grown the heap and
+   * a stale `byteLength` would reject an address that is now valid. Zero is never a valid address
+   * either: `malloc(0)` and a null return are the same pointer, and both mean there is no block.
+   *
+   * **Ownership begins at the coercion, not at the return.** The allocator has already run guest code
+   * by the time it answers, so the moment its answer is accepted as an address — numeric, integer,
+   * non-zero, in the wasm i32 window, aligned, and inside the heap — that block belongs to this host
+   * and every path out of here either returns it or releases it **exactly once**. `refresh` and
+   * `assertRange` are exactly the two calls that can still refuse after the answer was accepted (a
+   * detached buffer, a heap that shrank), and only those two release: a value refused *before*
+   * ownership began was never an allocation this host owns, so it is dropped without a `free`, and an
+   * arbitrary integer — `NaN>>>0` is 0, `1e21>>>0` is a plausible-looking address — can never reach
+   * `free` at all. One release, and its own failure is reported beside the primary diagnosis rather
+   * than retried: `free` is not idempotent, so a second call would be a double free, which corrupts
+   * the heap this whole file exists to protect.
+   *
+   * Returns the normalized address, or 0. The caller returns its row's error code and installs **no
+   * listener** on 0, so a registration can never claim a success it did not perform.
+   */
+  const allocateEvent = (size: number): number => {
+    const malloc = host.malloc;
+    if (!malloc) return 0;
+    let pointer: unknown;
+    try {
+      pointer = malloc(size);
+    } catch (error) {
+      report('event', `malloc(${size}) threw ${describeFault(error)}`);
+      return 0;
+    }
+    // Rejected as "not an address at all", before ownership: nothing is freed, because there is
+    // nothing this host may claim as its own.
+    if (typeof pointer !== 'number' || !Number.isInteger(pointer)) return 0;
+    if (pointer === 0 || pointer < -0x80000000 || pointer > 0xffffffff) return 0;
+    const address = pointer >>> 0;
+    // 4-byte alignment for every block; the wheel block's f64 deltas need 8 or a Float64Array view
+    // over it faults.
+    if (address % (size === 96 ? 8 : 4) !== 0) return 0;
+    // Ownership starts here. The two calls below are the only ones that can still refuse an address
+    // this host already owns, and a refusal releases it once rather than leaking it.
+    try {
+      memory.refresh();
+      memory.assertRange(address, size);
+    } catch (error) {
+      const free = host.free;
+      if (free) {
+        try {
+          free(address);
+        } catch (freeError) {
+          report(
+            'event',
+            `free(${address}) after a refused ${size}-byte event block threw ${describeFault(freeError)}`,
+          );
+        }
+      }
+      report(
+        'event',
+        `the ${size}-byte event block at ${address} is outside the heap, so it was released ` +
+          `(${describeFault(error)})`,
+      );
+      return 0;
+    }
+    return address;
+  };
 
   /** The glue's `eventHandler` record. `allowsDeferredCalls` is recorded because it is load-bearing. */
   interface GlEventHandler {
@@ -1813,7 +2321,9 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
     allowsDeferredCalls: boolean;
     eventTypeString: string;
     callbackfunc: number;
-    handlerFunc: (event: unknown) => void;
+    handlerFunc: (event: unknown) => void | Promise<void>;
+    /** Runs at arrival, in the listener, and its value is what the queued unit receives. */
+    capture?: (event: unknown) => unknown;
     useCapture: boolean;
     listener?: (event: unknown) => void;
   }
@@ -1871,6 +2381,41 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
     onTarget?: number;
   }
 
+  /**
+   * `preventDefault` pulled off the *original* DOM event and bound to it.
+   *
+   * The queued unit never holds the event object — the whole point of capturing is that the unit runs
+   * after the dispatch is over — so the receiver is kept here, in the closure, bound to its owner. A
+   * function lifted without `bind` would throw on the first `preventDefault()` the guest earned.
+   */
+  const bindPreventDefault = (event: unknown): (() => void) | undefined => {
+    const original = (event as { preventDefault?: unknown } | null)?.preventDefault;
+    if (typeof original !== 'function') return undefined;
+    return (original as () => void).bind(event);
+  };
+
+  /** What a touch event is reduced to at arrival: the scalar fields and the three copied lists. */
+  interface TouchCapture {
+    touches: GlDomTouch[];
+    changedTouches: GlDomTouch[];
+    targetTouches: GlDomTouch[];
+    ctrlKey: number;
+    shiftKey: number;
+    altKey: number;
+    metaKey: number;
+    preventDefault: () => void;
+  }
+
+  /** The never-throws stand-in for a captured event whose original had no `preventDefault`. */
+  const noPreventDefault = (): void => {};
+
+  /** What a visibility event is reduced to at arrival: the two scalars and the bound `preventDefault`. */
+  interface VisibilityCapture {
+    hidden: number;
+    stateIndex: number;
+    preventDefault: () => void;
+  }
+
   /** `__getBoundingClientRect(e)` — the two special targets have no box, and the glue says so. */
   const getBoundingClientRect = (target: GlEventTarget): { left: number; top: number } => {
     if (target === host.document || target === host.window) return { left: 0, top: 0 };
@@ -1886,19 +2431,47 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
    * callback: re-registering the same event type replaces rather than accumulates.
    */
   const registerOrRemoveHandler = (eventHandler: GlEventHandler): void => {
-    if (!eventHandler.callbackfunc) {
-      for (let i = 0; i < jsEvents.eventHandlers.length; i += 1) {
-        const other = jsEvents.eventHandlers[i];
-        if (other && other.target === eventHandler.target && other.eventTypeString === eventHandler.eventTypeString) {
-          if (other.listener) other.target.removeEventListener(other.eventTypeString, other.listener, other.useCapture);
-          jsEvents.eventHandlers.splice(i, 1);
-          i -= 1;
-        }
+    // Unconditional, and *before* the `callbackfunc` test: a 0 is the unregister request, but a
+    // new callback replaces rather than accumulates, so the pair's previous listener comes off in
+    // both cases. Without this, re-registering the same (target, eventTypeString) left the old
+    // listener installed and the page fed two callbacks into one guest.
+    for (let i = 0; i < jsEvents.eventHandlers.length; i += 1) {
+      const other = jsEvents.eventHandlers[i];
+      if (other && other.target === eventHandler.target && other.eventTypeString === eventHandler.eventTypeString) {
+        if (other.listener) other.target.removeEventListener(other.eventTypeString, other.listener, other.useCapture);
+        jsEvents.eventHandlers.splice(i, 1);
+        i -= 1;
       }
-      return;
     }
+    if (!eventHandler.callbackfunc) return;
+    /**
+     * The listener queues the **whole** handler, not just the guest call.
+     *
+     * The tempting shape is to fill the reusable heap block here, in the listener, and queue only the
+     * `dynCall_iiii` — that is how the official glue is written, because there the queue is only ever
+     * drained by another *event*, on the same thread, with the heap untouched in between. That
+     * assumption is false for a session serializer that can yield: by the time the queued call runs,
+     * the guest may have grown or moved the heap (which detaches every typed-array view) or another
+     * delivery may have overwritten the shared block. Filling inside the queued unit is what makes
+     * "read the event, write the block, enter the guest" one indivisible step, which is the only order
+     * in which the pointer handed to the guest still describes the event that was queued.
+     *
+     * `memory.refresh()` is called before the fill for the same reason: the views this closure captured
+     * are re-derived from the current `WebAssembly.Memory` buffer every time, so a growth is invisible
+     * to the caller rather than fatal.
+     *
+     * The state recheck lives here too. A pause and a dispose both mean "the guest must not be entered",
+     * and neither can un-queue a listener the DOM already invoked — so the check happens at run time,
+     * immediately before the guest call, and a late event after dispose is dropped silently.
+     */
     const listener = (event: unknown): void => {
-      eventHandler.handlerFunc(event);
+      if (mainLoop.disposed || isDisposed() || mainLoop.paused) return;
+      // The capture runs HERE, while the event is still being dispatched, so it sees arrival values.
+      const captured = eventHandler.capture ? eventHandler.capture(event) : event;
+      enqueueUnit(() => {
+        if (mainLoop.disposed || isDisposed() || mainLoop.paused) return undefined;
+        return eventHandler.handlerFunc(captured);
+      });
     };
     eventHandler.listener = listener;
     eventHandler.target.addEventListener(eventHandler.eventTypeString, listener, eventHandler.useCapture);
@@ -1912,28 +2485,41 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
    * `preventDefault` — the guest cannot reach the DOM event any other way. A guest fault inside the
    * callback must not be reported as a registration problem, so it propagates to the session's own
    * event loop, which is where a real browser would surface it.
+   *
+   * The return slot grew a promise along with `dynCallIiii`, and `preventDefault` waits for it for the
+   * same reason the fill does: the answer is the guest's verdict on the event, and defaulting before
+   * the guest has given it would fight the guest. A sync host sees the identical call it saw before —
+   * the compare-and-default happens inline, with no promise and no extra turn.
+   *
+   * The parameter is deliberately `Pick<GlDomEvent, 'preventDefault'>` and not a `GlDomEvent`: the
+   * only thing this row is still allowed to touch is the default action, and the two families that
+   * passed a captured event here hold a *reduction* of the DOM event, not the event — `TouchCapture`
+   * carries numeric ctrl/shift/alt/meta bits and `VisibilityCapture` carries `hidden`, neither of
+   * which is a field of `GlDomEvent`. Asking for the full event forced every caller to launder its
+   * capture back into a DOM shape it never had; narrowing to the one member that is actually used
+   * makes the capture assignable as-is, and makes the constraint true rather than appeased.
    */
   const callHandler = (
     callbackfunc: number,
     eventTypeId: number,
     block: number,
     userData: number,
-    event: GlDomEvent,
-  ): void => {
+    event: Pick<GlDomEvent, 'preventDefault'>,
+  ): void | Promise<void> => {
     const dynCallIiii = host.dynCallIiii;
     if (!dynCallIiii) {
       refuse('event', 'has no dynCall_iiii, so an event handler could be registered but never entered');
-      return;
+      return undefined;
     }
     /**
-     * Recorded BEFORE the call, and that order is the point.
-     *
-     * A fault thrown out of the guest callback is the one thing this row most needs to explain, and
-     * Chrome's stack for it only names frames. Recording after the call meant the one run that actually
-     * trapped never wrote a reading: the guest's index, its event-type id, the block we handed it and
-     * the `userData` it gave us are the four numbers that separate "the guest registered a bad table
-     * slot" from "we called a good slot with the wrong argument list", and a fault is exactly when
-     * they are wanted.
+     * The four numbers are recorded **whether or not the call succeeds**, and they are kept in the
+     * local below rather than pushed into the blocked trace. An earlier version reported them through
+     * `report('event', …)` before and after the call, which put *every healthy event delivery* into
+     * the blocked trace — a mouse move put two lines in it — and buried the one line that matters. A
+     * delivered event is not a blocked row, so it is not reported as one. The values still name the
+     * guest's index, its event-type id, the block we handed it and the `userData` it gave us, which is
+     * what a fault needs, and the fault itself is what surfaces them: it propagates out of the guest
+     * call unchanged.
      *
      * The value is the table index the guest handed us, not an address: the guest passes its event
      * callbacks as real entries of its own function table (the shipped bridge exports that table as
@@ -1942,10 +2528,21 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
      * answer "wrong slot" from the numbers alone, with no need to guess which half of the contract
      * broke.
      */
-    report('event', `dynCall_iiii(${callbackfunc | 0}, ${eventTypeId}, ${block}, ${userData | 0}) via ${host.dynCallIiiiRoute?.() ?? 'unknown'}`);
-    if (dynCallIiii(callbackfunc | 0, eventTypeId, block, userData | 0)) {
-      event.preventDefault?.();
+    const entered = `dynCall_iiii(${callbackfunc | 0}, ${eventTypeId}, ${block}, ${userData | 0})`;
+    const result = dynCallIiii(callbackfunc | 0, eventTypeId, block, userData | 0);
+    const honour = (consumed: number | Promise<number> | void): void => {
+      if (consumed) event.preventDefault?.();
+    };
+    if (result && typeof (result as Promise<number>).then === 'function') {
+      const waited: Promise<void> = (result as Promise<number>).then((consumed) => {
+        honour(consumed);
+        return idle() as void | Promise<void>;
+      });
+      return waited;
     }
+    honour(result as number);
+    const waited = idle();
+    return waited;
   };
 
   /** The five block fillers, each writing the glue's field order exactly. */
@@ -2012,22 +2609,30 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
     eventTypeId: number,
     eventTypeString: string,
   ): number => {
-    if (!jsEvents.mouseEvent) {
-      if (!host.malloc) {
-        refuse(eventTypeString, 'has no malloc, so it answered -4 rather than registering a handler with no block');
-        return -4;
-      }
-      jsEvents.mouseEvent = host.malloc(64);
-    }
+    const useCaptureFlag = useCapture !== 0;
+    // The target is resolved before anything is allocated, and that order is the row's own contract:
+    // `callbackfunc === 0` is an *unregister*, which must remove the listener on the same (target,
+    // event type) pair without allocating a block it will never fill and without claiming a success
+    // it did not perform.
     const element = findEventTarget(target) as GlEventTarget | null;
     if (!element) {
       refuse(eventTypeString, 'resolved no event target, so it answered -4 rather than registering');
       return -4;
     }
-    const handlerFunc = (ev: unknown): void => {
+    // Allocate only for a registration, and only when its family has no block yet.
+    if (callbackfunc && !jsEvents.mouseEvent) {
+      const block = allocateEvent(64);
+      if (!block) {
+        refuse(eventTypeString, 'could not allocate a valid 64-byte event block, so it answered -4');
+        return -4;
+      }
+      jsEvents.mouseEvent = block;
+    }
+    const handlerFunc = (ev: unknown): void | Promise<void> => {
       const event = (ev ?? {}) as GlDomEvent;
+      memory.refresh();
       fillMouseEventData(jsEvents.mouseEvent, event, element);
-      callHandler(callbackfunc, eventTypeId, jsEvents.mouseEvent, userData, event);
+      return callHandler(callbackfunc, eventTypeId, jsEvents.mouseEvent, userData, event);
     };
     registerOrRemoveHandler({
       target: element,
@@ -2035,7 +2640,7 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
       eventTypeString,
       callbackfunc,
       handlerFunc,
-      useCapture: useCapture !== 0,
+      useCapture: useCaptureFlag,
     });
     return 0;
   };
@@ -2049,24 +2654,39 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
     eventTypeId: number,
     eventTypeString: string,
   ): number => {
-    if (!jsEvents.keyEvent) {
-      if (!host.malloc) {
-        refuse(eventTypeString, 'has no malloc, so it answered -4 rather than registering a handler with no block');
+    const useCaptureFlag = useCapture !== 0;
+    /**
+     * The target is resolved **before** the block, and the missing `as GlEventTarget` cast was the bug
+     * this ordering fixes: a guest that passes an unresolvable target — `0`, or a selector nothing
+     * matches — used to reach `registerOrRemoveHandler` with `null` and throw out of the import, which
+     * is not an answer the glue ever gives. It answers `-4` and installs nothing.
+     */
+    const element = findEventTarget(target) as GlEventTarget | null;
+    if (!element) {
+      refuse(eventTypeString, 'resolved no event target, so it answered -4 rather than registering');
+      return -4;
+    }
+    if (callbackfunc && !jsEvents.keyEvent) {
+      const block = allocateEvent(164);
+      if (!block) {
+        refuse(eventTypeString, 'could not allocate a valid 164-byte event block, so it answered -4');
         return -4;
       }
-      jsEvents.keyEvent = host.malloc(164);
+      jsEvents.keyEvent = block;
     }
-    const handlerFunc = (ev: unknown): void => {
-      fillKeyEventData(jsEvents.keyEvent, ev as GlDomEvent);
-      callHandler(callbackfunc, eventTypeId, jsEvents.keyEvent, userData, (ev ?? {}) as GlDomEvent);
+    const handlerFunc = (ev: unknown): void | Promise<void> => {
+      const event = (ev ?? {}) as GlDomEvent;
+      memory.refresh();
+      fillKeyEventData(jsEvents.keyEvent, event);
+      return callHandler(callbackfunc, eventTypeId, jsEvents.keyEvent, userData, event);
     };
     registerOrRemoveHandler({
-      target: findEventTarget(target) as GlEventTarget,
+      target: element,
       allowsDeferredCalls: true,
       eventTypeString,
       callbackfunc,
       handlerFunc,
-      useCapture: useCapture !== 0,
+      useCapture: useCaptureFlag,
     });
     return 0;
   };
@@ -2088,13 +2708,6 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
     eventTypeId: number,
     eventTypeString: string,
   ): number => {
-    if (!jsEvents.wheelEvent) {
-      if (!host.malloc) {
-        refuse(eventTypeString, 'has no malloc, so it answered -1 rather than registering a handler with no block');
-        return -1;
-      }
-      jsEvents.wheelEvent = host.malloc(96);
-    }
     const element = findEventTarget(target) as GlEventTarget | null;
     if (!element) {
       refuse(eventTypeString, 'resolved no wheel target, so it answered -1 rather than registering');
@@ -2104,16 +2717,25 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
       refuse(eventTypeString, `the target has no onwheel, so it answered -1 as the glue does rather than registering a listener the target would drop`);
       return -1;
     }
-    const handlerFunc = (ev: unknown): void => {
+    if (callbackfunc && !jsEvents.wheelEvent) {
+      const block = allocateEvent(96);
+      if (!block) {
+        refuse(eventTypeString, 'could not allocate a valid 96-byte event block, so it answered -1');
+        return -1;
+      }
+      jsEvents.wheelEvent = block;
+    }
+    const handlerFunc = (ev: unknown): void | Promise<void> => {
       const event = (ev ?? {}) as GlDomEvent;
       const wheelEvent = jsEvents.wheelEvent;
+      memory.refresh();
       fillMouseEventData(wheelEvent, event, element);
       const f64 = memory.f64;
       f64[(wheelEvent + 64) >>> 3] = event.deltaX ?? 0;
       f64[(wheelEvent + 72) >>> 3] = event.deltaY ?? 0;
       f64[(wheelEvent + 80) >>> 3] = event.deltaZ ?? 0;
       memory.i32[(wheelEvent + 88) >>> 2] = event.deltaMode ?? 0;
-      callHandler(callbackfunc, eventTypeId, wheelEvent, userData, event);
+      return callHandler(callbackfunc, eventTypeId, wheelEvent, userData, event);
     };
     registerOrRemoveHandler({
       target: element,
@@ -2148,38 +2770,81 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
     eventTypeId: number,
     eventTypeString: string,
   ): number => {
-    if (!jsEvents.touchEvent) {
-      if (!host.malloc) {
-        refuse(eventTypeString, 'has no malloc, so it answered -4 rather than registering a handler with no block');
-        return -4;
-      }
-      jsEvents.touchEvent = host.malloc(1684);
-    }
     const element = findEventTarget(target) as GlEventTarget | null;
     if (!element) {
       refuse(eventTypeString, 'resolved no touch target, so it answered -4 rather than registering');
       return -4;
     }
-    const handlerFunc = (ev: unknown): void => {
+    if (callbackfunc && !jsEvents.touchEvent) {
+      const block = allocateEvent(1684);
+      if (!block) {
+        refuse(eventTypeString, 'could not allocate a valid 1684-byte event block, so it answered -4');
+        return -4;
+      }
+      jsEvents.touchEvent = block;
+    }
+    /**
+     * The three touch lists and the modifiers are copied out **at arrival**, in the listener, not in
+     * the queued unit.
+     *
+     * A browser `TouchList` is a live-ish host object: its entries are read through accessors, and the
+     * list is only guaranteed for the duration of the dispatch. Snapshotting at dequeue reads a list
+     * the browser is entitled to have recycled, and reports a *later* gesture's coordinates as if they
+     * were this event's. `identifier` is the only field a `TouchList` guarantees; everything else is
+     * optional here and filled with a default, exactly as the glue's `__emscripten_get_touch_data`
+     * does. `identifier` is still converted, because the glue stores it as an i32.
+     */
+    const captureTouch = (ev: unknown): TouchCapture => {
       const event = (ev ?? {}) as GlDomEvent;
+      const snapshot = (list: GlDomTouch[] | undefined): GlDomTouch[] => {
+        const out: GlDomTouch[] = [];
+        for (const touch of list ?? []) {
+          out.push({
+            identifier: touch.identifier | 0,
+            screenX: touch.screenX ?? 0,
+            screenY: touch.screenY ?? 0,
+            clientX: touch.clientX ?? 0,
+            clientY: touch.clientY ?? 0,
+            pageX: touch.pageX ?? 0,
+            pageY: touch.pageY ?? 0,
+          });
+        }
+        return out;
+      };
+      return {
+        touches: snapshot(event.touches),
+        changedTouches: snapshot(event.changedTouches),
+        targetTouches: snapshot(event.targetTouches),
+        ctrlKey: event.ctrlKey ? 1 : 0,
+        shiftKey: event.shiftKey ? 1 : 0,
+        altKey: event.altKey ? 1 : 0,
+        metaKey: event.metaKey ? 1 : 0,
+        preventDefault: bindPreventDefault(event) ?? noPreventDefault,
+      };
+    };
+    const handlerFunc = (captured: unknown): void | Promise<void> => {
+      const event = captured as TouchCapture;
+      memory.refresh();
       const touches = new Map<number, GlDomTouch>();
-      for (const touch of event.touches ?? []) touches.set(touch.identifier, touch);
-      for (const touch of event.changedTouches ?? []) {
+      for (const touch of event.touches) touches.set(touch.identifier, touch);
+      for (const touch of event.changedTouches) {
         touch.isChanged = 1;
         touches.set(touch.identifier, touch);
       }
-      for (const touch of event.targetTouches ?? []) {
+      for (const touch of event.targetTouches) {
         const known = touches.get(touch.identifier);
         if (known) known.onTarget = 1;
       }
       const touchEvent = jsEvents.touchEvent;
       const h32 = memory.i32;
       let idx = touchEvent >>> 2;
-      h32[idx + 1] = event.ctrlKey ? 1 : 0;
-      h32[idx + 2] = event.shiftKey ? 1 : 0;
-      h32[idx + 3] = event.altKey ? 1 : 0;
-      h32[idx + 4] = event.metaKey ? 1 : 0;
+      h32[idx + 1] = event.ctrlKey;
+      h32[idx + 2] = event.shiftKey;
+      h32[idx + 3] = event.altKey;
+      h32[idx + 4] = event.metaKey;
       idx += 5;
+      // The target box is read at dequeue: it is the layout at the time the guest is entered, and the
+      // glue reads it there too. Only the touch *values* have to be arrival values.
       const targetRect = getBoundingClientRect(element);
       let numTouches = 0;
       for (const touch of touches.values()) {
@@ -2199,15 +2864,17 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
         if (numTouches > 31) break;
       }
       h32[touchEvent >>> 2] = numTouches;
-      callHandler(callbackfunc, eventTypeId, touchEvent, userData, event);
+      return callHandler(callbackfunc, eventTypeId, touchEvent, userData, event);
     };
+    const useCaptureFlag = useCapture !== 0;
     registerOrRemoveHandler({
       target: element,
       allowsDeferredCalls: eventTypeString === 'touchstart' || eventTypeString === 'touchend',
       eventTypeString,
       callbackfunc,
       handlerFunc,
-      useCapture: useCapture !== 0,
+      capture: captureTouch,
+      useCapture: useCaptureFlag,
     });
     return 0;
   };
@@ -2221,6 +2888,11 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
    * signature is `(i32,i32,i32,i32)` while the other ten take five arguments. Reproducing that
    * asymmetry is the point — a host that resolved the target from the guest here would attach a
    * visibility handler to whatever element the guest passed and never learn about tab switches.
+   *
+   * The 8-byte block goes through {@link allocateEvent} like the other four families rather than a raw
+   * `host.malloc(8)`: the same allocator answer has to clear the same numeric, integer, non-zero and
+   * alignment checks before an address may be stored, and the wheel block's reasoning applies here too
+   * — the two fields are `i32`s, so 4-byte alignment is the requirement.
    */
   const registerVisibilityChangeEventCallback = (
     userData: number,
@@ -2234,20 +2906,38 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
       refuse(eventTypeString, 'has no document, so it answered -4 as the glue does rather than registering');
       return -4;
     }
-    if (!jsEvents.visibilityChangeEvent) {
-      if (!host.malloc) {
-        refuse(eventTypeString, 'has no malloc, so it answered -4 rather than registering a handler with no block');
+    if (callbackfunc && !jsEvents.visibilityChangeEvent) {
+      const block = allocateEvent(8);
+      if (!block) {
+        refuse(eventTypeString, 'could not allocate a valid 8-byte event block, so it answered -4');
         return -4;
       }
-      jsEvents.visibilityChangeEvent = host.malloc(8);
+      jsEvents.visibilityChangeEvent = block;
     }
-    const handlerFunc = (ev: unknown): void => {
-      const visibilityChangeEvent = jsEvents.visibilityChangeEvent;
+    /**
+     * `document.hidden` and `document.visibilityState` are read **at arrival**, in the listener.
+     *
+     * The two values describe the transition that caused the event: the queued unit runs one or more
+     * turns later, by which time the document may already have flipped back and the guest would be told
+     * about a state it never changed into. Reading them at arrival keeps the notification honest about
+     * the edge it announces; the unit below never touches `document` at all. The `preventDefault` is the
+     * bound original, so the guest's verdict still reaches the DOM.
+     */
+    const captureVisibility = (ev: unknown): VisibilityCapture => {
       const states = ['hidden', 'visible', 'prerender', 'unloaded'];
-      const state = document.visibilityState ?? 'visible';
-      memory.i32[visibilityChangeEvent >>> 2] = document.hidden ? 1 : 0;
-      memory.i32[(visibilityChangeEvent + 4) >>> 2] = Math.max(0, states.indexOf(state));
-      callHandler(callbackfunc, eventTypeId, visibilityChangeEvent, userData, (ev ?? {}) as GlDomEvent);
+      return {
+        hidden: document.hidden ? 1 : 0,
+        stateIndex: Math.max(0, states.indexOf(document.visibilityState ?? 'visible')),
+        preventDefault: bindPreventDefault(ev) ?? noPreventDefault,
+      };
+    };
+    const handlerFunc = (captured: unknown): void | Promise<void> => {
+      const event = captured as VisibilityCapture;
+      memory.refresh();
+      const visibilityChangeEvent = jsEvents.visibilityChangeEvent;
+      memory.i32[visibilityChangeEvent >>> 2] = event.hidden;
+      memory.i32[(visibilityChangeEvent + 4) >>> 2] = event.stateIndex;
+      return callHandler(callbackfunc, eventTypeId, visibilityChangeEvent, userData, event);
     };
     registerOrRemoveHandler({
       target: document,
@@ -2257,6 +2947,7 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
       eventTypeString,
       callbackfunc,
       handlerFunc,
+      capture: captureVisibility,
       useCapture: useCapture !== 0,
     });
     return 0;
@@ -2300,27 +2991,63 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
   for (const [name, body] of Object.entries(eventRows)) imports[name] = body;
 
   /**
-   * The nineteen audio rows below are the deliberate refusals the map's owner text records.
+   * The nineteen audio rows.
    *
-   * **These are not yet implemented, and this is the deliberate refusal the map's owner text records.**
-   * The honest reason is not effort: it is that an audio row answered with a default is *worse than
-   * absent*, because the guest's mixer is driven by `alSourcePlay` and a silent source is a game that
-   * runs, draws, and produces no sound with nothing in any log to say why. The real WebAudio
-   * implementation (a real `AudioContext`, a real `AudioBuffer` per `alBufferData`, the queue
-   * semantics, the doppler/spatial model) is the next slice, and until it exists these rows are
-   * documented refusals — per-call defaults, reported once, and named in
-   * {@link ARTEMIS_GL_REFUSED} so the committed map says so too.
+   * **Two mutually exclusive shapes, and the choice is all-or-nothing.** When the host supplies
+   * {@link ArtemisGlHost.audioImports} the rows are that table's real bodies — the WebAudio host in
+   * `audio.ts` — and nothing here refuses. That table is checked for every one of the nineteen names
+   * *now*, at construction, and a table missing any of them throws rather than leaving the rest wired:
+   * a half-supplied family is the exact failure the all-or-nothing rule exists to prevent, because the
+   * rows that did get a body would play sound and the row that did not would answer a refusal nobody
+   * reads. When no table is supplied the rows are the deliberate refusals the map's owner text records.
+   *
+   * **Those refusals are not a stub for missing effort.** An audio row answered with a default is
+   * *worse than absent*, because the guest's mixer is driven by `alSourcePlay` and a silent source is a
+   * game that runs, draws, and produces no sound with nothing in any log to say why. Until a session
+   * supplies the real host these rows are documented refusals — per-call defaults, reported once, and
+   * named in {@link ARTEMIS_GL_REFUSED} so the committed map says so too.
+   *
+   * The table is read once, here, into `bound` — each row's function is *captured* rather than
+   * re-read inside its closure. A `suppliedAudio[name](...)` written inside the arrow would be a
+   * fresh optional read on every call (`noUncheckedIndexedAccess` types it `F | undefined`, which is
+   * TS2722), and an optional call is the one shape this table must never take: a missing row would
+   * silently do nothing instead of refusing, which is precisely the silent-sound failure the
+   * all-or-nothing rule exists to prevent. Capturing the validated function makes each closure call
+   * a definite function or not exist at all.
+   *
+   * The throw abandons the whole table: `imports` is a local, so a table missing any row is never
+   * returned and the rows already copied into `bound` are unreachable.
    */
-  for (const name of ARTEMIS_GL_AUDIO_ROWS) {
-    imports[name] = (...args: number[]): number => {
-      refuse(
-        name,
-        `is a deliberate refusal: audio rows are not implemented yet, so it took the per-call neutral value (${
-          audioRefusalAnswer(name, args)
-        }) rather than pretending to play sound`,
-      );
-      return audioRefusalAnswer(name, args);
-    };
+  const suppliedAudio = host.audioImports;
+  if (suppliedAudio) {
+    const bound: [string, (...args: number[]) => number | void][] = [];
+    for (const name of ARTEMIS_GL_AUDIO_ROWS) {
+      const supplied = suppliedAudio[name];
+      if (typeof supplied !== 'function') {
+        throw new ArtemisHostError(
+          `the gl bucket was given an audioImports table without ${name} ` +
+            `(${ARTEMIS_GL_OFFICIAL[name] ?? name}): the nineteen audio rows are one family and are ` +
+            'wired all together or not at all, so a partially supplied table is refused rather than ' +
+            'half-installed',
+        );
+      }
+      bound.push([name, supplied]);
+    }
+    for (const [name, supplied] of bound) {
+      imports[name] = (...args: number[]): number | void => supplied(...args);
+    }
+  } else {
+    for (const name of ARTEMIS_GL_AUDIO_ROWS) {
+      imports[name] = (...args: number[]): number => {
+        refuse(
+          name,
+          `is a deliberate refusal: audio rows are not implemented yet, so it took the per-call neutral value (${
+            audioRefusalAnswer(name, args)
+          }) rather than pretending to play sound`,
+        );
+        return audioRefusalAnswer(name, args);
+      };
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -2343,6 +3070,10 @@ export function createArtemisGlImports(host: ArtemisGlHost): ArtemisGlImports {
       throw new ArtemisHostError(`the gl bucket did not supply ${name}`);
     }
   }
+
+  // Every later binding is initialized above this line, so a `setLifecycle` callback that calls
+  // `dispose()` immediately walks real objects instead of half-built ones.
+  registerLifecycle();
 
   return imports;
 }

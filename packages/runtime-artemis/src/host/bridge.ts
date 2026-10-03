@@ -239,7 +239,7 @@ export interface ArtemisStandardStreams {
 
 /**
  * Creates the `/dev` and `/proc` entries the glue's `FS.staticInit` creates at load time, and
- * returns the three fds `FS.init` → `createStandardStreams` opens on them.
+ * installs the guest's standard streams as fds 0, 1 and 2.
  *
  * The order and the paths are copied from the glue rather than chosen, because the guest is written
  * against them: `isatty(1)` has to be true, `/proc/self/fd` has to exist, and `/dev/shm` has to be
@@ -265,12 +265,30 @@ export function initArtemisStandardStreams(fs: ArtemisFs): ArtemisStandardStream
   for (const path of ['/dev/null', '/dev/tty', '/dev/tty1', '/dev/random', '/dev/urandom']) {
     fs.addChrdev(path, new ChrDevice());
   }
-  // `createStandardStreams` opens 0, 1 and 1 — not 2. stderr is a *link* to tty1, so the guest
-  // writes to fd 2 only if it dups or opens it, and the glue hands it 1.
+  // The three numbers the glue's `createStandardStreams` passes are open FLAGS, not fds: `0` is
+  // `O_RDONLY` for stdin, and `1` is `O_WRONLY` for stdout and stderr. `/dev/stderr` is a *link* to
+  // tty1 rather than tty, which is why the third open names `/dev/tty1`.
+  //
+  // The fds `open` returns are the allocator's, and the allocator never hands out 0, 1 or 2 — it
+  // starts at 3. So the guest would inherit 3, 4 and 5 and `write(1, …)` would be EBADF. Each open
+  // is therefore dup2'd onto its target and the temporary fd closed, leaving 0, 1 and 2 as the real
+  // standard streams. `nextFd` is untouched: this renumbers three streams, it does not rewind the
+  // allocator, so the next ordinary open still starts at 3.
   const stdin = fs.open('/dev/tty', 0);
   const stdout = fs.open('/dev/tty', 1);
   const stderr = fs.open('/dev/tty1', 1);
-  return { stdin, stdout, stderr };
+  const targets = [
+    [stdin, 0],
+    [stdout, 1],
+    [stderr, 2],
+  ] as const;
+  for (const [source, target] of targets) {
+    if (source !== target) {
+      fs.dup2(source, target);
+      fs.close(source);
+    }
+  }
+  return { stdin: 0, stdout: 1, stderr: 2 };
 }
 
 /** Re-exported for callers that only need the memory interface. */

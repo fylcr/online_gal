@@ -528,12 +528,29 @@ export class ArtemisFs {
     if (!this.writeScope.has(stream.node)) {
       throw new ArtemisErrnoError(ARTEMIS_ERRNO.EROFS, stream.node.path);
     }
-    if (!stream.node.data) {
+    const current = stream.node.data;
+    if (!current) {
       return 0;
     }
-    // The host widened the scope but the node may still hold a read-only view. Copy-on-write from
-    // here, so the adapter's bytes stay intact and the guest's first write is not a failure.
-    const current = stream.node.data;
+    // A character device is a SINK, not a file. Wrapping one in `MutableByteSource` would copy its
+    // (empty) contents into memory and hand the guest's bytes to that copy: the write would report
+    // success while the device never saw a byte, and `/dev/tty` would stop being a tty. Give the
+    // bytes to the device's own op and leave `node.data` alone — a chrdev must never be promoted to
+    // a copy-on-write file.
+    if (stream.node.isChrdev) {
+      const deviceWrite = current.write;
+      if (!deviceWrite) {
+        // The stream is writable and the node is in the write scope, so the refusal is the source's
+        // missing write op rather than the fd's access mode: EROFS, as `SyncByteSource` documents.
+        throw new ArtemisErrnoError(ARTEMIS_ERRNO.EROFS, stream.node.path);
+      }
+      const written = deviceWrite.call(current, position, data);
+      stream.node.touch();
+      return Math.min(written, data.length);
+    }
+    // An ordinary file: the host widened the scope but the node may still hold a read-only view.
+    // Copy-on-write from here, so the adapter's bytes stay intact and the guest's first write is
+    // not a failure.
     const sink: MutableByteSource =
       current instanceof MutableByteSource ? current : new MutableByteSource(current);
     stream.node.data = sink;

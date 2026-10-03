@@ -87,8 +87,25 @@ export interface ArtemisFdHost {
    * Invokes one of the guest's function-table entries — the host's stand-in for the glue's
    * `getDynCaller`. The three async `_emscripten_idb_*` rows need it, and a session that never
    * supplies one still gets correct `perror` reports from those rows.
+   *
+   * The return is `void | Promise<void>` for the same reason the asyncify host's is: a guest
+   * callback may itself suspend, and a completion that released a buffer before a suspending
+   * `onload` finished would hand the guest a pointer it is still reading. A caller returning a
+   * promise is saying "the callback is not done"; the release waits for it.
    */
-  readonly callback?: (entry: number, arg: number, extra?: number, count?: number) => void;
+  readonly callback?: (entry: number, arg: number, extra?: number, count?: number) => void | Promise<void>;
+  /**
+   * Defers one completion out of the current import call — the seam the three async
+   * `_emscripten_idb_*` rows use to be non-blocking while still doing their work in a real turn.
+   *
+   * The task is where **all** of a completion's work happens: the allocation, the copy, the callback
+   * and the release. A session that drives the asyncify driver must pass an enqueue that waits for
+   * it to go idle, because entering the guest while a raw root is on the stack is a nested call at
+   * the worst moment; the default is one microtask, which is enough to leave the current root.
+   */
+  readonly enqueue?: (task: () => void | Promise<void>) => void | Promise<void>;
+  /** Whether a table-callback is still deliverable. Checked before every queued operation. */
+  readonly isDisposed?: () => boolean;
   /** Reports a call this host cannot serve, so a session can log it instead of swallowing it. */
   readonly onBlocked?: (what: string, detail: string) => void;
 }
@@ -180,12 +197,28 @@ export function createArtemisFdImports(host: ArtemisFdHost): ArtemisFdImports {
   const idb = host.idb ?? new ArtemisSyncIdb();
   const env = envStrings(host.env);
   const now = host.now ?? (() => Date.now());
-  const report = (what: string, detail: string): void => host.onBlocked?.(what, detail);
+  // Diagnostics are best effort: a logger that throws must never replace the failure being reported
+  // (or orphan a rejection the caller is still waiting on), so the throw is dropped here.
+  const report = (what: string, detail: string): void => {
+    try {
+      host.onBlocked?.(what, detail);
+    } catch {
+      /* a refused log is not a refused operation */
+    }
+  };
   const encoder = new TextEncoder();
   /** `_clock` caches its start time on the function object, as the glue does. */
   const clockStart = { value: 0, started: false };
   /** A `getdents` listing is only valid until the stream is rewound. */
   const directoryCache = new Map<number, DirentRecord[]>();
+  /**
+   * The import table, filled in by `Object.assign` at the end of this factory and returned there.
+   *
+   * Declared here rather than beside the literal because the helpers below are hoisted *function
+   * declarations* that are in scope from the first statement, while `const table` is not — a helper
+   * reached through a hoisted name would touch the binding before its initialiser ran.
+   */
+  const table: ArtemisFdImports = {} as ArtemisFdImports;
 
   /**
    * Sets the guest's errno the way the glue's `setErrNo` does.
@@ -247,8 +280,10 @@ export function createArtemisFdImports(host: ArtemisFdHost): ArtemisFdImports {
    * Reads a NUL-terminated string out of the guest heap. The `| 0` is not decoration: wasm i32
    * params arrive in JS as signed integers, so a heap address above 2^31 comes through negative and
    * has to be squeezed back to the unsigned value the memory accessor expects.
+   *
+   * Declared below, alongside the other helpers, and hoisted to here by function-declaration
+   * semantics; this comment is where its contract is documented.
    */
-  const pointer = (address: number): string => memory.utf8(address | 0);
 
   /** `___sys_stat64` / `___sys_lstat64`. No symlinks exist here, so the two agree. */
   const statPath = (name: 'Jb' | 'Nb', path: number, buf: number): number =>
@@ -325,23 +360,6 @@ export function createArtemisFdImports(host: ArtemisFdHost): ArtemisFdImports {
       return 0;
     });
 
-  /** The one `load` shape, shared by the sync and async rows, since they agree byte for byte. */
-  const idbLoad = (db: number, id: number, onOk: (pointer: number, length: number) => void, onFail: () => void): void => {
-    const data = idb.load(pointer(db), pointer(id));
-    const allocate = host.malloc;
-    if (!data || !allocate) {
-      onFail();
-      return;
-    }
-    const target = allocate(data.length);
-    if (target === 0) {
-      onFail();
-      return;
-    }
-    memory.u8.set(data, target);
-    onOk(target, data.length);
-  };
-
   /** `getaddrinfo`'s address list, or `null` when the name needs a resolver we do not have. */
   const resolveAddresses = (
     nodeText: string,
@@ -365,7 +383,7 @@ export function createArtemisFdImports(host: ArtemisFdHost): ArtemisFdImports {
     return family === 0 ? resolved : resolved.filter((entry) => entry.family === family);
   };
 
-  return {
+  Object.assign(table, {
     /**
      * `_usleep` — the glue busy-spins on the monotonic clock until the deadline passes.
      *
@@ -402,16 +420,27 @@ export function createArtemisFdImports(host: ArtemisFdHost): ArtemisFdImports {
     Cb: (s: number, maxsize: number, format: number, tm: number, _locale: number): number =>
       boundary('Cb', () => strftime(memory, s, maxsize, format, tm, zones)),
 
-    /** `_emscripten_idb_async_store` — stores, then calls back through the guest's function table. */
+    /**
+     * `_emscripten_idb_async_store` — snapshots the payload, then stores and calls back.
+     *
+     * **Non-blocking, and the snapshot is why.** The whole completion is queued: the store and the
+     * `onstore` call happen on a later turn, so the guest is never re-entered from inside its own
+     * import. The payload bytes and the two key strings are copied in **this** turn because they are
+     * the guest's heap — a deferred read would see whatever the guest did with those bytes in the
+     * meantime.
+     */
     Cc: (db: number, id: number, ptr: number, num: number, arg: number, onstore: number, onerror: number): void => {
-      boundaryVoid('Cc', () => {
+      queued('Cc', () => {
         const data = readBytes(ptr, num);
-        if (!data) {
-          invoke(onerror, arg);
-          return;
-        }
-        idb.store(pointer(db), pointer(id), data);
-        invoke(onstore, arg);
+        const dbKey = data ? readKey(db) : null;
+        const idKey = data ? readKey(id) : null;
+        enqueueTask('Cc', () => {
+          if (!data || dbKey === null || idKey === null) {
+            return invokeAsync(onerror, arg | 0);
+          }
+          idb.store(dbKey, idKey, data);
+          return invokeAsync(onstore, arg | 0);
+        });
       });
     },
 
@@ -422,18 +451,35 @@ export function createArtemisFdImports(host: ArtemisFdHost): ArtemisFdImports {
         return 0;
       }),
 
-    /** `_emscripten_idb_async_load` — mallocs a copy, hands it over, then frees it. */
+    /**
+     * `_emscripten_idb_async_load` — mallocs a copy, hands it over, then frees it.
+     *
+     * The allocation is **inside** the queued completion, not in this body: a transfer that never
+     * runs allocates nothing. The callback is invoked with an entry of 0 when the guest has no
+     * function table, and entry 0 is "nothing to call" rather than a table lookup.
+     */
     Dc: (db: number, id: number, arg: number, onload: number, onerror: number): void => {
-      boundaryVoid('Dc', () => {
-        idbLoad(
-          db,
-          id,
-          (target, length) => {
-            invoke(onload, arg, target, length);
-            host.free?.(target);
-          },
-          () => invoke(onerror, arg),
-        );
+      queued('Dc', () => {
+        const dbKey = readKey(db);
+        const idKey = readKey(id);
+        enqueueTask('Dc', () => {
+          if (dbKey === null || idKey === null) {
+            return invokeAsync(onerror, arg | 0);
+          }
+          const release = releaseBuffer('Dc');
+          // The return is what keeps the queue unit — and therefore the buffer — alive until the
+          // callback is idle: `finally` releases exactly once whether the callback resolved or
+          // rejected, and a rejection still reaches the queue as the real task failure.
+          return idbLoad(
+            dbKey,
+            idKey,
+            (target, length) =>
+              invokeAsync(onload, arg | 0, target, length).finally(() => {
+                release(target);
+              }),
+            () => invokeAsync(onerror, arg | 0),
+          );
+        });
       });
     },
 
@@ -505,14 +551,24 @@ export function createArtemisFdImports(host: ArtemisFdHost): ArtemisFdImports {
         return 0;
       }),
 
-    /** `_emscripten_idb_async_exists` */
+    /** `_emscripten_idb_async_exists` — the check and its callback both run on the queued turn. */
     Ec: (db: number, id: number, arg: number, oncheck: number, onerror: number): void => {
-      boundaryVoid('Ec', () => {
-        try {
-          invoke(oncheck, arg, idb.exists(pointer(db), pointer(id)) ? 1 : 0);
-        } catch {
-          invoke(onerror, arg);
-        }
+      queued('Ec', () => {
+        const dbKey = readKey(db);
+        const idKey = readKey(id);
+        enqueueTask('Ec', () => {
+          if (dbKey === null || idKey === null) {
+            return invokeAsync(onerror, arg | 0);
+          }
+          let present = false;
+          try {
+            present = idb.exists(dbKey, idKey);
+          } catch (error) {
+            report('Ec', `exists threw: ${String(error)}`);
+            return invokeAsync(onerror, arg | 0);
+          }
+          return invokeAsync(oncheck, arg | 0, present ? 1 : 0);
+        });
       });
     },
 
@@ -559,19 +615,55 @@ export function createArtemisFdImports(host: ArtemisFdHost): ArtemisFdImports {
     Hb: (timePtr: number, tmPtr: number): number =>
       boundary('Hb', () => gmtimeR(memory, timePtr, tmPtr, zones)),
 
-    /** `_emscripten_idb_load` — the synchronous row; hands over a buffer the guest must free. */
+    /**
+     * `_emscripten_idb_load` — the synchronous row; hands over a buffer the guest must free.
+     *
+     * This one **cannot** be queued: its caller is a blocking guest syscall that reads the three out
+     * slots as soon as it returns, so the whole load happens in this turn and answers `perror`
+     * itself. The out-pointers are validated before the allocation is handed anywhere, so a bad
+     * `pbuffer` fails the call rather than leaving the guest with an allocation it cannot name; the
+     * guest owns the buffer on success, so this row never frees it.
+     */
     Hc: (db: number, id: number, pbuffer: number, pnum: number, perror: number): number =>
       boundary('Hc', () => {
-        idbLoad(
-          db,
-          id,
+        const dbKey = readKey(db);
+        const idKey = readKey(id);
+        const fail = (): number => {
+          try {
+            memory.i32[(perror | 0) >>> 2] = 1;
+            memory.i32[(pbuffer | 0) >>> 2] = 0;
+            memory.i32[(pnum | 0) >>> 2] = 0;
+          } catch {
+            report('Hc', `perror ${perror} is not writable`);
+          }
+          return 0;
+        };
+        // The slots are the guest's contract for the buffer, so they are checked before anything is
+        // allocated: a load that cannot report its answer must not take the allocation.
+        try {
+          memory.assertRange(pbuffer, 4);
+          memory.assertRange(pnum, 4);
+          memory.assertRange(perror, 4);
+        } catch {
+          report('Hc', `out-pointers ${pbuffer}/${pnum}/${perror} are not writable`);
+          return 0;
+        }
+        if (dbKey === null || idKey === null) return fail();
+        // The sync row has no queue to hold, so the returned arm is deliberately dropped: the
+        // callback writes the guest's slots in this same turn, and a rejected one is reported by
+        // `invokeAsync` rather than left to become an unhandled rejection behind this `number`.
+        void idbLoad(
+          dbKey,
+          idKey,
+          // The guest owns a successful buffer, and this row frees nothing — `releaseBuffer` is
+          // deliberately not used here.
           (target, length) => {
             memory.i32[(pbuffer | 0) >>> 2] = target;
             memory.i32[(pnum | 0) >>> 2] = length;
             memory.i32[(perror | 0) >>> 2] = 0;
           },
           () => {
-            memory.i32[(perror | 0) >>> 2] = 1;
+            fail();
           },
         );
         return 0;
@@ -936,10 +1028,19 @@ export function createArtemisFdImports(host: ArtemisFdHost): ArtemisFdImports {
         }
         return Math.floor((now() - clockStart.value) * 1000);
       }),
-  };
+  });
 
-  /** Reads `num` bytes at `ptr`, or `null` when the range is not inside the heap. */
+  return table;
+
+  /**
+   * Reads `num` bytes at `ptr`, or `null` when the range is not inside the heap.
+   *
+   * The length is validated before the copy for the same reason every other range in this file is:
+   * a `num` that arrived as a negative i32 means "allocate" to the slice below, so the check is
+   * what turns a guest bug into a refusal instead of a heap-sized copy.
+   */
   function readBytes(ptr: number, num: number): Uint8Array | null {
+    if (!Number.isInteger(num) || num < 0) return null;
     try {
       memory.assertRange(ptr, num);
     } catch {
@@ -949,21 +1050,217 @@ export function createArtemisFdImports(host: ArtemisFdHost): ArtemisFdImports {
   }
 
   /**
-   * Calls back into the guest through one of its function-table entries.
+   * Reads a NUL-terminated guest string, or `null` when the pointer is not a valid one.
    *
-   * The glue reaches these with `getDynCaller("vi", fn)`, which is the same table lookup this is:
-   * the callback pointers the guest passes are indices into the one table it exports. When a
-   * session has not wired that table up, the call is skipped and the import still reports its
-   * result through `perror` — the alternative, throwing, would abort a guest that is behaving
-   * perfectly well on a host that simply has no way to call back yet.
+   * The async rows snapshot their `db` and `id` **at arrival**, because the pointers are the
+   * guest's heap and the completion runs in a later turn, by which time the guest may have reused
+   * them. A bad pointer is a refusal, not an empty key: a lookup on `""` would be a silent wrong
+   * answer, and the string decoder throws an `ArtemisErrnoError` rather than a raw range error, so
+   * the errno path reports it instead of aborting the caller.
    */
-  function invoke(entry: number, arg: number, extra?: number, count?: number): void {
-    const call = host.callback;
-    if (!call) {
-      report('callback', `no function table wired up for entry ${entry}`);
+  function readKey(ptr: number): string | null {
+    try {
+      memory.assertRange(ptr, 1);
+      return pointer(ptr);
+    } catch {
+      return null;
+    }
+  }
+
+  /** True once the session has torn the guest down; a queued completion then has nothing to reach. */
+  function disposed(): boolean {
+    try {
+      return host.isDisposed?.() === true;
+    } catch (error) {
+      // A predicate that throws must not take the caller with it: the caller is an import whose
+      // whole contract is to return an errno rather than throw.
+      report('idb', `isDisposed threw: ${String(error)}`);
+      return false;
+    }
+  }
+
+  /**
+   * Schedules one completion out of the current import call, and **subscribes to it immediately**.
+   *
+   * Non-blocking is the point: the body records what it must (the strings and the payload, which are
+   * the guest's heap and are only valid now) and returns, so the guest is never re-entered from
+   * inside its own import. The subscription is taken here rather than left to the caller because a
+   * rejecting task or a rejecting seam would otherwise become an unhandled rejection with no
+   * attribution; every path ends as one report.
+   */
+  function enqueueTask(what: string, task: () => void | Promise<unknown>): void {
+    // `safe` is only ever consumed by the failure observer below; the task's own rejection stays on
+    // `run`, so a real enqueue sees a real rejection instead of a swallowed, fulfilled one.
+    const run = (): Promise<void> =>
+      Promise.resolve()
+        .then(() => {
+          // Re-checked inside the task: a completion deferred across an await easily outlives the
+          // guest it belongs to, and the wait is exactly the window where that happens.
+          if (disposed()) return;
+          return task();
+        })
+        .then(() => undefined);
+    const safe = (promise: Promise<unknown>): void => {
+      void promise.then(undefined, (error: unknown) =>
+        report(what, `deferred completion threw: ${String(error)}`),
+      );
+    };
+    if (disposed()) return;
+    if (!host.enqueue) {
+      // No queue: one microtask, which is enough to leave the current raw root. The async rows stay
+      // asynchronous — their callbacks have never been synchronous, in this host or in the glue.
+      safe(run());
       return;
     }
-    call(entry, arg, extra, count);
+    let outcome: void | Promise<void>;
+    try {
+      outcome = host.enqueue(run);
+    } catch (error) {
+      report(what, `enqueue threw: ${String(error)}`);
+      return;
+    }
+    // Subscribed immediately, and with a handler of its own: an orphan here is an unhandled
+    // rejection, while a throwing `onBlocked` must not turn into one either.
+    try {
+      void Promise.resolve(outcome).then(undefined, (error: unknown) =>
+        report(what, `enqueue rejected: ${String(error)}`),
+      );
+    } catch (error) {
+      report(what, `enqueue rejected: ${String(error)}`);
+    }
+  }
+
+  /**
+   * Calls back into the guest and hands back a promise for the callback's own settling.
+   *
+   * The glue's callbacks are `void` on paper, but a guest `onload` that blocks on another download
+   * returns a promise here, and a completion that freed the buffer before that promise settled would
+   * hand the guest a pointer the allocator has already reused. The returned promise is always a real
+   * promise — an already-resolved one for a synchronous callback — so the callers can await one shape.
+   *
+   * The callback's own failure is **not** swallowed: it is reported here and then re-thrown, so the
+   * enqueued task that awaited it rejects with the real error. Reporting it without re-throwing would
+   * leave the queue row fulfilled and a rejected guest `onload` invisible to whoever joins the task.
+   *
+   * A missing function table is reported rather than thrown: the import still reports its result
+   * through `perror`, and aborting a guest that is behaving well on a host with no table is worse.
+   */
+  function invokeAsync(entry: number, arg: number, extra?: number, count?: number): Promise<void> {
+    const call = host.callback;
+    if (entry === 0 || !call) {
+      // Entry 0 is "no callback", which the glue treats as nothing to report.
+      if (entry !== 0) report('idb', `no function table wired up for entry ${entry}`);
+      return Promise.resolve();
+    }
+    // A `null` or `undefined` callback result is a settled callback, not an error: `await` normalises
+    // the value away, while a throw — synchronous or a rejected promise — propagates to the caller
+    // unchanged, which is what lets the queue row see the real failure.
+    return (async (): Promise<void> => {
+      try {
+        await call(entry, arg, extra, count);
+      } catch (error) {
+        report('idb', `callback ${entry} threw: ${String(error)}`);
+        throw error;
+      }
+    })();
+  }
+
+  /**
+   * Releases a guest buffer, at most once, and never into a driver that has already torn down.
+   *
+   * A second `free` on a live allocator corrupts the guest's heap, and a first `free` after the
+   * driver disposed is a call into a guest that is gone. One report either way, then no more.
+   */
+  function releaseBuffer(what: string): (buffer: number) => void {
+    let released = false;
+    return (buffer: number): void => {
+      if (released) return;
+      released = true;
+      if (buffer === 0) return;
+      if (disposed()) return;
+      try {
+        host.free?.(buffer);
+      } catch (error) {
+        report(what, `free(${buffer}) threw: ${String(error)}`);
+      }
+    };
+  }
+
+  /**
+   * The one `load` shape: validate the request, allocate, copy, hand over.
+   *
+   * **Everything here is synchronous, and that is deliberate.** It is called either from inside an
+   * enqueued task (the async row) or from the import body with nobody to defer to (the sync row
+   * `Hc`, which must return a result in its own turn because its caller is a blocking guest
+   * syscall). Splitting the allocation from the callback would put an `await` between them, and the
+   * allocation must happen in the same turn as the copy that fills it.
+   *
+   * `malloc` can grow the heap, so every view is re-derived immediately after it — the `set` below
+   * would otherwise write through a detached view and silently discard the bytes.
+   *
+   * `onFail` is called at most once and releases nothing: the caller owns the success path and
+   * thereby owns the buffer. The one failure path that *does* hold an allocation — a usable integer
+   * pointer the heap cannot address — releases it exactly once before `onFail`, because that pointer
+   * was taken from a live guest. A pointer that is `0`, non-integer, negative or above `u32` was
+   * never a buffer this host could hand out, and is never freed.
+   *
+   * The return is the settling of whichever arm ran, so the caller can hold its own unit open until
+   * the guest has finished with the buffer. The async row returns it into the queue; the sync row
+   * drops it because its callback runs in this same turn.
+   */
+  function idbLoad(
+    db: string,
+    id: string,
+    onOk: (pointer: number, length: number) => void | Promise<unknown>,
+    onFail: () => void | Promise<unknown>,
+  ): void | Promise<unknown> {
+    const data = idb.load(db, id);
+    const allocate = host.malloc;
+    if (!data || !allocate) return onFail();
+    // Disposal is checked before the allocation: a completion that outlived its guest must not take
+    // a buffer out of an allocator nobody will read again.
+    if (disposed()) return onFail();
+    const target = allocate(data.length);
+    // `malloc` may have grown (and therefore replaced) the heap, so the views are refreshed before
+    // the write, not after it.
+    try {
+      (memory as ArtemisMemory & { refresh?(): void }).refresh?.();
+    } catch (error) {
+      report('idb', `refresh after malloc threw: ${String(error)}`);
+    }
+    // `target === 0` is the allocator's own "no buffer" and owns nothing. A non-integer, negative or
+    // out-of-range answer was never a buffer this host can hand out, so it is never freed either.
+    const owned = Number.isInteger(target) && target > 0 && target <= 0xffffffff;
+    if (target === 0) return onFail();
+    if (!owned) {
+      report('idb', `malloc(${data.length}) answered a bad pointer ${target}`);
+      return onFail();
+    }
+    try {
+      memory.assertRange(target, data.length);
+    } catch {
+      // A pointer the heap cannot hold. It is still an allocation this call took from a live guest,
+      // so it is handed back exactly once rather than leaked; writing it would be the corruption
+      // this check exists to prevent, so the copy is skipped and the row fails.
+      report('idb', `malloc(${data.length}) answered ${target}, outside the heap`);
+      releaseBuffer('idb')(target);
+      return onFail();
+    }
+    memory.u8.set(data, target);
+    // The guest owns the buffer only through the success path, so a copy that succeeded is never
+    // released here even when the callback itself rejects.
+    return onOk(target, data.length);
+  }
+
+  /** Reads a NUL-terminated string out of the guest heap. */
+  function pointer(address: number): string {
+    return memory.utf8(address | 0);
+  }
+
+  /** Guards the three `void` async rows: a disposed session gets no queued work at all. */
+  function queued(what: string, body: () => void): void {
+    if (disposed()) return;
+    boundaryVoid(what, body);
   }
 }
 

@@ -132,7 +132,7 @@ export const ENGINE_PACKAGES: readonly EngineRegistration[] = [
   {
     runtimeId: 'artemis',
     packageName: '@online-gal/runtime-artemis',
-    kind: 'shell',
+    kind: 'engine',
     provider: artemisProvider,
   },
   {

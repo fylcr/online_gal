@@ -400,48 +400,54 @@ jobs:
             --aliases "$ALIASES" \
             --out-dir "$OUT"
 
-          # The comparison masks exactly one thing: the two provenance lines naming the module the
-          # table was made from (`moduleBytes` / `moduleSha256` in the json, and their two rows in
-          # the markdown). The module embeds its own build directory in the runtime's assert
-          # strings -- measured, the same tree gives 41,321,914 B with `D:/online_gal/...` from a
-          # Windows checkout and 41,322,022 B with `/home/runner/work/...` from this runner -- so a
-          # comparison that included those lines would be a criterion no second machine could meet,
-          # and the committed pair could only ever be satisfied by the machine that wrote it. That
-          # is not a gate, it is a coincidence with a comment.
+          # The comparison is semantic, not textual, and the difference matters: a textual `diff`
+          # has to be told what to ignore, so its whitelist is whatever someone remembered to
+          # subtract -- and a checker whose contract lives in a `grep -v` pattern is one edit away
+          # from ignoring something it should judge. `compare-imports-map.mjs` instead names the
+          # fields it may mask, and everything else it does not name is compared exactly. That is
+          # the same list the step needs and it is written where a reader can check it (the
+          # comparer's header), so the two cannot drift apart silently.
           #
-          # What the table actually claims is the ABI: the import surface and every glue offset.
-          # Both are functions of the module's import section and the tracked glue -- neither of
-          # them can move because a build happened elsewhere -- and both are still compared byte for
-          # byte below. The provenance is printed, not judged, and the glue's own sha256 is still
-          # an identity the checker refuses on.
+          # Masked, and only: `totals.moduleBytes` / `totals.moduleSha256` (the module embeds its
+          # own build directory in the runtime's assert strings -- measured, the same tree gives
+          # 41,321,914 B with `D:/online_gal/...` from a Windows checkout and 41,322,022 B with
+          # `/home/runner/work/...` from this runner, so a criterion that included them could only
+          # ever be met by the machine that wrote the committed pair, which is not a gate but a
+          # coincidence with a comment); each row's `typeIndex`; and a `type#N` ordinal token
+          # inside a row's `duplicate` string, because the ordinal counts duplicates of the same
+          # type within one build and renumbers when an unrelated import is added. In the markdown,
+          # the VALUE cell only of the two `module bytes` / `module sha256` rows -- label cells,
+          # cell spacing and the trailing cell are compared verbatim, so a lost space there is a
+          # difference and not a masked one.
           #
-          # `diff` rather than a hash comparison, and the diff is printed only on failure: a
-          # regenerated 800-line table that differs in one bucket total is a 40-line diff, and a
-          # failed step that dumps 800 lines is the reason nobody reads a failed step.
-          mask_provenance() {
-            grep -vE '"(moduleBytes|moduleSha256)":|\| module (bytes|sha256) \|' "$1"
-          }
+          # Judged strictly, because none of it can move because a build happened elsewhere: row
+          # order, every function name and signature, every bucket, every glue offset, every alias,
+          # the non-function imports with their limits, and the glue's own sha256. Nothing is
+          # whitelisted by substring, so a field nobody thought about is compared rather than
+          # waived.
+          #
+          # `--wasm` makes this two checks in one: the comparer decodes the import section with the
+          # sibling verifier's reader -- deliberately not the generator's, so this is a second
+          # opinion and not the generator marking its own work -- and judges the regenerated table
+          # against that decode. It exits 2 on bad usage and 1 on any mismatch, so both are read as
+          # a failed step.
+          #
+          # The exit status is read directly rather than through a pipe: a `node ... | tail`
+          # pipeline returns tail's status, and a comparison that failed every row would then pass.
           echo "## gate: table was made from module $(grep -oE '"moduleSha256": *"[0-9a-f]{8}' "$MAP_JSON" | head -1 | grep -oE '[0-9a-f]{8}$')"
           echo "## gate: this run built module       $(digest "$WASM" | cut -c1-8)"
-          mismatch=0
-          for name in imports-map.json imports-map.md; do
-            case "$name" in
-              *.json) committed="$MAP_JSON" ;;
-              *)      committed="$MAP_MD" ;;
-            esac
-            if diff -q <(mask_provenance "$committed") <(mask_provenance "$OUT/$name") >/dev/null; then
-              echo "## gate: $name matches the committed file (ABI; module provenance masked)"
-              continue
-            fi
-            mismatch=1
-            echo "::error::$name no longer matches what this build produces (module provenance masked):"
-            diff -u <(mask_provenance "$committed") <(mask_provenance "$OUT/$name") | head -40 || true
-          done
-          if [ "$mismatch" -ne 0 ]; then
-            echo "::error::the committed table in $MAP_JSON / $MAP_MD no longer describes what $GLUE ($(sha256sum "$GLUE" | cut -d' ' -f1)) and $WASM ($(sha256sum "$WASM" | cut -d' ' -f1)) produce (the module lines are masked, so this is the ABI that moved). Regenerate it for these inputs (ports/artemis/harness/glue/README.md) and commit both files."
+          if ! node ports/artemis/harness/glue/compare-imports-map.mjs \
+                --committed    "$MAP_JSON" \
+                --regenerated  "$OUT/imports-map.json" \
+                --committed-md "$MAP_MD" \
+                --regenerated-md "$OUT/imports-map.md" \
+                --wasm         "$WASM" > "$OUT/compare.txt" 2>&1; then
+            tail -40 "$OUT/compare.txt"
+            echo "::error::the committed table in $MAP_JSON / $MAP_MD no longer describes what $GLUE ($(sha256sum "$GLUE" | cut -d' ' -f1)) and $WASM ($(sha256sum "$WASM" | cut -d' ' -f1)) produce. The comparer judges the ABI and masks only the module's own two provenance lines, each row's typeIndex and a type#N ordinal; regenerate the table for these inputs (ports/artemis/harness/glue/README.md) and commit both files."
             exit 1
           fi
-          echo "## gate: the committed table is byte-identical to a regeneration from this build"
+          tail -1 "$OUT/compare.txt"
+          echo "## gate: the committed table is ABI-identical to a regeneration from this build"
 
           # --- 2. the independent checker agrees ------------------------------
           #
@@ -449,18 +455,44 @@ jobs:
           # `node ... | tail` pipeline returns tail's status, and a table that failed every
           # offset check would then pass. The checker re-decodes the import section with its own
           # reader, so this is a second opinion and not the generator marking its own work.
+          #
+          # It is pointed at the REGENERATED pair in $OUT, not at the committed files. The
+          # committed pair was already judged in step 1, and judging it twice would make this
+          # step's evidence rest on the same two files: a table that is wrong the same way in
+          # both places would be confirmed rather than caught. Against $OUT the chain is closed
+          # end to end on this build's own bytes -- the generator emits a pair, the comparer
+          # says it is the committed ABI, and this checker re-derives that SAME pair from the
+          # module with an independently written decoder and the glue's own offsets. The gate
+          # then means: this build reproduces a table that is both the committed one and
+          # self-consistent with its bytes.
+          #
+          # $OUT is the one from step 1 and is deliberately reused rather than re-created -- a
+          # second mktemp would leave the first directory behind, and re-creating it would
+          # discard the very files the comparer just validated.
           if ! node ports/artemis/harness/glue/verify-imports-map.mjs \
                 --wasm "$WASM" \
                 --glue "$GLUE" \
-                --json "$MAP_JSON" \
-                --md   "$MAP_MD" > "$OUT/verify.txt" 2>&1; then
+                --json "$OUT/imports-map.json" \
+                --md   "$OUT/imports-map.md" > "$OUT/verify.txt" 2>&1; then
             tail -40 "$OUT/verify.txt"
-            echo "::error::verify-imports-map.mjs failed on this build's module and the committed table"
+            echo "::error::verify-imports-map.mjs failed on this build's module and the table regenerated from it (the committed pair was ABI-identical in step 1, so this is the independent decoder disagreeing with the generator's output)"
             exit 1
           fi
           tail -1 "$OUT/verify.txt"
-          echo "## gate: the independent checker passes on the committed table"
-          rm -rf "$OUT"
+          echo "## gate: the independent checker passes on the regenerated table"
+          # Before the narrow delete below: the path has to be the scratch directory mktemp
+          # actually made, resolved, and it has to be a directory. `rm -rf` on a variable that
+          # turned out empty, or on a path that somehow resolved to the checkout, would take
+          # the working tree with it -- and an empty $OUT is not a hypothetical, since a
+          # `mktemp -d` that failed would have left the generator above writing nowhere.
+          OUT_ABS="$(cd "$OUT" && pwd)"
+          case "$OUT_ABS" in
+            /tmp/tmp.*|/var/folders/*|"$RUNNER_TEMP"/tmp.*) ;;
+            *) echo "::error::refusing to remove $OUT_ABS -- it is not a mktemp directory under the runner's temp root"; exit 1 ;;
+          esac
+          [ -d "$OUT_ABS" ] || { echo "::error::the scratch directory $OUT_ABS is not a directory"; exit 1; }
+          echo "## gate: removing scratch $OUT_ABS"
+          rm -rf "$OUT_ABS"
 
       # Resolved before the manifest because the manifest records the tag its download URLs are
       # built from -- the fetch side turns `repository` + `releaseTag` + name into a URL, so the two

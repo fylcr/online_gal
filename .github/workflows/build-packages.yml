@@ -69,12 +69,33 @@ on:
       - 'pnpm-lock.yaml'
       - 'LICENSE'
       - 'THIRD_PARTY_NOTICES.md'
+      # The portable suite. `test/**` and its runner are here because the step below
+      # runs them, so a change to a test -- or to the runner that discovers them -- must
+      # not be able to land without this job re-running. The comparator and the
+      # independent verifier are named explicitly rather than through `ports/**`:
+      # listing all of `ports/` would schedule this build for every engine source edit,
+      # which is the engine workflows' job, while these two files are the only `ports/`
+      # inputs the portable suite reads.
+      - 'test/**'
+      - 'scripts/run-portable-tests.mjs'
+      - 'scripts/check-layout.mjs'
+      - 'scripts/check-sources.mjs'
+      - 'package.json'
+      - 'ports/artemis/harness/glue/compare-imports-map.mjs'
+      - 'ports/artemis/harness/glue/verify-imports-map.mjs'
   pull_request:
     paths:
       - '.github/workflows/build-packages.yml'
       - '.github/scripts/make-package.mjs'
       - '.github/scripts/smoke-consumer.mjs'
       - 'packages/**'
+      - 'test/**'
+      - 'scripts/run-portable-tests.mjs'
+      - 'scripts/check-layout.mjs'
+      - 'scripts/check-sources.mjs'
+      - 'package.json'
+      - 'ports/artemis/harness/glue/compare-imports-map.mjs'
+      - 'ports/artemis/harness/glue/verify-imports-map.mjs'
   workflow_dispatch:
     inputs:
       publish:
@@ -130,6 +151,26 @@ jobs:
         run: |
           set -eu
           pnpm run build:packages
+
+      # The portable suite, run against the freshly built tree.
+      #
+      # `test:portable` and not `npm test`: the root `test` script runs the LOCAL
+      # workbench in `.test/`, which is gitignored and needs a `.ref/` checkout and
+      # ~13 GB of game data, so it cannot run on a CI runner at all -- it fails by
+      # design with a message saying so. `test:portable` runs `test/*.test.mjs`, which
+      # needs nothing but Node, and discovers its files, so a test added to `test/` is
+      # picked up here without editing this workflow. `scripts/run-portable-tests.mjs`
+      # exits non-zero when the suite is empty, so this step cannot go green on a
+      # checkout that lost its tests.
+      #
+      # It sits after the build because that is the order a consumer of these packages
+      # experiences them, and before the pack step so a failure is reported before any
+      # tarball is produced. It gates the publish for the same reason the smoke test
+      # does: this workflow's product is a release.
+      - name: Run the portable test suite
+        run: |
+          set -eu
+          pnpm run test:portable
 
       # The set of packages, and what is deliberately absent from it.
       #

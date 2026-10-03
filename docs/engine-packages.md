@@ -41,7 +41,7 @@ uses, and it is the reason a broad `web` match can never outrank a specific engi
 | 95 | `onscripter-wasm` | `runtime-ons` | engine | `nscript.dat`, `nscript.___`, `nscr_sec.dat`, `onscript.nt2`, `onscript.nt3`, `.nsa` | runnable |
 | 90 | `onscripter` | `runtime-ons` | interpreter | same as `onscripter-wasm` | runnable |
 | 90 | `siglus` | `runtime-siglus` | shell | `Scene.pck`, `Gameexe.ini`, `Gameexe.dat` | **unavailable** |
-| 85 | `artemis` | `runtime-artemis` | shell | `root.pfs`, `system.ini`, `boot.ini`, `system/first.iet`, `.pfs`, `.iet` | **unavailable** |
+| 85 | `artemis` | `runtime-artemis` | engine | `root.pfs`, `system.ini`, `boot.ini`, `system/first.iet`, `.pfs`, `.iet` | configuration-based |
 | 80 | `tyrano` | `runtime-tyrano` | engine | `tyrano/`, `data/scenario/first.ks`, `tyrano/plugins/kag/kag.js` | runnable |
 | 20 | `web` | `runtime-web` | engine | `index.html`, `js/rpg_core.js`, `js/rmz_core.js` | runnable |
 
@@ -64,15 +64,35 @@ two KiriKiri rows: the interpreter and the engine of one title accept the *same*
 **Identification is not delivery.**
 
 Artemis and SiglusEngine probes work: a directory with `root.pfs` and `system.ini` is
-recognised as Artemis with high confidence, and a Siglus directory as Siglus. Both advertise
-`availability: 'unavailable'`, but not for the same reason, and the difference is the subject
+recognised as Artemis with high confidence, and a Siglus directory as Siglus. Neither is
+runnable out of the box, but not for the same reason, and the difference is the subject
 of this repository's Artemis work:
 
-- **artemis** — a WebAssembly build of the engine *does* exist here (`ports/artemis/`), but the
-  runtime package has no browser host registered: `runtime-artemis/src/runtime.ts` reports
-  `unavailable` exactly while `artemisEngineHosts` is empty. Registering a host flips it.
+- **artemis** — the provider is **configuration-based**, not empty. `packages/runtime-artemis`
+  provides an independent asyncify session/host path: it instantiates a caller-configured asyncify
+  WebAssembly bridge itself and renders into the host canvas, with the browser service layer
+  (`runtime-artemis/src/browser-services.ts`) supplying the `EM_ASM` / `syncfs` / IndexedDB /
+  video-element seams the guest reaches for, and real WebAudio for the OpenAL rows. Its
+  `availability` getter (`runtime-artemis/src/runtime.ts:1613`) reads
+  `configuredWasm === null ? 'unavailable' : 'runnable'` — so it is `unavailable` until a
+  bridge is supplied, and becomes `runnable` the moment one is. Supply the deployment-wide
+  fallback with `configureArtemisWasm({ wasm })`, or a per-game `options.gameConfig.wasm` /
+  `wasmUrl`, which takes precedence for that one game. A registered
+  `artemisEngineHosts` entry is the *legacy* injection seam for an embedder that already owns
+  a bridge: the array is published compatibility surface and registering into it flips
+  nothing, because availability is read from the configured binary and a session never routes
+  through that list.
 - **siglus** — there is no WebAssembly build of RFVP or `siglus_rs` at all
-  (`runtime-siglus/src/runtime.ts`).
+  (`runtime-siglus/src/runtime.ts`), so there is no configuration that makes it run.
+
+Two things the Artemis row must **not** be read as claiming. The official SDK JavaScript is a
+**diagnostic reference only, not the shipping path**: this runtime does not load, and does not
+need, the SDK page, an iframe, `eval`, or the vendored SDK glue — the vendored bytes exist for
+reverse-engineering and import-map checks. And Artemis is **not acceptance-tested**: no specific
+title and no cold game from a downloaded artifact has been played through end to end, which is
+why `describe()` reports `coldGameUnverified: true` and why the provider description says the
+engine's compatibility with any particular title is untested. Configuration-based availability
+means "this deployment supplied a bridge", never "this game is known to work".
 
 `probeAll` therefore separates three things that are easy to conflate:
 
@@ -96,8 +116,9 @@ The rule holds in both directions:
 - a directory nothing recognises is reported as unknown, never as a low-confidence guess.
 
 Availability is read from the provider on every call rather than cached in the descriptor,
-because it is a property of the running host: when a build is registered, these values flip on
-their own.
+because it is a property of the running deployment: the Artemis getter reads the live
+`configuredWasm` binding, so calling `configureArtemisWasm()` (or withdrawing it with `null`)
+flips these values on its own.
 
 ## Choosing the engine
 
@@ -148,21 +169,25 @@ release URL is the dependency:
   "dependencies": {
     "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.3.tgz",
     "@online-gal/runtime-kag": "https://github.com/fylcr/online_gal/releases/download/engine-krkr-20260920/online-gal-runtime-kag-0.1.1.tgz",
-    "@online-gal/runtime-artemis": "https://github.com/fylcr/online_gal/releases/download/engine-artemis-bridge-asyncify-9f62262/online-gal-runtime-artemis-0.1.4.tgz",
+    "@online-gal/runtime-artemis": "https://github.com/fylcr/online_gal/releases/download/engine-artemis-bridge-asyncify-9f62262/online-gal-runtime-artemis-0.1.5.tgz",
     // The aggregate, from the workflow that builds packages and nothing else. It carries all six
     // runtimes at once, which is why it needs its own trigger: no engine workflow builds all six,
     // and the packer drops `dependencies`, so a stale vendored provider would be invisible to the
     // consumer. `build-packages.yml` builds every package from source, so its ten vendored
     // directories are all rebuilt in the same job that packs them.
-    "@online-gal/engines": "https://github.com/fylcr/online_gal/releases/download/engine-packages-0.1.5/online-gal-engines-0.1.5.tgz"
+    "@online-gal/engines": "https://github.com/fylcr/online_gal/releases/download/engine-packages-0.1.6/online-gal-engines-0.1.6.tgz"
   }
 }
 ```
 
-Three of these four resolve against a published release today: `runtime-ons` 0.1.3 under
-`engine-ons-0.7.7beta`, `runtime-kag` 0.1.1 under `engine-krkr-20260920`, and the aggregate 0.1.5
+Those are the URLs `packages/engines/package.json` (0.1.6) and `packages/runtime-artemis/package.json`
+(0.1.5) would publish on the next release — the live build to target, not a claim that these exact
+URLs resolve yet. Three earlier versions *are* published today: `runtime-ons` 0.1.3 under
+`engine-ons-0.7.7beta`, `runtime-kag` 0.1.1 under `engine-krkr-20260920`, and the aggregate **0.1.5**
 under `engine-packages-0.1.5` — which is the tag `build-packages.yml` derives from the package
-version, so a version bump is what publishes it. The artemis URL is the exception: it is what the
+version, so a version bump is what publishes it. So the aggregate line above describes the *next*
+release: bumping `packages/engines` to 0.1.6 and pushing is what creates `engine-packages-0.1.6` and
+makes that URL live. The artemis URL is the exception in a second way: it is what the
 *next* build of `build-wasm-artemis-bridge.yml` will publish, under the release tag that workflow
 already uses (`engine-artemis-bridge-asyncify-9f62262`), and that workflow only publishes when
 `publish` is set or `vars.ARTEMIS_PUBLISH_ARTIFACTS` is `true`, because that engine is deliberately
@@ -191,7 +216,7 @@ incremental build cache, which the packer now excludes. It records the sha256 of
 describing text that was no longer in the archive, and no normalization pass could repair a digest of
 bytes that were already gone. A CRLF and an LF checkout of the same commit therefore gave tarballs
 of identical length that still differed in those 2–10 files and in nothing else. They are gone: the
-current releases (`runtime-ons` 0.1.3, `runtime-kag` 0.1.1, `engines` 0.1.5) each contain **0** of
+current *published* releases (`runtime-ons` 0.1.3, `runtime-kag` 0.1.1, `engines` 0.1.5) each contain **0** of
 them, and a CRLF checkout of `8482272` now packs to the same `2,553,631` B /
 `e674dfd15b7768f0…` as the LF one. Their sizes and digests are in `fetch-engine-artifacts.md`.
 
@@ -239,7 +264,7 @@ sitting next to it, a `dist/` that was never compiled. So `build-packages.yml` r
 and before the release — and the step fails the job if any of it does not hold:
 
 ```
-node .github/scripts/smoke-consumer.mjs dist/packages/online-gal-engines-0.1.5.tgz
+node .github/scripts/smoke-consumer.mjs dist/packages/online-gal-engines-0.1.6.tgz
 ```
 
 The script creates a consumer directory **outside the repository** (under `RUNNER_TEMP` on a
@@ -282,7 +307,7 @@ workspace member and **rewrites the repository's `pnpm-lock.yaml`**, which is wh
 directory has to be outside the repository. To reproduce the hazard and watch the guard fire:
 
 ```
-node .github/scripts/smoke-consumer.mjs dist/packages/online-gal-engines-0.1.5.tgz \
+node .github/scripts/smoke-consumer.mjs dist/packages/online-gal-engines-0.1.6.tgz \
   --allow-in-repo-temp --temp-dir .test/consumer-check
 # ::error::the repository lockfile is not dirty: got  M pnpm-lock.yaml; expected (empty)
 git checkout -- pnpm-lock.yaml

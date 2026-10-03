@@ -3470,11 +3470,8 @@ p06_scan_entry:;
     if (p2 == 1u) { goto unreachable_path; }
     tmp = LoadU32(ctx, frame + 32u);
     p2 = tmp + 28u;
-    if (static_cast<uint32_t>(static_cast<int32_t>(LoadS8(ctx, tmp + 39u)) <= -1)) {
-    } else {
-    }
-    SkipWhitespace(ctx, p2);
-    word = SkipWhitespace(ctx, p2);
+    tmp = static_cast<uint32_t>(static_cast<int32_t>(LoadS8(ctx, tmp + 39u)) <= -1);
+    aux = SkipWhitespace(ctx, tmp ? LoadU32(ctx, p2) : p2);
     if (static_cast<uint32_t>(static_cast<int32_t>(LoadS8(ctx, frame + 67u)) <= -1)) {
       DeallocateRawBlock(ctx, LoadU32(ctx, frame + 56u));
     }
@@ -3487,14 +3484,13 @@ p06_scan_entry:;
   // Merge point tag_walk_loop.
 tag_walk_loop:;
         aux = LoadU8(ctx, p2 + 27u);
-        span = static_cast<uint32_t>(static_cast<int32_t>(((aux << 24) >> 24)) < 0u);
+        span = static_cast<uint32_t>((aux & 0x80u) != 0u);
         aux = span ? LoadU32(ctx, p2 + 20u) : aux;
         count = aux < 4u;
         block = count ? aux : 4u;
         if (block != 0u) {
           result = p2 + 16u;
           span = span ? LoadU32(ctx, result) : result;
-          CompareBytes(ctx, frame + 56u, span, block);
           result = CompareBytes(ctx, frame + 56u, span, block);
           if (!(result)) {
             aux = aux <= 4u;
@@ -3505,7 +3501,6 @@ tag_walk_loop:;
           if (aux != 0u) { goto tag_walk_next; }
   // Merge point tag_walk_step.
 tag_walk_step:;
-          CompareBytes(ctx, span, frame + 56u, block);
           aux = CompareBytes(ctx, span, frame + 56u, block);
           block = !(aux);
           if (block != 0u) { goto tag_walk_found; }
@@ -3537,7 +3532,7 @@ tag_walk_next:;
 word_walk_loop:;
     if (ResumePhase(ctx) == kResumeRunning) {
       p2 = LoadU8(ctx, tmp + 27u);
-      block = static_cast<uint32_t>(static_cast<int32_t>(((p2 << 24) >> 24)) < 0u);
+      block = static_cast<uint32_t>((p2 & 0x80u) != 0u);
       p2 = block ? LoadU32(ctx, tmp + 20u) : p2;
       span = p2 < 4u;
       aux = span ? p2 : 4u;
@@ -3546,7 +3541,6 @@ word_walk_loop:;
       if (aux != 0u) {
         count = tmp + 16u;
         block = block ? LoadU32(ctx, count) : count;
-        CompareBytes(ctx, frame + 32u, block, aux);
         count = CompareBytes(ctx, frame + 32u, block, aux);
         if (!(count)) {
           if (p2 <= 4u) { goto word_walk_step; }
@@ -3556,7 +3550,6 @@ word_walk_loop:;
         if (p2 != 0u) { goto word_walk_done; }
   // Merge point word_walk_step.
 word_walk_step:;
-        CompareBytes(ctx, block, frame + 32u, aux);
         p2 = CompareBytes(ctx, block, frame + 32u, aux);
         aux = !(p2);
         if (aux != 0u) { goto word_walk_found; }
@@ -3594,11 +3587,7 @@ word_walk_rescan:;
       tmp = LoadU32(ctx, frame + 32u);
       p2 = tmp + 28u;
       tmp = static_cast<uint32_t>(static_cast<int32_t>(LoadS8(ctx, tmp + 39u)) <= -1);
-      if (tmp != 0u) {
-      } else {
-      }
-      SkipWhitespace(ctx, p2);
-      aux = SkipWhitespace(ctx, p2);
+      aux = SkipWhitespace(ctx, tmp ? LoadU32(ctx, p2) : p2);
       p2 = static_cast<uint32_t>(static_cast<int32_t>(LoadS8(ctx, frame + 67u)) > -1);
       if (p2 != 0u) { goto diff_lookup; }
       p2 = LoadU32(ctx, frame + 56u);
@@ -3651,11 +3640,7 @@ diff_scope_entry:;
     tmp = LoadU32(ctx, frame + 32u);
     p2 = tmp + 28u;
     tmp = static_cast<uint32_t>(static_cast<int32_t>(LoadS8(ctx, tmp + 39u)) <= -1);
-    if (tmp != 0u) {
-    } else {
-    }
-    SkipWhitespace(ctx, p2);
-    aux = SkipWhitespace(ctx, p2);
+    aux = SkipWhitespace(ctx, tmp ? LoadU32(ctx, p2) : p2);
     p2 = static_cast<uint32_t>(static_cast<int32_t>(LoadS8(ctx, frame + 67u)) > -1);
     if (p2 != 0u) { goto diff_lookup; }
     p2 = LoadU32(ctx, frame + 56u);
@@ -3664,7 +3649,6 @@ diff_scope_entry:;
   // Merge point diff_lookup.
 diff_lookup:;
   if (ResumePhase(ctx) == kResumeRunning || resume_point == 120u) {
-    AllocateStringBuffer(ctx, 16u);
     result = AllocateStringBuffer(ctx, 16u);
   #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
@@ -3686,7 +3670,7 @@ diff_lookup:;
 key_walk_loop:;
     if (ResumePhase(ctx) == kResumeRunning) {
       p1 = LoadU8(ctx, p2 + 27u);
-      span = static_cast<uint32_t>(static_cast<int32_t>(((p1 << 24) >> 24)) < 0u);
+      span = static_cast<uint32_t>((p1 & 0x80u) != 0u);
       p1 = span ? LoadU32(ctx, p2 + 20u) : p1;
       count = p1 < 11u;
       tmp = count ? p1 : 11u;
@@ -3695,7 +3679,6 @@ key_walk_loop:;
       if (tmp != 0u) {
         result = p2 + 16u;
         span = span ? LoadU32(ctx, result) : result;
-        CompareBytes(ctx, block, span, tmp);
         result = CompareBytes(ctx, block, span, tmp);
         if (!(result)) {
           p1 = p1 <= 11u;
@@ -3706,7 +3689,6 @@ key_walk_loop:;
         if (p1 != 0u) { goto key_walk_rewind; }
   // Merge point key_walk_step.
 key_walk_step:;
-        CompareBytes(ctx, span, block, tmp);
         p1 = CompareBytes(ctx, span, block, tmp);
         tmp = !(p1);
         if (tmp != 0u) { goto key_walk_found; }
@@ -3724,7 +3706,6 @@ key_walk_compare:;
       StoreU32(ctx, kDataD015C, 0u);
     }
     if (ResumePhase(ctx) == kResumeRunning || resume_point == 121u) {
-      HostFoldLayoutOffset(ctx, 1032u, 16u);
       result = HostFoldLayoutOffset(ctx, 1032u, 16u);
     #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
       SyncMemoryBase(ctx);
@@ -3765,7 +3746,7 @@ key_walk_compare:;
       p1 = LoadU32(ctx, frame + 32u);
       count = LoadU32(ctx, p1 + 32u);
       p2 = LoadU8(ctx, p1 + 39u);
-      span = static_cast<uint32_t>(static_cast<int32_t>(((p2 << 24) >> 24)) < 0u);
+      span = static_cast<uint32_t>((p2 & 0x80u) != 0u);
       p2 = span ? count : p2 == 1u;
     }
     if (p2 || ResumePhase(ctx) == kResumeRewinding) {
@@ -3774,7 +3755,6 @@ key_walk_compare:;
         p1 = p1 + 28u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 123u) {
-        HostInvokeIiiiii(ctx, 1354u, p1, 0u, 4294967295u, 740137u, 1u);
         result = HostInvokeIiiiii(ctx, 1354u, p1, 0u, 4294967295u, 740137u, 1u);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
@@ -3837,7 +3817,7 @@ key_in_branch:;
     p1 = LoadU32(ctx, frame + 32u);
     block = LoadU32(ctx, p1 + 32u);
     p2 = LoadU8(ctx, p1 + 39u);
-    count = static_cast<uint32_t>(static_cast<int32_t>(((p2 << 24) >> 24)) < 0u);
+    count = static_cast<uint32_t>((p2 & 0x80u) != 0u);
     p2 = count ? block : p2 != 2u;
   }
   if (ResumePhase(ctx) == kResumeRunning) {
@@ -3846,7 +3826,6 @@ key_in_branch:;
     p1 = p1 + 28u;
   }
   if (ResumePhase(ctx) == kResumeRunning || resume_point == 125u) {
-    HostInvokeIiiiii(ctx, 1354u, p1, 0u, 4294967295u, 740723u, 2u);
     result = HostInvokeIiiiii(ctx, 1354u, p1, 0u, 4294967295u, 740723u, 2u);
   #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
@@ -3891,7 +3870,7 @@ key_show_branch:;
     p1 = LoadU32(ctx, frame + 16u);
     block = LoadU32(ctx, p1 + 32u);
     p2 = LoadU8(ctx, p1 + 39u);
-    count = static_cast<uint32_t>(static_cast<int32_t>(((p2 << 24) >> 24)) < 0u);
+    count = static_cast<uint32_t>((p2 & 0x80u) != 0u);
     p2 = count ? block : p2 != 4u;
   }
   if (ResumePhase(ctx) == kResumeRunning) {
@@ -3900,7 +3879,6 @@ key_show_branch:;
     p1 = p1 + 28u;
   }
   if (ResumePhase(ctx) == kResumeRunning || resume_point == 127u) {
-    HostInvokeIiiiii(ctx, 1354u, p1, 0u, 4294967295u, 740730u, 4u);
     result = HostInvokeIiiiii(ctx, 1354u, p1, 0u, 4294967295u, 740730u, 4u);
   #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
@@ -3945,7 +3923,7 @@ key_backlog_down_branch:;
     p1 = LoadU32(ctx, frame);
     block = LoadU32(ctx, p1 + 32u);
     p2 = LoadU8(ctx, p1 + 39u);
-    count = static_cast<uint32_t>(static_cast<int32_t>(((p2 << 24) >> 24)) < 0u);
+    count = static_cast<uint32_t>((p2 & 0x80u) != 0u);
     p2 = count ? block : p2 != 15u;
   }
   if (ResumePhase(ctx) == kResumeRunning) {
@@ -3954,7 +3932,6 @@ key_backlog_down_branch:;
     p1 = p1 + 28u;
   }
   if (ResumePhase(ctx) == kResumeRunning || resume_point == 129u) {
-    HostInvokeIiiiii(ctx, 1354u, p1, 0u, 4294967295u, 740735u, 15u);
     result = HostInvokeIiiiii(ctx, 1354u, p1, 0u, 4294967295u, 740735u, 15u);
   #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
     SyncMemoryBase(ctx);
@@ -3998,7 +3975,7 @@ key_backlog_up_branch:;
     p1 = LoadU32(ctx, frame + 88u);
     count = LoadU32(ctx, p1 + 32u);
     block = LoadU8(ctx, p1 + 39u);
-    span = static_cast<uint32_t>(static_cast<int32_t>(((block << 24) >> 24)) < 0u);
+    span = static_cast<uint32_t>((block & 0x80u) != 0u);
     block = span ? count : block == 13u;
     p2 = 0u;
   }
@@ -4008,7 +3985,6 @@ key_backlog_up_branch:;
       p1 = p1 + 28u;
     }
     if (ResumePhase(ctx) == kResumeRunning || resume_point == 131u) {
-      HostInvokeIiiiii(ctx, 1354u, p1, 0u, 4294967295u, 740768u, 13u);
       result = HostInvokeIiiiii(ctx, 1354u, p1, 0u, 4294967295u, 740768u, 13u);
     #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
       SyncMemoryBase(ctx);
@@ -4080,7 +4056,7 @@ key_in_second_branch:;
     block = LoadU32(ctx, frame + 32u);
     count = LoadU32(ctx, block + 32u);
     span = LoadU8(ctx, block + 39u);
-    result = static_cast<uint32_t>(static_cast<int32_t>(((span << 24) >> 24)) < 0u);
+    result = static_cast<uint32_t>((span & 0x80u) != 0u);
     count = result ? count : span == 2u;
   }
   if (count || ResumePhase(ctx) == kResumeRewinding) {
@@ -4089,7 +4065,6 @@ key_in_second_branch:;
       p2 = block + 28u;
     }
     if (ResumePhase(ctx) == kResumeRunning || resume_point == 133u) {
-      HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 740723u, 2u);
       result = HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 740723u, 2u);
     #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
       SyncMemoryBase(ctx);
@@ -4171,16 +4146,15 @@ key_in_second_branch:;
       p0 = count * 36u;
     }
     if (ResumePhase(ctx) == kResumeRunning || resume_point == 135u) {
-      AllocateStringBuffer(ctx, p0);
       result = AllocateStringBuffer(ctx, p0);
     #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
       SyncMemoryBase(ctx);
     #endif
       resume_point = 135u;
       if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+      p0 = result;
     } else {
     }
-    p0 = p0;
   }
   if (ResumePhase(ctx) == kResumeRunning) {
     p2 = (p2 * 36u) + p0;
@@ -4270,7 +4244,7 @@ key_in_third_branch:;
       block = LoadU32(ctx, frame + 32u);
       count = LoadU32(ctx, block + 32u);
       span = LoadU8(ctx, block + 39u);
-      result = static_cast<uint32_t>(static_cast<int32_t>(((span << 24) >> 24)) < 0u);
+      result = static_cast<uint32_t>((span & 0x80u) != 0u);
       count = result ? count : span == 3u;
     }
     if (count || ResumePhase(ctx) == kResumeRewinding) {
@@ -4279,7 +4253,6 @@ key_in_third_branch:;
         p2 = block + 28u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 137u) {
-        HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 740726u, 3u);
         result = HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 740726u, 3u);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
@@ -4361,16 +4334,15 @@ key_in_third_branch:;
         p0 = count * 36u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 139u) {
-        AllocateStringBuffer(ctx, p0);
         result = AllocateStringBuffer(ctx, p0);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
       #endif
         resume_point = 139u;
         if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+        p0 = result;
       } else {
       }
-      p0 = p0;
     }
     if (ResumePhase(ctx) == kResumeRunning) {
       p2 = (p2 * 36u) + p0;
@@ -4439,7 +4411,7 @@ key_show_setter:;
       block = LoadU32(ctx, frame + 32u);
       count = LoadU32(ctx, block + 32u);
       span = LoadU8(ctx, block + 39u);
-      result = static_cast<uint32_t>(static_cast<int32_t>(((span << 24) >> 24)) < 0u);
+      result = static_cast<uint32_t>((span & 0x80u) != 0u);
       count = result ? count : span == 4u;
     }
     if (count || ResumePhase(ctx) == kResumeRewinding) {
@@ -4448,7 +4420,6 @@ key_show_setter:;
         p2 = block + 28u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 141u) {
-        HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 740730u, 4u);
         result = HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 740730u, 4u);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
@@ -4530,16 +4501,15 @@ key_show_setter:;
         p0 = count * 36u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 143u) {
-        AllocateStringBuffer(ctx, p0);
         result = AllocateStringBuffer(ctx, p0);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
       #endif
         resume_point = 143u;
         if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+        p0 = result;
       } else {
       }
-      p0 = p0;
     }
     if (ResumePhase(ctx) == kResumeRunning) {
       p2 = (p2 * 36u) + p0;
@@ -4608,7 +4578,7 @@ key_len4_setter:;
       block = LoadU32(ctx, frame + 32u);
       count = LoadU32(ctx, block + 32u);
       span = LoadU8(ctx, block + 39u);
-      result = static_cast<uint32_t>(static_cast<int32_t>(((span << 24) >> 24)) < 0u);
+      result = static_cast<uint32_t>((span & 0x80u) != 0u);
       count = result ? count : span == 4u;
     }
     if (count || ResumePhase(ctx) == kResumeRewinding) {
@@ -4617,7 +4587,6 @@ key_len4_setter:;
         p2 = block + 28u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 145u) {
-        HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 718402u, 4u);
         result = HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 718402u, 4u);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
@@ -4699,16 +4668,15 @@ key_len4_setter:;
         p0 = count * 36u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 147u) {
-        AllocateStringBuffer(ctx, p0);
         result = AllocateStringBuffer(ctx, p0);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
       #endif
         resume_point = 147u;
         if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+        p0 = result;
       } else {
       }
-      p0 = p0;
     }
     if (ResumePhase(ctx) == kResumeRunning) {
       p2 = (p2 * 36u) + p0;
@@ -4777,7 +4745,7 @@ key_backlog_down_setter:;
       block = LoadU32(ctx, frame + 32u);
       count = LoadU32(ctx, block + 32u);
       span = LoadU8(ctx, block + 39u);
-      result = static_cast<uint32_t>(static_cast<int32_t>(((span << 24) >> 24)) < 0u);
+      result = static_cast<uint32_t>((span & 0x80u) != 0u);
       count = result ? count : span == 15u;
     }
     if (count || ResumePhase(ctx) == kResumeRewinding) {
@@ -4786,7 +4754,6 @@ key_backlog_down_setter:;
         p2 = block + 28u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 149u) {
-        HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 740735u, 15u);
         result = HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 740735u, 15u);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
@@ -4875,16 +4842,15 @@ key_backlog_down_setter:;
         p0 = count * 36u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 151u) {
-        AllocateStringBuffer(ctx, p0);
         result = AllocateStringBuffer(ctx, p0);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
       #endif
         resume_point = 151u;
         if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+        p0 = result;
       } else {
       }
-      p0 = p0;
     }
     if (ResumePhase(ctx) == kResumeRunning) {
       p2 = (p2 * 36u) + p0;
@@ -4953,7 +4919,7 @@ key_len16_setter:;
       block = LoadU32(ctx, frame + 32u);
       count = LoadU32(ctx, block + 32u);
       span = LoadU8(ctx, block + 39u);
-      result = static_cast<uint32_t>(static_cast<int32_t>(((span << 24) >> 24)) < 0u);
+      result = static_cast<uint32_t>((span & 0x80u) != 0u);
       count = result ? count : span == 16u;
     }
     if (count || ResumePhase(ctx) == kResumeRewinding) {
@@ -4962,7 +4928,6 @@ key_len16_setter:;
         p2 = block + 28u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 153u) {
-        HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 740751u, 16u);
         result = HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 740751u, 16u);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
@@ -5051,16 +5016,15 @@ key_len16_setter:;
         p0 = count * 36u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 155u) {
-        AllocateStringBuffer(ctx, p0);
         result = AllocateStringBuffer(ctx, p0);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
       #endif
         resume_point = 155u;
         if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+        p0 = result;
       } else {
       }
-      p0 = p0;
     }
     if (ResumePhase(ctx) == kResumeRunning) {
       p2 = (p2 * 36u) + p0;
@@ -5129,7 +5093,7 @@ key_backlog_up_setter:;
       block = LoadU32(ctx, frame + 32u);
       count = LoadU32(ctx, block + 32u);
       span = LoadU8(ctx, block + 39u);
-      result = static_cast<uint32_t>(static_cast<int32_t>(((span << 24) >> 24)) < 0u);
+      result = static_cast<uint32_t>((span & 0x80u) != 0u);
       count = result ? count : span == 13u;
     }
     if (count || ResumePhase(ctx) == kResumeRewinding) {
@@ -5138,7 +5102,6 @@ key_backlog_up_setter:;
         p2 = block + 28u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 157u) {
-        HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 740768u, 13u);
         result = HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 740768u, 13u);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
@@ -5227,16 +5190,15 @@ key_backlog_up_setter:;
         p0 = count * 36u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 159u) {
-        AllocateStringBuffer(ctx, p0);
         result = AllocateStringBuffer(ctx, p0);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
       #endif
         resume_point = 159u;
         if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+        p0 = result;
       } else {
       }
-      p0 = p0;
     }
     if (ResumePhase(ctx) == kResumeRunning) {
       p2 = (p2 * 36u) + p0;
@@ -5305,7 +5267,7 @@ key_len14_setter:;
       self = LoadU32(ctx, frame + 32u);
       count = LoadU32(ctx, self + 32u);
       block = LoadU8(ctx, self + 39u);
-      span = static_cast<uint32_t>(static_cast<int32_t>(((block << 24) >> 24)) < 0u);
+      span = static_cast<uint32_t>((block & 0x80u) != 0u);
       block = span ? count : block == 14u;
     }
     if (block || ResumePhase(ctx) == kResumeRewinding) {
@@ -5314,7 +5276,6 @@ key_len14_setter:;
         p2 = self + 28u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 161u) {
-        HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 740782u, 14u);
         result = HostInvokeIiiiii(ctx, 1354u, p2, 0u, 4294967295u, 740782u, 14u);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
@@ -5401,16 +5362,15 @@ key_len14_setter:;
         p0 = count * 36u;
       }
       if (ResumePhase(ctx) == kResumeRunning || resume_point == 163u) {
-        AllocateStringBuffer(ctx, p0);
         result = AllocateStringBuffer(ctx, p0);
       #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
         SyncMemoryBase(ctx);
       #endif
         resume_point = 163u;
         if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
+        p0 = result;
       } else {
       }
-      p0 = p0;
     }
     if (ResumePhase(ctx) == kResumeRunning) {
       p2 = (p2 * 36u) + p0;
