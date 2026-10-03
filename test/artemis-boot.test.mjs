@@ -144,6 +144,38 @@ test('async forward exclusions use guest import names rather than dynCall export
   } finally { rig.driver.dispose(); }
 });
 
+test('attachExports wires EH RTTI, stack scratch, destructor and setThrew through actual short names', () => {
+  const reached = [], freed = []; let next = 16000;
+  const type = 28672, baseType = 28688;
+  const rig = makeRig({
+    ad: value => { reached.push(['ad', value]); assert.equal(value, type); return 0; },
+    $c: (caught, thrown, out) => {
+      reached.push(['$c', caught, thrown, out]);
+      assert.deepEqual([caught, thrown], [baseType, type]);
+      rig.memory.i32[out >>> 2] += 8; return 1;
+    },
+    gd: (index, ptr) => { reached.push(['gd', index, ptr]); return ptr; },
+    _c: (...args) => reached.push(['_c', ...args]),
+  }, { malloc: size => { const p = next; next += Math.ceil(size / 16) * 16; return p; }, free: p => freed.push(p) });
+  try {
+    rig.table.attachExports(rig.instance);
+    const api = rig.table.imports, payload = api.u(32);
+    assert.throws(() => api.w(payload, type, 5), /C\+\+ exception/);
+    const record = api.g(baseType);
+    assert.equal(rig.memory.i32[record >>> 2], payload);
+    assert.equal(rig.stack(), 59984, 'Zc allocated actual guest stack scratch');
+    assert.equal(api.r(record), payload + 8, 'ad and $c are both attached');
+    api.A();
+    assert.deepEqual(reached, [['$c', baseType, type, 59984], ['ad', type], ['_c', 0, 0], ['gd', 5, payload]]);
+    assert.deepEqual(freed, [payload - 16, record]);
+    assert.throws(() => api.I(4096, 0), /longjmp/);
+    assert.deepEqual(reached.at(-1), ['_c', 4096, 1]);
+    const second = api.u(32); assert.throws(() => api.w(second, type, 0), /C\+\+ exception/);
+    rig.instance.exports.Yc(60000);
+    api.g(type); assert.equal(rig.stack(), 60000, 'Yc restores an identity-match search');
+  } finally { rig.driver.dispose(); }
+});
+
 test('bootAsync writes a UTF-8 argv with a null terminator and reports _main', async () => {
   const rig = makeRig();
   const result = await bounded(rig.table.bootAsync(rig.instance, ['中', 'x']));

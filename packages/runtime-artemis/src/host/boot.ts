@@ -593,10 +593,15 @@ export function createArtemisBootTable(setup: ArtemisBootSetup): ArtemisBootTabl
    * the engine would have rejected. Hence the short-name lookup, and hence the loud report if even
    * that fails.
    *
+   * `ad` is the one that matters most, and it is worth naming why: a row bound to the wrong name is
+   * bound to the wrong function, and `___cxa_is_pointer_type` is called from inside the throw path,
+   * where a wrong callee is not a missing feature but a trap. `_c` (`_setThrew`) is bound for the
+   * same reason, one level down: `___cxa_end_catch` calls it in the glue.
+   *
    * The `async` bucket needs three more — `Xc`, `Yc`, `_c` — and the 30 dynCalls, all under the
    * short names the glue's forwarders name. The dynCalls are the *whole* mechanism: the guest's own
-   * export does the table lookup, the argument marshalling and the `__THREW__` bookkeeping, so a
-   * missing one is reported by name rather than answered with a guess.
+   * export does the table lookup and the argument marshalling, so a missing one is reported by name
+   * rather than answered with a guess.
    *
    * The `gl` bucket needs one of them: `rd`, the `v` dynCall, because `_emscripten_set_main_loop`
    * stores a *function-table index* and the glue reaches it through `getDynCaller("v", func)`. With
@@ -608,7 +613,7 @@ export function createArtemisBootTable(setup: ArtemisBootSetup): ArtemisBootTabl
     const canCatch = exports['$c'];
     const isPointerType = exports['ad'];
     if (typeof canCatch !== 'function') {
-      report('eh', 'the bridge exports neither $c nor ___cxa_can_catch, so base-class matching is unavailable');
+      report('eh', 'the bridge does not export $c, so ___cxa_can_catch and base-class matching are unavailable');
     } else {
       ehHost.canCatch = (catchType: number, thrownType: number, adjustedPtr: number): number => {
         const call = canCatch as (a: number, b: number, c: number) => number;
@@ -616,7 +621,7 @@ export function createArtemisBootTable(setup: ArtemisBootSetup): ArtemisBootTabl
       };
     }
     if (typeof isPointerType !== 'function') {
-      report('eh', 'the bridge exports neither ad nor ___cxa_is_pointer_type, so reference types are guessed');
+      report('eh', 'the bridge does not export ad, so ___cxa_is_pointer_type and reference types are unavailable');
     } else {
       ehHost.isPointerType = (type: number): number => {
         const call = isPointerType as (a: number) => number;
@@ -670,6 +675,42 @@ export function createArtemisBootTable(setup: ArtemisBootSetup): ArtemisBootTabl
       dynCall[exportName] = call as ArtemisForwardedFn;
     }
     asyncHost.dynCall = dynCall;
+
+    /**
+     * The two `eh` cross-links, which live in the `async` export namespace but belong to `eh`.
+     *
+     * `_c` is the guest's `_setThrew`, which `___cxa_end_catch` calls first to reset the throw state.
+     * It is the *same* export the `async` trampolines already hold, reached through a separate field
+     * because the two buckets have separate hosts — one call site each, no shared mutable state.
+     *
+     * `gd` is `dynCall_ii`, which is how the SDK invokes an exception destructor: the destructor the
+     * guest passes to `___cxa_throw` is a **dynCall index**, not a function pointer, and the glue
+     * reaches it with `getDynCaller("ii", destructor)(info.excPtr)`. The SDK's own export key is `gd`
+     * (`var dynCall_ii=Module["dynCall_ii"]=Module["asm"]["gd"]`), and it is deliberately *not* part
+     * of {@link ARTEMIS_ASYNC_FORWARDS}: nothing in the `async` import bucket calls it, so binding it
+     * there would be a row that exists only to be listed.
+     *
+     * `dynCall_ii` returns i32 and this callback returns void, which is a real, deliberate narrowing:
+     * the glue discards the value too (`getDynCaller("ii", destructor)(info.excPtr)` is a statement),
+     * and a destructor's result is not something the caller of `exception_decRef` can use.
+     */
+    ehHost.setThrew = asyncHost.setThrew;
+    ehHost.stackSave = asyncHost.stackSave;
+    ehHost.stackRestore = asyncHost.stackRestore;
+    ehHost.stackAlloc = bindExport('Zc', 'the guest stackAlloc for the eh scratch word', (call) => (
+      bytes: number,
+    ) => (call(bytes | 0) as number) | 0);
+    const dynCallIi = exports['gd'];
+    if (typeof dynCallIi !== 'function') {
+      report('eh', 'the bridge does not export gd (dynCall_ii), so an exception destructor cannot be reached');
+    } else {
+      const call = dynCallIi as (index: number, excPtr: number) => number;
+      ehHost.runDestructor = (index: number, excPtr: number): void => {
+        // The return is discarded exactly as the glue discards it; `dynCall_ii` is typed `i32`, and
+        // this host deliberately does not pretend the callback is `void`.
+        call(index | 0, excPtr | 0);
+      };
+    }
 
     /**
      * `gl` gets its dynCall outside {@link bindExport}, because that helper reports every miss as

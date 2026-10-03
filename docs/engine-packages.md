@@ -169,37 +169,50 @@ release URL is the dependency:
   "dependencies": {
     "@online-gal/runtime-ons": "https://github.com/fylcr/online_gal/releases/download/engine-ons-0.7.7beta/online-gal-runtime-ons-0.1.3.tgz",
     "@online-gal/runtime-kag": "https://github.com/fylcr/online_gal/releases/download/engine-krkr-20260920/online-gal-runtime-kag-0.1.1.tgz",
-    "@online-gal/runtime-artemis": "https://github.com/fylcr/online_gal/releases/download/engine-artemis-bridge-asyncify-9f62262/online-gal-runtime-artemis-0.1.6.tgz",
+    "@online-gal/runtime-artemis": "https://github.com/fylcr/online_gal/releases/download/engine-artemis-bridge-asyncify-9f62262/online-gal-runtime-artemis-0.1.7.tgz",
     // The aggregate, from the workflow that builds packages and nothing else. It carries all six
     // runtimes at once, which is why it needs its own trigger: no engine workflow builds all six,
     // and the packer drops `dependencies`, so a stale vendored provider would be invisible to the
     // consumer. `build-packages.yml` builds every package from source, so its ten vendored
     // directories are all rebuilt in the same job that packs them.
-    "@online-gal/engines": "https://github.com/fylcr/online_gal/releases/download/engine-packages-0.1.7/online-gal-engines-0.1.7.tgz"
+    "@online-gal/engines": "https://github.com/fylcr/online_gal/releases/download/engine-packages-0.1.8/online-gal-engines-0.1.8.tgz"
   }
 }
 ```
 
-Those are the URLs `packages/engines/package.json` (**0.1.7**) and
-`packages/runtime-artemis/package.json` (**0.1.6**) would publish on the next release — the live build
-to target, not a claim that either URL resolves. Measured over the API, the aggregate's previous
-**0.1.6** is already published (`engine-packages-0.1.6`, 2026-10-03T03:48:38Z, `online-gal-engines-0.1.6.tgz`,
-2,993,488 B, from run `37094376133`, success at `7e16477356323244292b658fd924aebc71e24fe8`), so **0.1.7
-is prospective**: it is what bumping `packages/engines` and pushing creates. Two other versions *are*
-published today: `runtime-ons` 0.1.3 under `engine-ons-0.7.7beta` and `runtime-kag` 0.1.1 under
-`engine-krkr-20260920`.
+Those URLs are *examples derived from the versions currently in the manifests*: the aggregate line
+carries `packages/engines/package.json`'s **0.1.8**, and the artemis line carries the **0.1.7** of
+`packages/runtime-artemis/package.json`. The previous release pair was engines **0.1.7** and artemis
+**0.1.6**, as of commit `db70bd0`. Each URL spells out what those manifests' `version` fields would
+name on the next release; they are not a claim that either URL resolves, and not a resolution check
+of any kind.
 
-The artemis URL is the exception in a second way: it is what the
-*next* build of `build-wasm-artemis-bridge.yml` will publish, under the release tag that workflow
-already uses (`engine-artemis-bridge-asyncify-9f62262`), and that workflow only publishes when
-`publish` is set or `vars.ARTEMIS_PUBLISH_ARTIFACTS` is `true`, because that engine is deliberately
-withheld while its SDK terms are unsettled. It is not cleared to publish yet, so treat that one as
-"present after the push that sets `package-dir` and the flag", not as something to paste into a
-build today. Artifact availability is not redistribution clearance. The previous artemis runtime,
-**0.1.5**, was downloaded and failed synchronous WASM compilation under Chrome 151 before any game
-read; **0.1.6** changes both byte and URL loading to the asynchronous `WebAssembly.compile` API.
-That fixes the measured browser loading restriction, not an accepted title: real-game verification
-of the new downloaded runtime and same-commit WASM is still required. The aggregate's own 0.1.0 was
+What was actually observed, in one read-only check of the GitHub API on **2026-10-03** (a dated
+observation, not a perpetually current state): the aggregate's newest published release then was
+**0.1.7** (`engine-packages-0.1.7`, published 2026-10-03T15:02:45Z), and **0.1.8 was not published at
+that check**. The earlier **0.1.6** (`engine-packages-0.1.6`, 2026-10-03T03:48:38Z,
+`online-gal-engines-0.1.6.tgz`, 2,993,488 B, from run `37094376133`, success at
+`7e16477356323244292b658fd924aebc71e24fe8`) remains the release whose artefact was checked by size
+and digest. Two other versions were published: `runtime-ons` 0.1.3 under `engine-ons-0.7.7beta` and
+`runtime-kag` 0.1.1 under `engine-krkr-20260920`.
+
+The artemis URL is unchecked in a second way, and more sharply: at that same 2026-10-03 check,
+**neither a release nor a tag named `engine-artemis-bridge-asyncify-9f62262` existed** (both the
+release and the git ref answered 404), so the tag is what a future build would create, not something
+to paste into a build today; publications since that check are not covered by it. That workflow only
+publishes when `publish` is set or `vars.ARTEMIS_PUBLISH_ARTIFACTS` is `true`, because that engine is
+deliberately withheld while its SDK terms are unsettled. Artifact availability is not redistribution
+clearance, either.
+
+On the artemis runtime itself: **0.1.5** was downloaded and failed synchronous WASM compilation
+under Chrome 151 before any game read; **0.1.6** moved both byte and URL loading to the asynchronous
+`WebAssembly.compile` API, which fixed that measured browser loading restriction but did not amount
+to an accepted title — and same-commit `db70bd0`, which downloaded and compiled it asynchronously,
+did load and settle before the real game trapped `RuntimeError: unreachable`; the cold
+≥240 s playability bar was not passed. The current **0.1.7** repair addresses the `CatchInfo`
+existing-record base plus adjustment, header/refcount/destructor handling, and the heap growth,
+import entry and SDK stack helpers; it still awaits its build, download and real-game verification.
+Root cause and licence clearance are both unclaimed here. The aggregate's own 0.1.0 was
 published with the LF checkout form of `onsyuri.html` and
 then withdrawn, because the aggregate is the one tarball that vendors the committed copy rather than
 a fresh build (see the note on `packages/runtime-ons/assets/**` in `.gitattributes`).
@@ -271,7 +284,7 @@ sitting next to it, a `dist/` that was never compiled. So `build-packages.yml` r
 and before the release — and the step fails the job if any of it does not hold:
 
 ```
-node .github/scripts/smoke-consumer.mjs dist/packages/online-gal-engines-0.1.7.tgz
+node .github/scripts/smoke-consumer.mjs dist/packages/online-gal-engines-0.1.8.tgz
 ```
 
 The script creates a consumer directory **outside the repository** (under `RUNNER_TEMP` on a
@@ -314,7 +327,7 @@ workspace member and **rewrites the repository's `pnpm-lock.yaml`**, which is wh
 directory has to be outside the repository. To reproduce the hazard and watch the guard fire:
 
 ```
-node .github/scripts/smoke-consumer.mjs dist/packages/online-gal-engines-0.1.7.tgz \
+node .github/scripts/smoke-consumer.mjs dist/packages/online-gal-engines-0.1.8.tgz \
   --allow-in-repo-temp --temp-dir .test/consumer-check
 # ::error::the repository lockfile is not dirty: got  M pnpm-lock.yaml; expected (empty)
 git checkout -- pnpm-lock.yaml
