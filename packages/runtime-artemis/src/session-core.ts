@@ -516,26 +516,29 @@ function memoryImports(module: WebAssembly.Module): readonly string[] {
     .map((entry) => `${entry.module}.${entry.name}`);
 }
 
-/** A `Uint8Array` independent of the caller's buffer: a compiled module must not share it. */
-function cloneBytes(bytes: Uint8Array): Uint8Array {
+/** A private copy, so compilation does not depend on a buffer still in the caller's hands. */
+function ownedBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
   return new Uint8Array(bytes.slice());
 }
 
 /**
  * Loads and compiles, whichever of the four shapes the caller passed.
  *
- * A relative URL is resolved against `options.canvas.ownerDocument.baseURI`, not against the ambient
- * document: the canvas is the one document reference a session is guaranteed, and a worker or an
- * offscreen context has no usable global to fall back to.
+ * The compile is asynchronous because a synchronous one is refused for a bridge this size on the main
+ * thread (Chrome 151, measured, above roughly 8 MB — the actual restriction, not a slow path).
+ * `WebAssembly.compile` may take the same bytes off the main thread; whether it does is the host's
+ * choice, and this call is asynchronous either way.
+ *
+ * A relative URL resolves against `options.canvas.ownerDocument.baseURI`, the one document reference
+ * a session is guaranteed.
  */
 async function loadModule(
   wasm: ArtemisSessionCoreOptions['wasm'],
   options: ArtemisSessionCoreOptions,
 ): Promise<WebAssembly.Module> {
+  // Already compiled: the caller did the long part; a module is also not recompilable.
   if (wasm instanceof WebAssembly.Module) return wasm;
-  if (wasm instanceof Uint8Array) {
-    return new WebAssembly.Module(cloneBytes(wasm) as unknown as BufferSource);
-  }
+  if (wasm instanceof Uint8Array) return WebAssembly.compile(ownedBytes(wasm));
   const base = options.canvas.ownerDocument?.baseURI;
   const target = typeof wasm === 'string' ? wasm : wasm.href;
   const url = base === undefined ? target : new URL(target, base).href;
@@ -544,7 +547,8 @@ async function loadModule(
     throw hostError(`could not fetch the bridge at ${url}: HTTP ${response.status}`);
   }
   const buffer = await response.arrayBuffer();
-  return new WebAssembly.Module(buffer);
+  // A fresh `arrayBuffer()` is already private here, so it compiles as-is: no extra copy.
+  return WebAssembly.compile(buffer);
 }
 
 /** Reads one guest export by its short name, refusing with the name the diagnosis needs. */
