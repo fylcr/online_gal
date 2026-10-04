@@ -25,10 +25,34 @@
 >
 > **资源 / git**：旧 port `4660` 与 owned browser 已清，**无新 browser / server**，unknown PID **不 kill**；
 > policy commit `ba2d7cd2…` 与 phase1 原生 commit `0877939…` **均已 push origin/main（same SHA）**，
-> build-packages run `37228200311` / `37229247257` **success**、publish **skipped / no release**；旧「HEAD
-> `d248224` 未 commit」**已错**，改为 policy 已 commit、其它 compat 改动**未 commit**，待**完整 candidate
-> commit**。本批只改文档，未 commit / 未 push / 未跑 CI / 未起 server / 未开浏览器 / 未 build；提交一律
-> **显式 pathspec**。
+> build-packages run `37228200311` / `37229247257` **success**、publish **skipped / no release**。
+>
+> **完整 compat candidate 已 commit + push（2026-10-05）**：commit
+> `ffd186b535b930b3ad0e7bc64c578717d155ed50`（单笔，**43 files / +11389 −152**），`origin/main` **same SHA**；
+> 提交用 `git commit --only -F msgfile -- <explicit pathspec>`，**未用 `git add .` / `-A`**，未动他人 staged。
+> 入库范围：`package.json`、`scripts/{check-sources,run-portable-tests}.mjs`、四包 `package.json` 与各 scope
+> 本次 changed source、`runtime-artemis/src/compat/**` + `configure.ts`、
+> `packages/runtime-artemis/scripts/copy-compat-worker.mjs`、
+> `apps/app/{scripts/artemis-assets.mjs,astro.config.mjs,src/components/Player.svelte,src/lib/platform.ts,package.json}`、
+> `pnpm-lock.yaml`、`ports/artemis/compat-web/**`（**不含 `out/`**）、九个 `test/artemis-compat-*.mjs` +
+> 已改 `test/{artemis-public-integration,check-sources}.test.mjs`、
+> `README/AGENTS/current-work/source-layout/docs/ports-artemis README`。
+> **未入库**：SDK / vendor / `.ref` / `.test` / `out` / `dist` / `.wasm` / `.so` / `.wat` / cdump / 本地 SDK
+> 游戏生成物。**staged source gate**：`node scripts/check-sources.mjs --staged` **exit 0**
+> （`sources ok (index): 340 mapped functions, 340 product files`）；43 个 staged blob 与 worktree 逐一相同、
+> **source hash start == end == `c1e2649a…` 跨 gate 稳定**才 stage。四独立门 actual exit 全 **0**
+> （build / check / **portable 545** / sources，见 `.test/artemis-compact-final-validation/gate1..4-exit.txt`）。
+> **push receipt**：`0877939..ffd186b  main -> main`，**非 force**，`EXIT_PUSH=0`。
+> **CI（same SHA `ffd186b`，push 触发、未 dispatch）**：`37230063074` Build wasm (Artemis compat)、
+> `37230062950` Build packages (no engine build)、`37230063099` Build wasm (KiriKiri2)、
+> `37230063073` Build wasm (ONS) —— 取到时均 **pending / in_progress**，**未等待、未忙轮询**。
+> **发布策略 maintained**：仅显式 dispatch 且 `publish: true` 才发布，**无 Release、无 npm publish**。
+>
+> **仍未验收（不得含糊）**：**完整 package 消费者证据未返** ⇒ commit 虽已发生，**consumer 未判过、不得
+> 标「consumer 已过」、不得称 game 可用**；真实 game gate（warmup 丢弃 + 2 次一致，含声音/save+restore/pause）
+> 仍必要。旧「其它 compat 改动未 commit」「HEAD `d248224` 未 commit」**均已作废**；提交一律**显式 pathspec**。
+> 本批证据写在 `.test/artemis-compact-candidate-commit/**`（gitignored ⇒ 干净 clone / CI 上不存在，
+> 缺失不得当「已验收」）。
 >
 > **phase1 原生 commit + 音频**：phase1 原生 commit `087793905a14f15ee679b26e721c48666e2d7936`
 > **已 push `origin/main`（same SHA）**，CI run `37229247459`（native）/ `37229247257`（build-packages）
