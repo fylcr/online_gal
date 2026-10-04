@@ -1,33 +1,13 @@
 # 当前工作检查点 — 新对话先读
 
 > **当前摘要（2026-10-05 · compat 主线 · 本块是唯一「现状」；下文历史记录原样保留，不得当现状。）**
->
-> **源身份**：CI pin `9f62262…`；上游 `src/host` 只有 `mac_main.mm`、CMake 只有 native ⇒ Web host /
-> Web CMake / `ReadAt` / numeric **全是本地 port**。
-> **CI（completed，exact `ffd`）**：native `37230063074` + pkg `37230062950` 均 **completed / success** ⇒
-> **exact CI 2 success ＋ 下载 proof 已 complete**；CI consumer `641…` **npm offline `0`、两 entry import
-> file hash same，已 complete**。CI WASM `1331402` B / SHA `5f934aa2…c339`；**local `9c4a4…` 与 CI 不同，
-> 仅 3 处 embedded emsdk debug-path slash 字节差异、有实证 ⇒ 两者不得混用**；API proof 位于
-> `test/artemis-compact-ci-ffd186b/proof.json`，其 **upstream PIN ≠ repo SHA**。
-> **CI 回归纳管（进行中）**：`ef54…` 两个 workflow 新增 **exact app / config / helper paths** 回归，
-> **当前仍只 `.test`**；`e743…` **final-app-validation 仍在 CI 回归纳管中**，将把**现 test CI 一并纳入 ＋
-> full build**，**未返、不重派、不写**；**`buildcheckportable` 不要重派**。
-> **Astro / HTTP 生产面**：`b090…` HTTP writer **已 closing**，本轮**只改 astro config 加 `nosniff` ＋ app
-> asset `10/10` tests**。**Astro preview 不 run app Vite plugins**，测得 **raw source gzip sha 未损**；
-> **static 生产 7 files 头 mime / no CE / byte identity 全正确**，**不 custom preview 框架**；**preview
-> 空 MIME / 强压 gzip / encoded path 500 明为 upstream 限制**；`catalog` / `engines` **200 不是 bug**。
-> **唯一 game（active，不可第二 engine）**：`647b1f4d-c1bd-4a10-b5e6-daa78a534336` **已 launch `jnvu` /
-> PID `84120` / `4661`**，当前**一次 readonly obs、phase after-title-click、无 fatal / 无 firstError**，
-> `playedFrames 4206080`、audio `peak .9222` / `presented 882`；**save / slot / pause / resume / dispose /
-> nativeLoad 均 `null`** ⇒ **run A/B 尚无完成，不做 goal 终验**；**user bsk / daemon 不动**。
-> **docs 写域 / candidate**：上一 doc `a964…` **failed 无 closing** ⇒ 本批接其 **disjoint docs 写域**；
-> candidate `ffd` ＋ doc **HEAD `cbd39c1…`**；**app header / CI contract managed test 以及 docs 本轮未提交**
-> ⇒ 之后 **small final commit → exact new CI artifact byte identity 验证 → game 完整性判据**。
-> **发布面 / 策略**：**Artifacts manual `false`、无 Release / 无 NPM** 保持；`545/36` 等事实已压简，
-> 下方**历史 hash 不改**。
-> **未测边界**：**不把未测说成「全资源 clean」**；**`keep unknown PID`**、用户 terminal / bsk 保持，
-> **运行中的 `jnvu` 非「全已清」**；不删历史；`.test/` gitignored ⇒ **本地证据，干净 clone / CI 上不存在，
-> 缺失不得当「已验收」**。
+> - **HEAD `93daba7`** 已 push；**doc 本批 dirty，不能 claim all clean**。exact CI：native `37232482750` / packages `37232482351` **completed / success**；**554 / pass 552 / fail 0 / skip 2**。actual new artifacts 与 `ffd`：**native 7/7、pkg 271、tgz 全 byte-equal**。
+> - **`096` binding done**：`final-candidate-binding.json` 明确游戏 route 实际 **`ffd`**，payload 等 **`93`（不是 game passed）**。`7e343` **已 closing** actual CI receipt。
+> - **game `647` NOT PASS、closing cleanup**。三 attempts：warmup 到标题 / audio peak `.922` / range >2GiB / full PFS0 disposed；run A 与第二 warmup **START 点击 title unchanged（no fatal）**。**ADV / save / restore / pause 仍未达到**；**不能 warmup＋2 run 一致，不能可玩**。
+> - sessions `vtqf` / `jnvu` / `juon` **accepted stopped**；job `pwsh 4557` pid `84120` **gone**，`4661` free **TIME_WAIT only**。**user foreground bsk leave**；unknown pid **不 kill**。**不再 `647` active `jnvu`**。
+> - **旧正式验收已清，输入诊断由 `cb73c712-3b0e-4f07-ab43-14543dc5f524` 独占**：START 输入**小诊断、仅 `.test`**，**不改冻结 MapPoint / prod**。`b5c09709` restore-audio **test-only 仍未 closing**；**新 weird test untracked fail 暂未解决**。
+> - **next**：START 真实 event harness 定位 → 实 ADV → discard warmup + 2 runs + save/load/advance/消费 ACK/pause → cleanup 及 test 小 case 后处理。
+> - preview **上游限制**；**static 正常**。**Artifacts manual default `false`；no Release / npm unchanged**。历史 hash 不动。
 
 ---
 
