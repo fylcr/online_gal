@@ -39,5 +39,5 @@ npm run test:portable
 
 - 最新引擎修复提交 `77a7645`（`main`，已push）：BuiltinDispatch 的603后latch相位门仅一行修正；同提交bridge/packages CI成功、下载产物实测仍失败。当前工作树与任务以 `docs/current-work.md` 现场检查点为准。
 - **ONScripter**、**KiriKiri / KAG3**：完成并接入平台，有真实游戏证据。
-- **Artemis：唯一主线，尚不可用** —— 77a7645下载bridge在独立宿主下load865ms后约2.7秒仍r(0)失败。最小stackonly观测已捕获第一次c前原生栈：bridge func5962←BuiltinDispatch func873:0x3a4f35，last/uncaught为0；正在映射准确源码，**根因未知**。官方WASM同宿主50秒健康对照属历史记录，本轮未复跑。
-- 下一步第一件事：42/42 EH chunks与精确新bridge字节已核验，继续把BuiltinDispatch `0x3a4f35 call5962` 映射到具体C++源码行并测控制流分歧；不接受仅凭寄存器重装推断“恢复路径”。证据、拒绝的探针与已完成清理见 `docs/current-work.md`；其余遗留见历史交接§7。
+- **Artemis：唯一主线，尚不可用** —— 77a7645下载bridge仍r(0)。已有source-site复用测firstc22515/r602；四行COPY作用域修正后37/37chunk测firstc21115/r616，再单条件修正后37/37chunk测21127/r616/tag10，两个正常路径被错误接进EH。生产仍冻结；当前只诊断COPY，不能把修复移位读作可玩。
+- 下一步第一件事：收集/核验616双门COPY候选实跑（当前stage见 `docs/current-work.md`）；保留真正抛错、把tag不匹配接回正常清理，不吞r(0)。本轮官方samehost84秒无此异常但gridnonBlack0，不算渲染/游戏验收。测量、代理拒绝结论、jobs/清理/待办只以滚动检查点为准；其余遗留见历史交接§7。

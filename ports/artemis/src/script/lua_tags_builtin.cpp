@@ -20821,7 +20821,7 @@ if (p2 != 0u || ResumePhase(ctx) == kResumeRewinding) {
                       p04_B3734:;
                       if (value != 0u) { goto p04_B3731; }
                       p04_B3733:;
-                      if (ResumePhase(ctx) == kResumeRunning) {
+
                         StoreU8(ctx, frame + 203u, 6u);
                         StoreU8(ctx, frame + 198u, 0u);
                         StoreU32(ctx, frame + 192u, LoadU32(ctx, 743815u));  // "format"
@@ -21175,7 +21175,7 @@ if (p2 != 0u || ResumePhase(ctx) == kResumeRewinding) {
                 if (ResumePhase(ctx) == kResumeRunning) {
                   uint32_t const pending = LoadU32(ctx, kBuiltinThrowLatch);
                   StoreU32(ctx, kBuiltinThrowLatch, 0u);
-                  if (pending != 1u) { goto p04_B3721; }
+                  if (pending == 1u) { goto p05_B4; }
                   node = LoadU32(ctx, frame + 240u);
                   p1 = LoadU32(ctx, node + 32u);
                   state = static_cast<uint32_t>(LoadS8(ctx, node + 39u) < 0);
@@ -21187,7 +21187,7 @@ if (p2 != 0u || ResumePhase(ctx) == kResumeRewinding) {
                   p1 = static_cast<uint32_t>(value == 8u);
                 }
                 if (p1 == 0u && ResumePhase(ctx) != kResumeRewinding) {
-                  goto p04_B3720;
+                  goto p04_B616_lookup_done;
                 }
                 if (ResumePhase(ctx) == kResumeRunning) {
                   StoreU32(ctx, kBuiltinThrowLatch, 0u);
@@ -21212,6 +21212,7 @@ if (p2 != 0u || ResumePhase(ctx) == kResumeRewinding) {
                   if (pending == 1u) { goto p05_B3; }
                   p2 = static_cast<uint32_t>(p2 == 0u);
                 }
+                p04_B616_lookup_done:;
                 if (ResumePhase(ctx) == kResumeRunning) {
                   // The embedded "filename" bytes are released once they are no longer used.
                   uint32_t const embedded = static_cast<uint32_t>(LoadS8(ctx, frame + 75u) <= -1);
@@ -21826,7 +21827,7 @@ if (p2 != 0u || ResumePhase(ctx) == kResumeRewinding) {
                 p0 = static_cast<uint32_t>(node >= 4294967280u);
               }
               if (p0 != 0u || ResumePhase(ctx) == kResumeRewinding) {
-                if (ResumePhase(ctx) == kResumeRunning) {
+
                 if (ResumePhase(ctx) == kResumeRunning) {
                   StoreU32(ctx, kBuiltinThrowLatch, 0u);
                   p0 = frame + 192u;
@@ -24824,7 +24825,7 @@ if (p2 != 0u || ResumePhase(ctx) == kResumeRewinding) {
                   result = p2;
                   p2 = LoadU32(ctx, p2);
                   if (p2 != 0u) { goto p04_L4370; }
-              }
+
               // Merge point p04_B4367.
               p04_B4367:;
               StoreU32(ctx, frame + 224u, LoadU32(ctx, frame + 224u) + 1u);
@@ -31182,7 +31183,7 @@ if (p2 != 0u || ResumePhase(ctx) == kResumeRewinding) {
           #endif
           goto p05_B9;
         }
-      }
+
     }
     if (ResumePhase(ctx) == kResumeRunning) {
       p2 = HostRet0(ctx);
