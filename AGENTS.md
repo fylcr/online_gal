@@ -37,7 +37,7 @@ npm run test:portable
 
 ## 当前状态（2026-10-04）
 
-- 恢复开发基线 HEAD `d2b1ad0`，`main` 分支；当前工作树、实测与任务状态以 `docs/current-work.md` 的现场检查点为准，不沿用历史“工作树干净”。
+- 最新引擎修复提交 `77a7645`（`main`，已push）：BuiltinDispatch 的603后latch相位门仅一行修正；同提交bridge/packages CI成功、下载产物实测仍失败。当前工作树与任务以 `docs/current-work.md` 现场检查点为准。
 - **ONScripter**、**KiriKiri / KAG3**：完成并接入平台，有真实游戏证据。
-- **Artemis：唯一主线，尚不可用** —— 手写 C++ 产品（splice 进官方 wasm2c 转写树）+ 独立现代宿主 `packages/runtime-artemis/src/host/*`；`bridge.wasm` 在新宿主下约 3 秒进入「异常指针已是 0」的异常分支，官方 WASM 同宿主对照 50 秒未触发。
-- 下一步第一件事、以及 21 项遗留清单，见 `docs/session-5697f1a7-handoff.md` §7。
+- **Artemis：唯一主线，尚不可用** —— 77a7645下载bridge在独立宿主下load865ms后约2.7秒仍r(0)失败。最小stackonly观测已捕获第一次c前原生栈：bridge func5962←BuiltinDispatch func873:0x3a4f35，last/uncaught为0；正在映射准确源码，**根因未知**。官方WASM同宿主50秒健康对照属历史记录，本轮未复跑。
+- 下一步第一件事：完整重组stackonly42个EH chunks，映射首次c源码并测控制流分歧；证据路径、接受/拒绝的探针与清理状态见 `docs/current-work.md`。其余历史遗留见 `docs/session-5697f1a7-handoff.md` §7。
