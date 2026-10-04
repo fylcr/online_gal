@@ -382,3 +382,171 @@ test('the CI wrapper does not name a runtime the checkout does not have', () => 
     'the recipe must be invoked with a small fixed -j');
   assert.match(script, /JOBS=2|JOBS:-2|JOBS="\$\{?JOBS/);
 });
+
+/* ------------------------------------------------------------------ */
+/* Which app files make each workflow re-run.                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * `apps/app/scripts/artemis-assets.mjs` verifies a `dist/artemis-compat/` directory against the
+ * sha256 manifest the compat run produces, and `apps/app/astro.config.mjs` mounts it. Neither
+ * changes the engine binary. What they change is what a *given* artifact is accepted as -- so a
+ * change to either one has to re-run the compat workflow that produced the artifact, or the pair
+ * (artifact SHA, acceptance rule) can drift silently. These two names are therefore in the `push`
+ * and `pull_request` `paths` of both workflows, spelled exactly: not `apps/**` (the rest of the app
+ * is not an input to those bytes) and not `apps/app/scripts/**` (a glob over a directory one file
+ * lives in; the next script added there is not automatically an input either).
+ *
+ * Read with the same tiny line parser the rest of this file uses, not a YAML dependency: the
+ * workflows' own `paths` blocks are flat `- '...'` lists, and this test has to run in a clean
+ * clone with nothing installed.
+ */
+const PACKAGES_WORKFLOW = '.github/workflows/build-packages.yml';
+
+/** The two exact app inputs. No glob may stand in for either one. */
+const APP_INPUTS = [
+  'apps/app/astro.config.mjs',
+  'apps/app/scripts/artemis-assets.mjs',
+];
+
+/**
+ * The `paths:` list under one trigger key. `push` and `pull_request` are the only triggers here;
+ * the block ends at the next line indented two spaces (`workflow_dispatch:`, `concurrency:`),
+ * which is what keeps a `paths` under a different trigger from being read instead.
+ */
+function paths(workflow, trigger) {
+  const source = read(workflow);
+  const block = source.match(
+    new RegExp(`\\n {2}${trigger}:\\n([\\s\\S]*?)(?=\\n {2}\\S|$)`),
+  );
+  assert.ok(block, `${workflow} must declare a \`${trigger}:\` trigger with its inputs`);
+  // `paths:` is not always the first key (a `push` trigger lists `branches:` before it), so it is
+  // found anywhere at the trigger's own indent level -- indented relative to the capture start.
+  const list = block[1].match(/^ {4}paths:\n([\s\S]*)/m);
+  assert.ok(list, `${workflow}'s \`${trigger}:\` trigger must carry an explicit \`paths:\` list`);
+  return {
+    source,
+    entries: [...list[1].matchAll(/^\s*- '([^']+)'$/gm)].map((match) => match[1]),
+    raw: list[1],
+  };
+}
+
+test('the compat workflow re-runs on each app input on push and on pull_request', () => {
+  for (const trigger of ['push', 'pull_request']) {
+    const { entries } = paths(WORKFLOW, trigger);
+    assert.ok(entries.length > 0, `${WORKFLOW} ${trigger} must list paths`);
+    for (const file of APP_INPUTS) {
+      assert.ok(entries.includes(file),
+        `${WORKFLOW} must re-run on ${trigger} when ${file} changes: that file decides whether the `
+        + 'artifact this workflow produced is accepted, so the artifact and its acceptance rule '
+        + 'have to move together');
+    }
+    // The whole point of naming the two files: a glob makes every unrelated app edit start a
+    // 40-minute engine build, and this run does not produce app bytes.
+    for (const glob of ['apps/**', 'apps/app/**', 'apps/app/scripts/**']) {
+      assert.ok(!entries.includes(glob),
+        `${WORKFLOW} ${trigger} must not list '${glob}': two exact names are the contract, a glob `
+        + 'schedules an engine build for files that are not inputs to the bytes');
+    }
+  }
+});
+
+test('the app inputs do not displace the engine inputs those workflows already had', () => {
+  // The failure this guards against is a `paths` list that was rewritten rather than extended:
+  // the two app names added, an engine input quietly dropped, and the workflow green on a change
+  // it should have rebuilt from. The two triggers do not carry the same list (`push` sees the
+  // pins record and the reusable workflow, `pull_request` a narrower set), so each is asserted
+  // against the inputs it is actually contracted to carry.
+  const expected = {
+    [WORKFLOW]: {
+      push: [
+        'ports/artemis/compat-web/**',
+        'packages/runtime-artemis/**',
+        'packages/vfs/**',
+        '.github/scripts/build-artemis-compat.sh',
+        '.github/upstream-pins.json',
+        'pnpm-lock.yaml',
+      ],
+      pull_request: [
+        'ports/artemis/compat-web/**',
+        'packages/runtime-artemis/**',
+        'packages/vfs/**',
+        '.github/scripts/build-artemis-compat.sh',
+      ],
+    },
+    [PACKAGES_WORKFLOW]: {
+      push: [
+        'packages/**',
+        'test/**',
+        'scripts/run-portable-tests.mjs',
+        'pnpm-lock.yaml',
+        'LICENSE',
+      ],
+      pull_request: [
+        'packages/**',
+        'test/**',
+        'scripts/run-portable-tests.mjs',
+        'package.json',
+      ],
+    },
+  };
+  for (const [workflow, triggers] of Object.entries(expected)) {
+    for (const [trigger, inputs] of Object.entries(triggers)) {
+      const { entries } = paths(workflow, trigger);
+      for (const file of inputs) {
+        assert.ok(entries.includes(file),
+          `${workflow} ${trigger} must keep '${file}'; the app inputs are an addition to this `
+          + 'list, never a replacement for it');
+      }
+    }
+  }
+});
+
+test('the portable suite that reads the app seam is what re-runs on its change', () => {
+  // The compat workflow runs no portable suite, so its guarantee is the artifact contract alone.
+  // `build-packages` DOES run it, and that suite imports both files -- so its trigger has to
+  // name them for the same reason it names `test/**`.
+  for (const trigger of ['push', 'pull_request']) {
+    const { entries } = paths(PACKAGES_WORKFLOW, trigger);
+    for (const file of APP_INPUTS) {
+      assert.ok(entries.includes(file),
+        `${PACKAGES_WORKFLOW} must re-run on ${trigger} when ${file} changes: the portable suite `
+        + 'below loads it, so a change there is a change to what this job tests');
+    }
+  }
+  // The test that reads them is covered by `test/**`, which this workflow already lists, so it
+  // is not named a second time -- naming it would be a second place to keep in sync.
+  const { entries } = paths(PACKAGES_WORKFLOW, 'push');
+  assert.ok(entries.includes('test/**'),
+    `${PACKAGES_WORKFLOW} discovers its suite through 'test/**'; without it a new test file is invisible`);
+  assert.ok(!entries.includes('test/artemis-compat-app-assets.test.mjs'),
+    'the individual test file is covered by test/** on this workflow and must not be listed twice');
+});
+
+test('the compat workflow names the one test file that pins its artifact contract', () => {
+  // `test/**` is deliberately not in the compat list. The single file that fails when the asset
+  // seam and the recipe drift is, because an editor who breaks the contract by "just fixing the
+  // test" would otherwise never see the compat run go red.
+  for (const trigger of ['push', 'pull_request']) {
+    const { entries } = paths(WORKFLOW, trigger);
+    assert.ok(entries.includes('test/artemis-compat-app-assets.test.mjs'),
+      `${WORKFLOW} ${trigger} must re-run when the app/artifact contract test changes`);
+    assert.ok(!entries.includes('test/**'),
+      `${WORKFLOW} ${trigger} must not list all of 'test/**': this job builds engine bytes, and the `
+      + 'rest of the suite is not an input to them');
+  }
+});
+
+test('the two listed app files exist, and are the files the contract test imports', () => {
+  // A `paths` entry that names a path no longer in the tree is a trigger that can never fire,
+  // and it looks exactly like a working one in review.
+  for (const file of APP_INPUTS) {
+    assert.doesNotThrow(() => read(file), `${file} is listed as a trigger input and must exist`);
+  }
+  const contract = read('test/artemis-compat-app-assets.test.mjs');
+  for (const file of APP_INPUTS) {
+    assert.ok(contract.includes(file),
+      `the contract test must still import ${file}; if it stops, this trigger reasons about a `
+      + 'file nothing loads');
+  }
+});

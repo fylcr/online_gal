@@ -36,6 +36,19 @@ on:
       - 'packages/vfs/**'
       - 'LICENSE'
       - 'THIRD_PARTY_NOTICES.md'
+      # The app-side asset contract. This run does NOT change the engine binary, and it does not
+      # claim to: `apps/app/scripts/artemis-assets.mjs` verifies `dist/artemis-compat/` against the
+      # manifest this run produces and `apps/app/astro.config.mjs` mounts it, so a change to either
+      # one changes what a given same-SHA artifact is accepted as and has to re-run the run that
+      # produced that artifact. Named exactly, not as `apps/**` or `apps/app/scripts/**`: the rest
+      # of the app is not an input to these bytes and must not schedule a 40-minute engine build.
+      - 'apps/app/astro.config.mjs'
+      - 'apps/app/scripts/artemis-assets.mjs'
+      # The portable contract test for that seam. `test/**` is not listed here for the reason the
+      # header of the ONS workflow gives: this job's inputs are the artifact's closure, not the
+      # whole suite. This one file is in it, because it is the test that fails when the two names
+      # above and the recipe they describe drift apart.
+      - 'test/artemis-compat-app-assets.test.mjs'
       # NOT 'ports/lib/engine-artifacts.json': that file is an output of the publish step, so
       # listing it would rebuild on every hash update.
   pull_request:
@@ -45,6 +58,12 @@ on:
       - 'ports/artemis/compat-web/**'
       - 'packages/runtime-artemis/**'
       - 'packages/vfs/**'
+      # Same two app inputs as `push` above, and for the same reason: an author who edits the
+      # asset seam has to see the artifact contract it is judged against before the merge, not
+      # after it.
+      - 'apps/app/astro.config.mjs'
+      - 'apps/app/scripts/artemis-assets.mjs'
+      - 'test/artemis-compat-app-assets.test.mjs'
   workflow_dispatch:
     inputs:
       publish:

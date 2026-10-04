@@ -26,6 +26,11 @@ import {
 const ISOLATION_HEADERS = {
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Cross-Origin-Embedder-Policy': 'credentialless',
+  // The engine files are served with a fixed MIME and must never be sniffed into a script or a
+  // different binary. A static host sets this per file; on `astro preview` this map is the only
+  // lever that reaches them, because preview builds Vite with `configFile: false` and a fixed
+  // plugin list, so the `vite.plugins` middleware below never runs there.
+  'X-Content-Type-Options': 'nosniff',
 };
 
 /* ------------------------------------------------------------------ */

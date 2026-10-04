@@ -232,6 +232,89 @@ test('a file that cannot be read withdraws the gate, and a vanished file is a 50
   assert.equal(post.status, 405);
 });
 
+test('the offer files carry the MIME a client needs, and the gzip archive is not re-labelled', async () => {
+  const middleware = artemisAssetMiddleware(inspectArtemisAssets(fixture('mimes')));
+
+  // The source archive is *already* gzip. It must be described as such by Content-Type, and the
+  // response must not add a transfer Content-Encoding: a client that stores what it downloaded
+  // has to get the bytes the manifest hashed, not a decoded tar.
+  const gz = await get(middleware, `${MOUNT}artemis-compat-source.tar.gz`);
+  assert.equal(gz.status, 200);
+  assert.equal(gz.type, 'application/gzip');
+  assert.equal(gz.headers['content-encoding'], undefined, 'no transfer gzip on an already-gzip file');
+  assert.deepEqual(gz.body, BYTES['artemis-compat-source.tar.gz'], 'the bytes on the wire are the file');
+  assert.equal(gz.body.subarray(0, 2).toString('hex'), '1f8b');
+
+  // Extensionless and unknown-extension offers still get a usable, non-empty type.
+  for (const name of ['LICENSE', 'artemis-compat-source.tar.gz.sha256']) {
+    const offer = await get(middleware, `${MOUNT}${name}`);
+    assert.equal(offer.status, 200, name);
+    assert.match(String(offer.type), /^text\/plain/, name);
+  }
+  assert.equal((await get(middleware, `${MOUNT}THIRD_PARTY_NOTICES.md`)).type, 'text/plain; charset=utf-8');
+});
+
+test('every served and offered file carries the isolation and no-sniff header contract', async () => {
+  const middleware = artemisAssetMiddleware(inspectArtemisAssets(fixture('headers')));
+  for (const name of PUBLISH) {
+    const answer = await get(middleware, `${MOUNT}${name}`);
+    assert.equal(answer.status, 200, name);
+    assert.equal(answer.headers['cross-origin-opener-policy'], 'same-origin', name);
+    assert.equal(answer.headers['cross-origin-embedder-policy'], 'credentialless', name);
+    assert.equal(answer.headers['x-content-type-options'], 'nosniff', name);
+    assert.notEqual(answer.type, undefined, `${name} has a Content-Type`);
+    assert.notEqual(String(answer.type).trim(), '', `${name} MIME is non-empty`);
+  }
+
+  // A query string selects the same file; HEAD reports the same metadata with no body.
+  for (const name of SERVE) {
+    const head = await get(middleware, `${MOUNT}${name}?v=2`, 'HEAD');
+    assert.equal(head.status, 200, name);
+    assert.equal(head.body.byteLength, 0, name);
+    assert.equal(head.headers['x-content-type-options'], 'nosniff', name);
+    assert.equal(head.headers['cross-origin-opener-policy'], 'same-origin', name);
+  }
+});
+
+test('malformed and escaping paths are refused with a client error, never a server error', async () => {
+  const middleware = artemisAssetMiddleware(inspectArtemisAssets(fixture('refusals')));
+  for (const [url, status] of [
+    [`${MOUNT}%2`, 400],
+    [`${MOUNT}%zz`, 400],
+    [`${MOUNT}../rpc-worker.js`, 403],
+    [`${MOUNT}%2e%2e%2frpc-worker.js`, 403],
+    [`${MOUNT}deep/../../rpc-worker.js`, 403],
+    [`${MOUNT}sub/dir/artemis-compat.wasm`, 404],
+    [`${MOUNT}missing.wasm`, 404],
+    [`${MOUNT}`, 404],
+  ]) {
+    const answer = await get(middleware, url);
+    assert.equal(answer.status, status, url);
+    assert.notEqual(answer.status, 500, `${url} must not be a 500`);
+  }
+});
+
+test('a foreign mount and an unknown path are never answered by this middleware', async () => {
+  const middleware = artemisAssetMiddleware(inspectArtemisAssets(fixture('catalog')));
+
+  // The middleware owns exactly one mount. The /engines/ catalog page and every other route must
+  // fall through untouched, so the app's own routing (not this seam) decides what they are.
+  for (const url of ['/', '/engines/', '/engines/artemis-compat', '/krkr2-web/index.html', '/play', '/settings']) {
+    const answer = await get(middleware, url);
+    assert.equal(answer.passed, true, `${url} falls through`);
+    assert.equal(answer.body.byteLength, 0, `${url} writes nothing`);
+  }
+
+  // A sibling engine directory is a different mount and must not be served from this one.
+  const sibling = await get(middleware, '/engines/other-engine/artemis-compat.wasm');
+  assert.equal(sibling.passed, true, 'a sibling engine mount is not this middleware');
+
+  // And a withdrawn snapshot answers on its own mount only.
+  const withdrawn = artemisAssetMiddleware({ available: false, dir: join(temp, 'nope'), reason: 'withdrawn' });
+  assert.equal((await get(withdrawn, `${MOUNT}artemis-compat.wasm`)).status, 404);
+  assert.equal((await get(withdrawn, '/engines/')).passed, true);
+});
+
 test('the config puts the same snapshot on a Vite plugin and an Astro build hook', async () => {
   const state = inspectArtemisAssets(fixture('wired'));
   const plugin = artemisAssetPlugin(state);
@@ -278,4 +361,12 @@ test('the config puts the same snapshot on a Vite plugin and an Astro build hook
   assert.equal(typeof livePlugin.configurePreviewServer, 'function');
   assert.equal(livePlugin.hooks, undefined);
   assert.match(String(live.vite.define.__ARTEMIS_ASSETS_AVAILABLE__), /^(true|false)$/);
+
+  // `astro preview` builds Vite with `configFile: false`, so the `vite.plugins` middleware above
+  // does NOT run there. `server.headers` is forwarded to Vite's preview headers and is the only
+  // lever preview honours, so the no-sniff contract has to be reachable from that map or the
+  // engine files are served snifffable in preview.
+  assert.equal(live.server.headers['X-Content-Type-Options'], 'nosniff');
+  assert.equal(live.server.headers['Cross-Origin-Opener-Policy'], 'same-origin');
+  assert.equal(live.server.headers['Cross-Origin-Embedder-Policy'], 'credentialless');
 });

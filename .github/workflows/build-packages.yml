@@ -83,6 +83,13 @@ on:
       - 'package.json'
       - 'ports/artemis/harness/glue/compare-imports-map.mjs'
       - 'ports/artemis/harness/glue/verify-imports-map.mjs'
+      # The app-side compat asset seam, named exactly. The portable suite run below imports this
+      # helper directly and `test/artemis-compat-app-assets.test.mjs` imports `astro.config.mjs`,
+      # so both are inputs to the suite this job runs -- "a change to a test must not land
+      # without this job re-running" is the same rule, applied to the code the suite reads.
+      # Deliberately not `apps/**`: no app file is in the tarball closure this job packs.
+      - 'apps/app/astro.config.mjs'
+      - 'apps/app/scripts/artemis-assets.mjs'
   pull_request:
     paths:
       - '.github/workflows/build-packages.yml'
@@ -96,6 +103,8 @@ on:
       - 'package.json'
       - 'ports/artemis/harness/glue/compare-imports-map.mjs'
       - 'ports/artemis/harness/glue/verify-imports-map.mjs'
+      - 'apps/app/astro.config.mjs'
+      - 'apps/app/scripts/artemis-assets.mjs'
   workflow_dispatch:
     inputs:
       # `default: false` because a dispatch is also what someone does to look at a run. A default
