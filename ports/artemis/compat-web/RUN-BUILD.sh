@@ -34,7 +34,8 @@ LOG="$HERE/out/build.log"
 # layout to adapt to.
 for f in "$SRC" "$HERE/overlay/audio/audio_web.cpp" "$HERE/overlay/cmake/web.cmake" \
          "$HERE/patches/0001-pf8-readat-host-source.patch" \
-         "$HERE/patches/0002-numeric-strto.patch"; do
+         "$HERE/patches/0002-numeric-strto.patch" \
+         "$HERE/patches/0003-scene-checkpoint.patch"; do
   [ -e "$f" ] || { echo "refusing: $f is missing; run this in an unpacked bundle" >&2; exit 2; }
 done
 case "$HERE" in
@@ -87,7 +88,8 @@ rm -rf "$BUILD/overlay"
 cp -a "$HERE/overlay" "$BUILD/overlay"
 
 for p in "$HERE"/patches/0001-pf8-readat-host-source.patch \
-         "$HERE"/patches/0002-numeric-strto.patch; do
+         "$HERE"/patches/0002-numeric-strto.patch \
+         "$HERE"/patches/0003-scene-checkpoint.patch; do
   say "patch $(basename "$p")"
   # No --forward: an already-applied patch means the recipe no longer matches
   # its source, and that has to stop the build rather than pass quietly.

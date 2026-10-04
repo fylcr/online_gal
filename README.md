@@ -652,7 +652,9 @@ compat 引擎已编译、已有合成测试，但**全真游戏验收尚未过**
 - **旧 SDK 桥只保留显式诊断**：`build-wasm-artemis-bridge.sh` /
   `build-wasm-artemis-bridge.yml` 已移除 push/pull_request 自动触发，只能手动 dispatch；
   官方 glue 与 generated-body masks 是**诊断路线**，不作为出货宿主，也不证明 compat 可玩
-  （checkpoint 语义与音频仍未验证）。
+  （checkpoint 语义与音频仍未验证）。存档自 `compat-web/patches/0003-scene-checkpoint.patch`
+  起写明 ARCV 变量银行 + ARCL v1 场景尾部；**尾部才是恢复画面（含背景）的判据，取值域仍不是官方快照**，
+  且需新旧宿主同版校验。
 
 - [`runtime.ts`](packages/runtime-artemis/src/runtime.ts) 的 `availability` 是**实时 getter**：
   未配置 compat 引擎时 `unavailable`，已配置且页面满足 `crossOriginIsolated` / `SharedArrayBuffer` /

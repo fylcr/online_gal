@@ -95,10 +95,16 @@ the read that was already hard to see.
 | `artc_web_load(file)` | `1` / `0` | `LoadSnapshot`. Same refusal rule |
 
 `saveDir` is the pack's parent directory (`EngineContext::Open` when `save_dir`
-is empty). `SaveSnapshot` writes an ARCV variable-bank checkpoint and depends
-on the game's `onSave` / `onLoad`. It is not a BOWS export and is not a
-restored scene. A missing `onSave`, a path that escapes `saveDir`, or a write
-error returns `0`.
+is empty). `SaveSnapshot` writes the ARCV variable bank **plus an ARCL v1 scene
+trailer** (`lyc` / `lyprop` / `lyevent` / `lytween` / `anime`) appended after the
+bank, and depends on the game's `onSave` / `onLoad`. The bank alone was never a
+restored scene — with it the background did not come back; the trailer is what
+restores one. Not a BOWS export, and not the official snapshot format. A missing
+`onSave`, a path that escapes `saveDir`, or a write error returns `0`.
+
+Both new-file halves need matching versions: an older native build still writes
+the plain ARCV prefix, and a host checks the trailer. An old host reading a new
+trailer is not covered.
 
 ## Link
 
@@ -217,7 +223,8 @@ real `AudioContext`.
 ## Building from the source bundle
 
 `make-source-bundle.mjs` writes a GPL-3.0 source offer that is also a buildable
-tree. It carries the pinned `src/`, both patches, every overlay — including the
+tree. It carries the pinned `src/`, all three patches (`0003-scene-checkpoint.patch`
+is the save/restore one), every overlay — including the
 three audio files above, which exist nowhere upstream — the tracked `build.sh`,
 and `RUN-BUILD.sh`.
 

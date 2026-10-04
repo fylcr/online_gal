@@ -781,13 +781,26 @@ export function validateFileSet(
  * both are checked against a real payload by the test, because the same bytes must reach the same
  * answer on either side. `''` means this is a well-formed ARCV v1 checkpoint; anything else is why it
  * is not, phrased as the reason a refusal can be read.
+ *
+ * A checkpoint is **two** independently checksummed records, not one. `EncodeVariableBank` writes the
+ * ARCV bank and its own CRC32; `EncodeSceneCommands` then appends an ARCL scene trailer carrying a
+ * **second** CRC32. So the file's last four bytes are the trailer's CRC, not the bank's, and a guard
+ * that reads one whole-file CRC minus four bytes refuses every slot a patched engine saves. Each record
+ * is verified over its own span instead, and neither stands in for the other: a bad bank CRC is a
+ * refusal before the trailer is even looked at.
  */
 const SLOT_HEADER = 16;
 const SLOT_COUNT_LIMIT = 65536;
 const SLOT_KEY_LIMIT = 1024 * 1024;
 const SLOT_VALUE_LIMIT = 16 * 1024 * 1024;
+/* The ARCL v1 bounds `DecodeSceneCommands` states: five replayable layer tags, 1024 commands, 64
+ * attributes per command, and a 64 KiB ceiling on every length-prefixed string. */
+const SCENE_COUNT_LIMIT = 1024;
+const SCENE_ATTR_LIMIT = 64;
+const SCENE_STRING_LIMIT = 64 * 1024;
+const SCENE_TAGS = new Set(['lyc', 'lyprop', 'lyevent', 'lytween', 'anime']);
 
-/** ARCV v1 from `DecodeVariableBank`. `''` is well-formed; anything else is the refusal. */
+/** ARCV v1 from `DecodeVariableBank`, optionally followed by the ARCL v1 trailer. `''` is well-formed. */
 export function slotPayloadError(bytes: Uint8Array): string {
   if (bytes.byteLength < SLOT_HEADER) return 'it is too short to be an ARCV checkpoint';
   if (bytes.byteLength > COMPAT_SAVE_MAX_FILE_BYTES) return 'it is past the 64 MiB checkpoint bound';
@@ -796,29 +809,82 @@ export function slotPayloadError(bytes: Uint8Array): string {
   }
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (view.getUint32(4, true) !== 1) return 'it is not ARCV version 1';
-  const end = bytes.byteLength - 4;
-  if (view.getUint32(end, true) !== crc32(bytes, end)) return 'its CRC32 does not match its bytes';
   const count = view.getUint32(8, true);
   if (count > SLOT_COUNT_LIMIT) return 'its bank declares more than 65536 entries';
   const keys = new Set<string>();
   let position = 12;
   for (let entry = 0; entry < count; entry += 1) {
-    if (end - position < 4) return 'a bank length runs past the end of the checkpoint';
+    if (bytes.byteLength - position < 4) return 'a bank length runs past the end of the checkpoint';
     const keyLength = view.getUint32(position, true);
     position += 4;
-    if (keyLength > SLOT_KEY_LIMIT || keyLength > end - position) return 'a bank entry runs past the end of the checkpoint';
+    if (keyLength > SLOT_KEY_LIMIT || keyLength > bytes.byteLength - position) return 'a bank entry runs past the end of the checkpoint';
     let key = '';
     for (let index = 0; index < keyLength; index += 1) key += String.fromCharCode(bytes[position + index] ?? 0);
     if (keys.has(key)) return 'the bank repeats a key';
     keys.add(key);
     position += keyLength;
-    if (end - position < 4) return 'a bank length runs past the end of the checkpoint';
+    if (bytes.byteLength - position < 4) return 'a bank length runs past the end of the checkpoint';
     const valueLength = view.getUint32(position, true);
     position += 4;
-    if (valueLength > SLOT_VALUE_LIMIT || valueLength > end - position) return 'a bank entry runs past the end of the checkpoint';
+    if (valueLength > SLOT_VALUE_LIMIT || valueLength > bytes.byteLength - position) return 'a bank entry runs past the end of the checkpoint';
     position += valueLength;
   }
-  if (position !== end) return 'the bank does not end where the checkpoint says it does';
+  /* The bank ends where its own structure says it does, which is the only place a trailer can start.
+   * A scan for the four magic bytes would match one spelled inside a bank value; a real prefix cannot. */
+  if (bytes.byteLength - position < 4) return 'a bank length runs past the end of the checkpoint';
+  if (view.getUint32(position, true) !== crc32(bytes, position)) return 'its CRC32 does not match its bytes';
+  const trailer = position + 4;
+  if (trailer === bytes.byteLength) return '';
+  return sceneTrailerError(bytes, view, trailer);
+}
+
+/**
+ * The optional ARCL v1 trailer, read from the offset the bank's own CRC ended at.
+ *
+ * The same walk as `DecodeSceneCommands`, allocation-free and bounded by the trailer's own end. `at` is
+ * never a guess: only a bank that ended where its structure said it does reaches this function, so the
+ * magic is required exactly there and trailing bytes that are not a trailer are a refusal rather than
+ * something to ignore.
+ */
+function sceneTrailerError(bytes: Uint8Array, view: DataView, at: number): string {
+  const end = bytes.byteLength - 4;
+  if (bytes.byteLength - at < 16) return 'its ARCL trailer is too short to be a scene checkpoint';
+  if (bytes[at] !== 0x41 || bytes[at + 1] !== 0x52 || bytes[at + 2] !== 0x43 || bytes[at + 3] !== 0x4c) {
+    return 'it carries bytes after the ARCV bank that are not an ARCL trailer';
+  }
+  if (view.getUint32(at + 4, true) !== 1) return 'its ARCL trailer is not version 1';
+  const count = view.getUint32(at + 8, true);
+  if (count > SCENE_COUNT_LIMIT) return 'its ARCL trailer declares more than 1024 commands';
+  let position = at + 12;
+  const text = (): string | null => {
+    if (end - position < 4) return null;
+    const length = view.getUint32(position, true);
+    position += 4;
+    if (length > SCENE_STRING_LIMIT || length > end - position) return null;
+    let value = '';
+    for (let index = 0; index < length; index += 1) value += String.fromCharCode(bytes[position + index] ?? 0);
+    position += length;
+    return value;
+  };
+  for (let command = 0; command < count; command += 1) {
+    const name = text();
+    if (name === null) return 'an ARCL string runs past the end of the trailer';
+    if (!SCENE_TAGS.has(name)) return `its ARCL trailer carries the unknown tag ${name}`;
+    if (end - position < 4) return 'an ARCL length runs past the end of the trailer';
+    const attrs = view.getUint32(position, true);
+    position += 4;
+    if (attrs > SCENE_ATTR_LIMIT) return 'an ARCL command declares more than 64 attributes';
+    const seen = new Set<string>();
+    for (let attr = 0; attr < attrs; attr += 1) {
+      const key = text();
+      const value = text();
+      if (key === null || value === null) return 'an ARCL string runs past the end of the trailer';
+      if (seen.has(key)) return 'an ARCL command repeats an attribute';
+      seen.add(key);
+    }
+  }
+  if (position !== end) return 'its ARCL trailer does not end where the checkpoint says it does';
+  if (view.getUint32(end, true) !== crc32(bytes.subarray(at), end - at)) return 'its ARCL trailer CRC32 does not match its bytes';
   return '';
 }
 

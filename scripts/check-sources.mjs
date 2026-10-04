@@ -28,6 +28,7 @@ export const SOURCE_ENTRIES = [
   'ports/artemis/compat-web/README.md',
   'ports/artemis/compat-web/patches/0001-pf8-readat-host-source.patch',
   'ports/artemis/compat-web/patches/0002-numeric-strto.patch',
+  'ports/artemis/compat-web/patches/0003-scene-checkpoint.patch',
   'ports/artemis/compat-web/overlay/host/web_main.cpp',
   'ports/artemis/compat-web/overlay/cmake/web.cmake',
   // The audio seam. `audio_web.cpp` is compiled *instead of* the pinned `src/audio/audio.cpp`,
@@ -177,11 +178,41 @@ const COMPAT_BUNDLE_AUDIO_ENTRIES = [
 const COMPAT_STANDALONE_RECIPE = 'RUN-BUILD.sh';
 
 /**
+ * The three places that spell out the patch set, and how to read each one.
+ *
+ * The two recipes take their patch paths as `for` operands, so the manifest is the operand lines
+ * and every patch in the set is named by one -- `RUN-BUILD.sh` also carries them in a
+ * missing-file guard, which is the same list and therefore not read twice. The generator names one
+ * patch per entry line. Measured over a corpus twice: once with the patch present, once with it
+ * absent, so a checkout in which every patch is a new file still reports the same omissions
+ * (a missing file is simply not in the set yet, and an undeclared one is what this is for).
+ */
+const COMPAT_PATCH_DECLARATIONS = [
+  ['ports/artemis/compat-web/build.sh', /patches\/[\w.-]+\.patch/],
+  ['ports/artemis/compat-web/RUN-BUILD.sh', /patches\/[\w.-]+\.patch/],
+  ['ports/artemis/compat-web/make-source-bundle.mjs', /^.*\['patches\//],
+];
+
+/**
+ * The managed patch set: the patch files this checkout holds, in whichever view is being read.
+ *
+ * Taken from the same tracked-plus-visible candidates the rest of the guard walks, then filtered by
+ * `hasFile` so the set is what is actually there. Worktree mode therefore sees a patch that is on
+ * disk but not yet added, and a deleted patch is absent from both views rather than lingering in
+ * the index; the caller already computed the candidate list, and deriving it again from git would
+ * disagree with the rest of this file.
+ */
+function compatPatchSet(candidates, hasFile) {
+  const dir = 'ports/artemis/compat-web/patches/';
+  return candidates.filter((name) => name.startsWith(dir) && /\.patch$/.test(name) && hasFile(name));
+}
+
+/**
  * Checks one Artemis record against the filesystem and the files that spell out its contract.
  * Returns the problems it found; it never throws, because a guard that dies on a malformed record
  * reports nothing about the rest of them.
  */
-function artemisCompatProblems(content, hasFile, bucket) {
+function artemisCompatProblems(content, hasFile, bucket, candidates) {
   const fail = (message) => bucket.push(message);
   const compat = ARTEMIS_COMPAT;
   const pinsFile = '.github/upstream-pins.json';
@@ -246,6 +277,49 @@ function artemisCompatProblems(content, hasFile, bucket) {
     if (record[key] === expected && !hasFile(expected)) {
       fail(`${pinsFile}: ${compat.key} ${key} is missing from the tree: ${expected}`);
     }
+  }
+
+  // --- the patch set the source build applies ------------------------------
+  //
+  // A patch fixes a build input that exists nowhere upstream, so a shipping closure that does not
+  // name it does not apply it: the module ships without the fix and the source offer cannot
+  // rebuild it. Checking the two reviewed names in SOURCE_ENTRIES is not enough on its own,
+  // because the next reviewed patch is by definition not in that list yet. So the manifests are
+  // the requirement, not the source of truth: only a patch named in every one of them counts, and
+  // a patch that is merely present is reported rather than admitted. Placed before the workflow
+  // section because that one returns early on a missing workflow, and this check must not be
+  // skipped for a reason that has nothing to do with the patch set.
+  if (hasFile(ARTEMIS_COMPAT.recipe)) {
+    const patchSet = compatPatchSet(candidates, hasFile);
+    if (!patchSet.length) fail(`${ARTEMIS_COMPAT.recipe}: names no managed patch set, so this check has nothing to compare and fails closed`);
+    for (const [file, pattern] of COMPAT_PATCH_DECLARATIONS) {
+      if (!hasFile(file)) {
+        fail(`${file}: missing (it is one of the patching closure; without it a new patch cannot be placed in review)`);
+        continue;
+      }
+      // Folded lines are how the recipes hold a path list, and a patch is named by its file name,
+      // so folding is whitespace rather than a way out of the manifest. The manifests spell the
+      // name relative to this directory, so the file name is what has to appear.
+      const manifest = content(file);
+      const lines = manifest.split(/\r?\n/).map((line) => line.replace(/\\$/, '').trim());
+      const declared = lines.filter((line) => pattern.test(line));
+      for (const patch of patchSet) {
+        const name = patch.slice(patch.lastIndexOf('/') + 1);
+        if (declared.some((line) => line.includes(name))) continue;
+        fail(`${patch}: managed patch named in none of ${file} `
+          + `(its entry list is ${ARTEMIS_COMPAT.recipe}, RUN-BUILD.sh and make-source-bundle.mjs), `
+          + `so the shipping build and the source offer would omit it; name it there or leave it unmanaged`);
+      }
+      // The other direction: a name the file spells that no patch file backs stops the build at
+      // patch time. Read from the whole file rather than the operand lines, because the generator
+      // has no existence check of its own and a typo there is a silently smaller bundle.
+      for (const name of manifest.match(/[\w.-]+\.patch/g) ?? []) {
+        if (!patchSet.includes(`ports/artemis/compat-web/patches/${name}`)) {
+          fail(`${file}: names ${name}, which is not a managed patch file`);
+        }
+      }
+    }
+    if (patchSet.length < 2) fail(`${ARTEMIS_COMPAT.recipe}: managed patch set shrank to ${patchSet.length}`);
   }
 
   // --- the workflow this record names -------------------------------------
@@ -402,6 +476,7 @@ function artemisCompatProblems(content, hasFile, bucket) {
     }
   }
 
+
   // --- the workflow's own shape -------------------------------------------
   if (/\n\s*push:\s*\n/.test(workflow) === false && !/^on:\s*$/m.test(workflow)) {
     fail(`${compat.workflow}: no \`on:\` trigger block`);
@@ -533,7 +608,7 @@ export function inspectSources(root, { staged = false } = {}) {
       if (pins['artemis-bridge']?.module) requireFile(pins['artemis-bridge'].module);
     }
   }
-  if (hasPins) artemisCompatProblems(content, hasFile, errors);
+  if (hasPins) artemisCompatProblems(content, hasFile, errors, candidates);
 
   if (pending.size) warnings.push(`${pending.size} required files exist but are not in the index:\n` +
     [...pending].map((file) => `  ${file}`).join('\n'));

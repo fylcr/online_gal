@@ -148,7 +148,8 @@ cp -a "$HERE/overlay/audio" "$BUILD/overlay.tmp"
 mkdir -p "$BUILD/overlay"
 mv "$BUILD/overlay.tmp" "$BUILD/overlay/audio"
 for p in "$HERE"/patches/0001-pf8-readat-host-source.patch \
-         "$HERE"/patches/0002-numeric-strto.patch; do
+         "$HERE"/patches/0002-numeric-strto.patch \
+         "$HERE"/patches/0003-scene-checkpoint.patch; do
   say "patch $(basename "$p") sha256=$(sha256sum "$p" | cut -d' ' -f1)"
   # No `--forward`: a patch that is already applied is a recipe that no longer
   # matches its source, and that has to stop the build.

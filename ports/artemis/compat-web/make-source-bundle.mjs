@@ -56,6 +56,7 @@ export const EXTRA_ENTRIES = [
   ['RUN-BUILD.sh', 'RUN-BUILD.sh'],
   ['patches/0001-pf8-readat-host-source.patch', 'patches/0001-pf8-readat-host-source.patch'],
   ['patches/0002-numeric-strto.patch', 'patches/0002-numeric-strto.patch'],
+  ['patches/0003-scene-checkpoint.patch', 'patches/0003-scene-checkpoint.patch'],
   ['overlay/host/web_main.cpp', 'overlay/host/web_main.cpp'],
   ['overlay/cmake/web.cmake', 'overlay/cmake/web.cmake'],
   // The audio backend exists only in this repository: upstream's `src/audio/audio.cpp` is the

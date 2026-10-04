@@ -29,34 +29,75 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
 
-/** ARCV v1, the bytes `EncodeVariableBank(..., true)` writes. Not a user slot. */
-function arcv(pairs) {
-  const parts = [Buffer.from('ARCV'), Buffer.alloc(4), Buffer.alloc(4)];
-  parts[1].writeUInt32LE(1, 0);
-  parts[2].writeUInt32LE(pairs.length, 0);
-  for (const [key, value] of pairs) {
-    const keyBytes = Buffer.from(key);
-    const valueBytes = Buffer.from(value);
-    const keyLength = Buffer.alloc(4);
-    const valueLength = Buffer.alloc(4);
-    keyLength.writeUInt32LE(keyBytes.length, 0);
-    valueLength.writeUInt32LE(valueBytes.length, 0);
-    parts.push(keyLength, keyBytes, valueLength, valueBytes);
-  }
-  const body = Buffer.concat(parts);
+/** CRC32, the polynomial `save_storage.cpp` gets from zlib. */
+function crc32(bytes) {
   let crc = 0xffffffff;
-  for (const byte of body) {
+  for (const byte of bytes) {
     crc ^= byte;
     for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
   }
-  const tail = Buffer.alloc(4);
-  tail.writeUInt32LE((crc ^ 0xffffffff) >>> 0, 0);
-  return Buffer.concat([body, tail]);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function u32(value) {
+  const bytes = Buffer.alloc(4);
+  bytes.writeUInt32LE(value >>> 0, 0);
+  return bytes;
+}
+
+function str(text) {
+  const bytes = Buffer.from(text);
+  return Buffer.concat([u32(bytes.length), bytes]);
+}
+
+/** ARCV v1, the bytes `EncodeVariableBank(..., true)` writes. Not a user slot. */
+function arcv(pairs) {
+  const parts = [Buffer.from('ARCV'), u32(1), u32(pairs.length)];
+  for (const [key, value] of pairs) parts.push(str(key), str(value));
+  const body = Buffer.concat(parts);
+  return Buffer.concat([body, u32(crc32(body))]);
 }
 
 function arcv64(pairs) {
   return arcv(pairs).toString('base64');
 }
+
+/**
+ * ARCL v1, byte for byte what `EncodeSceneCommands` appends: magic, version, command count, then per
+ * command a name and its attributes, then a CRC32 over everything from the magic to the last attribute.
+ * The trailer carries its **own** CRC, which is the whole point: a checkpoint has two of them.
+ */
+function sceneTrailer(commands, { version = 1, count = commands.length } = {}) {
+  const body = Buffer.concat([
+    Buffer.from('ARCL'),
+    u32(version),
+    u32(count),
+    ...commands.map(({ name, attrs }) => Buffer.concat([str(name), u32(attrs.length),
+      ...attrs.map(([key, value]) => Buffer.concat([str(key), str(value)]))])),
+  ]);
+  return Buffer.concat([body, u32(crc32(body))]);
+}
+
+/**
+ * A genuine `platform-slot.dat`, all 165 bytes of it, written by the real `LuaEngine::SaveSnapshot` at
+ * the pinned revision with `0003-scene-checkpoint.patch` applied.
+ *
+ * It is two records: a 35-byte ARCV v1 bank (`f.line` = `first`) whose own CRC32 ends at offset 31, then
+ * a 130-byte ARCL v1 trailer carrying the `lyc` and `lyprop` the probe dispatched. The file's last four
+ * bytes are the **trailer's** CRC — the reason one whole-file CRC minus four refuses every new slot.
+ *
+ * Dumped by `.test/artemis-compact-scene-host-format-fix/dump-slot.cpp`, the same native probe with the
+ * temp-tree cleanup removed. No commercial input: the pack is two generated 1x1 PNGs.
+ */
+const REAL_SLOT = Buffer.from(
+  '41524356010000000100000006000000662e6c696e6505000000666972737461e03ddc'
+  + '4152434c0100000002000000030000006c7963020000000400000066696c650e000000696d6167652f726f6f6d2e706e67'
+  + '020000006964020000006267060000006c7970726f700400000005000000616c7068610100000031020000006964020000006267'
+  + '040000006c656674010000003103000000746f7001000000324e3114de',
+  'hex',
+);
+/** The ARCV v1 prefix of the same file: exactly what an old slot with no scene journal is. */
+const REAL_OLD_SLOT = REAL_SLOT.subarray(0, 35);
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const WORKER_SCRIPT = join(root, 'packages', 'runtime-artemis', 'src', 'compat', 'compat-worker.js');
@@ -503,6 +544,154 @@ self.Module._artc_web_load = function () { return 1; };
     );
     // `@` never appears in the payload: this is the engine's own file, not a synthesised blob.
     assert.ok(!JSON.stringify(reply.files).includes('platform-slot.dat.dat'));
+  } finally {
+    await harness.terminate();
+  }
+});
+
+test('the builder reproduces the bytes the native encoder wrote', () => {
+  // The control for every negative below: if this drifts, those cases prove nothing about the format.
+  assert.equal(REAL_SLOT.length, 165, 'the frozen fixture is the file the probe dumped');
+  assert.equal(REAL_SLOT.subarray(0, 4).toString(), 'ARCV');
+  assert.equal(REAL_SLOT.subarray(35, 39).toString(), 'ARCL');
+  assert.equal(REAL_OLD_SLOT.length, 35, 'the bank and its own CRC end at 35');
+  const rebuilt = Buffer.concat([REAL_OLD_SLOT, sceneTrailer([
+    { name: 'lyc', attrs: [['file', 'image/room.png'], ['id', 'bg']] },
+    { name: 'lyprop', attrs: [['alpha', '1'], ['id', 'bg'], ['left', '1'], ['top', '2']] },
+  ])]);
+  assert.deepEqual(rebuilt, REAL_SLOT, 'the trailer builder is `EncodeSceneCommands`, byte for byte');
+});
+
+test('a genuine SaveSnapshot slot passes the page guard and both worker guard sites, old format and new', async () => {
+  // The page's gate: the same check a worker reply crosses before anything is persisted.
+  const throughPage = (bytes) => api.readCheckpointFiles([{ path: 'platform-slot.dat', data: bytes.toString('base64') }]);
+  assert.equal(throughPage(REAL_SLOT)[0].data.length, 165, 'the new ARCV + ARCL slot is a usable checkpoint');
+  assert.equal(throughPage(REAL_OLD_SLOT)[0].data.length, 35, 'an old ARCV slot with no trailer still is');
+
+  const harness = new Harness();
+  try {
+    await harness.init(glue(`
+${BASE_CABI}
+self.__slots = [[${[...REAL_SLOT].join(',')}]];
+self.__slotN = 0;
+self.Module._artc_web_save = function (file) {
+  self.seedSave(self.Module.UTF8ToString(file), self.__slots[self.__slotN++]);
+  return 1;
+};
+self.Module._artc_web_load = function () { return 1; };
+`));
+    // Worker site 1: the slot the engine just wrote, read back off its own filesystem.
+    const saved = await harness.call({ type: 'checkpoint' });
+    assert.equal(saved.type, 'checkpoint-ok', `the new-format checkpoint was refused: ${saved.reason}`);
+    const captured = saved.files.find((entry) => entry.path === 'platform-slot.dat');
+    assert.deepEqual(Buffer.from(captured.data, 'base64'), REAL_SLOT, 'the engine\'s bytes, unchanged');
+
+    // Worker site 2: the same bytes coming back in as a restore.
+    const restored = await harness.call({ type: 'restore', files: [{ path: 'platform-slot.dat', data: REAL_SLOT.toString('base64') }] });
+    assert.equal(restored.type, 'restore-ok', `the new-format restore was refused: ${restored.reason}`);
+
+    // And the old format through both, because a slot written before the patch must keep loading.
+    const old = await harness.call({ type: 'restore', files: [{ path: 'platform-slot.dat', data: REAL_OLD_SLOT.toString('base64') }] });
+    assert.equal(old.type, 'restore-ok', `an old ARCV restore was refused: ${old.reason}`);
+  } finally {
+    await harness.terminate();
+  }
+});
+
+test('a slot with a broken bank CRC or a broken scene CRC is refused, and neither checksum stands in for the other', async () => {
+  // The bank's key is flipped, so the trailer after it is untouched and its CRC is still valid. A guard
+  // that fell back to "the trailer checks out" would accept a bank the engine never wrote.
+  const badBank = Buffer.from(REAL_SLOT);
+  badBank[16] ^= 0x01;
+  // The mirror image: a sound bank whose trailer was edited.
+  const badScene = Buffer.from(REAL_SLOT);
+  badScene[badScene.length - 1] ^= 0xff;
+  // Truncation, and bytes between the bank CRC and the trailer that are not a trailer. The second is
+  // what a search for the `ARCL` magic would walk past; the trailer is located by structure instead.
+  const truncated = REAL_SLOT.subarray(0, REAL_SLOT.length - 8);
+  const gap = Buffer.concat([REAL_OLD_SLOT, Buffer.from('junk'), sceneTrailer([{ name: 'lyc', attrs: [] }])]);
+
+  const cases = [
+    ['a flipped bank byte', badBank, /its CRC32 does not match its bytes/],
+    ['a flipped scene byte', badScene, /its ARCL trailer CRC32 does not match its bytes/],
+    ['a truncated trailer', truncated, /ARCL/],
+    ['junk before a well-formed trailer', gap, /not an ARCL trailer/],
+  ];
+  for (const [what, bytes, expected] of cases) {
+    assert.throws(() => api.readCheckpointFiles([{ path: 'platform-slot.dat', data: bytes.toString('base64') }]),
+      expected, `${what} must be refused by the page`);
+  }
+
+  const harness = new Harness();
+  try {
+    await harness.init(glue(`
+${BASE_CABI}
+self.__slots = [${cases.map(([, bytes]) => `[${[...bytes].join(',')}]`).join(',')}];
+self.__slotN = 0;
+self.Module._artc_web_save = function (file) {
+  self.seedSave(self.Module.UTF8ToString(file), self.__slots[self.__slotN++]);
+  return 1;
+};
+self.Module._artc_web_load = function () { return 1; };
+`));
+    for (const [what, bytes, expected] of cases) {
+      // Worker site 1: an engine that reports success over a slot it could not have written.
+      const saved = await harness.call({ type: 'checkpoint' });
+      assert.equal(saved.type, 'error', `${what} was reported as a checkpoint`);
+      assert.match(saved.reason, expected);
+      // Worker site 2: the same bytes handed straight to a restore.
+      const restored = await harness.call({ type: 'restore', files: [{ path: 'platform-slot.dat', data: bytes.toString('base64') }] });
+      assert.equal(restored.type, 'error', `${what} was reported as a restore`);
+      assert.match(restored.reason, expected);
+    }
+  } finally {
+    await harness.terminate();
+  }
+});
+
+test('a scene trailer the engine could not have written is refused', async () => {
+  const cases = [
+    ['an unknown tag', sceneTrailer([{ name: 'evil', attrs: [['id', 'bg']] }]), /unknown tag evil/],
+    ['a version that is not 1', sceneTrailer([{ name: 'lyc', attrs: [] }], { version: 2 }), /not version 1/],
+    ['a count past the bound', sceneTrailer([{ name: 'lyc', attrs: [] }], { count: 1025 }), /more than 1024 commands/],
+    ['more attributes than a command has', sceneTrailer([{ name: 'lyc', attrs: Array.from({ length: 65 }, (_, i) => [`a${i}`, '1']) }]), /more than 64 attributes/],
+    ['a repeated attribute', sceneTrailer([{ name: 'lyc', attrs: [['id', 'a'], ['id', 'b']] }]), /repeats an attribute/],
+  ];
+  for (const [what, trailer, expected] of cases) {
+    assert.throws(() => api.readCheckpointFiles([{
+      path: 'platform-slot.dat',
+      data: Buffer.concat([REAL_OLD_SLOT, trailer]).toString('base64'),
+    }]), expected, `${what} must be refused by the page`);
+  }
+  // The same trailer shape with legal contents is accepted, so the refusals above are the rules.
+  const legal = Buffer.concat([REAL_OLD_SLOT, sceneTrailer([{ name: 'lyc', attrs: [['id', 'bg']] }])]);
+  assert.equal(api.readCheckpointFiles([{ path: 'platform-slot.dat', data: legal.toString('base64') }])[0].data.length, legal.length);
+
+  const harness = new Harness();
+  try {
+    await harness.init(glue(`
+${BASE_CABI}
+self.__slots = [${cases.map(([, trailer]) => `[${[...Buffer.concat([REAL_OLD_SLOT, trailer])].join(',')}]`).join(',')}];
+self.__slotN = 0;
+self.Module._artc_web_save = function (file) {
+  self.seedSave(self.Module.UTF8ToString(file), self.__slots[self.__slotN++]);
+  return 1;
+};
+self.Module._artc_web_load = function () { return 1; };
+`));
+    for (const [what, trailer, expected] of cases) {
+      const bytes = Buffer.concat([REAL_OLD_SLOT, trailer]);
+      const saved = await harness.call({ type: 'checkpoint' });
+      assert.equal(saved.type, 'error', `${what} was reported as a checkpoint`);
+      assert.match(saved.reason, expected);
+      const restored = await harness.call({ type: 'restore', files: [{ path: 'platform-slot.dat', data: bytes.toString('base64') }] });
+      assert.equal(restored.type, 'error', `${what} was reported as a restore`);
+      assert.match(restored.reason, expected);
+    }
+    // The legal trailer, through the worker as well as the page.
+    const legal64 = legal.toString('base64');
+    const restored = await harness.call({ type: 'restore', files: [{ path: 'platform-slot.dat', data: legal64 }] });
+    assert.equal(restored.type, 'restore-ok', `a legal scene trailer was refused: ${restored.reason}`);
   } finally {
     await harness.terminate();
   }

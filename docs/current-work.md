@@ -1,15 +1,15 @@
 # 当前工作检查点 — 新对话先读
 
 > **当前摘要（2026-10-05 · compat 主线 · 本块是唯一「现状」；下文历史记录原样保留，不得当现状。）**
-> - **HEAD `a4b6ef3`**（doc-only，parent `93daba7`）；本批 commit 前实测仍是它。**旧 code candidate `93`** 的 exact CI success 为 **554 / pass 552 / fail 0 / skip 2**，artifacts 与 `ffd` byte-equal；那是 `93` 的证据，**不是**本批 ACK 修复的证据。
-> - **`790232ff` 已 closing 释放**，独占范围结算：只改了 `packages/runtime-artemis/src/compat/worker-host.ts` + 两个 audio 测试（旧 `test/artemis-compat-audio-integrated.test.mjs`、新未跟踪 `test/artemis-compat-compact-audio-restore-check.test.mjs`）。
-> - **ACK 缺陷 root 已实测**：busy 期到达的 ACK 被直接丢弃（旧回执 4 在 native 倒退成 2）。修复 = 单飞行 RPC + 每 handle 最新累计 pending 槽 + epoch 与 `frames <= playedFrames` 双重守卫；实测 native consumed **4** / host `playedFrames` **4**。两测试实际 **exit 0**（`.test/artemis-compact-audio-ack-final/b5-final2.log`、`integrated-final.log`）。
-> - **本批 4 门全过（actual exit）**：`build` 0、`check` 0、`test:portable` **0（tests/pass 555、fail 0 — 新测试真纳入，非旧 554）**、`check-sources` 0。打包 `make-package runtime-artemis --assets-from` **真实 freshness 未跳**（checked 3）、engine ledger 3 校验、离线 install+import smoke 0。
-> - **新 worker 内容 hash**：`worker-host.js` `dd5c205c…`；`compat-worker.js` `3216e0f8…`（56712 B，未变）。runtime-dist 与 app-dist 的 worker **byte-identical**。
-> - **新候选待终验**：这只是 candidate，**不是可玩**。ACK fix 落地后**旧 game run 不自动覆盖**，需要 **真实游戏 warmup ×2（新 CI 之后）**。
-> - **唯一 browser = `a5b4f6ea-80b0-42c7-a24d-9d7109202e13`**，只服务 `93` CI 冻结包，**未干扰**；本批 **no new server / browser / 引擎**，unknown PID 不 kill，**不收别人的 job**。
-> - **`647` 正式 NOT PASS = 历史失败**；sessions `vtqf`/`jnvu`/`juon` **stopped**；`84120` **gone**，`4661` **TIME_WAIT only**。**user foreground bsk leave**。
-> - preview **上游限制**；**static 正常**。**Artifacts-only、默认 publish `false`**；`private: true` / GPL 保持，**no npm publish / no GH Release**。**`docs/fetch-engine-artifacts.md` 历史 hash 不改**。`.test/` gitignored ⇒ 本地证据，缺失不得当「已验收」。
+> - **本批 = 恢复候选准备入库（显式 pathspec commit + push + `.test` 证据）；game 尚未过；所有具体 writers 释放。** 不生产源码实现调整 / 版本再增 / 全构建 native 重编 / 服务器 / 浏览器。
+> - **新候选 = 本地 candidate（`5045f18e` 收口）**：runtime **`0.1.12`** / engines **`0.1.13`**（private + GPL）。**这是 candidate，不是可玩**。⚠ **绝不拿旧 `93` game 覆盖 ACK 版本；也不用被证明缺背景的旧 `93` / `c609` game 当新 candidate PASS。**
+> - **504 最终稳定 full gates**（**首次 mid-write 作废，不用旧 logs**）：`.test/artemis-compact-scene-candidate/logs/` 真实 **`build` 0 / `check` 0 / `test:portable` 564 pass / 0 fail / `check:sources` 89 pass / 89**；独立 source **RUN-BUILD exit 0**、**same both 测过**。
+> - **native 证据（`653` 新 body）**：baseline fails **2 → 14 tests PASS**。**WASM** `ac3c3bdd7f9e9cd359fcd4aca2454cfdb68ad0de5e689a8d16340b58fcb13790` / **JS** `799a61330a553e9816c9ef92b93532e4337d05c94d6f6840f99006b4e18dd7f8`。**最新 SOURCE** `371b4334c1aca6dc6cc3c1c5bc721a62c47a28027697a4baa46db3fcac35f7a9` **与 native `653` 初 `de16` 不同** ⇒ 只 record **最新源 generator + patch / overlay 真实齐备**，**不冒 copy 旧 hash**。`504` staging `dist` 原旧 native 已换 `out/build` 新 body 并重跑 `source.manifest` verify，**不 commit `dist`**。
+> - **RPC new** `08f0d2071a46a9a69f746e195f504e5e77e8f40a711e98b46912b91ecb679bd6`：`app` / `package` / `dist` **byte-equal**。runtime package **0.1.12** local `2294390` sha `e80299df2abc689d7b0e432d36645c4802195c9dbf899fa59fcd16758123a41c`：**离线 fresh root / compat import 0 / 3 URL offer 齐**。
+> - **所有具体 writers 已释放**：`337196c4`（根 source guard + `check-sources.test` fail-closed，**88/88、staged 0、scope 释放**）、`289cc11a`（宿主 `worker-host` / `compat-worker` + save/format 测试，**不改 native / mapping**）、`653d0c64`（ports patch / recipes / native probe / guarded `out/dist`）、`bd9dc6c1`（ONLY `.test` 探针）、`081edf3f`（受管 compat-ci case）**全部 closing**。**唯一未 release = `34cec20f` 的 `.test`-only final harness prepared：不碰、不等待。**
+> - **game 事实（`a5b4f6ea` · NOTPASS）**：旧 `93` 包 discard 热身**真 START 入 ADV**、**save ARCV `26959 B`**、推进**不同对白**；`restore await` 日志 **`layers=0`**、对白**回首句**但**卧室背景黑**，再次推进**对白正常背景仍黑**。**`runA/B` 未跑 ⇒ 不能一致验收**；report `.test/artemis-compact-ci-final-game/report.json`。**owner cleanup accepted，现场 0 active / port free。**
+> - **next**：**commit → same SHA CI → same SHA artifact download → browser 热身 ×2 → 真实背景恢复 / 继续**。**目标未完成**（game 尚未过）。**不改冻结 MapPoint / user bsk / daemon、不 kill unknown / no autoRelease / no NPM**。**不新造 custom framework / node cache**，**不把旧 `500` start 失败重写成当前阻塞**。**旧历史哈希留 divider 下，不动。**
+> - **发布面：用户 only —— Artifacts only、no GH Release / no npm**；**source hash 历史 divider 不动**。**unknown PID / bsk leave**，**user foreground 不 kill**。`.test/` gitignored ⇒ 本地证据，缺失不得当「已验收」。
 
 ---
 

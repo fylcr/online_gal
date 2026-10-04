@@ -94,6 +94,8 @@ const COMPAT_BUNDLE = [
   // without them would fail every test that expects a clean bundle.
   "  ['RUN-BUILD.sh', 'RUN-BUILD.sh'],",
   "  ['patches/0001-pf8-readat-host-source.patch', 'patches/0001-pf8-readat-host-source.patch'],",
+  "  ['patches/0002-numeric-strto.patch', 'patches/0002-numeric-strto.patch'],",
+  "  ['patches/0003-scene-checkpoint.patch', 'patches/0003-scene-checkpoint.patch'],",
   "  ['overlay/audio/audio_web.cpp', 'overlay/audio/audio_web.cpp'],",
   "  ['overlay/audio/audio_web.h', 'overlay/audio/audio_web.h'],",
   "  ['overlay/audio/audio_validation.h', 'overlay/audio/audio_validation.h'],",
@@ -114,6 +116,40 @@ function command(executable, args, { cwd, input } = {}) {
   assert.equal(result.status, 0, `${executable} ${args.join(' ')}: ${result.stderr}`);
   return result.stdout;
 }
+
+/**
+ * The fixture's patch set and the two call sites that apply it.
+ *
+ * A patch named in neither site is a patch the fixture build does not apply, so the regression
+ * below can add a third one that exists on disk and nowhere else -- which is the shipping hole.
+ * The call sites are built from the list rather than re-spelling it, so a fixture patch cannot go
+ * missing from one site by accident.
+ */
+const COMPAT_PATCH_FILES = [
+  'ports/artemis/compat-web/patches/0001-pf8-readat-host-source.patch',
+  'ports/artemis/compat-web/patches/0002-numeric-strto.patch',
+  'ports/artemis/compat-web/patches/0003-scene-checkpoint.patch',
+];
+const COMPAT_PATCH_ENTRIES = ['0001-pf8-readat-host-source.patch', '0002-numeric-strto.patch',
+  '0003-scene-checkpoint.patch']
+  .map((name) => `  ['patches/${name}', 'patches/${name}'],`).join('\n');
+// The generator literal above is a hand copy of the review list, so it is checked against the list
+// rather than trusted: a patch added to COMPAT_PATCH_FILES but not to COMPAT_BUNDLE would otherwise
+// make the fixture look like a bundle that ships the reviewed set when it does not.
+assert.ok(COMPAT_BUNDLE.includes(COMPAT_PATCH_ENTRIES),
+  'COMPAT_BUNDLE must carry the patch entries in COMPAT_PATCH_ENTRIES verbatim');
+const asHere = (file) => `"$HERE"/${file.slice('ports/artemis/compat-web/'.length)}`;
+const patchLoop = () => `for p in \\\n${COMPAT_PATCH_FILES
+  .map((file, index) => `         ${asHere(file)}${index === COMPAT_PATCH_FILES.length - 1 ? '; do' : ' \\'}`)
+  .join('\n')}`;
+const COMPAT_BUILD = ['#!/usr/bin/env bash', 'cp -a "$SRC/." "$BUILD/"', patchLoop(),
+  '  patch --binary -d "$BUILD" -p1 --batch <"$p" >>"$LOG" 2>&1', 'done'].join('\n');
+const COMPAT_RUN_BUILD = ['#!/usr/bin/env bash',
+  `for f in "$SRC" "$HERE/overlay/cmake/web.cmake" \\\n${COMPAT_PATCH_FILES
+    .map((file, index) => `         ${asHere(file)}${index === COMPAT_PATCH_FILES.length - 1 ? '; do' : ' \\'}`)
+    .join('\n')}`,
+  '  [ -e "$f" ] || { echo refusing >&2; exit 2; }', 'done', patchLoop(),
+  '  patch --binary -d "$BUILD" -p1 --batch <"$p" >>"$LOG" 2>&1', 'done'].join('\n');
 
 function fixture(t) {
   const parent = realpathSync(tmpdir());
@@ -161,7 +197,9 @@ function fixture(t) {
   put(BRIDGE_WORKFLOW, BRIDGE_YML);
   put('.github/scripts/build-artemis-compat.sh', COMPAT_SCRIPT);
   put('.github/scripts/build-artemis-bridge.sh');
-  put('ports/artemis/compat-web/build.sh');
+  put('ports/artemis/compat-web/build.sh', COMPAT_BUILD);
+  put('ports/artemis/compat-web/RUN-BUILD.sh', COMPAT_RUN_BUILD);
+  for (const file of COMPAT_PATCH_FILES) put(file);
   put('ports/artemis/compat-web/make-source-bundle.mjs', COMPAT_BUNDLE);
   put(MAP, row('f1', 'util/first.cpp') + row('f2', 'script/second.cpp') + row('f3', '—'));
   put(PRODUCT);
@@ -495,6 +533,105 @@ test('conflicted index is rejected before any ambiguous blob is read', (t) => {
     `0 ${'0'.repeat(40)}\tREADME.md\n100644 ${blob} 1\tREADME.md\n100644 ${blob} 2\tREADME.md\n` });
   assert.ok(f.check({ staged: true }).errors.includes('Git index has unresolved conflicts'));
 });
+test('a managed patch missing from a shipping declaration fails by name', (t) => {
+  // The shipping risk: a third reviewed patch lands in `patches/` while the recipe, the standalone
+  // recipe and the source-offer generator keep naming the first two. The build then applies less
+  // than the reviewed set, the source offer cannot rebuild the module beside it, and every other
+  // check in this file stays green because the file itself is fine.
+  //
+  // The third patch is test-only: its name appears here, and a file of that name is created here.
+  // Nothing in this repository names a real third patch, so this cannot become a roll-call of
+  // patches that have not been produced.
+  const f = fixture(t);
+  const THIRD = '0003-fixture-pending-review.patch';
+  const PATCH = `ports/artemis/compat-web/patches/${THIRD}`;
+  const BUILD = 'ports/artemis/compat-web/build.sh';
+  const RUN_BUILD = 'ports/artemis/compat-web/RUN-BUILD.sh';
+  const BUNDLE = 'ports/artemis/compat-web/make-source-bundle.mjs';
+  const entry = `  ['patches/${THIRD}', 'patches/${THIRD}'],`;
+  const add = (source) => source.replace(/; do$/gm, ` \\\n         "$HERE"/patches/${THIRD}; do`);
+  const NAME = `${PATCH}: managed patch named in none of`;
+  const report = (file) => [`${NAME} ${file} (its entry list is ports/artemis/compat-web/build.sh, `
+    + 'RUN-BUILD.sh and make-source-bundle.mjs), so the shipping build and the source offer would '
+    + 'omit it; name it there or leave it unmanaged'];
+  const named = () => f.check().errors.filter((error) => error.includes(NAME));
+
+  // Present on disk while every manifest still names the original pair: this is the whole hole,
+  // and it is green in both views only because the patch is a file nothing else has noticed yet.
+  f.put(PATCH);
+  assert.deepEqual(f.check().errors.filter((error) => error.includes(NAME)),
+    [report(BUILD), report(RUN_BUILD), report(BUNDLE)].flat(),
+    'a patch no manifest names has to be reported against every manifest, in ship order');
+  // Declared in the recipe and the generator but not the standalone recipe, so the miss is reported
+  // per manifest: a single "not declared anywhere" would not say which file still has to be edited.
+  f.put(BUILD, add(COMPAT_BUILD));
+  f.put(BUNDLE, COMPAT_BUNDLE.replace(/^(\s*\['patches\/0002.*)$/m, `$1\n${entry}`));
+  assert.deepEqual(named(), report(RUN_BUILD));
+
+  // Committed, not merely present: the same closure read through the index reports it too, so
+  // neither the working tree nor a newly added file can satisfy the requirement by existing. The
+  // index is what the shipping run reads, so the two views are asserted on the same bytes.
+  f.git('add', '--all');
+  assert.deepEqual(named(), report(RUN_BUILD));
+  assert.deepEqual(f.check({ staged: true }).errors.filter((error) => error.includes(NAME)),
+    report(RUN_BUILD));
+
+  // Each manifest reported by its own name, whichever one is left out. Only the materialised views
+  // are compared against both files: `git add` after each edit is what keeps them equal.
+  f.put(RUN_BUILD, add(COMPAT_RUN_BUILD));
+  assert.deepEqual(f.check().errors, []);
+  f.put(BUNDLE, COMPAT_BUNDLE);
+  assert.deepEqual(named(), report(BUNDLE));
+  f.put(BUNDLE, COMPAT_BUNDLE.replace(/^(\s*\['patches\/0002.*)$/m, `$1\n${entry}`));
+  f.put(BUILD, COMPAT_BUILD);
+  assert.deepEqual(named(), report(BUILD));
+
+  // Every declaration repaired: clean in both views, so what failed above was the omission.
+  f.put(BUILD, add(COMPAT_BUILD));
+  f.git('add', '--all');
+  assert.deepEqual(f.check().errors, []);
+  assert.deepEqual(f.check({ staged: true }).errors, []);
+
+  // Reverse direction: a name the closure spells with no file to back it. The generator copies only
+  // what its entry list names, so an entry with no file ships a bundle that cannot be built.
+  const dropped = COMPAT_PATCH_FILES[1];
+  const short = dropped.replace('ports/artemis/compat-web/patches/', '');
+  rmSync(resolve(f.root, dropped));
+  assert.equal(f.check().errors.some((e) => e.includes('managed patch named in none')), false,
+    'a missing file is not an undeclared patch: nothing was added to the set');
+  for (const file of ['ports/artemis/compat-web/build.sh',
+    'ports/artemis/compat-web/make-source-bundle.mjs']) {
+    assert.ok(f.check().errors.some((e) => e.includes(`${file}: names ${short}, which is not a managed patch file`)),
+      `${file} naming a patch that is not there has to fail by name`);
+  }
+});
+
+test('the third managed patch is required in the closure, not only in SOURCE_ENTRIES', (t) => {
+  // The hole the dynamic manifest check cannot see: a third patch that is absent from the checkout
+  // AND named in none of the three declarations is a patch nothing has to notice, so the dynamic
+  // check stays green while the shipping build applies a smaller set than was reviewed. The hole
+  // closes by making the patch a required source: SOURCE_ENTRIES has to name it, which is what
+  // fails here -- and the failure has to name the patch, not merely report a shorter set. A
+  // weaker "at least two patches" or "the set is non-empty" rule would pass this.
+  const f = fixture(t);
+  const THIRD = '0003-scene-checkpoint.patch';
+  const PATCH = `ports/artemis/compat-web/patches/${THIRD}`;
+  assert.ok(COMPAT_PATCH_FILES.includes(PATCH), 'the fixture must hold the third patch to remove it');
+  const strip = (source) => source.replace(new RegExp(`\\s*\\n?\\s*"?'?patches/${THIRD}'?[^\\n]*`, 'g'), '');
+  rmSync(resolve(f.root, PATCH));
+  f.put('ports/artemis/compat-web/build.sh', strip(COMPAT_BUILD));
+  f.put('ports/artemis/compat-web/RUN-BUILD.sh', strip(COMPAT_RUN_BUILD));
+  f.put('ports/artemis/compat-web/make-source-bundle.mjs', strip(COMPAT_BUNDLE));
+  f.git('add', '--all');
+  for (const staged of [false, true]) {
+    const errors = f.check({ staged }).errors;
+    assert.ok(errors.some((error) => error.startsWith(`${PATCH}: missing from `)),
+      `${staged ? 'index' : 'worktree'} mode must name the missing third patch`);
+    assert.equal(errors.some((error) => error.includes('managed patch named in none')), false,
+      'nothing was added to the set, so the dynamic check is silent and the required source is the only trap');
+  }
+});
+
 test('unknown CLI flags exit 2 rather than reporting a successful source check', () => {
   const result = spawnSync(process.execPath, [CHECKER, '--unknown'], { env, encoding: 'utf8' });
   if (result.error) throw result.error;

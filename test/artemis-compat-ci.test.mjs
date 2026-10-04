@@ -523,6 +523,23 @@ test('the portable suite that reads the app seam is what re-runs on its change',
     'the individual test file is covered by test/** on this workflow and must not be listed twice');
 });
 
+test('the scene checkpoint patch is applied by every managed recipe and shipped in the offer', () => {
+  // 0003 is the smallest patch and the only one whose absence is silent: the module still links,
+  // the run still goes green, and the saved room comes back black. `0001`/`0002` are named by the
+  // tests above through the files they edit; this one has no other reader, so the closure that
+  // makes it real -- both recipes, the source offer, and the portable suite that compiles it --
+  // is asserted here as one set.
+  const PATCH = 'patches/0003-scene-checkpoint.patch';
+  for (const recipe of [RECIPE, 'ports/artemis/compat-web/RUN-BUILD.sh',
+    'ports/artemis/compat-web/make-source-bundle.mjs']) {
+    assert.ok(read(recipe).includes(PATCH), `${recipe} must carry ${PATCH}`);
+  }
+  const runner = read('scripts/run-portable-tests.mjs');
+  assert.ok(runner.includes("'ports/artemis/compat-web/tests'"),
+    'the scene regression lives in the port\'s own tests/ directory, so the runner has to discover '
+    + 'that directory: a suite it never scans is a regression nothing runs');
+});
+
 test('the compat workflow names the one test file that pins its artifact contract', () => {
   // `test/**` is deliberately not in the compat list. The single file that fails when the asset
   // seam and the recipe drift is, because an editor who breaks the contract by "just fixing the
