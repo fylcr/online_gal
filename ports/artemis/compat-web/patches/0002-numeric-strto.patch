@@ -1,0 +1,141 @@
+--- a/src/config/ini.cpp
++++ b/src/config/ini.cpp
+@@ -1,6 +1,8 @@
+ #include "config/ini.h"
+ 
+ #include <cstdio>
++#include <cerrno>
++#include <cstdlib>
+ 
+ namespace artc {
+ 
+@@ -70,7 +72,13 @@
+ int Ini::GetInt(const std::string &section, const std::string &key, int def) const {
+     const std::string v = Get(section, key, "");
+     if (v.empty()) return def;
+-    try { return std::stoi(v); } catch (...) { return def; }
++    // std::stoi throws. Web keeps exceptions for PSB/native_save, but a
++    // bad ini value is still `def`.
++    errno = 0;
++    char *end = nullptr;
++    const long n = std::strtol(v.c_str(), &end, 10);
++    if (end == v.c_str() || *end != '\0' || errno == ERANGE) return def;
++    return static_cast<int>(n);
+ }
+ 
+ } // namespace artc
+--- a/src/render/compositor.cpp
++++ b/src/render/compositor.cpp
+@@ -21,6 +21,8 @@
+ #endif
+ 
+ #include <algorithm>
++#include <cerrno>
++#include <cstdlib>
+ #include <cmath>
+ #include <set>
+ #include <cstdio>
+@@ -63,7 +65,10 @@
+         while (i < s.size() && s[i] >= '0' && s[i] <= '9') ++i;
+         if (i == 0) return -1;                 // no leading number
+         long long v = 0;
+-        try { v = std::stoll(s.substr(0, i)); } catch (...) { v = 0; }
++        errno = 0;
++        char *end = nullptr;
++        v = std::strtoll(s.c_str(), &end, 10);
++        if (end == s.c_str() || errno == ERANGE) v = 0;
+         *start = static_cast<int>(i);
+         return v;
+     };
+@@ -287,7 +292,20 @@
+ }
+ 
+ float ToF(const std::string &s, float def = 0) {
+-    try { return s.empty() ? def : std::stof(s); } catch (...) { return def; }
++    if (s.empty()) return def;
++    errno = 0;
++    char *end = nullptr;
++    const float v = std::strtof(s.c_str(), &end);
++    if (end == s.c_str() || errno == ERANGE) return def;
++    return v;
++}
++int ToI(const std::string &s, int def = 0) {
++    if (s.empty()) return def;
++    errno = 0;
++    char *end = nullptr;
++    const long v = std::strtol(s.c_str(), &end, 10);
++    if (end == s.c_str() || errno == ERANGE) return def;
++    return static_cast<int>(v);
+ }
+ } // namespace
+ 
+@@ -1365,24 +1383,24 @@
+         if (const auto zoom=attrs.find("zoom"); zoom!=attrs.end())
+             l.sx=l.sy=ToF(zoom->second,100)/100.f;
+         for (const auto &kv : attrs) {
+-            if (kv.first == "x" || kv.first == "left") { l.x = std::stof(kv.second); l.own_pos = true; }
+-            else if (kv.first == "y" || kv.first == "top") { l.y = std::stof(kv.second); l.own_pos = true; }
+-            else if (kv.first == "w") l.w = std::stof(kv.second);
+-            else if (kv.first == "h") l.h = std::stof(kv.second);
++            if (kv.first == "x" || kv.first == "left") { l.x = ToF(kv.second); l.own_pos = true; }
++            else if (kv.first == "y" || kv.first == "top") { l.y = ToF(kv.second); l.own_pos = true; }
++            else if (kv.first == "w") l.w = ToF(kv.second);
++            else if (kv.first == "h") l.h = ToF(kv.second);
+             else if (kv.first == "alpha") {
+-                const float a = std::stof(kv.second);
++                const float a = ToF(kv.second);
+                 l.alpha = std::clamp(a / 255.0f, 0.0f, 1.0f);   // script uses 0-255
+             }
+             else if (kv.first == "rotate") l.rotate = ToF(kv.second);
+             else if (kv.first == "reversex") l.reverse_x = ToF(kv.second)!=0;
+             else if (kv.first == "reversey") l.reverse_y = ToF(kv.second)!=0;
+-            else if (kv.first == "anchorx") l.ax = std::stof(kv.second);
+-            else if (kv.first == "xscale") { const float v = std::stof(kv.second); l.sx = v / 100.0f; }
+-            else if (kv.first == "yscale") { const float v = std::stof(kv.second); l.sy = v / 100.0f; }
++            else if (kv.first == "anchorx") l.ax = ToF(kv.second);
++            else if (kv.first == "xscale") { const float v = ToF(kv.second); l.sx = v / 100.0f; }
++            else if (kv.first == "yscale") { const float v = ToF(kv.second); l.sy = v / 100.0f; }
+             else if (kv.first == "ownpos") l.own_pos = true;
+-            else if (kv.first == "anchory") l.ay = std::stof(kv.second);
++            else if (kv.first == "anchory") l.ay = ToF(kv.second);
+             else if (kv.first == "visible") l.visible = (kv.second != "0");
+-            else if (kv.first == "z") l.z = std::stoi(kv.second);
++            else if (kv.first == "z") l.z = ToI(kv.second);
+             else if (kv.first == "draggable") l.draggable = (kv.second != "0");
+             else if (kv.first == "dragarea") {
+                 // {left, top, right, bottom} — offsets in stage units
+@@ -1834,24 +1852,24 @@
+         if (const auto zoom=attrs.find("zoom"); zoom!=attrs.end())
+             l.sx=l.sy=ToF(zoom->second,100)/100.f;
+         for (const auto &kv : attrs) {
+-            if (kv.first == "x" || kv.first == "left") { l.x = std::stof(kv.second); l.own_pos = true; }
+-            else if (kv.first == "y" || kv.first == "top") { l.y = std::stof(kv.second); l.own_pos = true; }
+-            else if (kv.first == "w") l.w = std::stof(kv.second);
+-            else if (kv.first == "h") l.h = std::stof(kv.second);
++            if (kv.first == "x" || kv.first == "left") { l.x = ToF(kv.second); l.own_pos = true; }
++            else if (kv.first == "y" || kv.first == "top") { l.y = ToF(kv.second); l.own_pos = true; }
++            else if (kv.first == "w") l.w = ToF(kv.second);
++            else if (kv.first == "h") l.h = ToF(kv.second);
+             else if (kv.first == "alpha") {
+-                const float a = std::stof(kv.second);
++                const float a = ToF(kv.second);
+                 l.alpha = std::clamp(a / 255.0f, 0.0f, 1.0f);
+             }
+             else if (kv.first == "rotate") l.rotate = ToF(kv.second);
+             else if (kv.first == "reversex") l.reverse_x = ToF(kv.second)!=0;
+             else if (kv.first == "reversey") l.reverse_y = ToF(kv.second)!=0;
+-            else if (kv.first == "anchorx") l.ax = std::stof(kv.second);
+-            else if (kv.first == "xscale") { const float v = std::stof(kv.second); l.sx = v / 100.0f; }
+-            else if (kv.first == "yscale") { const float v = std::stof(kv.second); l.sy = v / 100.0f; }
++            else if (kv.first == "anchorx") l.ax = ToF(kv.second);
++            else if (kv.first == "xscale") { const float v = ToF(kv.second); l.sx = v / 100.0f; }
++            else if (kv.first == "yscale") { const float v = ToF(kv.second); l.sy = v / 100.0f; }
+             else if (kv.first == "ownpos") l.own_pos = true;
+-            else if (kv.first == "anchory") l.ay = std::stof(kv.second);
++            else if (kv.first == "anchory") l.ay = ToF(kv.second);
+             else if (kv.first == "visible") l.visible = (kv.second != "0");
+-            else if (kv.first == "z") l.z = std::stoi(kv.second);
++            else if (kv.first == "z") l.z = ToI(kv.second);
+             else if (kv.first == "draggable") l.draggable = (kv.second != "0");
+             else if (kv.first == "dragarea") {
+                 if (std::sscanf(kv.second.c_str(), "%f,%f,%f,%f",

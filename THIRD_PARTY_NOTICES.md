@@ -130,22 +130,50 @@ into a GPL-3.0-or-later project permissible.
 
 ---
 
-## artemis-compat — engine structure and house style
+## artemis-compat — the shipping build source (GPL-3.0)
 
 **Upstream:** <https://github.com/Weiss-UltimateSavior/artemis-compat> — **GPL-3.0**
-(reference commit `9f622629f595db85e6f76c45c06edde29d7d9961`, recorded in the
-[`bridge workflow`](.github/workflows/build-wasm-artemis-bridge.yml)).
+pin `9f622629f595db85e6f76c45c06edde29d7d9961`. It is a literal in
+[`build-wasm-artemis-compat.yml`](.github/workflows/build-wasm-artemis-compat.yml)
+(`upstream-commit`, no dispatch override) and is re-asserted at run time against
+`ARTC_PIN` by [`build-artemis-compat.sh`](.github/scripts/build-artemis-compat.sh); the
+same value is the default in [`compat-web/build.sh`](ports/artemis/compat-web/build.sh).
 
-The current bridge CI skips that upstream checkout; it does not build the complete
-artemis-compat engine. The project's C++ products use it as a **naming and structural
-reference**: file-per-concept organization, class/method vocabulary and purpose
-comments. [`REWRITE.md`](ports/artemis/REWRITE.md) records the intended house style,
-not proof that the whole current product tree conforms to it.
+**What the artifacts are made of.** `artemis-compat.js` / `artemis-compat.wasm` are
+**compiled from that upstream source**, not from the official SDK. Because GPL-3.0
+owes the recipient the corresponding source, `artemis-compat-source.tar.gz` (+ its
+`.sha256`) ships beside the artifact: the pinned `git archive`, this repository's
+patches (`compat-web/patches/`) and overlays (`compat-web/overlay/`), the build recipe
+(`build.sh` and `RUN-BUILD.sh`), `upstream-root.diff`, and a `NOTICE` listing what was
+added relative to upstream.
 
-This reference explains the deliberate naming relationship. Its GPL declaration
-cannot grant rights to the official Artemis SDK or automatically resolve the
-provenance of products checked against SDK-generated code. Those materials and
-remaining generated function bodies are addressed separately below.
+**Licence files, not restatements.** The artifact's `LICENSE` is **upstream's own
+GPL-3.0 text**, carried as a file. It is not this repository's licence declaration, it
+does not widen or narrow this repository's **GPL-3.0-or-later** grant for
+project-authored code, and it grants nothing for the official SDK.
+
+**Local code inside that build.** The upstream pin ships only `src/host/mac_main.mm`
+and native CMake targets, so the Web host (`overlay/host/web_main.cpp`), the Web CMake
+target (`overlay/cmake/web.cmake`), the audio seam
+(`overlay/audio/audio_web.{cpp,h}`, `overlay/audio/audio_validation.h`), the `ReadAt`
+patch and the numeric patch (`0001-pf8-readat-host-source.patch`,
+`0002-numeric-strto.patch`) are project-authored and GPL-3.0-or-later like the rest of
+this repository.
+
+**Third-party code vendored inside the upstream tree.** Lua 5.1 sits at
+`third_party/lua-5.1.5/` — `third_party/lua51/` is only the CMake target name and does
+not exist upstream — and its MIT `COPYRIGHT` is copied into the bundle as a file.
+stb (MIT / public-domain dual) is vendored upstream under `src/third_party/` and its
+terms travel with those files. zlib and the other SDK ports come from the Emscripten
+SDK and are not in that archive.
+
+**Naming reference, unchanged.** The project's hand-written products under
+`ports/artemis/src/` also use this project as a naming and structural reference
+(see below); `REWRITE.md` records the intended house style, not proof of conformance.
+
+**Still not granted.** Nothing in this section re-issues a redistribution permission for
+official Artemis SDK bytes or for products derived from them. That boundary is recorded
+in its own section below and is unresolved.
 
 ---
 
@@ -229,10 +257,15 @@ cannot supply that missing permission, and retaining these bytes is not approval
 
 **Current use:** the asyncify wasm is the tracked input to
 [`build-artemis-bridge.sh`](.github/scripts/build-artemis-bridge.sh), which regenerates
-wasm2c source and combines it with handwritten products. Official HTML / minified JS
+wasm2c source and combines it with handwritten products. That bridge workflow has lost
+its `push` / `pull_request` triggers and is **manual-dispatch, diagnostic only** — the
+shipping route is the compat build recorded above. Official HTML / minified JS
 and Android binaries remain reference or historical diagnostic material, **not the
 shipping browser host**. This organization pass preserves their bytes and notices;
 it does not remove them, claim authorization, or release an SDK-derived artifact.
+
+Shipping the compat GPL source **does not re-issue** any permission for these SDK bytes
+or for products derived from them; the risk recorded in this section is unchanged.
 
 Historical decisions remain in [`artemis-web-port.md`](docs/artemis-web-port.md) §15,
 but that history is not evidence of an applicable grant. Before redistribution,

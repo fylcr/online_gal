@@ -1,0 +1,98 @@
+--- a/src/pack/pf8_reader.cpp
++++ b/src/pack/pf8_reader.cpp
+@@ -5,6 +5,9 @@
+ 
+ #include <cstdio>
+ #include <cstring>
++#if defined(__EMSCRIPTEN__)
++#include <emscripten.h>
++#endif
+ #if !defined(_WIN32)
+ #include <fcntl.h>
+ #include <unistd.h>
+@@ -29,9 +32,45 @@
+ // reader lifetime and uses pread (explicit offsets → safe for concurrent
+ // reads, no per-call fopen); Windows falls back to the legacy open-seek-
+ // read-close path.
++// Emscripten does not open the pack. The page supplies bytes through the
++// synchronous import
++//   Module.artcReadRange(path: string, offset: uint32, dest: uint32, length: uint32)
++//     -> exact byte count written, or -1
++// One number, not a status code plus a side channel. A complete read returns
++// exactly `length`; a missing function, a throw, a short read, a longer answer,
++// or a dest that runs past the heap are all `-1`. There is no `__artcReadCopied`.
++// Sync XHR is not the seam: the host will block a worker on a SAB later.
+ bool Pf8Reader::ReadAt(uint64_t offset, void *buf, size_t len) const {
+     if (len == 0) return true;
+-#if !defined(_WIN32)
++#if defined(__EMSCRIPTEN__)
++    // EM_ASM_INT returns a signed int. A complete len >= 0x80000000 comes
++    // back negative and matches the failure value, so refuse that len before
++    // the call. This is the return width, not an export list. Offset stays
++    // a full uint32. Subtraction keeps offset+len from wrapping past 2^32.
++    if (len > 0x7fffffffu || offset > 0xffffffffu) return false;
++    if (len > 0x100000000ull - offset) return false; // offset + len > 2^32
++    // Every argument is forced to an unsigned 32-bit integer before it is
++    // compared or passed: `>>> 0` on the JS side, `uint32_t` here. The heap
++    // bound is checked against integers, never against `buf + length`, so a
++    // dest that has already been truncated cannot slip past it.
++    const int rc = EM_ASM_INT({
++        const offset = $1 >>> 0;
++        const dest = $2 >>> 0;
++        const length = $3 >>> 0;
++        if (typeof Module.artcReadRange !== 'function') return -1;
++        // HEAPU8 is read here rather than captured earlier: a heap grow during
++        // the callback reallocates the buffer and invalidates an older view.
++        if (length > HEAPU8.length || dest > HEAPU8.length - length) return -1;
++        let got;
++        try {
++            got = Module.artcReadRange(UTF8ToString($0), offset, dest, length);
++        } catch (error) {
++            return -1;
++        }
++        return got === length ? got : -1;
++    }, path_.c_str(), (uint32_t)offset, buf, (uint32_t)len);
++    return rc >= 0 && (uint32_t)rc == (uint32_t)len;
++#elif !defined(_WIN32)
+     if (fd_ < 0) return false;
+     auto *p = static_cast<uint8_t *>(buf);
+     size_t done = 0;
+@@ -56,7 +95,10 @@
+ }
+ 
+ bool Pf8Reader::Open(const std::string &path, const std::vector<uint8_t> &key) {
+-#if defined(_WIN32)
++#if defined(__EMSCRIPTEN__)
++    // No filesystem open. OpenFd still parses the index via ReadAt.
++    return OpenFd(path, -1, key);
++#elif defined(_WIN32)
+     // The Windows implementation reads through the path on each operation.
+     return OpenFd(path, -1, key);
+ #else
+@@ -74,7 +116,7 @@
+     key_ = key;
+     encrypted_ = true;
+ 
+-#if !defined(_WIN32)
++#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+     fd_ = fd;
+ #else
+     (void)fd;
+--- a/src/pack/pf8_reader.h
++++ b/src/pack/pf8_reader.h
+@@ -76,8 +76,13 @@
+                    std::vector<uint8_t> &out) const;
+ 
+ private:
+-    // Positional read off the retained pack handle (pread on POSIX — safe
+-    // for concurrent reads; the legacy fopen path on Windows).
++    // Positional read. POSIX keeps one fd and uses pread. Windows uses the
++    // legacy fopen path. Emscripten calls
++    // `Module.artcReadRange(path, offset, dest, length)` and requires exactly
++    // `length` back. EM_ASM_INT returns a signed int, so length above INT_MAX
++    // is refused before the call. Offset stays uint32. A range with
++    // offset+len past 2^32 is refused, not truncated. No callback fails closed.
++    // The JS signature is unchanged.
+     bool ReadAt(uint64_t offset, void *buf, size_t len) const;
+     void DecryptRange(uint8_t *data, size_t len, uint64_t offset) const;
+     void Close();

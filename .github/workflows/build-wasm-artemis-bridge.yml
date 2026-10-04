@@ -4,49 +4,28 @@
 # This workflow asserts the bytes of the rebuilt module and its agreement with the official module.
 # It does not measure how much of the rewrite is in place, and its green run does not mean the module
 # boots a game.
+#
+# LEGACY / MANUAL ONLY. This is the SDK route, not the shipping one: it runs wasm2c over the
+# retained official asyncify module and recompiles the result, and that module's redistribution
+# question is unresolved. The shipping Artemis build is the source build in
+# `.github/workflows/build-wasm-artemis-compat.yml`.
+#
+# There are deliberately no `push:` and no `pull_request:` triggers below. They used to start a
+# 30-minute wabt build and a 103 MB transpile on every change to `ports/artemis/src/**`,
+# `ports/artemis/reverse/**` or the vendored SDK -- none of which this workflow can consume
+# correctly, because `skip-upstream-checkout: true` means the rebuild's only link to a source
+# revision is the `upstream_commit` input. As a result the content of the repository it checked out
+# had no bearing on the bytes the four hash gates above accepted. So a push-triggered run could
+# only report on an artifact that a hand dispatch had already made meaningful, and a pull-request
+# run could not be a merge gate. Removing the triggers removes that pretense, not a gate: every
+# assertion in this file still runs, and the workflow still fails closed, on a manual dispatch.
+#
+# Deleting this workflow, its build script and its pins record is NOT part of that change: the
+# historical `expected` transpile hashes in `.github/upstream-pins.json` are frozen evidence, and
+# the artifacts this route produced are still referenced by records that must stay reproducible.
 name: Build wasm (Artemis bridge)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/build-wasm-artemis-bridge.yml'
-      - '.github/workflows/build-wasm-reusable.yml'
-      - '.github/scripts/build-artemis-bridge.sh'
-      - '.github/scripts/make-manifest.mjs'
-      - '.github/upstream-pins.json'
-      - 'ports/env.sh'
-      - 'ports/artemis/src/**'
-      - 'ports/artemis/reverse/**'
-      - 'ports/artemis/rewrite-names.tsv'
-      - 'ports/artemis/REWRITE.md'
-      - 'ports/artemis/tools/real-game-test.mjs'
-      - 'ports/artemis/vendor/artemis-sdk/WebAssembly/**'
-      # The glue identity gate: `imports-map.{json,md}` is the criterion the gate compares against, so
-      # an edit to either must trigger the gate that judges it.
-      - 'ports/artemis/harness/glue/**'
-      # The `package-dir` closure. These paths decide what the packed tarball ships.
-      - '.github/scripts/make-package.mjs'
-      - 'packages/runtime-artemis/**'
-      - 'packages/engine-api/**'
-      - 'packages/vfs/**'
-      - 'pnpm-lock.yaml'
-      - 'LICENSE'
-      - 'THIRD_PARTY_NOTICES.md'
-      # NOT 'ports/lib/engine-artifacts.json': that file is an output of the publish step, so listing
-      # it would rebuild every engine on each hash update.
-  pull_request:
-    paths:
-      - '.github/scripts/build-artemis-bridge.sh'
-      - 'ports/artemis/src/**'
-      - 'ports/artemis/reverse/**'
-      # On a pull request the committed table arrives with whatever edit made it stale, so a run is
-      # the only thing that can show the author their two files disagree.
-      - 'ports/artemis/harness/glue/**'
-      - '.github/scripts/make-package.mjs'
-      - 'packages/runtime-artemis/**'
-      - 'packages/engine-api/**'
-      - 'packages/vfs/**'
   workflow_dispatch:
     inputs:
       publish:

@@ -1,0 +1,136 @@
+# Purpose: build the SHIPPING Artemis browser worker by compiling the artemis-compat engine source
+# at the pinned commit with the tracked patch set and overlays in `ports/artemis/compat-web/`.
+# For the shared inputs, secrets and outputs, see `.github/workflows/build-wasm-reusable.yml`.
+#
+# This is NOT the SDK bridge. `.github/workflows/build-wasm-artemis-bridge.yml` rebuilds the
+# retained official asyncify module on top of `ports/artemis/src` and is manual/diagnostic only;
+# nothing about this workflow's bytes, gates or manifest is shared with it.
+#
+# A green run proves the pinned source compiles, the patch set applied, the ABI the host expects
+# was exported, and the artifact's own source offer is present. It does NOT prove a real game
+# boots: the engine's audio path is an upstream stub and no real-game run has accepted this build.
+# `publish: false` stays until one has.
+name: Build wasm (Artemis compat)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-wasm-artemis-compat.yml'
+      - '.github/workflows/build-wasm-reusable.yml'
+      - '.github/scripts/build-artemis-compat.sh'
+      - '.github/scripts/make-manifest.mjs'
+      # The package step is part of this run's output: a change to the tarball builder or the
+      # lockfile changes what `package-engine-assets: true` produces from the same modules.
+      - '.github/scripts/make-package.mjs'
+      - '.github/upstream-pins.json'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      # Everything the artifact is made of. `compat-web/**` covers the recipe, the patch set, the
+      # overlays and the source-offer generator; the headers below cover the API the host binds.
+      - 'ports/artemis/compat-web/**'
+      - 'ports/env.sh'
+      - 'packages/runtime-artemis/**'
+      # The provider is an input to the package step, so a copy-only change here still has to
+      # redraw the same conclusion about the SHA of what the tarball carries.
+      - 'packages/vfs/**'
+      - 'LICENSE'
+      - 'THIRD_PARTY_NOTICES.md'
+      # NOT 'ports/lib/engine-artifacts.json': that file is an output of the publish step, so
+      # listing it would rebuild on every hash update.
+  pull_request:
+    paths:
+      - '.github/workflows/build-wasm-artemis-compat.yml'
+      - '.github/scripts/build-artemis-compat.sh'
+      - 'ports/artemis/compat-web/**'
+      - 'packages/runtime-artemis/**'
+      - 'packages/vfs/**'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish these bytes as a GitHub Release (stays off until a real game boots)'
+        required: false
+        type: boolean
+        default: false
+      # There is deliberately NO `upstream_commit` input here.
+      #
+      # The pin is written three times in this file's contract (`upstream-commit` below, the
+      # `ARTC_PIN` in `build-env`, and `version`/`release-tag`), and a dispatch input can only
+      # change one of them. An override would then fetch one commit while the recipe archived
+      # another, and the run would still be green: the artifact would ship a manifest, a source
+      # tarball `PIN` file and a release tag naming a commit that is not the one its modules were
+      # compiled from. That is false provenance, not a convenience. To move the pin, edit all of
+      # the occurrences together in the reviewed commit; `build-artemis-compat.sh` fails the run
+      # when `upstream-commit` and `ARTC_PIN` disagree, so a half-edit cannot ship quietly.
+
+concurrency:
+  group: wasm-artemis-compat-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  compat:
+    uses: ./.github/workflows/build-wasm-reusable.yml
+    with:
+      # The engine name. `artemis-compat` is deliberately not one of the names under `engines` in
+      # the pins file: that map is dispatchable, and a shipping source build that moved upstream by
+      # itself would pair a new engine revision with reviewed patches.
+      engine: artemis-compat
+      build-script: .github/scripts/build-artemis-compat.sh
+      # The recipe clones the pin itself and archives it by hash, so the reusable workflow's own
+      # clone is a SECOND checkout of the same commit into the same path. Both exist on purpose:
+      # the clone step is what reads the pinned commit out of the workflow input (with no remote
+      # lookup of its own) and asserts it landed there, and the recipe reuses that object instead
+      # of cloning again. `build-artemis-compat.sh` asserts that its ARTC_REF is this path.
+      upstream-repository: https://github.com/Weiss-UltimateSavior/artemis-compat.git
+      upstream-branch: main
+      # The reviewed pin, spelled out -- not `${{ inputs.upstream_commit || '...' }}`. There is no
+      # dispatch override above on purpose: this literal, the `ARTC_PIN` in `build-env` further
+      # down and the `version`/`release-tag` beside it are the same commit, and only a reviewed
+      # commit can move all three at once. The build script refuses a run where this value and
+      # `ARTC_PIN` disagree, so the two copies cannot drift into a green build with a source
+      # tarball that answers for a different commit.
+      upstream-commit: '9f622629f595db85e6f76c45c06edde29d7d9961'
+      upstream-path: .ref/artemis-compat
+      skip-upstream-checkout: false
+      emsdk-version: '6.0.9'
+      artifact-name: wasm-artemis-compat
+      # The wrapper stages exactly the publishable set here: the two modules, the source offer and
+      # their license pair. `artifact-files` is the allowlist make-manifest.mjs checks and
+      # upload-artifact publishes, so no fifth file can ride along unnoticed.
+      artifact-dir: dist/artemis-compat
+      artifact-files: >-
+        artemis-compat.js
+        artemis-compat.wasm
+        artemis-compat-source.tar.gz
+        artemis-compat-source.tar.gz.sha256
+        LICENSE
+        THIRD_PARTY_NOTICES.md
+      # The recipe takes the pin from its environment, and this is the whole reason that matters:
+      # `ARTC_PIN` is asserted by the recipe to be a full commit hash and is what it archives, so
+      # the module is traceable to the pin recorded in `.github/upstream-pins.json` instead of to
+      # "whatever the checkout happened to be".
+      #
+      # A caller cannot override it: `workflow_dispatch` here has no such input, and the pins file
+      # names this workflow as `dispatch: false` so the drift check cannot dispatch it either. A
+      # dispatched run therefore builds the reviewed commit or nothing.
+      #
+      # `ARTC_REF` is not set here -- the reusable workflow exports `UPSTREAM_PATH`, and the build
+      # script refuses to run unless the two name the same path.
+      build-env: ARTC_PIN=9f622629f595db85e6f76c45c06edde29d7d9961
+      version: compat-9f62262
+      release-tag: engine-artemis-compat-9f62262
+      # Not yet. These bytes are GPL-3.0 source-derived, but "publishable" also means "accepted
+      # against a real game", and audio is still the upstream stub.
+      publish: false
+      # The tarball carries this run's own modules as `assets/`, because the compat worker loads
+      # both by URL beside the package. It does NOT carry a generated SDK glue: the host imports
+      # the Emscripten module the artifact ships.
+      package-dir: packages/runtime-artemis
+      package-engine-assets: true
+      # Left empty on purpose. The committed import map in `ports/artemis/harness/glue/` is the
+      # 207-import SDK bridge's import surface, byte for byte; this module is a different module
+      # and the table says nothing about it, so the gate must not run here.
+      glue-import-map: ''
