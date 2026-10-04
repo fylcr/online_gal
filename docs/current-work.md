@@ -1,13 +1,15 @@
 # 当前工作检查点 — 新对话先读
 
 > **当前摘要（2026-10-05 · compat 主线 · 本块是唯一「现状」；下文历史记录原样保留，不得当现状。）**
-> - **HEAD `93daba7`** 已 push；**doc 本批 dirty，不能 claim all clean**。exact CI：native `37232482750` / packages `37232482351` **completed / success**；**554 / pass 552 / fail 0 / skip 2**。actual new artifacts 与 `ffd`：**native 7/7、pkg 271、tgz 全 byte-equal**。
-> - **`096` binding done**：`final-candidate-binding.json` 明确游戏 route 实际 **`ffd`**，payload 等 **`93`（不是 game passed）**。`7e343` **已 closing** actual CI receipt。
-> - **game `647` NOT PASS、closing cleanup**。三 attempts：warmup 到标题 / audio peak `.922` / range >2GiB / full PFS0 disposed；run A 与第二 warmup **START 点击 title unchanged（no fatal）**。**ADV / save / restore / pause 仍未达到**；**不能 warmup＋2 run 一致，不能可玩**。
-> - sessions `vtqf` / `jnvu` / `juon` **accepted stopped**；job `pwsh 4557` pid `84120` **gone**，`4661` free **TIME_WAIT only**。**user foreground bsk leave**；unknown pid **不 kill**。**不再 `647` active `jnvu`**。
-> - **旧正式验收已清，输入诊断由 `cb73c712-3b0e-4f07-ab43-14543dc5f524` 独占**：START 输入**小诊断、仅 `.test`**，**不改冻结 MapPoint / prod**。`b5c09709` restore-audio **test-only 仍未 closing**；**新 weird test untracked fail 暂未解决**。
-> - **next**：START 真实 event harness 定位 → 实 ADV → discard warmup + 2 runs + save/load/advance/消费 ACK/pause → cleanup 及 test 小 case 后处理。
-> - preview **上游限制**；**static 正常**。**Artifacts manual default `false`；no Release / npm unchanged**。历史 hash 不动。
+> - **HEAD `a4b6ef3`**（doc-only，parent `93daba7`）；本批 commit 前实测仍是它。**旧 code candidate `93`** 的 exact CI success 为 **554 / pass 552 / fail 0 / skip 2**，artifacts 与 `ffd` byte-equal；那是 `93` 的证据，**不是**本批 ACK 修复的证据。
+> - **`790232ff` 已 closing 释放**，独占范围结算：只改了 `packages/runtime-artemis/src/compat/worker-host.ts` + 两个 audio 测试（旧 `test/artemis-compat-audio-integrated.test.mjs`、新未跟踪 `test/artemis-compat-compact-audio-restore-check.test.mjs`）。
+> - **ACK 缺陷 root 已实测**：busy 期到达的 ACK 被直接丢弃（旧回执 4 在 native 倒退成 2）。修复 = 单飞行 RPC + 每 handle 最新累计 pending 槽 + epoch 与 `frames <= playedFrames` 双重守卫；实测 native consumed **4** / host `playedFrames` **4**。两测试实际 **exit 0**（`.test/artemis-compact-audio-ack-final/b5-final2.log`、`integrated-final.log`）。
+> - **本批 4 门全过（actual exit）**：`build` 0、`check` 0、`test:portable` **0（tests/pass 555、fail 0 — 新测试真纳入，非旧 554）**、`check-sources` 0。打包 `make-package runtime-artemis --assets-from` **真实 freshness 未跳**（checked 3）、engine ledger 3 校验、离线 install+import smoke 0。
+> - **新 worker 内容 hash**：`worker-host.js` `dd5c205c…`；`compat-worker.js` `3216e0f8…`（56712 B，未变）。runtime-dist 与 app-dist 的 worker **byte-identical**。
+> - **新候选待终验**：这只是 candidate，**不是可玩**。ACK fix 落地后**旧 game run 不自动覆盖**，需要 **真实游戏 warmup ×2（新 CI 之后）**。
+> - **唯一 browser = `a5b4f6ea-80b0-42c7-a24d-9d7109202e13`**，只服务 `93` CI 冻结包，**未干扰**；本批 **no new server / browser / 引擎**，unknown PID 不 kill，**不收别人的 job**。
+> - **`647` 正式 NOT PASS = 历史失败**；sessions `vtqf`/`jnvu`/`juon` **stopped**；`84120` **gone**，`4661` **TIME_WAIT only**。**user foreground bsk leave**。
+> - preview **上游限制**；**static 正常**。**Artifacts-only、默认 publish `false`**；`private: true` / GPL 保持，**no npm publish / no GH Release**。**`docs/fetch-engine-artifacts.md` 历史 hash 不改**。`.test/` gitignored ⇒ 本地证据，缺失不得当「已验收」。
 
 ---
 

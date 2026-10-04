@@ -143,7 +143,9 @@ test.after(async () => { for (const worker of live) await worker.terminate(); })
 test('credit pulls a copied block, a natural end ACKs, and a dead handle does not', async () => {
   const worker = new NodeWorker();
   live.add(worker);
-  const host = new CompatWorkerHost({
+  let host = null;
+  try {
+  host = new CompatWorkerHost({
     source: { name: 'fixture', capabilities: { randomAccess: true, writable: false }, async readRange() { return new Uint8Array(); } },
     createWorker: () => worker,
   });
@@ -181,6 +183,11 @@ test('credit pulls a copied block, a natural end ACKs, and a dead handle does no
   assert.equal(again, true, 'a frame after clear still censuses');
   host.dispose();
   ended();
-  await host.whenDisposed();
+  await Promise.race([host.whenDisposed(), new Promise((r) => setTimeout(r, 1500))]);
   assert.equal(ctx.state, 'closed', 'dispose closes the owned context');
+  } finally {
+    try { host?.dispose(); } catch { /* already closed */ }
+    live.delete(worker);
+    await worker.terminate().catch(() => undefined);
+  }
 });

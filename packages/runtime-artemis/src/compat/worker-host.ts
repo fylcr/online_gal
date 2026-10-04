@@ -160,6 +160,8 @@ export class CompatWorkerHost {
   private audioBusy = false;
   /** Bumped by clear/restore so an ACK for the previous generation is refused, not posted. */
   private audioEpoch = 0;
+  /** Newest cumulative not yet posted, one slot per handle. Never a queue and never a lower value. */
+  private pendingAck = new Map<number, { frames: number; epoch: number }>();
   private audio: AudioStatus = { connected: false, autoplayLocked: true, playedFrames: 0, peak: 0, realGameVerified: false };
 
   constructor(options: CompatWorkerHostOptions) {
@@ -244,6 +246,7 @@ export class CompatWorkerHost {
   /** Drop queued PCM and retire its ACKs before a restore replaces the voice set. */
   clearAudio(): void {
     this.audioEpoch += 1;
+    this.pendingAck.clear();
     this.audio = { ...this.audio, playedFrames: 0 };
     this.relay.clear();
   }
@@ -389,6 +392,7 @@ export class CompatWorkerHost {
     this.paused = true;
     this.pauseIntent = true;
     this.audioEpoch += 1;
+    this.pendingAck.clear();
     void this.relay.dispose();
     this.readHost?.close();
     const failure = new Error(this.fatal || 'disposed');
@@ -524,7 +528,7 @@ export class CompatWorkerHost {
         this.audio = { ...this.audio, connected: true };
       })
       .catch(() => undefined)
-      .finally(() => { this.audioBusy = false; });
+      .finally(() => this.releaseAudio());
   }
 
   private play(block: AudioBlock, master: number): void {
@@ -547,16 +551,35 @@ export class CompatWorkerHost {
   }
 
   private acknowledge(handle: number, frames: number): void {
-    const epoch = this.audioEpoch;
     if (this.state !== 'ready') return;
+    const epoch = this.audioEpoch;
+    // One audio RPC stays in flight. A newer cumulative waits in the per-handle slot, not a second post.
+    if (this.audioBusy) { this.pendingAck.set(handle, { frames, epoch }); return; }
+    this.sendAck(handle, frames, epoch);
+  }
+
+  private sendAck(handle: number, frames: number, epoch: number): void {
     this.audioBusy = true;
     void this.request({ type: 'audio-ack', handle, frames })
       .then((reply) => {
-        if (epoch !== this.audioEpoch || reply.type !== 'audio-ack-ok') return;
+        // Only a real ACK=1 (`audio-ack-ok`) counts, and a late older reply must not lower it.
+        if (epoch !== this.audioEpoch || reply.type !== 'audio-ack-ok' || frames <= this.audio.playedFrames) return;
         this.audio = { ...this.audio, playedFrames: frames };
       })
       .catch(() => undefined)
-      .finally(() => { this.audioBusy = false; });
+      .finally(() => this.releaseAudio());
+  }
+
+  /** The in-flight audio RPC ended. Post the newest unconfirmed cumulative, one handle, then stop. */
+  private releaseAudio(): void {
+    this.audioBusy = false;
+    if (this.state !== 'ready') { this.pendingAck.clear(); return; }
+    for (const [handle, next] of this.pendingAck) {
+      this.pendingAck.delete(handle);
+      if (next.epoch !== this.audioEpoch) continue;
+      this.sendAck(handle, next.frames, next.epoch);
+      return;
+    }
   }
 
   private relayMuted(): boolean {

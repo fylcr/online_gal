@@ -4,6 +4,14 @@
 > 它的用途是让**零上下文的新对话**能直接接着开发，不必重读那份转写。
 > 生成方式：把该会话的 50 份滚动压缩摘要 + 用户原始发言 + 尾部事件 + Agent Team 流水做机器抽取与分层压缩。**下文所有具体路径、行号、字节数、哈希、错误串都是会话内记录的证据，不是重新测量过的结论**；标注（未验证）处需现场复核。
 
+## 0b. 最新恢复入口（2026-10-05 · compat 线；本节是唯一现状，下面 §0–§2 为 09-17→10-04 历史）
+
+- **ACK 修复已 settled（原 Grok `790232ff…` 已 closing 释放）**：busy 期到达的 ACK 被直接丢弃（旧回执 4 在 native 倒退成 2）已实测；修复 = 单飞行 RPC + 每 handle 最新累计 pending 槽 + epoch 与 `frames <= playedFrames` 双重守卫。实测 native consumed **4** / host `playedFrames` **4**，两个 audio 测试实际 **exit 0**（`.test/artemis-compact-audio-ack-final/b5-final2.log`、`integrated-final.log`）。**这只是 candidate，不是可玩；旧 game run 不自动覆盖 ACK fix，仍需新 CI 之后真实游戏 warmup×2。**
+- **本批 4 门 actual exit 全 0**：`build` 0、`check` 0、`test:portable` 0（**tests/pass 555、fail 0** — 新测试真纳入，非旧 554）、`check-sources` 0；打包 freshness **未跳**（checked 3）、engine ledger 3、离线 install+import smoke 0。新 worker `worker-host.js` `dd5c205c…`，`compat-worker.js` `3216e0f8…`（56712 B 未变）；runtime-dist 与 app-dist worker **byte-identical**。
+- **旧 code candidate `93`** 的 CI 554/pass552/fail0/skip2、artifacts/tgz 与 `ffd` byte-equal 是 **`93` 的证据**，不是本批 ACK 修复的证明；**HEAD（本批 commit 前）`a4b6ef3` doc-only**。
+- **START 真诊断（`bfa4`）**：无缩放 ⇒ b.2.0 直用；热区 **(60,112,160x48)**，点 (140,136) 原生 count 1 **实进 ADV**，`cb73` 换算假设不成立，**MapPoint/prod 未动**；Enter key13 仍 unmeasured。
+- **`647` NOT PASS = 历史失败**，非当前 blocker；**两 run 真 save 恢复仍未取得**。**唯一 browser `a5b4f6ea-80b0-42c7-a24d-9d7109202e13`** 只服务 `93` CI 冻结包，本批**未干扰**；no new server/browser/引擎。**next = 新 candidate push 后 new CI + 真实 warmup×2**。
+
 ## 0. 阅读须知
 
 - 来源 7 份只读输入：`fact1.md`（摘要 1–12）、`fact2.md`（13–24）、`fact3.md`（25–36）、`fact4.md`（37–50，最新）、`01_users.md`（用户原始发言）、`tail.md`（最后压缩之后的尾部）、`04_team.md`（Agent Team 流水）。
