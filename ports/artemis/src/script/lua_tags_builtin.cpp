@@ -20651,7 +20651,7 @@ if (p2 != 0u || ResumePhase(ctx) == kResumeRewinding) {
                   resume_point = 603u;
                   if (ResumePhase(ctx) == kResumeSuspended) { goto suspend_point; }
                 }
-                if (ResumePhase(ctx) != kResumeRunning) {
+                if (ResumePhase(ctx) == kResumeRunning) {
                   uint32_t const pending = LoadU32(ctx, kBuiltinThrowLatch);
                   StoreU32(ctx, kBuiltinThrowLatch, 0u);
                   if (pending == 1u) { goto p05_B3; }
