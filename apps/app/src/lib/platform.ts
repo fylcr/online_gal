@@ -10,6 +10,7 @@ import { Platform, checkBrowserSupport, type BrowserSupport } from '@online-gal/
 import { DEFAULT_SETTINGS } from '@online-gal/core';
 import type { AppSettings, GameRecord, SaveSlotRecord } from '@online-gal/core';
 import { configureKirikiriWasm } from '@online-gal/runtime-kag';
+import { configureArtemisCompat } from '@online-gal/runtime-artemis';
 
 export type { AppSettings, GameRecord, SaveSlotRecord, BrowserSupport };
 
@@ -27,6 +28,31 @@ export type { AppSettings, GameRecord, SaveSlotRecord, BrowserSupport };
  * into the build, production keeps the engine withdrawn and the interpreter handles them.
  */
 const KIRIKIRI_PAGE_URL = '/krkr2-web/index.html';
+
+/**
+ * Where this deployment serves the Artemis compat engine: three static files under one mount.
+ *
+ * `__ARTEMIS_ASSETS_AVAILABLE__` is a compile-time boolean decided once in `astro.config.mjs`.
+ * `true` means a candidate directory passed the static gate (the five files are present and match
+ * the sha256 manifest beside them). That is not a released body and not a claim that the manifest
+ * names any particular built commit. `false` means the engine is withdrawn: the deployment has no
+ * engine, and the provider must report Artemis as unavailable rather than publishing URLs that
+ * 404 into a hang.
+ *
+ * The glue and the binary come from the mount directory; the RPC worker is named explicitly, so the
+ * three URLs are distinct by construction. They are plain paths on this origin — no `new URL`, no
+ * bundler blob, nothing that moves the bytes into the bundle or out of version control.
+ */
+declare const __ARTEMIS_ASSETS_AVAILABLE__: boolean;
+
+const ARTEMIS_COMPAT_BASE = '/engines/artemis-compat/';
+
+if (__ARTEMIS_ASSETS_AVAILABLE__) {
+  configureArtemisCompat({
+    engineBase: ARTEMIS_COMPAT_BASE,
+    workerUrl: `${ARTEMIS_COMPAT_BASE}compat-worker.js`,
+  });
+}
 
 if (import.meta.env.DEV) {
   configureKirikiriWasm({ pageUrl: KIRIKIRI_PAGE_URL });

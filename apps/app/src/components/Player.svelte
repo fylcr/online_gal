@@ -72,7 +72,9 @@
       // A handle for browser-side smoke testing: the repository's own
       // verification drives a session through this, and it costs nothing when
       // unused. It exposes only read-only diagnostics and the public session
-      // API, never game content.
+      // API, never game content. `save` returns the **promise** — a caller that
+      // wants the record must await it, and a call that resolves is a checkpoint
+      // the engine actually acknowledged.
       (window as unknown as { __ogSession?: unknown }).__ogSession = {
         describe: () => instance.describe(),
         save: (slot: number) => instance.save(slot),
@@ -117,18 +119,31 @@
 
   async function saveTo(slot: number): Promise<void> {
     if (!session || !game) return;
-    const record = session.save(slot);
-    await platform.saves.put(record);
-    slots = [...(await platform.saves.list(game.id))];
-    showMenu = false;
+    try {
+      // `session.save` awaits the engine's own checkpoint before it returns a record, so a runtime
+      // that cannot save rejects here and no slot is written. The success UI below therefore only
+      // appears for a save that actually happened.
+      const record = await session.save(slot);
+      await platform.saves.put(record);
+      slots = [...(await platform.saves.list(game.id))];
+      showMenu = false;
+    } catch (cause) {
+      alert(`保存失败：${cause instanceof Error ? cause.message : String(cause)}`);
+    }
   }
 
   async function loadFrom(slot: number): Promise<void> {
     if (!session || !game) return;
     const record = await platform.saves.get(game.id, slot);
     if (!record) return;
-    await session.restore(record);
-    showMenu = false;
+    try {
+      await session.restore(record);
+      showMenu = false;
+    } catch (cause) {
+      // A restore the engine refused ends the session rather than leaving a half-applied scene, so
+      // this says so instead of silently returning to the menu.
+      alert(`读取失败：${cause instanceof Error ? cause.message : String(cause)}`);
+    }
   }
 
   async function deleteSlot(slot: number): Promise<void> {

@@ -32,6 +32,9 @@ importers:
       '@online-gal/player-host':
         specifier: workspace:*
         version: link:../../packages/player-host
+      '@online-gal/runtime-artemis':
+        specifier: workspace:*
+        version: link:../../packages/runtime-artemis
       '@online-gal/runtime-kag':
         specifier: workspace:*
         version: link:../../packages/runtime-kag

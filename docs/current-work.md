@@ -1,6 +1,211 @@
 # 当前工作检查点 — 新对话先读
 
-> 2026-10-04 19:05 +08:00。**主代理不承担任何具体工作**（用户明确定调）：编码/文档/构建/浏览器/测试/清理**全部子代理**，主代理只做**任务拆分顺序 / 证据审核 / 最后验收**；以前安排 lead 亲跑的 next steps **必须改分配执行，不得倒退**（已记入 AGENTS.md 硬约定）。**子代理默认 Flash，Flash 不能胜任的复杂工作交 Grok 4.7，其他模型按需；交接已测证据/失败原因/待办，不对同路由反复无效重试**（用户明确定调，已记入 AGENTS.md + 本文件§1）。旧EH入口22515/r602→21115/r616→21127/r616/tag10逐层实测修复；discard热身后两次COPY冷跑EH0，资源/IDB继续后遇raw allocator OOB，**仍不可玩**。**bf014fa已push，同SHA bridge[37194261586]/packages[37194261493]均success**；本地portable **346/346**+checks通过。下载bridge sha **e16c8aa203391dee16ac10141e228b0e16544992e6a0ddabc419437ae2012690**（23,666,735B）manifest与磁盘一致；下载完整TU sha **e94b2b6f...32db4f与本地reviewedTU逐字节同**；host 0.1.9 tgz sha958377...de129已解包 `github-bf014fa/packages-artemis-extracted/package`。**本轮OOB配方**：5c615完成correctu32getterprep、46df完成插件/server/build，**未compile**；产物 root `.test/artemis-resume-oob-reviewed-build-new/`，TU sha **331516aa22d08d9c7bbad714bae5bc23cff1ccdb0a6bcb45986c5d0d2aa7a036**；主代理**独立静态审核通过**（findings `.test/artemis-oob-final-review.md`，gitignored），**无返工缺陷**。
+> **当前摘要（2026-10-05 · compat 主线 · 本块是唯一「现状」；下文按时间倒序的历史记录原样保留，不得当现状。）**
+>
+> **源身份 / 原生候选**：CI pin `9f62262…`；上游 `src/host` 只有 `mac_main.mm`、CMake 只有 native
+> ⇒ Web host / Web CMake / `ReadAt` / numeric 全是本地 port。原生候选 WASM `1331402` B / SHA
+> `9c4a8808…`、JS `153633` B / SHA `9fdc75b6…`、源码包 `784402` B / SHA `fe2e2007…`；独立解包用自带
+> 配方重编 **exit 0 且与候选逐字节同**，source / manifest 全过 —— **仍是 build 证据，不是游戏证据**。
+>
+> **已测事实（各条各自成立，不等于游戏可用）**：signed PF **node 3/3 + probe 30**（旧「8/8」作废）、
+> read host **28/28**、worker **16/16**、`mainAudioRelay` **15/15 用 fake**（**未听见声音**）、Astro hooks
+> **6/6**。音频实况见上条（relay 21/21、worker-audio 12/12、集成回归 green、portable 545/545）。
+> 版本 `engine-api`/`core` `0.1.1`、`runtime-artemis` `0.1.10`、`engines` `0.1.11`，offline frozen-lock
+> **exit 0**，应用 workspace link 已修。全量 `npm test` 2 个 legacy extra-unsupported 失败**根因未确定、不定责**。
+>
+> **存档 / 结算事实（只列仍需知道的）**：`a338631b…` / `7ea9929d…` known failed，**不再展开**；存档收尾
+> 已完成 —— **36/36 exit 0、无残留 worker**，修 cleanup 与真实 restore-store-fail oracle，
+> `runtimePersistQueue` 覆盖 checkpoint + 整个 await store、**不并发覆盖**、`atomic false`。
+> `37edf80a` browser ready **已确认**（`aa5bb810` about:blank + observe 成功 → stop receipt accepted →
+> owned list 无 active），用户**独立 foreground daemon 保持开启** ⇒ **不得再拿「ready check 未返回」判停**。
+>
+> **发布面（用户定调）**：**先只 Actions 工件，不自动 Release**。`8b282703` 已把 `build-packages` workflow
+> 改为**仅显式 dispatch 且 `publish: true` 才发布、默认 `false`**，20/20 CI 政策测试 **exit 0**；push / PR
+> **仍 build + upload**；**没有 release、没有 npm 发布**；四包版本值**不变**。
+>
+> **资源 / git**：旧 port `4660` 与 owned browser 已清，**无新 browser / server**，unknown PID **不 kill**；
+> policy commit `ba2d7cd2…` 与 phase1 原生 commit `0877939…` **均已 push origin/main（same SHA）**，
+> build-packages run `37228200311` / `37229247257` **success**、publish **skipped / no release**；旧「HEAD
+> `d248224` 未 commit」**已错**，改为 policy 已 commit、其它 compat 改动**未 commit**，待**完整 candidate
+> commit**。本批只改文档，未 commit / 未 push / 未跑 CI / 未起 server / 未开浏览器 / 未 build；提交一律
+> **显式 pathspec**。
+>
+> **phase1 原生 commit + 音频**：phase1 原生 commit `087793905a14f15ee679b26e721c48666e2d7936`
+> **已 push `origin/main`（same SHA）**，CI run `37229247459`（native）/ `37229247257`（build-packages）
+> 均 **success**；但 **host 包仍不是最终 game 用**。音频 `74fc80f5…` **完成、scope 已释放** —— relay
+> **21/21**、worker-audio **12/12**、集成回归 **green**，`build` / `check` / portable **545/545 exit 0**；
+> Astro 生产 **7 files**、worker **56712** 与 package **逐字节同**；helper 折 RPC、**无第四 URL**；存档
+> **36/36**；native `1331402` 与 source bundle 回编事实保持。**未实测 heap grow / 真实 restore 后
+> new census，集成有缺，真实 game gate 仍必要。**
+>
+> **结算（只列仍需知道的）**：`a338631b…` / `7ea9929d…` known failed，**不重述**；本次 cleanup 一次
+> failed（report **0** owned resource，root copy **未动生产**）。浏览器 `1b4a4ddb-b73f-4e20-8294-4eee0de6f804`
+> **仅 `.test` 冻结 diagnostic active、无 game PASS**；用户 foreground bsk ready 仍开 ⇒ **禁止新并发 engine**。
+>
+> **下一步**：最终验证 —— **Flash 独立复验完整 build / consumer**（未知 id 写「执行代理独立复验，
+> 未回前不作验收」）→ **完整 candidate commit** → **same SHA** CI（runtime-artemis-package + wasm）→
+> warmup **2** 次 game 含声音 speaker ACK / save + restore + 推进 / pause / cleanup。**本批 doc 准备入
+> 完整 candidate commit，准确记「未可玩」，无需 ID 长叙。**
+>
+> **纪律 / 文档边界**：lead 尽可能少做工作、**不逐文件审查**，闸门是执行代理的**实际端到端验证**。
+> 上方 `[链接](.test/…)` 是仓库相对链接但 `.test/` 被 gitignore ⇒ **本地证据，干净 clone / CI 上不存在，
+> 缺失不得当成「已验收」**。归档覆盖**已恢复**；11 文件隔离区 `.test/artemis-compact-spill-quarantine`
+> **zero delete、trigger unknown、不删除历史**。下方历史记录 / OOB unknown 根因 / 历史 hash **一字不改**。
+
+---
+
+> **2026-10-05（compat CI 返工批 · 极窄 · 只修 lead 明确阻塞，未重写 300 行 guard）。**
+> 本批**未 commit / 未 push / 未跑 GitHub Actions / 未起 server / 未开浏览器 / 未碰 native build**。
+> 证据日志 `.test/artemis-compact-ci-final-check.log`（gitignored）；staging `.test/artemis-compact-ci-final-stage/`。
+>
+> **本批实际修的真实缺陷（每条都有实跑证据，不是设计意图）**：
+> 1. **假 provenance（必修）**：workflow 有 `upstream_commit` 任意 dispatch override，而 `build-env`
+>    的 `ARTC_PIN` 是固定 `9f62262…`。两者可被拆开 ⇒ checkout 一个 commit、recipe 归档另一个，
+>    run 仍然绿。**已删 override input**，`upstream-commit` 改为字面量 `'9f62262…'`；
+>    wrapper 新增 `UPSTREAM_COMMIT != ARTC_PIN` **运行期硬失败**（`UPSTREAM_COMMIT` 由 reusable
+>    workflow 导出，已核实）；`test`/guard 对应改为**要求字面量、禁止表达式**，不再要求 override。
+> 2. **`sha256sum ./*` 清单**：glob 写出 `./LICENSE` 而非 artifact 自身文件名，且会连带覆盖多出的
+>    第七个文件。改为**显式六文件**（不含自己），并新增 `sha256sum --check --quiet` 自检。
+> 3. **`rm -rf "$DIST"` 无校验**：改为 `DIST_ABS` **解析成绝对路径 + 精确根断言**
+>    （`== "$REPO_ROOT/dist/artemis-compat"`）后才删，且先于创建。
+> 4. **`nproc` 巨大 -j**：改为固定 `JOBS=2`（可 `ARTC_JOBS` 覆盖）。
+> 5. **wrapper `set -eu` → `set -euo pipefail`**；脚本注释删掉不实说法（旧 bridge「不影响源」是假话）。
+> 6. **source bundle 缺 build recipe（GPL 必修）**：上游 pin 的树**没有 `build.sh`、没有 `ports/`、
+>    也没有 web CMake target**（`overlay/cmake/web.cmake` 是被 recipe **append** 进上游
+>    `CMakeLists.txt` 的）。只给 patches+overlays = 一堆没有回编方法文件。现 bundle 携带
+>    `build.sh`（逐字节）、`NOTICE`（列出相对上游新增了哪些文件）、`upstream-root.diff`（`diff -ruN` 自证）、
+>    `LICENSE`（上游 GPL-3.0 原文）与 `third_party/lua-5.1.5/COPYRIGHT`（Lua MIT 原文）。
+> 7. **Lua 路径错误**：`THIRD_PARTY_NOTICES.md` 与任何 `third_party/lua51/` 引用**均错**——
+>    上游目录是 **`third_party/lua-5.1.5/`**，`lua51` 只是 CMake target 名。已改正，并在 guard
+>    里禁止再写错路径（错路径＝静默不产出通知，因为 copy 失败不是 build 失败）。
+> 8. **tar 绝对 Windows 路径（本批新发现并实测）**：GNU tar 把绝对路径开头的 `D:` 当**远程主机**
+>    （`tar: Cannot connect to D: resolve failed`，exit 2）。generator 传给 tar 的路径必须是
+>    **repo 相对 POSIX**形式；已修，否则任何机器上都是 exit 2。
+> 9. **child_process 管道**：sandbox 下 EPERM 表现为 `status=null`/`error`。generator 的外呼改为
+>    `stdio: ['ignore','inherit','inherit']`（不 capture），`tar -9n` 与 shell tar 行为不变。
+>
+> **本批验证（全部实跑，退出码见日志）**：
+> - `bash -n .github/scripts/build-artemis-compat.sh` **ok**；
+> - `node --test test/check-sources.test.mjs` **86/86 pass**；
+> - `node --test test/artemis-compat-ci.test.mjs` **15/15 pass**（新增 fake：固定 pin、
+>   workflow/recipe/pins 三处一致、sha 清单、rm guard、`nproc` 禁止、bundle 必带 recipe、
+>   tar 路径、错 Lua 路径）；
+> - `node scripts/check-sources.mjs` worktree **ok**（340 products；pending 仅因本批未 commit）；
+> - **source bundle 真实跑两次**，同一输入 **字节相同** sha256 `0b668ebe94be…67a5`（772,440 B），
+>   **不是构造断言**；tar 条目核 **无 SDK / 无 game / 无 `.ref`**，含 `build.sh`/`LICENSE`/
+>   `lua-5.1.5/COPYRIGHT`/`NOTICE`/`upstream-root.diff`；
+> - **bundle 单独可重编（本批最强证据）**：把 bundle 解到空目录、按 `NOTICE` 重组布局后跑
+>   **bundle 自带的 `build.sh`**：从 GitHub clone pin 成功（`HEAD matches pin`）、两个 patch 与两个
+>   overlay 应用、`archive-source-sha256=8e94b699…5ae3`（**与仓库内 build.log 逐字节同**）、
+>   **`exit=0`**，产出 `artemis-compat.js` 150,186 B + `artemis-compat.wasm` 1,267,898 B。
+>   ⚠ 但 recipe **未为 archive 重写**：它 `. "$ROOT/ports/env.sh"` 且 `OUT` 有
+>   `*/ports/artemis/compat-web/out` 断言，**不能原地直接跑**，需按 `NOTICE` 重组布局
+>   （NOTICE 与 `THIRD_PARTY_NOTICES.md` 已**诚实**写明这是已知限制，不吹成一条命令可编）。
+>
+> **接手（未做，本批不能做）**：显式 pathspec 提交 → 同 SHA 看 CI；真实游戏验收（含 SAB worker、
+> audio、save/load）仍未过门；`publish: false` 保持不变。**下文「native clean build / CABI worker 13
+> passed」等旧记录是历史证据**，不得当作本批验收；旧 malformed 记录是 past SHA，不引用为当前失败。
+
+---
+
+> **2026-10-05（compat 出货线接线）· 独立 CI 执行批已完成，只等 lead 审核后显式 pathspec 提交。**
+> 本批**未 commit / 未 push**，也**未跑 native build / 未起 server / 未开浏览器**。
+> 证据日志：`.test/artemis-compact-ci-check.log`（gitignored）。详细交接写给 lead，
+> 见本批次子代理回报；下面只记接手所需的事实。
+>
+> **本批落地的事实（均已实际跑过守卫，不是设计意图）**：
+> - **出货构建 = 编译上游源码**，不是 SDK 路线：
+>   `.github/workflows/build-wasm-artemis-compat.yml` → `.github/scripts/build-artemis-compat.sh`
+>   → `ports/artemis/compat-web/build.sh`，pin `9f622629f595db85e6f76c45c06edde29d7d9961`，
+>   产出 `dist/artemis-compat/`：`artemis-compat.js`、`artemis-compat.wasm`、
+>   `artemis-compat-source.tar.gz`(+`.sha256`)、`LICENSE`、`THIRD_PARTY_NOTICES.md`。
+>   **`publish: false`**；**`glue-import-map` 留空**（那张表是 207-import SDK 桥的导入面）；
+>   `package-dir: packages/runtime-artemis` + `package-engine-assets: true`。
+> - **pin 的确传递方式已核实**：workflow 检出 pin 到 `.ref/artemis-compat`
+>   （`skip-upstream-checkout: false`），并把 `ARTC_PIN=<pin>` 经 `build-env` 传给脚本；
+>   脚本断言 `ARTC_REF == UPSTREAM_PATH` 后才归档。配方自身的默认 pin 与 pins 记录同值。
+> - **旧 bridge 已改为仅手动**：`build-wasm-artemis-bridge.yml` 移除 `push` / `pull_request`
+>   触发（旧产物与"它检出的源码内容"无关：`skip-upstream-checkout: true` 下唯一源码身份只是
+>   `upstream_commit`）。**旧 code / sdk / 历史 hash 未删未改**；守卫改为禁止它重新拿回自动触发。
+> - **pins 新增兄弟键 `artemis-compat`**（`dispatch: false`、`git-archive: true`、
+>   `workflow`/`build-script`/`recipe`/`artifact-dir`/`files` 精确列表）；**没有**加进 `engines`，
+>   因为 `engines` 会被 drift check 自动 dispatch，而上游漂移会把未审查的引擎修订与已审查的
+>   补丁集配在一起。`artemis-bridge` 记录保留为 historical/diagnostic，**不是 shipping 声明**。
+> - **守卫语义已从旧 bridge 改为新 shipping**：`scripts/check-sources.mjs` 现在要求 compat 的
+>   pin/构建文件/workflow 契约/源码 URL/精确资产白名单，并对旧 ledger 只做存在性检查、
+>   标注 legacy（340 产品**不是** shipping 要求；没有为过检禁止它）。
+> - **文档已更新**：`ports/artemis/README.md`、`docs/source-layout.md`、`README.md`、
+>   `THIRD_PARTY_NOTICES.md` 说明出货 compat 路线 + SAB worker；明确 **checkpoint / audio 未验，
+>   不标"可玩"**；REWRITE 宪法未改，只标注旧 bridge 为 legacy scope。通知文件记录新路线使用
+>   的**实际 GPL 完整源**（+ 捆绑 Lua MIT / stb / zlib 原文），**不**把 SDK notice 当成新源授权。
+>
+> **本批验证（全部实跑，退出码见日志）**：`bash -n` wrapper、JSON parse、
+> `check-sources.mjs`（worktree **ok**；`--staged` 待新文件入索引后 ok）、
+> `check:layout` ok、`node --test test/check-sources.test.mjs` **84/84**、
+> `node --test test/artemis-compat-ci.test.mjs` **9/9**、YAML 用本机已装 pyyaml 解析
+> （不装依赖，未跑 Actions）。**未跑** full build / native / browser。
+>
+> **lead 接手（未做，且本批不能做）**：
+> 1. 显式 pathspec 提交本批（不 `git add .`；本批文件清单见日志），**同 SHA 观察 CI**；
+> 2. native build 尚未在本批执行（配方已 `cp` 到 `.github` 侧可 create，但按批不跑）；
+> 3. 真实游戏验收（含 SAB worker、音频、save/load）仍是未过门，不得宣布可玩。
+> 4. **注意范围**：`packages/runtime-artemis/src/compat/**` 与 `packages/runtime-artemis/scripts/`
+>    属另一 Flash（runtime Flash `a1cf67`）的在跑写入范围；本批只读引用，未改其文件。
+
+---
+
+> **2026-10-04（新阶段）· 路线切换：旧 OOB 主线已被当前请求暂停，旧数据原样保留。**
+> 用户新请求 = **把 Artemis 的 WASM 换成「从 artemis-compact 改造出的 WASM」，参考现有 WASM 代码**。
+> 现场调查已完成（只读，**未 build / 未 server / 未浏览器 / 未改生产代码**），报告：
+> `.test/artemis-compact-migration-plan.md`（gitignored）。
+>
+> **核事实（不推断；2026-10-05 主代理审核后校正）**：
+> - **命名边界**：只有「**本仓库未找到 `artemis-compact`**」（glob/grep 全树，含 `.ref/` 0 命中）。
+>   **不得**说"互联网/世界上不存在 `artemis-compact`"。历史目标名 = **`artemis-compat`**
+>   （`Weiss-UltimateSavior/artemis-compat`, GPL-3.0, C++17 ≈30K 行）。
+> - **源身份（只读实测）**：`.ref/artemis-compat` HEAD = `a4f8a257cf87cb8f65ab4e3f83501ab327a55424`，
+>   worktree **dirty**（12 tracked changed + 3 untracked：`web_main.cpp` / `web_page.html` /
+>   `web_worker.js`）；CI pin = `9f622629f595db85e6f76c45c06edde29d7d9961`
+>   （`.github/workflows/build-wasm-artemis-bridge.yml:99`）。`a4f8a25` 是 pin 的**前一个**点
+>   ⇒ **任何构建必须按 pin 重取源码，不得在 `.ref` 上改或 build。**
+> - **上游不自带 Web 宿主**：`git ls-tree 9f62262… src/host` **只有 `mac_main.mm`**；pin 的
+>   `CMakeLists.txt` **只有 native targets**。⇒ **Web host / Web CMake / `ReadAt` / numeric 全部是
+>   本地 port 产物**，不是上游自带。宿主三文件是 **untracked 本地文件**，不是上游文件。
+> - **历史证据仅历史**：`docs/artemis-web-port.md` §9.18 的长跑与 7 张截图
+>   （`frames 961 presented 553`、按需读 0.41%）**只是当年的历史证据**，
+>   **不保证**当前新源码或新 CI 候选已可用。
+> - **退役根因仍 unknown**：文档原文「compat 这条线的**输入缺陷长期收敛不掉**」，
+>   其**精确根因现有文档不足以回答 = 本任务最大已知未知**。**「编译一次就能消解退役原因」是错误推断**
+>   —— 编译只证明**能编**，不证明输入缺陷被收敛。须以真实游戏实测为准，不得靠读文档推断。
+> - 环境（只读实测）：`/d/emsdk` emcc **6.0.9**（与 CI 一致）、cmake 4.3.1、node v26.8.2、
+>   pnpm 9.14.2；`netstat` 在 9222/4700/8080/3000/4321/5173 **无 LISTEN**；
+>   `git status --short` / `--cached --stat` **均空**；HEAD `d248224`。
+> - 旧 `42181662` 任务与现场 node/chrome PIDs **均未确认**（该 id 非本会话子代理，`job_list` 空）
+>   ⇒ **不假定在跑也不假定已停，不写成已 cleanup**。
+>
+> **接缝审计结论（`.test/artemis-compact-seams-review.md`，静态只读、零运行证据）必须按其原文边界引用**：
+> - 该报告**无任何运行证据**，不得当验收。
+> - `SaveSnapshot` 写的 **ARCV 变量银行是检查点**，依赖游戏自己的 `onSave`/`onLoad` 脚本框架，
+>   **并非 BOWS 导出**；**完整恢复必须真实游戏实测**。
+> - **audio 在非 Android 分支是 stub**（emscripten 走 stub，`PlayStream` 直接 false）⇒ **必须新增**，
+>   不是接线。
+> - **`GameSource.readRange` 是 async，不能与同步 XHR「天然等价」**；compat 引擎侧要求同步读，
+>   方向相反。可行方向是 **worker 阻塞 + SAB 镜像**，且需要**宿主供数**；`SyncFileBridge` 方向相反，
+>   不能原样复用。
+>
+> **最终宿主帧契约（主代理定，不得退让）**：仍由 **host tick 驱动既有的 `artc_web_frame`**；
+> **不使用** `web_worker.js` 自己的 rAF；**也不照旧 runtime 的 no-op 错误继续跑第二个时钟**。
+>
+> **冻结项不变**：`MapPoint` 数学、`docs/fetch-engine-artifacts.md` 历史 hash，
+> 以及**源码 / 构建 / 合成 / 真实游戏 / 许可五层证据**分离判据。
+>
+> **pending（下一对话直接接手）**：native build + 正确源 pin 补丁身份 → 小 CABI freeze →
+> Flash adapter 与独立测试 → **必要升级 Grok** → **CI 同 SHA 真实热身 + 两次一致验收**。
+> 本会话新起的 **2 个调查代理已 settled，无 job / 无 browser**；总领**只审核、不执行细活**。
+
+---
+
+> 2026-10-04 19:05 +08:00（**以下为旧 OOB 主线内容，已被上面的新请求暂停；数据全部保留**）。**主代理不承担任何具体工作**（用户明确定调）：编码/文档/构建/浏览器/测试/清理**全部子代理**，主代理只做**任务拆分顺序 / 证据审核 / 最后验收**；以前安排 lead 亲跑的 next steps **必须改分配执行，不得倒退**（已记入 AGENTS.md 硬约定）。**子代理默认 Flash，Flash 不能胜任的复杂工作交 Grok 4.7，其他模型按需；交接已测证据/失败原因/待办，不对同路由反复无效重试**（用户明确定调，已记入 AGENTS.md + 本文件§1）。旧EH入口22515/r602→21115/r616→21127/r616/tag10逐层实测修复；discard热身后两次COPY冷跑EH0，资源/IDB继续后遇raw allocator OOB，**仍不可玩**。**bf014fa已push，同SHA bridge[37194261586]/packages[37194261493]均success**；本地portable **346/346**+checks通过。下载bridge sha **e16c8aa203391dee16ac10141e228b0e16544992e6a0ddabc419437ae2012690**（23,666,735B）manifest与磁盘一致；下载完整TU sha **e94b2b6f...32db4f与本地reviewedTU逐字节同**；host 0.1.9 tgz sha958377...de129已解包 `github-bf014fa/packages-artemis-extracted/package`。**本轮OOB配方**：5c615完成correctu32getterprep、46df完成插件/server/build，**未compile**；产物 root `.test/artemis-resume-oob-reviewed-build-new/`，TU sha **331516aa22d08d9c7bbad714bae5bc23cff1ccdb0a6bcb45986c5d0d2aa7a036**；主代理**独立静态审核通过**（findings `.test/artemis-oob-final-review.md`，gitignored），**无返工缺陷**。
 > **review verdict：root cause 仍 unknown；docs 可显式 pathspec commit（仅两 docs）；不宣布引擎可玩。** 另一低并发 Flash 正做 bf014fa CI unmodified host **3 cold run**，只写 `.test/artemis-bf014fa-ci-*`，**不写 doc、不要碰它**；本轮**不起任何 build / game server / browser**以免资源冲突。
 >
 > **执行交接（Grok 未完成；现场未知，不编清理）**：

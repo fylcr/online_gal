@@ -218,7 +218,29 @@ export type InputEvent =
   | { readonly type: 'text'; readonly value: string }
   | { readonly type: 'blur' };
 
-/** Serializable save payload produced by a runtime. */
+/**
+ * One file a checkpoint captured, as a byte-exact copy.
+ *
+ * `path` is **relative to the runtime's own save directory** and is validated as
+ * such before it is ever used: no drive letter, no leading `/` or `\`, no `..`
+ * segment, no backslash. The host writes these back one at a time, so a path that
+ * could escape the slot is refused before the first byte is written.
+ */
+export interface SaveStateFile {
+  readonly path: string;
+  /** Base64 of the file's exact bytes. */
+  readonly data: string;
+}
+
+/**
+ * Serializable save payload produced by a runtime.
+ *
+ * `data` stays `unknown` for runtimes whose state is one structured-clone value.
+ * A runtime that owns a real filesystem — as an engine compiled to WebAssembly
+ * does — publishes the same fact as {@link SaveStateFiles} instead: a `files`
+ * array of byte-exact copies, so a restore can write those bytes back rather than
+ * reconstruct a state the engine never expressed in JavaScript.
+ */
 export interface SaveState {
   /** Format version so runtimes can migrate old slots. */
   readonly version: number;
@@ -228,6 +250,39 @@ export interface SaveState {
   readonly thumbnail?: string;
   /** Text shown in the save slot list. */
   readonly caption?: string;
+}
+
+/**
+ * A checkpoint whose payload is a set of files, not a JavaScript object.
+ *
+ * The pair to `SaveState` for runtimes that own a filesystem. `kind` names the
+ * format so a reader can tell the two apart **before** trusting `files`, and
+ * `files` is the whole payload: an empty array would be a checkpoint that
+ * restores nothing, so the writer never produces one.
+ *
+ * `atomic` is the engine transaction, not the store. The worker validates the
+ * whole set, then installs it or puts the previous files back; `save()` resolves
+ * only after that read-back. Persisting the files is a later step and is not
+ * claimed here.
+ */
+export interface SaveStateFiles extends SaveState {
+  /** Format marker for the file-set payload, e.g. `artemis-compat-checkpoint`. */
+  readonly kind: string;
+  /** Every file the checkpoint produced, byte-exact. Never empty. */
+  readonly files: readonly SaveStateFile[];
+  /**
+   * True when the engine applied the whole set or none of it.
+   *
+   * This is not a claim that a store committed the files. A host that writes them
+   * one at a time can still be interrupted; that commit is separate from this flag.
+   */
+  readonly atomic: boolean;
+}
+
+/** A `SaveState` the caller can read back as files, without trusting a tag. */
+export function isSaveStateFiles(state: SaveState): state is SaveStateFiles {
+  const candidate = state as Partial<SaveStateFiles>;
+  return typeof candidate.kind === 'string' && Array.isArray(candidate.files);
 }
 
 /** A live game session. The root analogue of AetherKiri's runtime instance
@@ -247,8 +302,21 @@ export interface RuntimeInstance {
   /** Suspends audio and timers. */
   pause(): void;
   resume(): void;
-  /** Serialises the session for a save slot. */
-  save(): SaveState;
+  /**
+   * Serialises the session for a save slot.
+   *
+   * The return is a **union**, not a promise every runtime must wrap: a runtime
+   * that can answer synchronously still returns `SaveState` directly, and a
+   * runtime whose checkpoint must be taken by another thread returns a promise
+   * for the same value. A caller that must not block awaits the result, and
+   * `await` on a plain `SaveState` is not an error — it is the same call for both
+   * shapes, so no existing runtime is forced to change.
+   *
+   * Refusing is a **throw** or a rejected promise, never a resolved placeholder:
+   * a slot written from a fabricated state restores a different session than the
+   * player left.
+   */
+  save(): SaveState | Promise<SaveState>;
   /** Restores a previously saved session. */
   restore(state: SaveState): Promise<void>;
   /** Releases all resources: audio nodes, object URLs, workers. */

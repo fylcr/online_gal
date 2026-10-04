@@ -271,9 +271,21 @@ export class Session {
     }
   }
 
-  /** Serialises the session, including a thumbnail of the current frame. */
-  save(slot: number, caption?: string): SaveSlotRecord {
-    const state = this.runtime.save();
+  /**
+   * Serialises the session into a complete slot record.
+   *
+   * Asynchronous because the runtime's own answer is a union: the compat engine
+   * takes its checkpoint inside the worker and can only answer a promise, while
+   * every synchronous runtime resolves on the same call. The thumbnail is
+   * captured **after** the await on purpose — it is the frame the player saw when
+   * the save was acknowledged, and capturing it before would put a picture of an
+   * earlier frame into a slot that restores the newer one.
+   *
+   * A runtime that refuses the checkpoint rejects this promise; no record is
+   * returned, so a caller can never persist a slot for a save that did not happen.
+   */
+  async save(slot: number, caption?: string): Promise<SaveSlotRecord> {
+    const state = await this.runtime.save();
     const thumbnail = this.captureThumbnail();
     return {
       gameId: this.options.record.id,

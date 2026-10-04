@@ -107,9 +107,19 @@ test('public provider availability follows configuration and pre-load diagnostic
   api.configureArtemisWasm({ wasm: null }); assert.equal(api.artemisProvider.availability, 'unavailable');
   const r = environment(), runtime = api.artemisProvider.create(r.host, { runtimeId: 'artemis', surface: r.host.surface, mode: 'new' });
   t.after(() => { api.configureArtemisWasm({ wasm: null }); runtime.dispose(); });
-  assert.equal(runtime.describe().available, false); await assert.rejects(runtime.load(), /configured/); assert.equal(runtime.report().severity, 'unsupported');
-  api.configureArtemisWasm({ wasm: moduleFixture({ audio: false, loop: false }) }); assert.equal(api.artemisProvider.availability, 'runnable');
+  assert.equal(runtime.describe().available, false); await assert.rejects(runtime.load(), /configured|compat/i); assert.equal(runtime.report().severity, 'unsupported');
+  // A published legacy bridge no longer makes the provider runnable on its own: the default engine is
+  // the compat one, and a `configureArtemisWasm` publication is the diagnostic path, not the router.
+  api.configureArtemisWasm({ wasm: moduleFixture({ audio: false, loop: false }) }); assert.equal(api.artemisProvider.availability, 'unavailable');
   api.configureArtemisWasm({ wasm: null }); assert.equal(api.artemisProvider.availability, 'unavailable');
+});
+test('a game that explicitly names the legacy bridge still gets the legacy runtime', async t => {
+  // The diagnostic path is reachable by name and only by name; this is what keeps it meaningful.
+  const r = environment();
+  const runtime = api.artemisProvider.create(r.host, { runtimeId: 'artemis', surface: r.host.surface, mode: 'new', gameConfig: { wasm: moduleFixture({ audio: false, loop: false }) } });
+  t.after(async () => { runtime.dispose(); await bounded(runtime.whenDisposed()); });
+  assert.equal(runtime.constructor.name, 'ArtemisRuntime');
+  await bounded(runtime.load()); assert.equal(runtime.describe().loaded, true); assert.equal(runtime.session.instance.exports.mainCount.value, 1);
 });
 test('public load installs real ASM/IDB/audio seams and hydrates before native main', async t => {
   const files = new Map([['artemis/public-native/state-v1.json', persisted({ version: 1, files: [['a.sav', new Uint8Array([7, 8])]], idb: [['db', 'slot', new Uint8Array([4])]] })]]);
@@ -207,9 +217,12 @@ test('a newer direct resume waits out an already-entered stale repayment suspens
   ctx.suspendGate.resolve(); await bounded(Promise.all([older, newer]), 'newest resume after entered suspension'); await flush();
   assert.equal(ctx.state, 'running', 'latest resume cannot be undone by an earlier asynchronous suspend'); assert.equal(r.frames.size, 1);
 });
-test('configured deployment fallback boots through the public provider without a per-game wasm', async t => {
-  api.configureArtemisWasm({ wasm: moduleFixture({ audio: false, loop: false }) }); const r = environment();
-  const runtime = api.artemisProvider.create(r.host, { runtimeId: 'artemis', surface: r.host.surface, mode: 'new' });
-  t.after(async () => { runtime.dispose(); await bounded(runtime.whenDisposed()); api.configureArtemisWasm({ wasm: null }); });
+test('a per-game legacy bridge boots through the public provider without a compat engine', async t => {
+  // Same fixture, reached the same way: a game that names its own bridge. The artefact stays the
+  // legacy bridge, so the legacy path keeps its measured coverage instead of being retired by a
+  // default that moved.
+  const r = environment();
+  const runtime = api.artemisProvider.create(r.host, { runtimeId: 'artemis', surface: r.host.surface, mode: 'new', gameConfig: { wasm: moduleFixture({ audio: false, loop: false }) } });
+  t.after(async () => { runtime.dispose(); await bounded(runtime.whenDisposed()); });
   await bounded(runtime.load()); assert.equal(runtime.describe().loaded, true); assert.equal(runtime.session.instance.exports.mainCount.value, 1);
 });

@@ -1,18 +1,24 @@
 {
   "name": "@online-gal/runtime-artemis",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "license": "GPL-3.0-or-later",
   "type": "module",
   "main": "./dist/index.js",
   "scripts": {
-    "build": "tsc -b"
+    "build": "tsc -b && node scripts/copy-compat-worker.mjs",
+    "copy:compat": "node scripts/copy-compat-worker.mjs"
   },
   "exports": {
     ".": {
       "types": "./src/index.ts",
       "development": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./compat": {
+      "types": "./src/compat/index.ts",
+      "development": "./src/compat/index.ts",
+      "default": "./dist/compat/index.js"
     }
   },
   "dependencies": {

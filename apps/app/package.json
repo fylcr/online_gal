@@ -14,6 +14,7 @@
     "@online-gal/engine-api": "workspace:*",
     "@online-gal/image-codec": "workspace:*",
     "@online-gal/player-host": "workspace:*",
+    "@online-gal/runtime-artemis": "workspace:*",
     "@online-gal/runtime-kag": "workspace:*",
     "@online-gal/runtime-ons": "workspace:*",
     "@online-gal/runtime-tyrano": "workspace:*",

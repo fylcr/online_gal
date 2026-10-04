@@ -17,6 +17,8 @@ import {
   type UnsupportedCommand,
 } from '@online-gal/engine-api';
 import { artemisProbeResult } from './probe.js';
+import { hasArtemisCompatEngine } from './configure.js';
+import { CompatArtemisRuntime } from './compat/runtime.js';
 import {
   ARTEMIS_BROWSER_SNAPSHOT_VERSION,
   ArtemisBrowserIdb,
@@ -131,15 +133,15 @@ function cloneWasmBinding(source: ArtemisWasmSource): ArtemisWasmBinding {
 }
 
 /**
- * Publishes the WebAssembly bridge every Artemis session runs on.
+ * Publishes the legacy asyncify bridge.
  *
  * This is the deployment seam, not a per-game setting: an embedder that bundles `artemis.wasm`
- * passes its URL or bytes here once, and every subsequently created session picks it up. Passing
- * `null` withdraws the publication, which returns the provider to `unavailable` — a deployment
- * that takes its bridge away must stop advertising a play button that would fail on click.
+ * passes its URL or bytes here once. Passing `null` withdraws the publication.
  *
- * A per-game `options.gameConfig.wasm` (or `wasmUrl`) takes precedence for that game alone; this
- * is the fallback used when the game names nothing.
+ * **It is no longer the provider's default engine.** `artemisProvider.create` runs the compat
+ * runtime unless the game itself names `wasm` / `wasmUrl`, so this seam is what a *diagnostic*
+ * session runs on: the path that compares the legacy bridge against the compat one. A deployment
+ * that publishes a bridge here and no compat engine gets `unavailable`, not a silent legacy session.
  */
 export function configureArtemisWasm(options: {
   wasm?: string | URL | Uint8Array | WebAssembly.Module | null;
@@ -1606,7 +1608,7 @@ export const artemisProvider: RuntimeProvider = {
   displayName: 'ArtemisEngine',
   priority: 85,
   description:
-    'ArtemisEngine：独立托管（非 SDK 页面、非 iframe、非 eval）的 asyncify WebAssembly 运行时，直接实例化桥接模块并把画面渲染进宿主 canvas。是否可运行取决于是否已通过 configureArtemisWasm() 配置桥接二进制；引擎与具体作品的兼容性未经测试。',
+    'ArtemisEngine：compat 源码构建（classic worker + wasm，主线程 tick 驱动 artc_web_frame）运行时；默认可运行与否取决于是否已通过 configureArtemisCompat() 指定引擎，游戏自带 wasm 时回落到 legacy asyncify 桥接诊断路径。引擎与具体作品的兼容性未经测试。',
   accepts: ['root.pfs', 'system.ini', 'boot.ini', 'system/first.iet', '.pfs', '.iet'],
   containers: ['pfs'],
   optionKeys: [
@@ -1616,21 +1618,60 @@ export const artemisProvider: RuntimeProvider = {
     OPTION_COMPATIBILITY_REPORT,
   ],
 
-  // A dynamic getter, not a literal: an embedder can call `configureArtemisWasm()` after the
-  // provider was constructed, and a frozen `availability` would keep advertising `unavailable`
-  // for a runtime that is now able to run. It reflects the *configured bridge only* — an empty
-  // `artemisEngineHosts` array is not the question, and neither is a claim about a tested engine.
+  // A dynamic getter, not a literal: an embedder can call `configureArtemisCompat()` after the
+  // provider was constructed, and a frozen `availability` would keep advertising `unavailable` for a
+  // runtime that is now able to run. It answers two separate questions and both must hold — an engine
+  // is named, **and** the page can actually serve the three things the transport needs. A
+  // SharedArrayBuffer that cannot be shared means no blocking read, so no pack, so no game.
   get availability(): RuntimeProvider['availability'] {
-    return configuredWasm === null ? 'unavailable' : 'runnable';
+    if (!hasArtemisCompatEngine()) return 'unavailable';
+    return compatBrowserReady() ? 'runnable' : 'unavailable';
   },
 
   async probe(game: ProbeContext): Promise<ProbeResult | null> {
     return artemisProbeResult(game);
   },
 
+  /**
+   * A compat session, unless the game explicitly asked for the legacy bridge.
+   *
+   * The legacy `ArtemisRuntime` is still what runs when `gameConfig.wasm` / `wasmUrl` names a bridge.
+   * That is deliberately the *only* way to reach it now: the compat engine is the default because it
+   * is the engine this project is moving to, and the asyncify bridge is a diagnostic for comparing
+   * against it — not a silent fallback behind it.
+   */
   create(host: RuntimeHost, options: RuntimeOptions): RuntimeInstance {
-    return new ArtemisRuntime(host, options);
+    return legacyBridgeRequested(options) ? new ArtemisRuntime(host, options) : new CompatArtemisRuntime(host, options);
   },
 };
+
+/** Whether this game asked for the legacy asyncify bridge by name. */
+function legacyBridgeRequested(options: RuntimeOptions): boolean {
+  const config = options.gameConfig;
+  if (!config) return false;
+  const wasm = config['wasm'];
+  if (wasm !== undefined && wasm !== null) return true;
+  const url = config['wasmUrl'];
+  return url !== undefined && url !== null;
+}
+
+/**
+ * Whether this page can run a compat session at all.
+ *
+ * The three rows are the transport's own requirements, read without constructing anything: a shared
+ * window it can block on, an `OffscreenCanvas` to transfer, and a game source that can read ranges.
+ * A page missing one of them is `unavailable` — the honest answer — rather than a play button that
+ * fails on click.
+ */
+function compatBrowserReady(): boolean {
+  const scope = globalThis as {
+    crossOriginIsolated?: boolean;
+    SharedArrayBuffer?: unknown;
+    OffscreenCanvas?: unknown;
+  };
+  if (scope.crossOriginIsolated !== true) return false;
+  if (typeof scope.SharedArrayBuffer !== 'function') return false;
+  return typeof scope.OffscreenCanvas === 'function';
+}
 
 export type { ArtemisSyncIdb };

@@ -10,13 +10,20 @@
 | --- | --- | --- | --- |
 | ONScripter | [`ports/ons/`](../ports/ons/README.md) 的事件 shim、配方及 harness；[`runtime-ons`](../packages/runtime-ons/) 的浏览器适配 | 固定 commit 的 OnscripterYuri C++ 检出 | [`build-ons.sh`](../.github/scripts/build-ons.sh) |
 | KiriKiri | [`ports/krkr/`](../ports/krkr/README.md) 的 VLFS 接缝、vcpkg overlays、配方；[`runtime-kag`](../packages/runtime-kag/) 的 iframe 接线及解释器回退 | 固定 commit 的 kirikiroid2-web C++ 检出及 submodules | [`build-krkr.sh`](../.github/scripts/build-krkr.sh) |
-| Artemis | [`ports/artemis/src/`](../ports/artemis/src/) 的手写 C++ 产品、台账、拼接器；[`runtime-artemis/src/host/`](../packages/runtime-artemis/src/host/) 的独立现代宿主 | 已跟踪官方 asyncify wasm，经固定 WABT 转译后替换部分函数体；未替换生成体仍保留 | [`build-artemis-bridge.sh`](../.github/scripts/build-artemis-bridge.sh) |
+| Artemis（出货） | [`ports/artemis/compat-web/`](../ports/artemis/compat-web/) 的配方、补丁集与 overlay；[`runtime-artemis/src/compat/`](../packages/runtime-artemis/src/compat/) 的 worker 与页侧宿主 | **固定 commit 的 artemis-compat C++ 源码**（pin `9f62262…`），**不使用官方 SDK 字节** | [`build-artemis-compat.sh`](../.github/scripts/build-artemis-compat.sh) |
+| Artemis（历史 / 诊断） | [`ports/artemis/src/`](../ports/artemis/src/) 的手写 C++ 产品、台账、拼接器 | 已跟踪官方 asyncify wasm，经固定 WABT 转译后替换部分函数体；未替换生成体仍保留 | [`build-artemis-bridge.sh`](../.github/scripts/build-artemis-bridge.sh)（**仅手动 dispatch**） |
 
 ONS / KiriKiri 没有把整份上游 C++ 复制进本仓库，但固定输入和适配源码都在仓库中。
 这不免除分发引擎二进制时的对应源码、版权及许可义务。
-Artemis 当前也不能称为已脱离 SDK 的完整独立源码引擎。
+Artemis 两条路线互不共用输入：出货路线是 GPL-3.0 上游源码的编译产物，其对应源随制品提供；
+历史路线仍依赖官方 SDK 二进制及未替换的生成函数体，**不是出货路径**，也未脱离 SDK。
+历史路线的 workflow 已移除 `push` / `pull_request` 触发（旧产物与其检出的源码内容无关），
+但保留其产物 hash 记录与脚本，不删除、不改写历史 hash。
 
 固定版本见 [`upstream-pins.json`](../.github/upstream-pins.json)，实际 workflow 的默认值也要同步维护。
+该文件的 `engines` 是可被 drift check 自动 dispatch 的引擎表；Artemis 两条记录都是它的**兄弟键**
+（`artemis-compat`、`artemis-bridge`），因此上游漂移不会自动启动它们 —— 补丁集是**针对 pin
+审查过的**，跟着上游移动会把未审查的引擎修订与已审查的补丁配在一起。
 共享构建和包闭包装配分别见
 [`build-wasm-reusable.yml`](../.github/workflows/build-wasm-reusable.yml) 与
 [`make-package.mjs`](../.github/scripts/make-package.mjs)。
@@ -28,11 +35,12 @@ Artemis 当前也不能称为已脱离 SDK 的完整独立源码引擎。
 | --- | --- | --- |
 | ONS | runtime-ons private tarball，装入本次引擎资产和 workspace 依赖闭包 | worker 同步取数需要 SharedArrayBuffer；部署须正确设置隔离响应头 |
 | KiriKiri | runtime-kag private tarball + 单独的六个引擎页面资产 | tarball 未内置这六个文件；需要部署页面并配置 `pageUrl`，不是完全自包含包 |
-| Artemis | runtime-artemis private tarball 的 `assets/` 放入本次 asyncify bridge.wasm | public provider 的 `load()` 仍拒绝启动，现代宿主尚未形成可用 session；有文件不等于可运行 |
+| Artemis（出货） | `dist/artemis-compat/`：`artemis-compat.js`、`artemis-compat.wasm`、对应源 `artemis-compat-source.tar.gz`(+`.sha256`)、`LICENSE`、`THIRD_PARTY_NOTICES.md`；runtime-artemis tarball 的 `assets/` 装入本次两个模块 | **`publish: false`**，不发 Release；已编译但**未验收** —— 检查点（`artc_web_save`/`artc_web_load`）与音频未验证（该目标音频是上游 stub），**不能说"可玩"** |
+| Artemis（历史） | bridge.wasm（asyncify 手写引擎 + SDK 转译） | 仅手动 dispatch；SDK 再分发问题未解决；**不是出货路径** |
 
 全部运行时包保持 `private: true`、GPL-3.0-or-later，不发布 npm。
-下游不应自行编译 wasm，但 KiriKiri 的自包含包目标及 Artemis 的现代宿主/完整游戏验收仍未完成。
-官方胶水部署与 generated-body masks 仅作诊断，不能代替手写引擎出货验收。
+下游不应自行编译 wasm，但 KiriKiri 的自包含包目标及 Artemis 的完整游戏验收仍未完成。
+官方胶水部署与 generated-body masks 仅作诊断，不能代替出货 compat 模块的验收。
 历史下载与测试记录见 [`fetch-engine-artifacts.md`](fetch-engine-artifacts.md)；本次未重跑这些记录。
 
 ## 三、留在本机的内容
@@ -40,10 +48,10 @@ Artemis 当前也不能称为已脱离 SDK 的完整独立源码引擎。
 | 边界 | 处理方式 |
 | --- | --- |
 | `.ref/`、`.test/` | 上游检出、游戏、存档、本地套件与证据；已忽略，不删除 |
-| `dist/`、`out/`、`build-final/`、编译缓存 | 构建输出，不作为源码提交 |
+| `dist/`、`out/`、`build-final/`、编译缓存 | 构建输出，不作为源码提交。含 `ports/artemis/compat-web/out/` 与 CI 的 `dist/artemis-compat/` |
 | Artemis `rewrite-staging/`、`rewrite-fixes/`、`.audit*`、`.work_*` | 分段工作台与审计草稿；已补充精确忽略项，保留磁盘数据 |
 | 下载的 WABT、Zig、emsdk、vcpkg 二进制缓存 | 本机/CI 依赖，不是自有源码 |
-| `test/` | 可随仓库交付、无需私有游戏的测试；本次上传检查器回归测试放这里 |
+| `test/` | 可随仓库交付、无需私有游戏的测试；本次上传检查器回归测试与新 CI 契约测试放这里 |
 
 **已有资产例外不自动删掉：**
 
@@ -51,9 +59,12 @@ Artemis 当前也不能称为已脱离 SDK 的完整独立源码引擎。
 - [`artemis/vendor/artemis-sdk/`](../ports/artemis/vendor/artemis-sdk/) 的九个官方参考文件已跟踪。
   其中 [`Copyright.txt`](../ports/artemis/vendor/artemis-sdk/Copyright.txt) 对 Artemis 本体保留全部权利，
   依赖库的许可不能作为整个 SDK 的再分发授权；保留文件也不是授权已解决。
+  **这些字节不是出货 compat 构建的输入**；其授权边界属于历史路线。
 
 根 GPL 声明只表述本项目自有代码的许可，不能覆盖第三方 SDK，不能凭改名或手写重表达消除出处问题。
 SDK、转译剩余体和行为重表达产品的再分发范围需要独立核实；本次不删除或改写第三方声明。
+出货 compat 模块是上游 GPL-3.0 源码的编译产物，其对应源随制品提供（pin 的 `git archive` +
+本目录补丁集与 overlay），捆绑组件的许可记录在通知文件里。
 详细记录见 [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md)。
 
 ## 四、Artemis 产品台账与漏提交风险

@@ -12,11 +12,99 @@ import { inspectSources, mappedProducts, SOURCE_ENTRIES, uploadProblem } from '.
 const MAP = 'ports/artemis/rewrite-names.tsv';
 const INPUT = 'ports/artemis/vendor/artemis-sdk/WebAssembly/asyncify/artemis.wasm';
 const PRODUCT = 'ports/artemis/src/util/first.cpp';
+const COMPAT_PIN = '9f622629f595db85e6f76c45c06edde29d7d9961';
+const COMPAT_WORKFLOW = '.github/workflows/build-wasm-artemis-compat.yml';
+const BRIDGE_WORKFLOW = '.github/workflows/build-wasm-artemis-bridge.yml';
 const CHECKER = fileURLToPath(new URL('../scripts/check-sources.mjs', import.meta.url));
 const row = (id, file) => `fn\t${id}\t—\tartc::Fixture\t${file}\tR1\tfixture\n`;
 const env = { ...process.env };
 for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY',
   'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT']) delete env[key];
+
+/**
+ * The shipping Artemis record, spelled the way the pins file and the workflow spell it. Written
+ * out rather than imported so that a change to the guard's expectation cannot silently redefine
+ * the fixture it is tested against.
+ */
+function compatRecord() {
+  return {
+    repository: 'https://github.com/Weiss-UltimateSavior/artemis-compat.git',
+    branch: 'main',
+    commit: COMPAT_PIN,
+    path: '.ref/artemis-compat',
+    workflow: COMPAT_WORKFLOW,
+    'build-script': '.github/scripts/build-artemis-compat.sh',
+    recipe: 'ports/artemis/compat-web/build.sh',
+    'artifact-name': 'wasm-artemis-compat',
+    'artifact-dir': 'dist/artemis-compat',
+    files: ['artemis-compat.js', 'artemis-compat.wasm', 'artemis-compat-source.tar.gz',
+      'artemis-compat-source.tar.gz.sha256', 'LICENSE', 'THIRD_PARTY_NOTICES.md'],
+    dispatch: false,
+    'git-archive': true,
+  };
+}
+
+/** A reusable-workflow caller fixture: the `with:` block is what the guard reads. */
+function compatWorkflow(overrides = {}) {
+  const inputs = {
+    engine: 'artemis-compat',
+    'build-script': '.github/scripts/build-artemis-compat.sh',
+    'upstream-repository': 'https://github.com/Weiss-UltimateSavior/artemis-compat.git',
+    'upstream-branch': 'main',
+    'upstream-commit': `'${COMPAT_PIN}'`,
+    'upstream-path': '.ref/artemis-compat',
+    'skip-upstream-checkout': 'false',
+    'artifact-name': 'wasm-artemis-compat',
+    'artifact-dir': 'dist/artemis-compat',
+    'artifact-files': 'artemis-compat.js artemis-compat.wasm',
+    'build-env': `ARTC_PIN=${COMPAT_PIN}`,
+    version: 'compat-9f62262',
+    'package-dir': 'packages/runtime-artemis',
+    'package-engine-assets': 'true',
+    publish: 'false',
+    'glue-import-map': "''",
+    ...overrides,
+  };
+  const lines = Object.entries(inputs)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => `      ${key}: ${value}`)
+    .join('\n');
+  return `name: fixture\non:\n  push:\n    branches: [main]\n\njobs:\n  compat:\n    uses: ./.github/workflows/build-wasm-reusable.yml\n    with:\n${lines}\n`;
+}
+
+const COMPAT_SCRIPT = [
+  '#!/usr/bin/env bash',
+  'set -euo pipefail',
+  ': "${UPSTREAM_PATH:?}"',
+  ': "${UPSTREAM_COMMIT:?}"',
+  'bash ports/artemis/compat-web/build.sh -j 2',
+  'node ports/artemis/compat-web/make-source-bundle.mjs --out dist/artemis-compat',
+].join('\n');
+
+/**
+ * The source-offer generator fixture: only the entry lists matter to the guard, which reads them
+ * as text rather than running the generator (it needs an extracted upstream tree and a real tar).
+ */
+const COMPAT_BUNDLE = [
+  "export const EXTRA_ENTRIES = [",
+  "  ['README.md', 'SOURCE-BUNDLE.md'],",
+  "  ['build.sh', 'build.sh'],",
+  // The standalone recipe and the three audio overlay sources. All four are build inputs that
+  // exist nowhere upstream, so the guard requires them in the generator's entry list; a fixture
+  // without them would fail every test that expects a clean bundle.
+  "  ['RUN-BUILD.sh', 'RUN-BUILD.sh'],",
+  "  ['patches/0001-pf8-readat-host-source.patch', 'patches/0001-pf8-readat-host-source.patch'],",
+  "  ['overlay/audio/audio_web.cpp', 'overlay/audio/audio_web.cpp'],",
+  "  ['overlay/audio/audio_web.h', 'overlay/audio/audio_web.h'],",
+  "  ['overlay/audio/audio_validation.h', 'overlay/audio/audio_validation.h'],",
+  "];",
+  "export const UPSTREAM_ENTRIES = [",
+  "  ['LICENSE', 'LICENSE'],",
+  "  ['third_party/lua-5.1.5/COPYRIGHT', 'third_party/lua-5.1.5/COPYRIGHT'],",
+  "];",
+].join('\n');
+
+const BRIDGE_YML = `name: legacy\non:\n  workflow_dispatch:\n    inputs:\n      publish:\n        type: boolean\n\njobs:\n  bridge:\n    uses: ./.github/workflows/build-wasm-reusable.yml\n`;
 
 function command(executable, args, { cwd, input } = {}) {
   const result = spawnSync(executable, args, {
@@ -63,9 +151,18 @@ function fixture(t) {
       'build-script': `.github/scripts/build-${name}.sh`,
       workflow: `.github/workflows/build-wasm-${name}.yml`,
     }])),
+    'artemis-compat': compatRecord(),
     'artemis-bridge': { target: 'asyncify', module: INPUT },
   };
   put('.github/upstream-pins.json', JSON.stringify(pins));
+  // The shipping Artemis build's contract files. A fixture that omitted them would pass the guard
+  // for the wrong reason: every one of these is a path the guard is supposed to require.
+  put(COMPAT_WORKFLOW, compatWorkflow());
+  put(BRIDGE_WORKFLOW, BRIDGE_YML);
+  put('.github/scripts/build-artemis-compat.sh', COMPAT_SCRIPT);
+  put('.github/scripts/build-artemis-bridge.sh');
+  put('ports/artemis/compat-web/build.sh');
+  put('ports/artemis/compat-web/make-source-bundle.mjs', COMPAT_BUNDLE);
   put(MAP, row('f1', 'util/first.cpp') + row('f2', 'script/second.cpp') + row('f3', '—'));
   put(PRODUCT);
   put('ports/artemis/src/script/second.cpp');
@@ -222,13 +319,169 @@ test('upstream commits and recipe paths must be valid', (t) => {
   assert.ok(errors.some((error) => error.includes('invalid ons pin')));
   assert.ok(errors.some((error) => error.includes('invalid krkr workflow')));
 });
-test('Artemis rejects sync shipping and requires its exact asyncify input', (t) => {
+test('Artemis requires the shipping compat record, its pin and its exact file set', (t) => {
+  const f = fixture(t);
+  delete f.pins['artemis-compat'];
+  f.put('.github/upstream-pins.json', JSON.stringify(f.pins));
+  assert.ok(f.check().errors.some((error) => error.includes('missing the artemis-compat record')));
+
+  f.pins['artemis-compat'] = compatRecord();
+  f.pins['artemis-compat'].commit = 'main';
+  f.put('.github/upstream-pins.json', JSON.stringify(f.pins));
+  assert.ok(f.check().errors.some((error) => error.includes('full 40-character lowercase commit')));
+
+  f.pins['artemis-compat'] = compatRecord();
+  f.pins['artemis-compat'].files = ['artemis-compat.js'];
+  f.put('.github/upstream-pins.json', JSON.stringify(f.pins));
+  assert.ok(f.check().errors.some((error) => error.includes('files must be exactly')));
+});
+test('Artemis refuses a shipping build that would auto-dispatch or build the checkout', (t) => {
+  const f = fixture(t);
+  f.pins['artemis-compat'] = { ...compatRecord(), dispatch: true, 'git-archive': false };
+  f.put('.github/upstream-pins.json', JSON.stringify(f.pins));
+  const errors = f.check().errors;
+  assert.ok(errors.some((error) => error.includes('must set dispatch: false')));
+  assert.ok(errors.some((error) => error.includes('must set git-archive: true')));
+});
+test('Artemis fails when the shipping workflow stops passing its build inputs', (t) => {
+  const f = fixture(t);
+  f.put(COMPAT_WORKFLOW, compatWorkflow({ 'build-script': undefined }));
+  assert.ok(f.check().errors.some((error) => error.includes('does not pass an input named build-script')));
+
+  f.put(COMPAT_WORKFLOW, compatWorkflow({ 'glue-import-map': 'ports/artemis/harness/glue/imports-map.json' }));
+  assert.ok(f.check().errors.some((error) => error.includes('glue-import-map must be left empty')));
+
+  f.put(COMPAT_WORKFLOW, compatWorkflow({ 'build-env': 'BRIDGE_FLAVOUR=asyncify' }));
+  assert.ok(f.check().errors.some((error) => error.includes('carries neither ARTC_PIN nor ARTC_REF')));
+
+  f.put(COMPAT_WORKFLOW, compatWorkflow({ publish: 'true' }));
+  assert.ok(f.check().errors.some((error) => error.includes('publish must be false')));
+});
+test('Artemis refuses a checkout commit that is not the pin the recipe archives', (t) => {
+  // The false-provenance shape, and the reason the dispatch override was removed: if the checkout
+  // can name a different commit than the ARTC_PIN the recipe archives, the run still succeeds and
+  // the artifact ships a source tarball, a manifest and a PIN file for a commit it was not built
+  // from. All three variants below have to fail rather than pass green.
+  const f = fixture(t);
+
+  // A different literal commit.
+  f.put(COMPAT_WORKFLOW, compatWorkflow({ 'upstream-commit': `'${'b'.repeat(40)}'` }));
+  assert.ok(f.check().errors.some((error) => error.includes('expected the reviewed pin')),
+    'a checkout commit other than the recorded pin must fail');
+
+  // The old dispatch-override expression: any expression can name a commit at run time that the
+  // reviewed file does not.
+  f.put(COMPAT_WORKFLOW, compatWorkflow({
+    'upstream-commit': `\${{ inputs.upstream_commit || '${COMPAT_PIN}' }}`,
+  }));
+  assert.ok(f.check().errors.some((error) => error.includes('expected the reviewed pin')),
+    'an expression that can override the pin must fail, not be accepted as reviewable');
+
+  // The pin present but unattached to the value the recipe archives.
+  f.put(COMPAT_WORKFLOW, compatWorkflow({ 'build-env': `ARTC_PIN=${'c'.repeat(40)}` }));
+  assert.ok(f.check().errors.some((error) => error.includes('build-env must carry ARTC_PIN')),
+    'ARTC_PIN has to be the same commit as the checkout, not merely an ARTC_ pin');
+
+  // And the corrected form passes, so the check above is not vacuous.
+  f.put(COMPAT_WORKFLOW, compatWorkflow());
+  assert.deepEqual(f.check().errors, []);
+});
+test('Artemis refuses a source offer that omits the build recipe or a licence', (t) => {
+  // A bundle without `build.sh` is not the preferred form for making modifications: upstream has
+  // no recipe, no `ports/` and no web CMake target, so the patches and overlays are only a build
+  // input through that script. A bundle reading `third_party/lua51/` (the CMake target name)
+  // instead of `third_party/lua-5.1.5/` (the vendored tree) ships no Lua notice at all.
+  const f = fixture(t);
+  const BUNDLE = 'ports/artemis/compat-web/make-source-bundle.mjs';
+
+  f.put(BUNDLE, "const EXTRA_ENTRIES = [['README.md', 'SOURCE-BUNDLE.md']];\n");
+  let errors = f.check().errors;
+  assert.ok(errors.some((error) => error.includes('does not carry the tracked build recipe')),
+    'a source offer without the recipe must fail');
+  assert.ok(errors.some((error) => error.includes('does not carry the upstream GPL text')));
+  assert.ok(errors.some((error) => error.includes('Lua 5.1 notice at its real upstream path')));
+
+  f.put(BUNDLE, "const ENTRIES = [['build.sh', 'build.sh'], ['LICENSE', 'LICENSE'], "
+    + "['third_party/lua51/COPYRIGHT', 'third_party/lua51/COPYRIGHT']];\n");
+  errors = f.check().errors;
+  assert.ok(errors.some((error) => error.includes('reads third_party/lua51/')),
+    'the wrong Lua path is the failure that ships no notice, so it is named explicitly');
+  // The presence check fires too, and that is correct rather than redundant: this stub has no
+  // `lua-5.1.5/COPYRIGHT` entry AND reads a path that does not exist, and both facts are true of
+  // the file. The point of the assertion above is that the *reason* is named, not that the other
+  // check stays silent.
+  assert.ok(errors.some((error) => error.includes('does not carry the Lua 5.1 notice')));
+});
+test('Artemis refuses a source offer that omits the audio overlay or the standalone recipe', (t) => {
+  // The audio backend is the part of the shipping build that exists nowhere upstream: the pinned
+  // tree's `src/audio/audio.cpp` is the non-Android stub, and the web target compiles
+  // `overlay/audio/audio_web.cpp` in its place. The bundle copies `src/` from the pin, which
+  // contains none of the overlay, so these three files reach the archive only through the
+  // generator's entry list -- and a list missing one still generates and still tars.
+  const f = fixture(t);
+  const BUNDLE = 'ports/artemis/compat-web/make-source-bundle.mjs';
+
+  // Drop each audio entry in turn from an otherwise-clean entry list. Each removal has to be
+  // caught by name: a single generic "source offer incomplete" would not tell a reader which
+  // build input went missing.
+  for (const file of ['overlay/audio/audio_web.cpp', 'overlay/audio/audio_web.h',
+    'overlay/audio/audio_validation.h']) {
+    f.put(BUNDLE, COMPAT_BUNDLE.replace(new RegExp(`^\\s*\\['${file.replace(/[./]/g, '\\$&')}'.*\\n`, 'm'), ''));
+    assert.ok(f.check().errors.some((error) => error.includes(`does not carry ${file}`)),
+      `a bundle without ${file} must fail: it cannot rebuild the module beside it`);
+  }
+
+  // The standalone recipe. `build.sh` is shipped for its build logic but cannot run in the
+  // archive (it sources `ports/env.sh` and refuses an out-of-tree root), so without this entry
+  // the offer documents a build it cannot perform.
+  f.put(BUNDLE, COMPAT_BUNDLE.replace(/^\s*\['RUN-BUILD\.sh'.*\n/m, ''));
+  assert.ok(f.check().errors.some((error) => error.includes('does not carry RUN-BUILD.sh')),
+    'a bundle with no runnable recipe must fail');
+
+  // And the untouched fixture is clean, so the removals above are what caused each failure.
+  f.put(BUNDLE, COMPAT_BUNDLE);
+  assert.deepEqual(f.check().errors, []);
+});
+test('Artemis fails when the build script stops naming the recipe or the source offer', (t) => {
+  const f = fixture(t);
+  f.put('.github/scripts/build-artemis-compat.sh', '#!/usr/bin/env bash\nset -eu\n: "${UPSTREAM_PATH:?}"\n');
+  const errors = f.check().errors;
+  assert.ok(errors.some((error) => error.includes('does not name the tracked recipe')));
+  assert.ok(errors.some((error) => error.includes('does not name the source-offer generator')));
+});
+test('a missing shipping workflow fails rather than being skipped', (t) => {
+  const f = fixture(t);
+  rmSync(resolve(f.root, COMPAT_WORKFLOW));
+  // Both modes, because each has its own way of not noticing: worktree mode reads the disk, index
+  // mode reads the index, and a file can be gone from one and still present in the other.
+  f.git('rm', '--cached', '--quiet', COMPAT_WORKFLOW);
+  for (const staged of [false, true]) {
+    const errors = f.check({ staged }).errors;
+    assert.ok(
+      errors.some((error) => error.startsWith(`${COMPAT_WORKFLOW}: missing`)),
+      `${staged ? 'index' : 'worktree'} mode must name the missing shipping workflow`,
+    );
+    // The pin record still names that file as the shipping workflow, so both facts are reported.
+    assert.ok(errors.some((error) => error.includes('artemis-compat workflow')));
+  }
+});
+test('the legacy SDK bridge may not regain an automatic trigger', (t) => {
+  const f = fixture(t);
+  f.put(BRIDGE_WORKFLOW, BRIDGE_YML.replace('  workflow_dispatch:', '  push:\n    branches: [main]\n  workflow_dispatch:'));
+  assert.ok(f.check().errors.some((error) => error.includes('must not contain push')));
+
+  f.put(BRIDGE_WORKFLOW, `name: legacy\non:\n  pull_request:\n    paths: ['ports/artemis/src/**']\n`);
+  const errors = f.check().errors;
+  assert.ok(errors.some((error) => error.includes('must not contain pull_request')));
+  assert.ok(errors.some((error) => error.includes('must stay dispatchable by hand')));
+});
+test('the legacy bridge record may not change its frozen diagnostic input', (t) => {
   const f = fixture(t);
   f.pins['artemis-bridge'] = { target: 'sync', module: INPUT.replace('/asyncify', '') };
   f.put('.github/upstream-pins.json', JSON.stringify(f.pins));
   const errors = f.check().errors;
-  assert.ok(errors.some((error) => error.includes('shipping target must be asyncify')));
-  assert.ok(errors.some((error) => error.includes('unexpected Artemis asyncify input')));
+  assert.ok(errors.some((error) => error.includes('legacy artemis-bridge target changed')));
+  assert.ok(errors.some((error) => error.includes('legacy artemis-bridge module changed')));
 });
 test('a header-only ledger cannot masquerade as shipped C++ products', (t) => {
   const f = fixture(t);

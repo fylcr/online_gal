@@ -25,18 +25,33 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const SUITE = resolve(ROOT, 'test');
 
-const files = existsSync(SUITE)
-  ? readdirSync(SUITE).filter((name) => name.endsWith('.test.mjs')).sort()
-  : [];
+/**
+ * Where the portable tests live.
+ *
+ * `test/` is the suite; `ports/artemis/compat-web/tests/` holds the one test that belongs to the
+ * port it tests, because it compiles that port's overlay sources. It is portable in the same
+ * sense as the rest -- no `.ref/`, no build, no network -- so it runs here, with the same
+ * discovery and the same empty-suite failure. Listing the directory rather than the file keeps
+ * the rule the header states: a test dropped in is picked up without editing this runner.
+ */
+const SUITES = ['test', 'ports/artemis/compat-web/tests'];
+
+const files = [];
+for (const suite of SUITES) {
+  const dir = resolve(ROOT, suite);
+  if (!existsSync(dir)) continue;
+  for (const name of readdirSync(dir).filter((entry) => entry.endsWith('.test.mjs')).sort()) {
+    files.push(resolve(dir, name));
+  }
+}
 
 if (files.length === 0) {
   console.error(
-    `No portable tests found in \`test/\`: there is no \`*.test.mjs\` to run. This is not a\n` +
-      'pass — nothing was executed. The portable suite is what a fresh clone can run, so an\n' +
-      'empty one means the checkout is incomplete or the tests were moved, not that the code\n' +
-      'is green.',
+    `No portable tests found in ${SUITES.map((suite) => `\`${suite}/\``).join(' or ')}: there is no\n` +
+      '`*.test.mjs` to run. This is not a pass — nothing was executed. The portable suite is what\n' +
+      'a fresh clone can run, so an empty one means the checkout is incomplete or the tests were\n' +
+      'moved, not that the code is green.',
   );
   process.exit(1);
 }
@@ -45,7 +60,7 @@ if (files.length === 0) {
 // `node --test` run over real files, not a re-implementation of it.
 const run = spawnSync(
   process.execPath,
-  ['--test', ...files.map((name) => resolve(SUITE, name))],
+  ['--test', ...files],
   { cwd: ROOT, stdio: 'inherit' },
 );
 

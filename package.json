@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build:packages": "tsc -b tsconfig.packages.json && node packages/runtime-ons/scripts/copy-runtime-assets.mjs",
+    "build:packages": "tsc -b tsconfig.packages.json && node packages/runtime-ons/scripts/copy-runtime-assets.mjs && node packages/runtime-artemis/scripts/copy-compat-worker.mjs",
     "build": "npm run build:packages && pnpm --filter @online-gal/app build",
     "dev": "npm run build:packages && pnpm --filter @online-gal/app dev",
     "preview": "pnpm --filter @online-gal/app preview",

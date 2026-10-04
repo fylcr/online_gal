@@ -11,7 +11,7 @@
 | --- | --- | --- |
 | ONScripter | [`ONS 导航`](ports/ons/README.md) | 固定上游源码 + 事件 shim / worker 宿主；CI private 包包含引擎资产；需要跨源隔离 |
 | KiriKiri | [`KiriKiri 导航`](ports/krkr/README.md) | 固定上游源码 + VLFS 补丁 / overlays；页面资产与 runtime-kag tarball 分开交付，须部署并配置 `pageUrl` |
-| Artemis | [`Artemis 导航`](ports/artemis/README.md) | 目标仅 asyncify 手写 C++ + 独立现代宿主；仍依赖 SDK 转译输入和生成剩余体，public provider 尚不能启动游戏 |
+| Artemis | [`Artemis 导航`](ports/artemis/README.md) | 默认出货路线是 **compat 上游源码编译成 WASM**（provider 默认走它）；页面需跨源隔离与实际引擎配置，旧 SDK 桥只留显式 legacy 诊断；**全真游戏验收尚未过** |
 
 包保持 private / GPL-3.0-or-later，不发布 npm。**目录完整、构建成功、合成测试通过、真实游戏可用和再分发授权是不同结论。**
 本次仅整理导航和上传边界，保留现有源码、Git 索引及本地资料，不重新构建、不运行游戏、不提交或推送。
@@ -38,13 +38,19 @@
 | RPG Maker MV / MZ | `js/rpg_core.js`、`js/rmmz_core.js`、`www/` 布局 | 内置 Web 运行时 | ✅ 可运行 |
 | 通用 HTML5 / NW.js | `index.html`、`app.asar` | 内置 Web 运行时 | ✅ 可运行 |
 | SiglusEngine | `Scene.pck`、`Gameexe.ini`/`Gameexe.dat`（含 `Data/` 布局） | 已接入识别与配置读取；执行需 `siglus_rs` 的 WebAssembly 构建 | ⚠️ 仅识别 |
-| ArtemisEngine | `root.pfs`、`system.ini`、`boot.ini`、`system/first.iet`、`root.pfs.NNN` 补丁包 | PFS 目录读取、asyncify 手写 C++ 产品与现代宿主组件 | ⚠️ 平台不可运行；provider `load()` 拒绝启动，手写冷启动与现代宿主验收未完成 |
+| ArtemisEngine | `root.pfs`、`system.ini`、`boot.ini`、`system/first.iet`、`root.pfs.NNN` 补丁包 | 识别 / PFS 读取 / SHA-1 / provider + **compat 源码 WASM 引擎**（classic worker，主线程 tick） | ⚠️ compat 引擎**已编译**并有合成测试；**全真游戏验收尚未过**，不标「可玩」 |
 | Ren'Py | `.rpa`、`game/script.rpy`、`renpy/` | — | 仅识别（无探针） |
 
 「仅识别」的引擎会被记录在游戏条目上，导入后**明确提示不可运行**，而不是给出一个点了没反应的启动按钮。
-当前 Artemis provider 在对象创建时根据空的 host 列表求值为 `unavailable`，并不是随注册变化的实时 getter。
-更重要的是 [`ArtemisRuntime.load()`](packages/runtime-artemis/src/runtime.ts) 仍无条件抛出
-`UnsupportedEngineError`，**仅注册宿主不能让它启动游戏**。Siglus 同样尚无可用的平台执行路径。
+Artemis 的 `availability` 是**实时 getter**：未通过 `configureArtemisCompat()` 指定 compat 引擎时求值为
+`unavailable`，已配置且页面满足能力前提时才是 `runnable`；它**不再**根据 host 列表静态求值。
+[`ArtemisRuntime.load()`](packages/runtime-artemis/src/runtime.ts) 的旧无条件 `UnsupportedEngineError`
+已撤下：`load()` 默认返回 **compat 源码 WASM 会话**，旧的 asyncify SDK 桥只有在游戏显式按名字要求
+（`gameConfig.wasm` / `wasmUrl`）时才被选中，且那是**诊断路径而非默认回退**。
+「默认可运行」仍有**实际前提**：页面必须 `crossOriginIsolated === true`（含 `SharedArrayBuffer`、
+`OffscreenCanvas`）并通过 `configureArtemisCompat()` 给出实际引擎配置；缺任一项仍诚实地报
+`unavailable`。**前提满足不等于游戏已验证** —— 全真游戏验收尚未过，不得读成已可玩。Siglus 尚无
+可用的平台执行路径。
 
 > 官方 Artemis wasm / minified glue 的历史游戏测试与 generated-body 诊断，不证明手写引擎、
 > 独立现代宿主或 public package 已通过真实游戏验收，也不是另一条出货路线。
@@ -116,7 +122,8 @@ npm run test:sources
 
 常规引擎构建输出不进源码仓库；已有 ONS 资产与 Artemis SDK 输入是明确保留的例外。
 CI **按引擎分别构建**，artifact 与可选 release 发布分开处理；不要求下游自己编译 wasm。
-KiriKiri 页面资产需单独部署，Artemis public runtime 仍未可用。
+KiriKiri 页面资产需单独部署；Artemis 的 compat 引擎**已编译**并走 provider 默认路径，但页面需跨源
+隔离与引擎配置，且**全真游戏验收尚未过**。
 取用与历史校验见 [`制品下载指南`](docs/fetch-engine-artifacts.md)：
 
 ```bash
@@ -624,17 +631,38 @@ wasm 构建、WebGPU 离屏读回、`Scene.pck` 解包、`Gameexe.dat` 解码器
 
 ### ArtemisEngine（`packages/runtime-artemis`）
 
-public package 当前能识别游戏、读取 PFS 和声明 provider；现代宿主组件存在，
-但**平台执行路径尚不可用**。详见 [`Artemis 源码导航`](ports/artemis/README.md)。
+public package 当前能识别游戏、读取 PFS，并且 **provider 默认返回 compat 源码 WASM 会话**；
+compat 引擎已编译、已有合成测试，但**全真游戏验收尚未过**。详见 [`Artemis 源码导航`](ports/artemis/README.md)。
 
-- [`runtime.ts`](packages/runtime-artemis/src/runtime.ts) 的 `availability` 在 provider 对象创建时
-  按 host 列表求值，并非实时 getter；`load()` 仍无条件抛出 `UnsupportedEngineError`。
-  **调用 `registerArtemisEngineHost()` 不能补齐执行路径。**
-- [`src/index.ts`](packages/runtime-artemis/src/index.ts) 只导出 SHA-1 / PFS / probe / provider，
-  未提供完整现代宿主 session；导入表、GL 或 Asyncify 组件测试不等于游戏验收。
-- 引擎目标只有 **asyncify 手写 C++ + 独立现代宿主**。工作树台账对应 **340 个映射函数 /
-  340 个 C++ 产品文件**，其中四个新产品尚未进入索引；拼接构建仍使用官方 wasm 转译输入和
-  未替换的生成体。`artemis-compat` 是命名/结构参考，不是本次 CI 编译的完整上游引擎。
+- **默认出货路线是 compat 源码编译，不是 SDK 桥**：`.github/workflows/build-wasm-artemis-compat.yml`
+  → `.github/scripts/build-artemis-compat.sh` → `ports/artemis/compat-web/build.sh`，
+  编译上游 [`artemis-compat`](https://github.com/Weiss-UltimateSavior/artemis-compat)（GPL-3.0）
+  pin `9f622629f595db85e6f76c45c06edde29d7d9961`，产出 `artemis-compat.{js,wasm}` 与随制品走的
+  **对应完整源码** `artemis-compat-source.tar.gz`（上游 `git archive` + 本仓库
+  `compat-web/patches/`、`compat-web/overlay/`、build 配方、`LICENSE`、
+  `third_party/lua-5.1.5/COPYRIGHT`），`publish: false`。上游 pin 只带 `src/host/mac_main.mm`
+  与 native CMake target ⇒ **Web host / Web CMake / `ReadAt` / numeric 全是本地 port**。
+- **页面侧前提是跨源隔离 + 资产配置**：compat worker 用 **SharedArrayBuffer 镜像**做同步读，
+  `crossOriginIsolated !== true` 或缺 `SharedArrayBuffer` 时不满足能力检查，会被
+  `compat/runtime.ts` 列进 missingCapabilities 而不是假装能跑。开发服务器已配置
+  `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: credentialless`
+  （`apps/app/astro.config.mjs`），**部署必须自行核对响应头**。引擎资产由
+  `apps/app/scripts/artemis-assets.mjs` 守门（dev/preview 中间件 + `astro:build:done` 拷贝）；
+  **静态资产配置与真实游戏验收都尚未过门**，不得当成已验收。
+- **旧 SDK 桥只保留显式诊断**：`build-wasm-artemis-bridge.sh` /
+  `build-wasm-artemis-bridge.yml` 已移除 push/pull_request 自动触发，只能手动 dispatch；
+  官方 glue 与 generated-body masks 是**诊断路线**，不作为出货宿主，也不证明 compat 可玩
+  （checkpoint 语义与音频仍未验证）。
+
+- [`runtime.ts`](packages/runtime-artemis/src/runtime.ts) 的 `availability` 是**实时 getter**：
+  未配置 compat 引擎时 `unavailable`，已配置且页面满足 `crossOriginIsolated` / `SharedArrayBuffer` /
+  `OffscreenCanvas` 时 `runnable`。`load()` **不再无条件抛错**，默认走 `CompatArtemisRuntime`。
+- [`src/index.ts`](packages/runtime-artemis/src/index.ts) 在 SHA-1 / PFS / probe / provider 之外，
+  还导出 `configureArtemisCompat()`、`CompatArtemisRuntime`、`CompatReadHost` / `CompatWorkerHost`；
+  导入表、GL 或 Asyncify 组件测试不等于游戏验收，**当前亦无全真游戏证据**。
+- 出货引擎是 **compat 上游源码编译**（GPL-3.0，pin `9f622629…`）。`ports/artemis/src/` 的
+  **340 个映射函数 / 340 个 C++ 产品文件**属于**历史路线**台账，其中四个新产品尚未进入索引；
+  `artemis-compat` 是真实编译输入，不是「命名/结构参考」——旧的错误表述已撤回。
 - 官方 wasm / minified glue 部署与 generated-body masks 是**诊断路线**，不作为出货宿主，
   不证明当前手写冷启动、public runtime 或 GitHub 包已可用。当前手写冷启动失败，完整风格与
   whitespace gate 也未通过；不能沿用旧的「引擎语义完整 / 已可运行 / style PASS」结论。
@@ -819,7 +847,7 @@ Linux CI 与本地配方并非完全相同：KiriKiri 本地入口和部分 Arte
 | [Kirikiroid2](https://github.com/zeas2/Kirikiroid2) | BSD 风格 | TJS2 格式表参考；保留适用版权与许可声明 |
 | [Tyranor-Next](https://github.com/Weiss-UltimateSavior/Tyranor-Next) | GPL-2.0-or-later | 当前借用引擎特征事实与分层设计，未复制实现 |
 | [siglus_rs](https://github.com/xmoezzz/siglus_rs) | MPL-2.0，尚未引入 | 如后续移植，核对二次许可适用条件并保留 MPL 声明 |
-| [artemis-compat](https://github.com/Weiss-UltimateSavior/artemis-compat) | GPL-3.0 | 命名与结构参考；不是当前桥接 CI 编译的完整源码，也不能授权官方 SDK |
+| [artemis-compat](https://github.com/Weiss-UltimateSavior/artemis-compat) | GPL-3.0 | **出货路线编译的源码**（pin `9f62262…`），对应完整源码随制品提供；上游 GPL 原文不等于官方 SDK 的授权 |
 | [kirikiroid2-web](https://github.com/fenghengzhi/kirikiroid2-web) | 实际 LICENSE 为 Kirikiri BSD 风格及各依赖声明，不能只看 README 的 MIT 标识 | 上游构建及 VLFS 补丁；源码与二进制声明义务均需保留 |
 | 官方 Artemis SDK | 作者保留全部权利；本仓库未记录经核实的本体再分发授权 | 保留参考输入不等于许可；SDK、剩余转译体和重表达产品须单独审查 |
 
@@ -831,7 +859,8 @@ Linux CI 与本地配方并非完全相同：KiriKiri 本地入口和部分 Arte
 
 workspace 包与应用保持 `private: true`、GPL-3.0-or-later，不发布 npm。GitHub artifact / 可选
 release tarball 的获取方式见 [`制品下载指南`](docs/fetch-engine-artifacts.md)。
-ONS 包带引擎资产；KiriKiri 页面资产单独部署；Artemis 包有 bridge 字节但 public runtime 未可用。
+ONS 包带引擎资产；KiriKiri 页面资产单独部署；Artemis 出货路线是 compat 源码 WASM 构建，
+其对应完整源码随制品发布（`artemis-compat-source.tar.gz`），**全真游戏验收尚未过**。
 
 分发基于本项目的 GPL 组合或修改版本，应按适用 GPL 条款保留许可、提供对应源码并履行其他义务；
 是否构成组合程序需看实际集成方式，不能概括为「任何链接一律同许可」。
@@ -839,11 +868,12 @@ ONS 包带引擎资产；KiriKiri 页面资产单独部署；Artemis 包有 brid
 
 ### Artemis 当前仍保留什么
 
-当前 asyncify 桥接依赖 SDK wasm 的转译输入，由 **340 个映射函数 / 340 个工作树产品文件**
-替换部分函数体，其余生成体仍在。台账覆盖与函数数不是完整语义、风格或游戏行为验收。
+当前**出货路线**是 **compat 上游源码编译**（pin `9f622629…`，GPL-3.0），不是 asyncify SDK 桥。
+`ports/artemis/src/` 的 **340 个映射函数 / 340 个工作树产品文件**属于**历史路线**台账；
+台账覆盖与函数数不是完整语义、风格或游戏行为验收，也不是出货构建的要求。
 旧的 157 / 159 产品及「100% tag 语义完成」数字不再代表当前状态。
 
-继续收敛需要分别完成：手写引擎冷启动修复与完整游戏验收、独立现代宿主 public session 接入、
-第三方真实源码替换 / 再分发授权审查，以及下载 GitHub 构建字节后的真实游戏复验。
-本次只完成源码组织；具体历史记录见 [`Artemis 导航`](ports/artemis/README.md)
+继续收敛需要完成**全真游戏验收**（丢弃一次热身 + 两次一致）、页面侧跨源隔离与资产配置核对，
+以及历史路线 SDK 转译体 / 行为重表达产品的再分发授权审查。
+本次只整理陈旧表述、不改写源码与许可；具体历史记录见 [`Artemis 导航`](ports/artemis/README.md)
 与 [`移植交接记录`](docs/artemis-wasm-transcription-handoff.md)。

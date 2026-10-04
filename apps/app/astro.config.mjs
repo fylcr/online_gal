@@ -5,6 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import svelte from '@astrojs/svelte';
 
+import {
+  artemisAssetPlugin,
+  artemisAssetsIntegration,
+  inspectArtemisAssets,
+} from './scripts/artemis-assets.mjs';
+
 /**
  * The launcher is a fully client-side application: every engine runs in the
  * browser and the library lives in IndexedDB. Astro's static output is
@@ -66,6 +72,8 @@ const CONTENT_TYPES = {
  * from escaping the mount, since the path arrives from the request.
  */
 function serveBuildFile(request, response, next) {
+  // Vite's post-hook walks the stack with no request during middlewareMode startup.
+  if (!request || typeof request.url !== 'string') return typeof next === 'function' ? next() : undefined;
   const url = request.url ?? '';
   if (!url.startsWith(KIRIKIRI_MOUNT)) {
     next();
@@ -119,15 +127,34 @@ function kirikiriBuild() {
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* The Artemis compat WebAssembly build                                */
+/* ------------------------------------------------------------------ */
+//
+// `artemis-assets.mjs` is the single gate over `dist/artemis-compat/`. Its snapshot is taken once,
+// here, and the *same* object feeds the compile-time flag, the dev middleware and the production
+// copy below — three readers of one fact, so a build cannot advertise an engine it did not ship, or
+// ship bytes it withdrew. A withdrawn engine is a log line, not a failed build: the other engines
+// are unaffected, and a stub would turn "not built here" into a hang in the browser.
+const ARTEMIS = inspectArtemisAssets();
+if (!ARTEMIS.available) {
+  console.warn(`[artemis] withdrawn, the rest of the app builds unchanged: ${ARTEMIS.reason}`);
+} else {
+  // ponytail: one warn line. This gate matches a manifest to the bytes beside it; it is not a release.
+  console.warn('[artemis] candidate static gate, not a released body');
+}
+
 export default defineConfig({
   output: 'static',
-  integrations: [svelte()],
+  integrations: [svelte(), artemisAssetsIntegration(ARTEMIS)],
   server: {
     host: '127.0.0.1',
     port: 4321,
     headers: ISOLATION_HEADERS,
   },
   vite: {
+    // A compile-time boolean: the page either publishes a working engine URL or never mentions one.
+    define: { __ARTEMIS_ASSETS_AVAILABLE__: JSON.stringify(ARTEMIS.available) },
     build: {
       target: 'es2022',
       sourcemap: true,
@@ -135,6 +162,6 @@ export default defineConfig({
     worker: {
       format: 'es',
     },
-    plugins: [kirikiriBuild()],
+    plugins: [kirikiriBuild(), artemisAssetPlugin(ARTEMIS)],
   },
 });
