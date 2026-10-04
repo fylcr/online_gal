@@ -1,6 +1,6 @@
 # 当前工作检查点 — 新对话先读
 
-> 更新：2026-10-04 14:33 +08:00。Artemis 仍不可用；已修一个真实的源码相位门缺陷，但下载 CI 产物真游戏仍失败。首次 `c()` 的前置原生栈已捕获，正在映射到准确源码。不要把“CI 绿”读成可玩。
+> 更新：2026-10-04 14:53 +08:00。Artemis 仍不可用；已修一个真实源码相位门缺陷，但下载 CI 产物真游戏仍失败。首次 `c()` 已定位到 BuiltinDispatch 的真实调用指令，具体 C++ 行/前置控制流尚未收口。所有代理与自有浏览器/后台资源已结束。不要把“CI 绿”读成可玩。
 
 ## 1. 用户要求与恢复纪律
 
@@ -18,7 +18,7 @@
 - 唯一生产逻辑改动：`ports/artemis/src/script/lua_tags_builtin.cpp:20654`，603 后的 latch 门由 `!= kResumeRunning` 改为 `== kResumeRunning`。正式官方参考 `w2c_artemis_f3633` 的 `artemis.wasm2c.c:1748101-1748119` 在 g3==0 的 else 臂才读/清 852316 并取反 p2。非运行态 p2 自赋无额外行为，因此不造三元/新框架。
 - 新 portable 回归：`test/artemis-builtin-resume-gate.test.mjs`，128 行 / 4 tests，读实际源码，唯一定位 602/603/604、精确绑定 latch 小块，对 phase×p2×latch 18 组及内存字符串 != 变异验证。仅 source/synthetic，不是游戏验收。
 - runtime-artemis **0.1.8**、engines **0.1.9**。没有修改其他生产逻辑、冻结鼠标映射或历史 release hash，没有提交游戏、参考输入或新 SDK 文件。
-- 最后现场工作树仅本检查点滚动修改；生产源码已冻结在77a7645。收尾会单独提交检查点，后续文档提交不改变引擎产物的来源 SHA。
+- 工作恢复记录提交 **724228c** 已push，现场曾确认工作树干净；后续42/42解析回执继续滚动更新本检查点。生产源码冻结在77a7645，文档提交不改变引擎产物来源SHA。
 
 ## 3. 实测结论与当前卡点
 
@@ -28,13 +28,14 @@
 2. 新77a7645桥，未做观察变换的下载宿主，pristine game-chs：load **865ms** 成功；settle 后 **2696ms** 发生 `ArtemisEhFailure: cxa_begin_catch: the catch record at 0 carries no base pointer`。画面 nonBlack=0、GL clear=1/draw=0、audio context=0；58 GET / 62 HEAD / 760225 B。
 3. 新桥 unmodified cold01 capture：`.test/artemis-resume-newbridge-cold01-final-capture.json`，547269 B，run `dff5663129b25`，dropped_console=0。Probe 大单行截断，必须用同 at 的 **7/7 HARNESS-PROBE-CHUNK** 重组，不能用2048字符单行。证据脚本/结果为 `.test/artemis-resume-newbridge-cold01-evidence.{mjs,json}`（Flash解析，主代理已实读）。脚本手填的身份字段不替代现场 hash/CI 回执；请求采集器 HEAD 状态也不能直接推断网络错误根因。
 4. 观察型 stackonly 冷跑：新桥 + 同下载宿主 + pristine game-chs，捕获**首次异常查找前**的原生栈：`c()` / seq1302，last=0、uncaught=0、caught=[]、temp=4；boot import 相位为0。原生栈：**5962:0x15d9559 ← BuiltinDispatch func873:0x3a4f35 ←3761/4145/3783/3782/258…**。随后 c返回0、temp=0、i(0)重抛，最终r(0)失败。
-5. stackonly capture：`.test/artemis-resume-stackonly-cold01-final-capture.json`，604124 B，run `df0d9f41a9d17`，console dropped18。关键 **42个 EH-OBS-CHUNK 必须完整核验**；目前工具已直接看到20–25块含首次c栈，Flash正在完整重组与源码映射。console丢弃不等于EH事件未执行。
+5. stackonly capture：`.test/artemis-resume-stackonly-cold01-final-capture.json`，604124 B，run `df0d9f41a9d17`，console dropped18。主代理已用原接受的 `.test/artemis-d2b1ad0-eh-observation-read.mjs` **独立assert 42/42 EH chunks完整、JSON解析成功**，seq1348、ringDropped1092、EH entries8；日志 `.test/artemis-resume-stackonly-cold01-lead-read.log`。Flash映射任务已结束，主代理还直接读取精确新bridge的0x3a4f35处6字节 **10 ca ae 80 80 00**，LEB目标5962，与动态栈一致。具体C++行映射未完成，详见下方审核边界。console丢弃不等于EH事件未执行。
 6. 两次新桥运行（unmodified与观察变换）都失败；它们是诊断/首跑，不是完成“丢弃热身+两次一致”的健康验收。没有证据支持把异常归因于某个宿主模块、404、内存 arena 或完整某个函数。
 
 ### 未解决
 
 - 精确定位首次c对应哪个源码 merge/guard、为何没有真实throw却进入该分支，以及最早的控制流分歧。
-- 最新一次性 Flash **714f1291-234a-4d16-b71b-453452f47a69** 正在完成 firstc 映射；只允许写 `.test/artemis-resume-firstc-map.{mjs,json,md}`。不能写生产、构建桥或开浏览器。新对话不能假定可继续向旧id发消息；先检查文件/任务状态，避免重复写。
+- Flash **714f1291-234a-4d16-b71b-453452f47a69** firstc 映射任务已结束；交付 `.test/artemis-resume-firstc-map.{mjs,json,md}`。主代理重跑脚本与精确新bridge字节核验接受：42/42 chunks、原生873符号、0x3a4f35 call5962、thin5962→import102=a.c。**不接受**报告的“首定义raw208/objdump1-based”（函数索引实际0-based，首defined207），也不接受从寄存器get/set和br序列推断“必在Asyncify恢复而非普通merge”的说法；这些未测。报告尚未反查具体源码行，不能作为已定位根因。
+- 原源码 `lua_tags_builtin.cpp:20518-20527` 的 p04_B3561 / HostRet0 是附近可核对线索，但**尚未建立它与实测call offset的一一映射**；下一轮须source-site窄观测或可靠debug mapping，不能凭外观定罪。
 - 当前只读 FinishTableIndex/f643 本体差分未发现直接差异；调用方未覆盖，不是“已排除”。
 - 官方 WASM 同宿主健康对照50秒是**历史记录**，本轮未重跑；需要针对已定位分歧再串行对照。
 
@@ -77,12 +78,12 @@
 - 所有本轮browser_* sessions **xwoy/vzop/oiuv/freg 已明确stop成功**；browser_session list最后为无活动session。
 - 三个诊断服务器 jobs **pwsh-618 / pwsh-652 / pwsh-699 已kill并收集**。50065端口清理后无HTTP响应（curl exit28，不能由此猜进程/防火墙根因）。
 - 自有BSK foreground daemon job **pwsh-254** 通过`bsk daemon stop`停止，已收集exit1；独立 `BSK_AUTO_START=0 bsk status --json`报告daemon不运行。这是已请求停止后的回执，不是引擎测试失败。下次按工具建议持久job foreground启动，用同用户/BSK_HOME，不尝试Job Object detached启动；页面仅browser_*。
-- 基线、commit/push、CIwatch、下载jobs都已收集，无仍相关后台job。仅firstc-map Flash细任务待收口，不能与新写任务重复。
+- 基线、commit/push、CIwatch、下载jobs都已收集，无仍相关后台job；所有本轮Flash一次性任务均已结束（包括失败退出的观测器任务），无尚在写入的子代理。恢复文档提交724228c已push；本段更新会再显式提交，仍不重编引擎。
 
 下一步顺序：
 
 1. `pwd; git status --short; git log -3 --oneline`核验现场，读本文件。
-2. 读/重跑firstc-map解析，assert **42/42 EH chunks**，核对firstSearch/preCallStack原始记录、新桥具体call偏移和源码位置；主代理独立审核，不接受假fNNN映射。
+2. 原接受reader已独立assert **42/42 EH chunks**，firstc-map和新桥call字节也已核验；先读其可信边界，再把BuiltinDispatch **0x3a4f35 call5962**映射到具体源码行（这是尚未完成的第一件事）。不要重复发明WASM解码框架，不接受假fNNN/1-based/恢复路径推论。
 3. 从该源码站点读前置门/merge及正式官方f3633对应段，必要时在查找前的guest站点加窄观测；同宿主官方对照和重复冷跑验证，测到分歧才定根因。
 4. 细活仍Flash窄范围写，主代理审查、合成回归/质量门、显式pathspec提交push、下载同提交产物再真游戏验证。禁止绕过r0。
 5. 游戏能越过此点后再审GL/audio/browser-services与真实菜单存取；当前组件已绿的不盲目重修，仍不能把它们当可玩证据。

@@ -40,4 +40,4 @@ npm run test:portable
 - 最新引擎修复提交 `77a7645`（`main`，已push）：BuiltinDispatch 的603后latch相位门仅一行修正；同提交bridge/packages CI成功、下载产物实测仍失败。当前工作树与任务以 `docs/current-work.md` 现场检查点为准。
 - **ONScripter**、**KiriKiri / KAG3**：完成并接入平台，有真实游戏证据。
 - **Artemis：唯一主线，尚不可用** —— 77a7645下载bridge在独立宿主下load865ms后约2.7秒仍r(0)失败。最小stackonly观测已捕获第一次c前原生栈：bridge func5962←BuiltinDispatch func873:0x3a4f35，last/uncaught为0；正在映射准确源码，**根因未知**。官方WASM同宿主50秒健康对照属历史记录，本轮未复跑。
-- 下一步第一件事：完整重组stackonly42个EH chunks，映射首次c源码并测控制流分歧；证据路径、接受/拒绝的探针与清理状态见 `docs/current-work.md`。其余历史遗留见 `docs/session-5697f1a7-handoff.md` §7。
+- 下一步第一件事：42/42 EH chunks与精确新bridge字节已核验，继续把BuiltinDispatch `0x3a4f35 call5962` 映射到具体C++源码行并测控制流分歧；不接受仅凭寄存器重装推断“恢复路径”。证据、拒绝的探针与已完成清理见 `docs/current-work.md`；其余遗留见历史交接§7。
