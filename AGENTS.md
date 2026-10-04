@@ -32,12 +32,12 @@ npm run test:portable
 - **证据纪律**：目录完整、构建成功、合成测试通过、真实游戏可用、再分发授权是**五个不同结论**。真实游戏测试是唯一 oracle，且**单次运行不算判据**（丢弃一次热身 + 两次一致）。不得把官方胶水诊断、组件单测全绿、全生成掩码桥健康当作引擎可用。
 - **许可**：自有代码 GPL-3.0-or-later；官方 Artemis SDK 及其转译体**专有、有独立再分发风险**，改名或附 GPL 都不算解决，不要提交进仓库。
 - **浏览器/游戏实测**：同一时刻只跑一个引擎实例；收尾关掉自己开的窗口、标签页、诊断服务器与后台 job（窗口堆多了会把机器卡死）。
-- **子代理**：具体代码与细节由 `magpie/group/auto-deepseek-v4-1-flash` 承担；低并发、明确写入范围，主代理统领、独立审核与最终验收。每阶段更新 `docs/current-work.md`，让新对话立即接手。
+- **子代理与主代理分工（用户明确定调）**：**主代理不承担任何具体工作** —— 编码、文档、构建、浏览器实测、测试、清理**全部由子代理执行**；主代理只负责任务**拆分顺序 / 证据审核 / 最后验收**。以前安排给 lead 亲跑的 next steps **必须改分配执行，不得倒退**。具体代码与细节由 `magpie/group/auto-deepseek-v4-1-flash` 承担；低并发、明确写入范围。每阶段更新 `docs/current-work.md`，让新对话立即接手。
 - **不要动被用户冻结的东西**：例如 m03520 冻结的鼠标映射缺陷；`docs/fetch-engine-artifacts.md` 里的历史 hash 不得改写。
 
 ## 当前状态（2026-10-04）
 
-- 最新引擎修复提交 `77a7645`（`main`，已push）：BuiltinDispatch 的603后latch相位门仅一行修正；同提交bridge/packages CI成功、下载产物实测仍失败。当前工作树与任务以 `docs/current-work.md` 现场检查点为准。
+- 最新引擎修复提交 `bf014fa`（`main`，已push）：BuiltinDispatch作用域+616双门修复，保留77a7645的603相位修正；本地portable346/346、TS/Astro/layout/source通过，同SHAbridge/packages CI均success。制品下载和真实复验以 `docs/current-work.md` 为准。
 - **ONScripter**、**KiriKiri / KAG3**：完成并接入平台，有真实游戏证据。
-- **Artemis：唯一主线，尚不可用** —— 77a7645下载bridge仍r(0)。已有source-site复用测firstc22515/r602；四行COPY作用域修正后37/37chunk测firstc21115/r616，再单条件修正后37/37chunk测21127/r616/tag10，两个正常路径被错误接进EH。生产仍冻结；当前只诊断COPY，不能把修复移位读作可玩。
-- 下一步第一件事：收集/核验616双门COPY候选实跑（当前stage见 `docs/current-work.md`）；保留真正抛错、把tag不匹配接回正常清理，不吞r(0)。本轮官方samehost84秒无此异常但gridnonBlack0，不算渲染/游戏验收。测量、代理拒绝结论、jobs/清理/待办只以滚动检查点为准；其余遗留见历史交接§7。
+- **Artemis：唯一主线，尚不可用** —— firstc逐层实测22515/r602→21115/r616→21127/r616/tag10。最小source修复与reviewedCOPY逐字节一致，discard热身后两冷跑EH0，资源/IDB继续后遇到generated raw allocator的OOB；旧正常路径修复不等于可玩。
+- 下一步第一件事：收集并核验bf014fa同SHA CI下载制品并重复量测（当前stage见 `docs/current-work.md`），然后记录allocator越界地址；不吞r(0)、不放宽内存检查。本轮官方samehost84秒无此异常但gridnonBlack0，不算渲染/游戏验收。测量、代理拒绝结论、jobs/清理/待办只以滚动检查点为准；其余遗留见历史交接§7。
