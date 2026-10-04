@@ -2,6 +2,13 @@
 
 > 2026-10-04 19:05 +08:00。**主代理不承担任何具体工作**（用户明确定调）：编码/文档/构建/浏览器/测试/清理**全部子代理**，主代理只做**任务拆分顺序 / 证据审核 / 最后验收**；以前安排 lead 亲跑的 next steps **必须改分配执行，不得倒退**（已记入 AGENTS.md 硬约定）。**子代理默认 Flash，Flash 不能胜任的复杂工作交 Grok 4.7，其他模型按需；交接已测证据/失败原因/待办，不对同路由反复无效重试**（用户明确定调，已记入 AGENTS.md + 本文件§1）。旧EH入口22515/r602→21115/r616→21127/r616/tag10逐层实测修复；discard热身后两次COPY冷跑EH0，资源/IDB继续后遇raw allocator OOB，**仍不可玩**。**bf014fa已push，同SHA bridge[37194261586]/packages[37194261493]均success**；本地portable **346/346**+checks通过。下载bridge sha **e16c8aa203391dee16ac10141e228b0e16544992e6a0ddabc419437ae2012690**（23,666,735B）manifest与磁盘一致；下载完整TU sha **e94b2b6f...32db4f与本地reviewedTU逐字节同**；host 0.1.9 tgz sha958377...de129已解包 `github-bf014fa/packages-artemis-extracted/package`。**本轮OOB配方**：5c615完成correctu32getterprep、46df完成插件/server/build，**未compile**；产物 root `.test/artemis-resume-oob-reviewed-build-new/`，TU sha **331516aa22d08d9c7bbad714bae5bc23cff1ccdb0a6bcb45986c5d0d2aa7a036**；主代理**独立静态审核通过**（findings `.test/artemis-oob-final-review.md`，gitignored），**无返工缺陷**。
 > **review verdict：root cause 仍 unknown；docs 可显式 pathspec commit（仅两 docs）；不宣布引擎可玩。** 另一低并发 Flash 正做 bf014fa CI unmodified host **3 cold run**，只写 `.test/artemis-bf014fa-ci-*`，**不写 doc、不要碰它**；本轮**不起任何 build / game server / browser**以免资源冲突。
+>
+> **执行交接（Grok 未完成；现场未知，不编清理）**：
+> - Flash 执行 `865498f5-7a63-4a0d-966c-d8cd96e3943b` **failed、无 closing**；文档更新那次 Flash 调用也 **runfailed、无落盘 receipt**。
+> - 已升级执行子代理 `42181662-c350-42f5-b11e-3dc9923f91ba`（magpie/avemujica-grok/grok-4.7，high）**正在跑，不得写成已完成**。
+> - 它先确认失败任务可能残留的 jobs/browser/captures（**是否残留未知，须核 ownership**），再对 bf014fa 已下载 CI bridge/runtime + pristine 游戏做热身 1 + 冷跑 2 + cleanup，只写 `.test/artemis-bf014fa-ci-*`。
+> - **同 SHA CI 实际复测尚未验收。** 已测仍只是本地 COPY：旧 EH0、新 allocator OOB；**Artemis unavailable 不变。**
+> - 上文「另一 Flash 正做 3 cold run」已被这次 failed 取代，不要再当它在跑。本检查点写入方不读该子代理工具状态、不终止进程。
 
 ## 1. 用户要求与接手纪律
 
@@ -105,7 +112,9 @@ comment/string-aware既有scanner + 正式官方文本核验，不靠缩进/调�
 
 - 所有本轮game sessions **zjbz/hnqp/iwyj/upgk/louh/tcbm/saio/tkjf/xara已stop**，服务器jobs1041/1129/1262/1320/1324/1360/1402/1476/1488已kill并收集。所有COPY编译1085/1140/1231/1314/1341/1366已完成收集。
 - **BSK foreground daemon pwsh-834 PID60668仍活动**（owned，只为后续诊断；**只在末阶段**由 owner 做 delegated cleanup：用bsk daemon stop再collect，不碰其它服务）。browser_session list无活动。
-- **资源冲突隔离**：另一低并发 Flash 正在 bf014fa CI unmodified host 做 **3 cold run**，只写 `.test/artemis-bf014fa-ci-*`，**不写 doc、不要碰它的文件**。本轮**不起任何 build / game server / browser**，避免与它抢资源。
+- **资源冲突隔离**：另一低并发 Flash 正在 bf014fa CI unmodified host 做 **3 cold run**，只写 `.test/artemis-bf014fa-ci-*`，**不写 doc、不要碰它的文件**。本轮**不起任何 build / game server / browser**，避免与它抢资源。该句已被文首交接取代：该 Flash 已 failed。
+> - **下一步 0（挡住并行）**：Grok `42181662-c350-42f5-b11e-3dc9923f91ba` 未完成前，**不要另起引擎实例，也不要开 OOB build**；不碰它的 `.test/artemis-bf014fa-ci-*`、capture、server。残留是否存在**未知**，未核 ownership 前不编已清理。
+> - **验收门未过**：CI 实际复测没有落盘证据。不得把本地 COPY 的旧 EH0 / 新 allocator OOB 写成 CI 复验通过；Artemis 仍不可用。
 - 所有代理已settled，生产/测试/版本三范围已独立审。oneshot ids不能send_message，别拿旧失败probe当完成品。
 - 最终qualityjobs **pwsh1635/pwsh1644/pwsh1666**已exit0并收集，346portable0skip，TS/Astro0error，layout/source通过；没有全树style假绿。
 - 下一步1（**改由子代理执行，主代理只审核证据**）：显式pathspec commit/push两个docs（`AGENTS.md`+`docs/current-work.md`，不带代码/SDK/本地probe；先`git status`/读staged，不能带无关staged），观察**同commit**CI，下载artifact解包身份核验/ABI/真实fresh量測，不能拿77旧artifact代替。
