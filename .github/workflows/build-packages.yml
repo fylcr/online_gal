@@ -98,11 +98,16 @@ on:
       - 'ports/artemis/harness/glue/verify-imports-map.mjs'
   workflow_dispatch:
     inputs:
+      # `default: false` because a dispatch is also what someone does to look at a run. A default
+      # of `true` made every manual run a release of whatever happened to be on the branch, so
+      # "run the workflow" and "publish" were the same click. The input stays: `publish: true` is
+      # how a release is asked for deliberately, and `push` no longer releases at all (see the
+      # publish step).
       publish:
         description: 'Publish online-gal-engines-<version>.tgz as a GitHub Release'
         required: false
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: write
@@ -280,8 +285,28 @@ jobs:
       # make a new URL every commit even when nothing about the package changed, which is the same
       # "every rebuild looks like a content change" problem the packer exists to avoid. `--clobber`
       # below means a rebuild of the same version replaces the asset rather than failing.
+      # ONLY `workflow_dispatch` WITH `publish: true` RELEASES, and a push never does.
+      #
+      # This used to be `push || (workflow_dispatch && inputs.publish)`, which meant every push to
+      # `main` that touched one of the `paths` above created or moved a GitHub Release named by the
+      # version in the tree. Two things followed from that, and both are why the condition is now
+      # one clause: a release is a claim that these bytes were accepted, and the acceptance oracle
+      # is a real game booting them -- which no runner can do; and with `push` releasing, the
+      # dispatch input could not withhold anything except on the one trigger nobody uses.
+      #
+      # What `push` and `pull_request` still do is the whole build: compile, portable suite, pack,
+      # smoke-install the archive and upload it as the `packages` artifact. The bytes stay
+      # inspectable on the run, so the evidence a release would be judged on is still produced by
+      # every push -- it just is not published until a human has run the game.
+      #
+      # `== true` rather than a bare `inputs.publish`: a dispatch does not have to send the input at
+      # all (the API can omit it), and the unset value is not the string `true`. Being explicit means
+      # an unset or `false` input fails closed instead of publishing on a coerced truthy.
+      #
+      # There is no other release path in this workflow: the tag exists only inside this step's own
+      # `gh release view/create/upload` commands, and no other step names it.
       - name: Publish the aggregate package
-        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish == true }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
