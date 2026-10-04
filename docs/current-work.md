@@ -1,89 +1,94 @@
 # 当前工作检查点 — 新对话先读
 
-> 更新：2026-10-04 14:53 +08:00。Artemis 仍不可用；已修一个真实源码相位门缺陷，但下载 CI 产物真游戏仍失败。首次 `c()` 已定位到 BuiltinDispatch 的真实调用指令，具体 C++ 行/前置控制流尚未收口。所有代理与自有浏览器/后台资源已结束。不要把“CI 绿”读成可玩。
+> 更新：2026-10-04 16:05 +08:00。用户已再次“继续”，goal armed。Artemis 仍不可用；真实 first-c 已由已有源码站点诊断定位 **22515 / phase0 / resume602 / latch0**。主代理核验两额外 if-open 导致作用域错位，正在**只编译下载完整 TU 的四行候选副本**，生产源码仍冻结。不要把静态缺陷、构建成功或官方诊断读成游戏验收。
 
 ## 1. 用户要求与恢复纪律
 
-- 具体代码和细节由 **magpie/group/auto-deepseek-v4-1-flash** 承担，主代理拆分、低并发（最多两个细任务）、独立核验和最终审核。没有用户明确要求，不创建 Agent Teams。
-- 新对话先读本文件，再读 [`session-5697f1a7-handoff.md`](session-5697f1a7-handoff.md) §4.3.3 / §6 / §7；无需重读原会话。每阶段更新此检查点。
-- 游戏/浏览器实测同一时刻仅一个引擎实例；构建与游戏不要争资源；清理自己开的窗口、标签、服务器和后台 job，不动用户浏览器/9222 chrome-mcp。
-- 不吞 `r(0)`，不伪造异常状态；未测根因就说未知。真实验收仍要求对应提交的 CI 产物、独立现代宿主、pristine 游戏，丢弃一次热身后两次一致，含输入、pause/resume、save/load。
-- 本会话 goal `goal-4c733db7-f628-4026-a0ef-4b5bd99509e1` revision 1：最后现场查询为 **phase active / activation disarmed**，resume 工具拒绝（需要直接 top-level human turn）。不能声称正在自动续跑；新对话查询自己的 goal，用户明确继续后按工具要求恢复，不复制旧 id。
+- 具体代码/细节由 **magpie/group/auto-deepseek-v4-1-flash** 承担；主代理拆分、低并发（最多两个细任务）、独立核验/审查/最终验收。未经明确请求不建 Agent Teams。
+- 新对话先读本文件，再读 [`session-5697f1a7-handoff.md`](session-5697f1a7-handoff.md) §4.3.3/§6/§7；每阶段维护检查点，不依赖旧会话。
+- 同时只有一个引擎实例；构建与游戏不要争资源。收尾关闭自有窗口/标签/服务器/jobs，不动用户浏览器和9222 chrome-mcp。
+- 未测根因就说未知；不吞r(0)、不改冻结鼠标映射/历史制品hash。真实验收=同提交CI产物+独立现代宿主+pristine游戏，丢弃热身后两次一致，含输入、pause/resume、save/load。
+- 用户约15:16明确继续，本会话goal `goal-4c733db7-f628-4026-a0ef-4b5bd99509e1` **revision2 active/armed**。新对话查询自己的goal，不复制旧id。
 
-## 2. 已提交的源码与版本
+## 2. 仓库、已交付修复与冻结边界
 
-- 工作区 `/d/online_gal`（Git Bash，pwsh 工具实际 bash），分支 `main`。
-- 恢复入口文档提交 **65beaca** 已推送：根 AGENTS、历史交接、滚动检查点、恢复指南导航。
-- 引擎修复提交 **77a76457bed7595c11a2320184cec8c538619ebb**（77a7645）已推送。
-- 唯一生产逻辑改动：`ports/artemis/src/script/lua_tags_builtin.cpp:20654`，603 后的 latch 门由 `!= kResumeRunning` 改为 `== kResumeRunning`。正式官方参考 `w2c_artemis_f3633` 的 `artemis.wasm2c.c:1748101-1748119` 在 g3==0 的 else 臂才读/清 852316 并取反 p2。非运行态 p2 自赋无额外行为，因此不造三元/新框架。
-- 新 portable 回归：`test/artemis-builtin-resume-gate.test.mjs`，128 行 / 4 tests，读实际源码，唯一定位 602/603/604、精确绑定 latch 小块，对 phase×p2×latch 18 组及内存字符串 != 变异验证。仅 source/synthetic，不是游戏验收。
-- runtime-artemis **0.1.8**、engines **0.1.9**。没有修改其他生产逻辑、冻结鼠标映射或历史 release hash，没有提交游戏、参考输入或新 SDK 文件。
-- 工作恢复记录提交 **724228c** 已push，现场曾确认工作树干净；后续42/42解析回执继续滚动更新本检查点。生产源码冻结在77a7645，文档提交不改变引擎产物来源SHA。
+- `/d/online_gal`，Git Bash（pwsh工具实际bash），`main`。
+- 引擎源码最后修复 **77a76457bed7595c11a2320184cec8c538619ebb**：仅 `lua_tags_builtin.cpp:20654` 的603后latch门 `!=running → ==running`，正式官方 `artemis.wasm2c.c:1748101-1748119` 在g3==0才做latch操作；非运行态p2自赋无额外行为。
+- tracked source/synthetic回归 `test/artemis-builtin-resume-gate.test.mjs`：4tests /18 tuples /旧!=内存变异检查，不是游戏验收。runtime-artemis0.1.8、engines0.1.9。
+- 引擎修复已push；恢复文档最后提交 **d9195b0**已push，本阶段开始工作树干净。现在仅本检查点滚动修改，**生产packages/ports/test无新增diff**。
+- 603缺陷已修但**同提交下载桥仍r(0)失败**，不是完整崩溃解法。SDK/转译余留再分发风险独立未解决，没有新提交参考/游戏/SDK。
 
-## 3. 实测结论与当前卡点
+## 3. 已实测的故障与first-c定位
 
-### 已确证的边界
+### 77a7645未观察变换CI桥
 
-1. **603 源码缺陷真实存在，已修，但不是本次崩溃的完整解法。** 新/旧桥在同一个逐字节一致的宿主下，串行全新 origin/savepath 冷跑都仍 `r(0)` 失败。
-2. 新77a7645桥，未做观察变换的下载宿主，pristine game-chs：load **865ms** 成功；settle 后 **2696ms** 发生 `ArtemisEhFailure: cxa_begin_catch: the catch record at 0 carries no base pointer`。画面 nonBlack=0、GL clear=1/draw=0、audio context=0；58 GET / 62 HEAD / 760225 B。
-3. 新桥 unmodified cold01 capture：`.test/artemis-resume-newbridge-cold01-final-capture.json`，547269 B，run `dff5663129b25`，dropped_console=0。Probe 大单行截断，必须用同 at 的 **7/7 HARNESS-PROBE-CHUNK** 重组，不能用2048字符单行。证据脚本/结果为 `.test/artemis-resume-newbridge-cold01-evidence.{mjs,json}`（Flash解析，主代理已实读）。脚本手填的身份字段不替代现场 hash/CI 回执；请求采集器 HEAD 状态也不能直接推断网络错误根因。
-4. 观察型 stackonly 冷跑：新桥 + 同下载宿主 + pristine game-chs，捕获**首次异常查找前**的原生栈：`c()` / seq1302，last=0、uncaught=0、caught=[]、temp=4；boot import 相位为0。原生栈：**5962:0x15d9559 ← BuiltinDispatch func873:0x3a4f35 ←3761/4145/3783/3782/258…**。随后 c返回0、temp=0、i(0)重抛，最终r(0)失败。
-5. stackonly capture：`.test/artemis-resume-stackonly-cold01-final-capture.json`，604124 B，run `df0d9f41a9d17`，console dropped18。主代理已用原接受的 `.test/artemis-d2b1ad0-eh-observation-read.mjs` **独立assert 42/42 EH chunks完整、JSON解析成功**，seq1348、ringDropped1092、EH entries8；日志 `.test/artemis-resume-stackonly-cold01-lead-read.log`。Flash映射任务已结束，主代理还直接读取精确新bridge的0x3a4f35处6字节 **10 ca ae 80 80 00**，LEB目标5962，与动态栈一致。具体C++行映射未完成，详见下方审核边界。console丢弃不等于EH事件未执行。
-6. 两次新桥运行（unmodified与观察变换）都失败；它们是诊断/首跑，不是完成“丢弃热身+两次一致”的健康验收。没有证据支持把异常归因于某个宿主模块、404、内存 arena 或完整某个函数。
+- 新origin/savepath独立冷跑：load **865ms**；settle后 **2696ms** `ArtemisEhFailure: cxa_begin_catch: the catch record at 0 carries no base pointer`；nonBlack0、GLclear1/draw0、audio0；58GET/62HEAD/760225B。
+- capture `.test/artemis-resume-newbridge-cold01-final-capture.json`，547269B，run `dff5663129b25`，dropped_console0。Probe必须用 **7/7同at chunks**（单行2048字符截断不能用）。Flash evidence脚本/result `.test/artemis-resume-newbridge-cold01-evidence.{mjs,json}`已实读，身份手填字段不替代hash/CI回执。
 
-### 未解决
+### 新CI桥stackonly前置栈
 
-- 精确定位首次c对应哪个源码 merge/guard、为何没有真实throw却进入该分支，以及最早的控制流分歧。
-- Flash **714f1291-234a-4d16-b71b-453452f47a69** firstc 映射任务已结束；交付 `.test/artemis-resume-firstc-map.{mjs,json,md}`。主代理重跑脚本与精确新bridge字节核验接受：42/42 chunks、原生873符号、0x3a4f35 call5962、thin5962→import102=a.c。**不接受**报告的“首定义raw208/objdump1-based”（函数索引实际0-based，首defined207），也不接受从寄存器get/set和br序列推断“必在Asyncify恢复而非普通merge”的说法；这些未测。报告尚未反查具体源码行，不能作为已定位根因。
-- 原源码 `lua_tags_builtin.cpp:20518-20527` 的 p04_B3561 / HostRet0 是附近可核对线索，但**尚未建立它与实测call offset的一一映射**；下一轮须source-site窄观测或可靠debug mapping，不能凭外观定罪。
-- 当前只读 FinishTableIndex/f643 本体差分未发现直接差异；调用方未覆盖，不是“已排除”。
-- 官方 WASM 同宿主健康对照50秒是**历史记录**，本轮未重跑；需要针对已定位分歧再串行对照。
+- 原已工作EH观察3files仅+13行 preCallStack，capture `.test/artemis-resume-stackonly-cold01-final-capture.json`，604124B，run `df0d9f41a9d17`，主代理原reader独立 **42/42 chunks**完整，console dropped18/observer ringDropped1092。
+- 首 `eh.enter c` seq1302（import.enter1301），last=0/uncaught=0/caught=[]/temp4/phase0。原生 **func5962:0x15d9559 ← BuiltinDispatch func873:0x3a4f35**。精确新wasm字节 **10 ca ae 80 80 00** 解为call5962，再thin5962→import102=a.c。之后c返0→i(0)→r(0)。
+- firstc-map `.test/artemis-resume-firstc-map.{mjs,json,md}`接受chunk/原生符号/真实call事实，不接受“首defined208/objdump1-based”“寄存器重装必是重播”推论。索引0-based，首defined207；raw-207仅可索code body，不能当官方fNNN。
 
-## 4. CI 与下载产物对应关系
+### 已有源码站点诊断（旧d2b1ad0输入，只作定位）
 
-| 项 | 现场核验 |
-| --- | --- |
-| 引擎源码 SHA | 77a76457bed7595c11a2320184cec8c538619ebb |
-| bridge workflow | [37180317084](https://github.com/fylcr/online_gal/actions/runs/37180317084)，success；real-game/publish skipped，不是验收 |
-| packages workflow | [37180316882](https://github.com/fylcr/online_gal/actions/runs/37180316882)，success |
-| bridge artifact | id11295212540，ZIP digest `b34e15f5ce7d0fe07c4948620ee705f29a017d12f075fcda756121752dc11108`，API head_sha一致 |
-| packages artifact | id11294139547，ZIP digest `d2d52f53e4dd9a3eefbd6340ee2621c903955f44c179a8d7793eaf28a35fa01a`，API head_sha一致 |
-| 下载bridge | `.test/github-77a7645/artemis-wasm/dist/artemis-bridge/build/bridge.wasm`，**23667751B**，sha256 **57944740c1d09468c199efa6f1ec22c5b0a5fc5698f4a8e6409c202ac687c0d4**，manifest/磁盘一致 |
-| 下载runtime | `.test/github-77a7645/packages/online-gal-runtime-artemis-0.1.8.tgz`，sha256 `f348d47263386994b693b2acda1c06fbf2bed8dc59788cf8bccf680115081e53` |
-| 解包host | `.test/github-77a7645/packages-artemis-extracted/package`，含vendored闭包，不是workspace symlink |
-| 旧d2b1ad0桥 | `.test/github-d2b1ad0/artemis-wasm/dist/artemis-bridge/build/bridge.wasm`，23667750B，sha256 `f6e87c2301c73284d604b3ba5e023b277d32367a501611e80738f2f5051433e8` |
-| pristine game | `.test/artemis-official-async/game-chs`，system.ini 3618B sha256 `de3e548de1b5115d815a2ea4ce421f3076e6e1393f22039bead2b0bdbadf20f7`，现场再次核验未改 |
+- 复用 `.test/artemis-builtin-csite-observation01/bridge.wasm`，hash **e3261e54f16fbaaadd780cd72260188120286b21c20eb8bd7bb41c7bd06d9b46**，map origin为旧d2TU，hash **1dff07566bb0a29cd0be8efbb0da090134d0eb947036512326536686c3566751**已重算匹配，ABI通过。
+- capture `.test/artemis-resume-existing-csite-cold01-final-capture.json`，597327B，run `d5091b5635a5f`，主代理原reader **38/38 chunks**完整（log `.test/artemis-resume-existing-csite-lead-read.log`）。计数器内`sourceLine`是注入字面原产品行号，**不是插入后TU行号**。
+- firstC **[22515,0,602,6110372,0,0,6098896,11455776,1701995379,0,0,0,0]**，fields=line/phase/resumePoint/p0/p1/p2/frame/result/node/value/flag/ok/latch。
+- preEvents：33188×4 →20606 →20619(r578) →20627(r602) →20632(p1=1,p2=0) →20640(p1=0) →20661 →20670(p2=0) →22515。没有经过21828，也没有22493分支见证。
+- `22515 HostRet0`发生在20670外层块结束后的正常跌落，不是“22493错落到22494”；后者是Flash错误推论。旧诊断源有旧603!=，所以**不能当77a7645的source-line动态证明**，但结构对应仍可核验。
 
-新/旧 CI host eh.js/boot.js `cmp` **逐字节一致**；hash分别 `ca0d728e3093d11a2a4d2a265797f95bff65a012a4cae1e785e4f8fc680e173a` / `6a2d3b44bc24f3b29f31713e92ab67d7b9728c11b5208cb5ff914369f66d4631`。因此新桥实验没有同时偷换EH宿主。
+## 4. 主代理已核验的作用域差分与候选
 
-## 5. 已跑质量门（不替代游戏）
+已实读正式官方段+既有comment/string-aware scanner，不按缩进、不用调用多重集定罪。
 
-- `build:packages`通过；最终 portable **337/337、0skip**（基线333+新test4），日志 `.test/artemis-resume-final-portable.log`。
-- 本地完整 `npm test` 基线439 tests / 434 pass / 5skip；既有5skip不代表已实现，日志 `.test/artemis-resume-local-tests.log`。
-- `npm run check`通过，Astro9files / 0error / 0warning / 0hint，日志 `.test/artemis-resume-check.log`。
-- worktree/index source/layout检查通过，340 mapped functions / 340 products；许可warning保留。
-- 下载新桥独立ABI核验 `verify-imports-map.mjs`通过，207函数+1memory、198 distinct；日志 `.test/artemis-resume-77-abi.log`。台账历史module hash只report，**不得改写历史hash**。
-- 全树 `style-gate.sh` **exit1**：既有未改动 compositor_effect等 `w2c_` 调用指纹/裸常量，不假报全绿、不扩大本轮风格返工。
+| 真实门/语句 | 原产品配对 | 官方对应/应有闭合（保留原行号） |
+| --- | --- | --- |
+| 20670 p2门 | closes22513 | official1748142→1749242 / 应21146 |
+| 20781 format链门（真门，不能删） | closes21146 | official1748465→1748724 / 应20892 |
+| 20791 running比较/初始化 | closes20892 | official1748497→1748600 / 应20836 |
+| 21828超长字符串门 | closes22492 | official1750791→1750836 / 应21851 |
+| 24477 collector outer | closes24834 | official1756791→1757629 / 应24835 |
+| 24773 running719清理/loop tail | closes24827 | official1757511→1757628 / 应24834 |
 
-## 6. 只使用接受的诊断入口
+额外20824running-open和21829duplicate-open造成闭合链错位；24827running-close过早；B2011后31185/31186两close，官方1771445(B2011end)+1771446只有一outerclose。
 
-- `.test/artemis-independent-host-server.mjs` / entry：未改下载包的独立宿主验收入口。
-- `.test/artemis-resume-stackonly-{server,plugin,browser}.mjs`：在**已工作**的原EH观察3files上只新增preCallStack/firstSearch，不monkeypatchWebAssembly；12anchor fullharness实际build通过，主代理已跑并出证据。只用于定位，不作出货验收。
-- **不要运行** `.test/artemis-resume-exception-*`、`.test/artemis-resume-precall-*`、`.test/artemis-resume-finalpre-*`：多版虽曾selfcheckPASS，主代理审核发现Promise误认、表/函数编号混淆、未装内存/状态、catch作用域/缺import、fixture假验证或残留语法错，均已拒绝；部分任务failed，没有可靠最终版本。
-- 原生 `wasm-function[N]` 包含import，**不能减207得到官方fNNN**；桥func873 = mangled BuiltinDispatch = 官方f3633。旧桥disasm `0x3a4f34` 是call5962，新桥实测0x3a4f35；新旧偏移必须字节核对，不能拿旧disasm当新动态事实。
-- 852316/852320是guest throw latch/value，host.temp是另一个共享单元，g3是相位，resume_point是恢复站点，四者不能混同。
+COPY candidate仅**blank原产品20824 /21829 /24827 /31185**，保留行数；保留真20781和24835。主代理IN-MEMORY4blank测全局balanced、闭合20791→20836、20781→20892、20670→21146、20632→22492、19604→22513、24773→24834、24477→24835。**静态差分真实；是否解决崩溃必须受控运行证实**。
 
-## 7. 清理状态与下一步
+## 5. 当前本地实验（生产0diff）
 
-- 所有本轮browser_* sessions **xwoy/vzop/oiuv/freg 已明确stop成功**；browser_session list最后为无活动session。
-- 三个诊断服务器 jobs **pwsh-618 / pwsh-652 / pwsh-699 已kill并收集**。50065端口清理后无HTTP响应（curl exit28，不能由此猜进程/防火墙根因）。
-- 自有BSK foreground daemon job **pwsh-254** 通过`bsk daemon stop`停止，已收集exit1；独立 `BSK_AUTO_START=0 bsk status --json`报告daemon不运行。这是已请求停止后的回执，不是引擎测试失败。下次按工具建议持久job foreground启动，用同用户/BSK_HOME，不尝试Job Object detached启动；页面仅browser_*。
-- 基线、commit/push、CIwatch、下载jobs都已收集，无仍相关后台job；所有本轮Flash一次性任务均已结束（包括失败退出的观测器任务），无尚在写入的子代理。恢复文档提交724228c已push；本段更新会再显式提交，仍不重编引擎。
+- 输入完整下载TU `.test/github-77a7645/artemis-wasm/dist/artemis-bridge/build/artemis.cpp`，**98,937,232B sha849098ce06a417c8f220c54b6e18ce80958bb4d8c21e819d1807c2258660c418**。
+- product1321222B sha911669ded12a066c1cf1f713d6b38f8e9df5ae31dc96ea9c65addf56ec8a401b，marker唯一 `// ---- rewrite: f3633 (script/lua_tags_builtin.cpp) ----`之后完整字节==product。
+- COPY完整TU `.test/artemis-resume-fourline-build-new/artemis.cpp`，**98,937,090B sha4eb85eb512c97fdd2908e3d66c7f8c07ee72608c7cb6c3855418d6adbddac749**。主代理独立字节assert prefix+4blankproduct+tail完整，只有4行差异/−142B；不是1.3MBbareproduct。
+- **当前编译job pwsh-1085 活动**：`bash .test/artemis-resume-fourline-build-new/build.sh`，log在同root/build.log；源码已compile产生历史warning，无error（16:03检查），还未出bridge。下载runtime .o、FWD、原exportshims、-O1/192MiB/globalbase184549376/stack2MiB，fold/memory/table同原。
+- 注意**不要运行旧 `.test/artemis-resume-fourline-build.sh` 顶层错误配方**（SRC仍bareproduct）。真正已审运行配方是build-new/build.sh。新root首次build目标此前不存在；不重复执行跑第二份。
+- `prepare.mjs`/metadata作来源证据；worker越界写keys/newrootrecipe、删除错误barecopy已报告，生产/输入TUhash没有改变。不授权继续任意删除；所有源码更改先读审。
+- baseline配方Flash **f8140298-9976-4c59-b384-7998b537b301** 准备 `.test/artemis-resume-fourline-baseline-build.sh/plan.md`，仅写不build，用相同工具链/flags/原未改TU消除CIvs本机构建混杂；待审核。只能等candidate结束后再串行构建。
+- portable草稿Flash **8515ddfb-efc6-4ec9-b9c0-aec9b9f55e71** 仅 `.test/artemis-resume-scope-regression-draft.mjs`，旧源应fail/COPY4blank应pass，按uniqueanchor+scopeownership，不修改production；待报告。
+- 其它本阶段Flash已结束/failed。拒绝e9df的SyncMemoryBase必占opcode空间、e302的经22494路径、0e7a的删20781门、af394的旧source“污染”故事；不要拿它们的自动断言数当发现。
 
-下一步顺序：
+## 6. 本轮同宿主官方对照已实跑
 
-1. `pwd; git status --short; git log -3 --oneline`核验现场，读本文件。
-2. 原接受reader已独立assert **42/42 EH chunks**，firstc-map和新桥call字节也已核验；先读其可信边界，再把BuiltinDispatch **0x3a4f35 call5962**映射到具体源码行（这是尚未完成的第一件事）。不要重复发明WASM解码框架，不接受假fNNN/1-based/恢复路径推论。
-3. 从该源码站点读前置门/merge及正式官方f3633对应段，必要时在查找前的guest站点加窄观测；同宿主官方对照和重复冷跑验证，测到分歧才定根因。
-4. 细活仍Flash窄范围写，主代理审查、合成回归/质量门、显式pathspec提交push、下载同提交产物再真游戏验证。禁止绕过r0。
-5. 游戏能越过此点后再审GL/audio/browser-services与真实菜单存取；当前组件已绿的不盲目重修，仍不能把它们当可玩证据。
+- 官方5998665B，sha7ceabed28b84e7689fc4b629fa232e2857f15c3b6e6fa3e09fc39dba082d145e；same77downloadhost+stackonlyobserver+pristinegame，新origin61557/savepathresume77-official-control-new01。
+- capture `.test/artemis-resume-official-control-new01-final-capture.json`，724909B，run `d8797a32243d0`，主代理原reader **10/10 Probe chunks**完整；日志 `.test/artemis-resume-official-control-new01-lead-read.log`。
+- load709ms/gameElapsed **83878ms**/hasFailure=false/EHbucket0；drawElements121507/audio34started/source109paths/24,864,733B。跨过桥2.7秒故障窗口，但canvasgridnonBlack0、未完整截图/input/save验收，**不是官方可玩/生产验收**。console dropped296，worker未采。
+- xxbj/zjbz sessions已明确stop；source-site/server **pwsh-835**、官方server **pwsh-1041**都kill并收集。自有BSK foreground **pwsh-834** PID60668当前活动，无活动browser session；编译时不再跑游戏。
+- capture整理Flash28726任务failed无交付，现直接用原接受reader提取；不能用其未完成脚本。
+
+## 7. CI基线与质量门
+
+- 77a7645 bridge run[37180317084](https://github.com/fylcr/online_gal/actions/runs/37180317084) / packages run[37180316882](https://github.com/fylcr/online_gal/actions/runs/37180316882)均success，real-game/publish skipped。
+- 下载bridge `.test/github-77a7645/artemis-wasm/dist/artemis-bridge/build/bridge.wasm` **23667751B sha57944740c1d09468c199efa6f1ec22c5b0a5fc5698f4a8e6409c202ac687c0d4**，manifest/磁盘匹配。
+- 下载host `.test/github-77a7645/packages-artemis-extracted/package`（vendored closure），与d2host eh/boot字节cmp一致；tgzsha f348d47263386994b693b2acda1c06fbf2bed8dc59788cf8bccf680115081e53。
+- pristine game `.test/artemis-official-async/game-chs`，system.ini3618B hashde3e548de1b5115d815a2ea4ce421f3076e6e1393f22039bead2b0bdbadf20f7。
+- 最终portable337/337、0skip，buildpackages/typecheck/Astro/source/layout通过；本地npmtest基线434pass/5skip。ABI独立verify-imports-map通过。全树stylegate既有exit1，不假报全绿。
+- **不要运行**exception/precall/finalpre大探针（已拒/残留语法错），只接受原independent harness、原EHreader与stackonly/csite复用模式；不再造WASM解码框架。
+
+## 8. 下一步（按顺序）
+
+1. 收集 **pwsh-1085**（别复制运行），查完整build退出/产物、独立ABI/hash/原输入不变，构建失败先定位，不把失败叫PASS。
+2. 如果candidate构建成功，启动单一independent host（可stackonly诊断）跑COPYbridge，先确认是否仍22515/c/r0；export后及时stop/kill。本地bridge只是诊断，不替代CI验收。
+3. 同本机工具链baseline串行运行与candidate配对，丢弃热身+重复一致，核对scope修复是否实际消除原故障。测到前不说根因已定。
+4. 有受控证据才委托Flash最小生产4行修复/portable回归/版本更新；主代理审diff、质量门、显式commit/push，同commit CI下载重复真实游戏、输入/pause/save验收。
+5. 随阶段回写/提交本文件；新对话查询git/jobs/当前goal，不能假定旧代理id可用，当前仍活动的写任务先收口再重派。
