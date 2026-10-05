@@ -1,13 +1,10 @@
 # 当前工作检查点 — 新对话先读
 
-> **当前摘要（2026-10-05 · 源已准备提交 · 同 SHA CI 待核 · 本块是唯一「现状」；下文历史原样保留，不得当现状。）**
-> - runtime **0.1.14** / engines **0.1.15**，不再 bump。upstream **17200e64**。行为变更只有 loopdelay、worker resize、webBoot 基帧、默认 off 的 `gameConfig.animationTrace`。**用户标题 / CG / 卡顿未实测，不得说已解决。** Tyrano loader **无安卓画面实测**。
-> - 本轮实测（日志 `.test/artemis-animation-delivery-commit/`）：`npm run check` **EXIT 0**；`node scripts/check-sources.mjs` **EXIT 0**（340/340，提交前两条 patch 未入库是 warning）；`test:portable` **581 pass / 0 fail / 0 skip / EXIT 0**。其中受管 observer **1**、first-transition **1**、tween **1**、frame-clock **4** 另有单独 EXIT 0。观察测试本机 `ZLIB_ROOT=.test/zlib-mingw-probe`（从已有 zlib 源用 g++ 自编，不是借来的 `.a`）。e040 隔离 **0/0/11** 是它自己的结果，**不能用这 581 代替**。
-> - 源对应四 patch（0001–0004）+ host/cmake/黑基帧/ENV/RUN。native JS **153843** `9a9b50d0…a146cb3`、WASM **1480956** `c3b06e12…4f4a3a10`、pure 源 `a61c5342…886058`、包 **2444555** `7e390a4e…`、offline **0** 是 b85 收据。**本提交不重编 native/WASM、不独立 RUN。** tween/first-transition 改为从 pin `git archive` 自解到 `.test/`，不再读 `out/refresh-17200e64`。
-> - CI 准备：`build-packages.yml` 在 portable 之前 `apt-get install g++ libz-dev`，并浅克隆 pin **17200e64**（与 upstream-pins 同字面量，不是 main）到 `.ref/artemis-compat`；paths 补上 portable 实际编译的 compat-web tests/patches/overlay。`build-wasm-artemis-compat.yml` **未改**：那个 job 不跑这些探针。publish 仍默认 false。
-> - b85 曾误改 `.test/package.json`，原文未知，证据只在 `.test/artemis-testbed-manifest-recovery`。**不得说已还原成功。** 后续 npm 消费者用自己的隔离目录。
-> - `4661` PID **41648** / `4662` PID **2612** 有意保留。`4663` prepared、未 listen，用户手测新包待验证。语音 / MapPoint **freeze**。无自动三轮、无 Release、无 npm。goal **paused rev7，不 resume**。
-> - next：同 SHA 下载验工件，再 `4663` 独立持久 server 由用户手测。不在此生成包，不做自动游戏验收。**同 SHA CI 尚未核，不声称 CI 已绿。**
+> **当前摘要（2026-10-05 · 代码 `73c5162a8d38548ecedafe5ca22f4fbb2c8b035c` 已 push 且同 SHA CI success · 文档提交不是工件 SHA · 本块是唯一「现状」；下文历史原样保留，不得当现状。）**
+> - 代码 **73c5162a8d38548ecedafe5ca22f4fbb2c8b035c**。runtime **0.1.14** / engines 仓库 **0.1.15**，pin **17200e64…**（独立仓库）。CI 真 **581/579/0 fail/2 skip**（旧 audio 构建源 / old 9f；observer、首转场、tween 实跑）。离线 **0**，ZIP digest=API。proof status **verified**。Linux WASM **1480956** `d4a54476…`、JS **153843** `9a9b50…`。平台 hash 不得与 Windows 混。**标题 / CG / 卡顿未亲测，不得称 root 全修。** Tyrano 无安卓画面。
+> - `4663` PID **36944**（父 **78256** 已退出，仍听）与 `4661` **41648**、`4662` **2612** 有意同留，不自动三轮。一次 GET：4663 `/` 与 `/api/identity` **200** accepted、hash=proof；4661/4662 `/` **200**。served 勾选在 START 传入 `gameConfig.animationTrace`；receipt 的 `schema-not-wired` 是旧 metadata，不是开关。page trace wiring verified by served module; native observed on CI/fixture, user game not run。
+> - b85 误改共享 `.test/package.json`，原 dependencies **未能确认，不得称还原成功**。后续 npm 隔离目录。无 GH Release、无 npm。goal **paused rev7，不 resume / 不完成**。
+> - 文档 HEAD 与代码 SHA 必须分开：新 doc SHA 不能当既有工件证明。next：用户先停旧页游戏 → 打开 4663 → START 前勾记录 → 自己亲测。代理不停旧进程，36944 留下。
 
 ---
 
