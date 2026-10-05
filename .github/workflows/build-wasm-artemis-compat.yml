@@ -111,7 +111,7 @@ jobs:
       # commit can move all three at once. The build script refuses a run where this value and
       # `ARTC_PIN` disagree, so the two copies cannot drift into a green build with a source
       # tarball that answers for a different commit.
-      upstream-commit: '9f622629f595db85e6f76c45c06edde29d7d9961'
+      upstream-commit: '17200e64ea99681e3c27d694433c0ff78d7a7cee'
       upstream-path: .ref/artemis-compat
       skip-upstream-checkout: false
       emsdk-version: '6.0.9'
@@ -138,9 +138,9 @@ jobs:
       #
       # `ARTC_REF` is not set here -- the reusable workflow exports `UPSTREAM_PATH`, and the build
       # script refuses to run unless the two name the same path.
-      build-env: ARTC_PIN=9f622629f595db85e6f76c45c06edde29d7d9961
-      version: compat-9f62262
-      release-tag: engine-artemis-compat-9f62262
+      build-env: ARTC_PIN=17200e64ea99681e3c27d694433c0ff78d7a7cee
+      version: compat-17200e6
+      release-tag: engine-artemis-compat-17200e6
       # Not yet. These bytes are GPL-3.0 source-derived, but "publishable" also means "accepted
       # against a real game", and audio is still the upstream stub.
       publish: false

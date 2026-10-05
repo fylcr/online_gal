@@ -1,11 +1,26 @@
 # artemis-compat web worker
 
-Pin `9f622629f595db85e6f76c45c06edde29d7d9961` of
-`Weiss-UltimateSavior/artemis-compat` (GPL-3.0), plus the patches and overlay
-in this directory. Not the official SDK, and not a renamed wasm2c bridge.
+Pin `17200e64ea99681e3c27d694433c0ff78d7a7cee` of
+`Weiss-UltimateSavior/artemis-compat` (GPL-3.0), plus the two active patches
+and the overlay in this directory. Not the official SDK, and not a renamed
+wasm2c bridge.
+
+The active patch set is exactly `0001-pf8-readat-host-source.patch` and
+`0002-numeric-strto.patch`, both platform adaptations; `PLATFORM-PATCHES.txt`
+is the explicit list the recipes, the source gate and CI all read.
+`0003-scene-checkpoint.patch` is a save/restore *feature*, not a platform
+adaptation, so it is retired from this minimal port and is no longer in
+`patches/`. Its source, the probe fixture and the native scene-restore
+regression are archived under `.test/refresh-integration/retired/` as hashed
+historical evidence, not as build input.
+
+Platform range: the fresh `17200e64` source with these two patches builds the
+Emscripten web bridge (wasm2c offline render plus the `artc_web_*` host seam).
+The bundle offers the platform only; the retired scene-checkpoint feature is
+not applied and not shipped.
 
 ```bash
-bash ports/artemis/compat-web/build.sh -j2
+ARTC_OUT=refresh-17200e64 bash ports/artemis/compat-web/build.sh -j2
 ```
 
 `ports/env.sh` finds `/d/emsdk` (emcc 6.0.9). Do not export `EM_CONFIG`.
@@ -223,10 +238,10 @@ real `AudioContext`.
 ## Building from the source bundle
 
 `make-source-bundle.mjs` writes a GPL-3.0 source offer that is also a buildable
-tree. It carries the pinned `src/`, all three patches (`0003-scene-checkpoint.patch`
-is the save/restore one), every overlay — including the
+tree. It carries the pinned `src/`, the two active patches (`0001` ReadAt,
+`0002` the `std::sto*` sites that throw), every overlay — including the
 three audio files above, which exist nowhere upstream — the tracked `build.sh`,
-and `RUN-BUILD.sh`.
+and `RUN-BUILD.sh`. `0003` is not in the offer.
 
 `build.sh` is included for its *build logic* and is not rewritten for the
 archive: it sources `ports/env.sh` and refuses any path not ending in
@@ -236,7 +251,7 @@ the same build without those two assumptions:
 
 ```bash
 tar -xzf artemis-compat-source.tar.gz
-cd artemis-compat-9f622629f595
+cd artemis-compat-17200e64ea99
 EMSDK_DIR=/path/to/emsdk bash RUN-BUILD.sh -j2
 ```
 

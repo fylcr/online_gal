@@ -637,9 +637,9 @@ compat 引擎已编译、已有合成测试，但**全真游戏验收尚未过**
 - **默认出货路线是 compat 源码编译，不是 SDK 桥**：`.github/workflows/build-wasm-artemis-compat.yml`
   → `.github/scripts/build-artemis-compat.sh` → `ports/artemis/compat-web/build.sh`，
   编译上游 [`artemis-compat`](https://github.com/Weiss-UltimateSavior/artemis-compat)（GPL-3.0）
-  pin `9f622629f595db85e6f76c45c06edde29d7d9961`，产出 `artemis-compat.{js,wasm}` 与随制品走的
+  pin `17200e64ea99681e3c27d694433c0ff78d7a7cee`，产出 `artemis-compat.{js,wasm}` 与随制品走的
   **对应完整源码** `artemis-compat-source.tar.gz`（上游 `git archive` + 本仓库
-  `compat-web/patches/`、`compat-web/overlay/`、build 配方、`LICENSE`、
+  `compat-web/patches/` 的两条 active 平台补丁、`compat-web/overlay/`、build 配方、`LICENSE`、
   `third_party/lua-5.1.5/COPYRIGHT`），`publish: false`。上游 pin 只带 `src/host/mac_main.mm`
   与 native CMake target ⇒ **Web host / Web CMake / `ReadAt` / numeric 全是本地 port**。
 - **页面侧前提是跨源隔离 + 资产配置**：compat worker 用 **SharedArrayBuffer 镜像**做同步读，
@@ -652,8 +652,10 @@ compat 引擎已编译、已有合成测试，但**全真游戏验收尚未过**
 - **旧 SDK 桥只保留显式诊断**：`build-wasm-artemis-bridge.sh` /
   `build-wasm-artemis-bridge.yml` 已移除 push/pull_request 自动触发，只能手动 dispatch；
   官方 glue 与 generated-body masks 是**诊断路线**，不作为出货宿主，也不证明 compat 可玩
-  （checkpoint 语义与音频仍未验证）。存档自 `compat-web/patches/0003-scene-checkpoint.patch`
-  起写明 ARCV 变量银行 + ARCL v1 场景尾部；**尾部才是恢复画面（含背景）的判据，取值域仍不是官方快照**，
+  （checkpoint 语义与音频仍未验证）。存档格式（ARCV 变量银行 + ARCL v1 场景尾部）来自
+  `0003-scene-checkpoint.patch`；它是存档**功能**而非平台适配，已从最小 port 退役、
+  不在 `compat-web/patches/` 内，源码与 native 回归证据存档于
+  `.test/refresh-integration/retired/`。**尾部才是恢复画面（含背景）的判据，取值域仍不是官方快照**，
   且需新旧宿主同版校验。
 
 - [`runtime.ts`](packages/runtime-artemis/src/runtime.ts) 的 `availability` 是**实时 getter**：
@@ -870,7 +872,7 @@ ONS 包带引擎资产；KiriKiri 页面资产单独部署；Artemis 出货路�
 
 ### Artemis 当前仍保留什么
 
-当前**出货路线**是 **compat 上游源码编译**（pin `9f622629…`，GPL-3.0），不是 asyncify SDK 桥。
+当前**出货路线**是 **compat 上游源码编译**（pin `17200e64…`，GPL-3.0），不是 asyncify SDK 桥。
 `ports/artemis/src/` 的 **340 个映射函数 / 340 个工作树产品文件**属于**历史路线**台账；
 台账覆盖与函数数不是完整语义、风格或游戏行为验收，也不是出货构建的要求。
 旧的 157 / 159 产品及「100% tag 语义完成」数字不再代表当前状态。

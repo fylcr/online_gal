@@ -13,10 +13,11 @@
 #
 # Layout expected, which is what the archive unpacks to:
 #   src/        the pinned upstream tree (with patches/overlay NOT yet applied)
-#   patches/    the two tracked patches, applied here in this order
+#   patches/    the two active patches, applied here in this order
 #   overlay/    the host + audio + cmake overlays, copied in here
 #   build.sh    the CI recipe, kept as the record of what CI ran
-# Output: out/artemis-compat.js and out/artemis-compat.wasm
+# Output: out/build/artemis-compat.js and out/build/artemis-compat.wasm
+# 0003-scene-checkpoint.patch is not part of this offer and is not applied.
 #
 # Only one thing is removed, and its path is derived from this script's own
 # location and asserted before use, so a wrong working directory is a wrong
@@ -34,8 +35,7 @@ LOG="$HERE/out/build.log"
 # layout to adapt to.
 for f in "$SRC" "$HERE/overlay/audio/audio_web.cpp" "$HERE/overlay/cmake/web.cmake" \
          "$HERE/patches/0001-pf8-readat-host-source.patch" \
-         "$HERE/patches/0002-numeric-strto.patch" \
-         "$HERE/patches/0003-scene-checkpoint.patch"; do
+         "$HERE/patches/0002-numeric-strto.patch"; do
   [ -e "$f" ] || { echo "refusing: $f is missing; run this in an unpacked bundle" >&2; exit 2; }
 done
 case "$HERE" in
@@ -88,12 +88,12 @@ rm -rf "$BUILD/overlay"
 cp -a "$HERE/overlay" "$BUILD/overlay"
 
 for p in "$HERE"/patches/0001-pf8-readat-host-source.patch \
-         "$HERE"/patches/0002-numeric-strto.patch \
-         "$HERE"/patches/0003-scene-checkpoint.patch; do
+         "$HERE"/patches/0002-numeric-strto.patch; do
   say "patch $(basename "$p")"
-  # No --forward: an already-applied patch means the recipe no longer matches
-  # its source, and that has to stop the build rather than pass quietly.
-  patch --binary -d "$BUILD" -p1 --batch <"$p" >>"$LOG" 2>&1
+  # --forward --batch: an already-applied or reversed hunk is a non-zero exit.
+  # GNU patch without --forward assumes -R and would keep going on a patched tree.
+  patch --dry-run --forward --binary -d "$BUILD" -p1 --batch <"$p" >>"$LOG" 2>&1
+  patch --forward --binary -d "$BUILD" -p1 --batch <"$p" >>"$LOG" 2>&1
 done
 
 # The web target. The pinned CMakeLists.txt has native targets only, so the

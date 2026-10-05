@@ -1,15 +1,12 @@
 # 当前工作检查点 — 新对话先读
 
-> **当前摘要（2026-10-05 · doc-only · 音频已验证、用户亲测 · 本块是唯一「现状」；下文历史原样保留，不得当现状。）**
-> - **音频处理已验证，用户下一步亲测；自动验收已取消；probe 暂存失败未提交保留。** 源码未改。实测代码 SHA 仍 `9a2cedd`。本 doc commit 不是新音频版本，也不是「game passed」。
-> - **67360ecc closing**：音频 scope 无新增实测缺陷，产品 diff empty。focused **44 pass / 0 fail / 0 skip**（relay 21、worker 12、integrated 1、restore ACK 1、native 9 实 g++）。`npm run build` / `check` **0**。产物 fresh **0.1.12**。WASM local `ac31337918` / CI `f95` 同 size，**不能说 byte-same**；JS `799a` / RPC `08f`；ACK/ARC/L 分段 CRC 内。
-> - **已合成**：PCM→WebAudio 自然 ended 累计 ACK pending 不丢不退；mute/pause 等已合成验证。真实耳听/游戏效果**仅待用户亲测**，不宣全游戏可玩。
-> - **禁止续旧三轮。** 用户明确停自动 warmup / runA / runB 与一切再生 native CI probe。goal **revision 3** = audio/manual，不因旧 memory 强跑 2 runs。
-> - **清理**：diag `fzid` stop accepted（已换 `zwae`）。server `69316` 与误重启 `58988` 已 killed，`4661` free。f42 正式 closing（用户取消停手）。原自动 game job 已结束，不再写「待原 owner 收取」。本批无新 job / browser / server。
-> - **入口已停**：手测 **4321 当前不在跑**（上一 owner 复核 PID `46860` gone，无需新复核）。用户在 `D:/online_gal` 自己跑已核 `pnpm --filter @online-gal/app dev`（`astro dev --host 127.0.0.1 --port 4321`），再开 `http://127.0.0.1:4321/`。
-> - **已知存档限制（不修）**：`9a2cedd` runA 有效 ARCV+ARCL 26975B 后 native `artc_web_load` 返回 0 invalid checkpoint，runB 未跑。不是音频错误；按用户决定暂不扩展修复。不得全 game PASS。
-> - **用户下一步**：上述命令起服务后亲测 BGM/语音/暂停恢复。音频 44/44 与 build/check 0 已测，耳听需亲测。不 bump、不重编、no Release、no npm。
-> - **未提交 freeze（a0 sceneprobe closing FAIL，本 doc 不修不扫）**：`.github/scripts/build-artemis-compat.sh`、`ports/artemis/compat-web/tests/artemis-compat-scene-restore.test.mjs` + `ports/artemis/compat-web/tests/scene-restore/`。发布仍 Artifacts only、`publish` 默认 false、no GH Release / no npm。divider 下历史 hash 不动。
+> **当前摘要（2026-10-05 · doc-only · 未 commit · 本块是唯一「现状」；下文历史原样保留，不得当现状。）**
+> - **cd5cb4b4 closing（真修源）**：src=git archive `17200e64` 257 files（排 NOTICE）byte-equal git tree；无 web target / overlay inside / 0003。改 CMake、已 apply 的 0001 拒；`patch --forward` 第二次 non-0。source `882552/65f5f48d010566af57235b7262417c1d642f8bfefc6c14c3352954bd8a38337d` 两 tar identical。RUN emsdk 6.0.9 exit 0；cmp JS `153831/8fc`、wasm `1477363/dde` equal。dist 新 body，manifest check 0。受管 source offer 3/3 actual 0。
+> - **3c2 patched bundle 失败只作历史**，不是当前 state、当时未修。e235 未留独立目录 claim；这次已实补据。
+> - **根 `11b2250d` 未 closing**：roots CI pin/guards 仍 active。已 115 pass 0 fail / source worktree 0 落盘，**未 released**（owner 判断）。`b83444de-d88e-4509-bd07-40cc9fc66767` 仅 generated/临时 index/最后 app check/full portable/package 验证未返 — 不 count、不提前 passed。
+> - **其它 prod writers released**。current pin 严格 `17200`（不是 173）。不替 caller 猜 lifecycle。native audio / hash math unchanged；语音 normal keep。
+> - **冻结**：`:4661` PID `41648` freeze `9a` 不 stop/restart、当前 page 不覆盖。自动 3-run 已取消。无 GH Release / npm。
+> - **next**：两 final actual 0 → release → commit 具名退役 / 新 source pin → 同 SHA CI verified → 新手测 URL（保旧）给用户。goal paused，本请求直接执行、不 resume 虚称。本批不 commit。
 
 ---
 

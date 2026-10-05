@@ -35,13 +35,11 @@ npm run test:portable
 - **子代理与主代理分工（用户明确定调）**：**主代理不承担任何具体工作** —— 编码、文档、构建、浏览器实测、测试、清理**全部由子代理执行**；主代理只负责任务**拆分顺序 / 证据审核 / 最后验收**。以前安排给 lead 亲跑的 next steps **必须改分配执行，不得倒退**。具体代码与细节默认由 `magpie/group/auto-deepseek-v4-1-flash` 承担；**Flash 不能胜任的复杂工作交给 `avemujica-grok/grok-4.7`**，其他模型按需分配；不确定模型擅长什么时先搜索或做小测试，不编造专长。发现当前路由做不成时，把已测证据 / 失败原因 / 待办交接给升级模型，**不对同一路由反复无效重试**。低并发、明确写入范围。每阶段更新 `docs/current-work.md`，让新对话立即接手。**主代理尽可能少做工作，不逐文件审查；最终闸门是执行代理的实际正常工作 / 端到端验证，不是 lead 逐文件读代码。**
 - **不要动被用户冻结的东西**：例如 m03520 冻结的鼠标映射缺陷；`docs/fetch-engine-artifacts.md` 里的历史 hash 不得改写。
 
-## 当前状态（2026-10-05 · doc-only · 音频已验证、等用户亲测）
+## 当前状态（2026-10-05 · doc-only · 未 commit）
 
-- **音频处理已验证，用户下一步亲测；自动验收已取消；probe 暂存失败未提交保留。** 源码未改，code SHA 仍 `9a2cedd`。67360ecc closing：无新增实测缺陷、产品 diff empty；focused 44/0/0（relay 21、worker 12、integrated 1、restore ACK 1、native 9 实 g++）；build/check 0；产物 fresh 0.1.12。WASM local `ac31337918` / CI `f95` 同 size **不能说 byte-same**；JS `799a` / RPC `08f`。本 doc 不是新音频版本，也不是游戏验收。
-- **已合成、未耳听**：PCM→WebAudio 自然 ended 累计 ACK pending 不丢不退；mute/pause 等已合成。真实耳听与游戏效果只待用户亲测，不宣全游戏可玩。
-- **禁止续旧三轮 goal。** 用户已停自动 warmup / runA / runB 与再生 native CI probe。goal revision 3 = audio/manual，不因旧 memory 强跑 2 runs。
-- **清理**：diag `fzid` stop accepted（已换 `zwae`）。server `69316` 与误重启 `58988` 已 killed，`4661` free。f42 正式 closing（用户取消停手）。原自动 game job 已结束，不再写「待原 owner 收取」。本批无新 job / browser / server。
-- **入口已停**：手测服务 **4321 当前不在跑**（上一 owner 复核 PID `46860` gone，无需新复核）。用户在 `D:/online_gal` 自己跑已核命令 `pnpm --filter @online-gal/app dev`（脚本实为 `astro dev --host 127.0.0.1 --port 4321`），再开 `http://127.0.0.1:4321/`。
-- **已知存档限制（不修）**：`9a2cedd` runA 有效 ARCV+ARCL 26975B 后 native `artc_web_load` 返回 0 invalid checkpoint，runB 未跑。不是音频错误；按用户决定暂不扩展修复。不得全 game PASS。
-- **用户下一步**：上述命令起服务后，一次真实 START/点击解锁音频，亲测 BGM、语音、暂停与恢复。音频 44/44 与 build/check 0 已测，耳听需亲测。不 bump、不重编 native、no Release、no npm。
-- **未提交 a0 closing FAIL，冻结不修不扫**：`.github/scripts/build-artemis-compat.sh`、`ports/artemis/compat-web/tests/artemis-compat-scene-restore.test.mjs` + `scene-restore/`。发布仍 Artifacts only、`publish` 默认 false、no GH Release / no npm。
+- **cd5cb4b4 closing（真修源）**：src=git archive `17200e64` 257 files（排 NOTICE）byte-equal git tree；无 web target / overlay inside / 0003。改 CMake、已 apply 的 0001 拒；`patch --forward` 第二次 non-0。source `882552/65f5f48d010566af57235b7262417c1d642f8bfefc6c14c3352954bd8a38337d` 两 tar identical。RUN emsdk 6.0.9 exit 0；cmp JS `153831/8fc`、wasm `1477363/dde` equal。dist 新 body，manifest check 0。受管 source offer 3/3 actual 0。
+- **3c2 patched bundle 失败只作历史**，不是当前 state、当时未修。e235 未留独立目录 claim；这次已实补据。
+- **根 `11b2250d` 未 closing**：roots CI pin/guards 仍 active。已 115 pass 0 fail / source worktree 0 落盘，**未 released**（owner 判断）。`b83444de-d88e-4509-bd07-40cc9fc66767` 仅 generated/临时 index/最后 app check/full portable/package 验证未返 — 不 count、不提前 passed。
+- **其它 prod writers released**。current pin 严格 `17200`（不是 173）。不替 caller 猜 lifecycle。native audio / hash math unchanged；语音 normal keep。
+- **冻结**：`:4661` PID `41648` freeze `9a` 不 stop/restart、当前 page 不覆盖。自动 3-run 已取消。无 GH Release / npm。
+- **next**：两 final actual 0 → release → commit 具名退役 / 新 source pin → 同 SHA CI verified → 新手测 URL（保旧）给用户。goal paused，本请求直接执行、不 resume 虚称。本批不 commit。

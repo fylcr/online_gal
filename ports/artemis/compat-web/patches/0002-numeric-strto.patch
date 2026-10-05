@@ -47,7 +47,7 @@
          *start = static_cast<int>(i);
          return v;
      };
-@@ -287,7 +292,20 @@
+@@ -339,7 +344,20 @@
  }
  
  float ToF(const std::string &s, float def = 0) {
@@ -69,7 +69,7 @@
  }
  } // namespace
  
-@@ -1365,24 +1383,24 @@
+@@ -1436,24 +1454,24 @@
          if (const auto zoom=attrs.find("zoom"); zoom!=attrs.end())
              l.sx=l.sy=ToF(zoom->second,100)/100.f;
          for (const auto &kv : attrs) {
@@ -104,7 +104,7 @@
              else if (kv.first == "draggable") l.draggable = (kv.second != "0");
              else if (kv.first == "dragarea") {
                  // {left, top, right, bottom} — offsets in stage units
-@@ -1834,24 +1852,24 @@
+@@ -2007,24 +2025,24 @@
          if (const auto zoom=attrs.find("zoom"); zoom!=attrs.end())
              l.sx=l.sy=ToF(zoom->second,100)/100.f;
          for (const auto &kv : attrs) {

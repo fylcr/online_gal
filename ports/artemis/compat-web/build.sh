@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # Reproducible artemis-compat worker build.
-# Inputs: local git object of pin 9f622629 (or a clean clone of that pin) plus
-# the patches and overlay in this directory. Does not compile .ref and does not
-# export EM_CONFIG. One configure, one build, -j2.
+# Inputs: a local git object of the pin (default: fresh main 17200e64) plus the
+# two active patches and the overlay in this directory. Does not compile .ref
+# and does not export EM_CONFIG. One configure, one build, -j2.
 #
 #   bash ports/artemis/compat-web/build.sh [-j N]
+#   ARTC_OUT=refresh-17200e64 bash ports/artemis/compat-web/build.sh -j2
+#
+# ARTC_OUT, when set, is a single path segment under ports/artemis/compat-web/out.
+# The default (unset) is still out/{source,build-src,build}. A named subdir never
+# touches that default, so a refresh build cannot replace an older artifact.
 #
 # Every path that is deleted or written is derived from HERE and printed before
 # it is used, so a wrong working directory shows up as a wrong printed path
@@ -19,16 +24,24 @@ ROOT="$(cd "$HERE/../../.." && pwd)"
 JOBS=2
 if [ "${1:-}" = "-j" ] && [ -n "${2:-}" ]; then JOBS="$2"; fi
 
-PIN="${ARTC_PIN:-9f622629f595db85e6f76c45c06edde29d7d9961}"
-REF="${ARTC_REF:-$ROOT/.ref/artemis-compat}"
+PIN="${ARTC_PIN:-17200e64ea99681e3c27d694433c0ff78d7a7cee}"
+REF="${ARTC_REF:-$ROOT/.ref/artemis-compat-refresh/src}"
 
 # --- Output layout. Absolute, and checked before anything is removed. -------
-# The three build directories are the only things this script deletes, and each
-# one has to be a *specific* suffix under `ports/artemis/compat-web/out`. That
-# check is what turns a `HERE` that is not what the caller expected (a stray
-# `cd`, a copied script, a symlinked checkout) into an error message rather
-# than a removed directory.
+# The three build directories are the only things this script deletes. The
+# default set sits directly under `ports/artemis/compat-web/out`. ARTC_OUT names
+# one extra segment (`out/<name>/{source,build-src,build}`) so a second pin can
+# be built without deleting the first. The segment is one directory name: no
+# slash, no `..`, no empty value. A wrong HERE is still a refused path.
 OUT="$HERE/out"
+if [ -n "${ARTC_OUT:-}" ]; then
+  case "$ARTC_OUT" in
+    *[!A-Za-z0-9._-]*|"."|"..")
+      echo "refusing: ARTC_OUT must be one directory name, got ${ARTC_OUT}" >&2
+      exit 2 ;;
+  esac
+  OUT="$HERE/out/$ARTC_OUT"
+fi
 SRC="$OUT/source"
 BUILD="$OUT/build-src"
 OBJ="$OUT/build"
@@ -36,8 +49,11 @@ CLONE="$OUT/clone"
 LOG="$OUT/build.log"
 HASHES="$OUT/hashes.txt"
 
-case "$OUT"   in */ports/artemis/compat-web/out) ;; *) echo "refusing: unexpected OUT=$OUT" >&2; exit 2 ;; esac
-case "$SRC"   in "$OUT"/source)   ;; *) echo "refusing: unexpected SRC=$SRC" >&2; exit 2 ;; esac
+case "$OUT" in
+  "$HERE"/out|"$HERE"/out/[A-Za-z0-9._-]*) ;;
+  *) echo "refusing: unexpected OUT=$OUT" >&2; exit 2 ;;
+esac
+case "$SRC"   in "$OUT"/source)    ;; *) echo "refusing: unexpected SRC=$SRC" >&2; exit 2 ;; esac
 case "$BUILD" in "$OUT"/build-src) ;; *) echo "refusing: unexpected BUILD=$BUILD" >&2; exit 2 ;; esac
 case "$OBJ"   in "$OUT"/build)     ;; *) echo "refusing: unexpected OBJ=$OBJ" >&2; exit 2 ;; esac
 
@@ -83,7 +99,8 @@ emcc --version | head -n 1 | tee -a "$LOG"
 # --- Source identity --------------------------------------------------------
 # The pin must be a full 40-hex object, and it must resolve. A short or guessed
 # revision is what turns "reproducible build" into "whatever was checked out",
-# so both are refused rather than defaulted.
+# so both are refused rather than defaulted. The archive is extracted only into
+# the asserted $SRC above; .ref itself is never written.
 case "$PIN" in
   *[!0-9a-f]*|"") say "refusing: ARTC_PIN is not lowercase hex: $PIN"; exit 2 ;;
 esac
@@ -98,6 +115,10 @@ fi
 # the checked-out revision against the pin afterwards.
 if git -C "$REF" cat-file -e "$PIN^{commit}" 2>/dev/null; then
   say "source=git archive $REF $PIN"
+  case "$SRC" in
+    "$OUT"/source) ;;
+    *) say "refusing: archive target is not the asserted source dir: $SRC"; exit 2 ;;
+  esac
   rm -rf "$SRC"
   mkdir -p "$SRC"
   git -C "$REF" archive "$PIN" | tar -x -C "$SRC"
@@ -147,13 +168,16 @@ rm -rf "$BUILD/overlay"
 cp -a "$HERE/overlay/audio" "$BUILD/overlay.tmp"
 mkdir -p "$BUILD/overlay"
 mv "$BUILD/overlay.tmp" "$BUILD/overlay/audio"
+# 0003 is a save/restore feature, not a platform compile input. It stays on
+# disk and is not applied. Active set: ReadAt host bytes, and the sto* sites
+# that throw (wasm numeric).
 for p in "$HERE"/patches/0001-pf8-readat-host-source.patch \
-         "$HERE"/patches/0002-numeric-strto.patch \
-         "$HERE"/patches/0003-scene-checkpoint.patch; do
+         "$HERE"/patches/0002-numeric-strto.patch; do
   say "patch $(basename "$p") sha256=$(sha256sum "$p" | cut -d' ' -f1)"
   # No `--forward`: a patch that is already applied is a recipe that no longer
   # matches its source, and that has to stop the build.
-  patch --binary -d "$BUILD" -p1 --batch <"$p" >>"$LOG" 2>&1
+  patch --dry-run --forward --binary -d "$BUILD" -p1 --batch <"$p" >>"$LOG" 2>&1
+  patch --forward --binary -d "$BUILD" -p1 --batch <"$p" >>"$LOG" 2>&1
 done
 cat "$HERE/overlay/cmake/web.cmake" >>"$BUILD/CMakeLists.txt"
 say "web.cmake sha256=$(sha256sum "$HERE/overlay/cmake/web.cmake" | cut -d' ' -f1)"

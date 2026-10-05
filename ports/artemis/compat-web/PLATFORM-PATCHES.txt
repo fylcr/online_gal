@@ -1,0 +1,22 @@
+# The patches the minimal platform port is built from. One file name per line, in application
+# order; `#` starts a comment and blank lines are ignored. Paths are relative to `patches/`.
+#
+# This list is the explicit interface between the recipes and the source gate. The recipes spell the
+# same names in their `for p in ...` loops, `make-source-bundle.mjs` carries each one as an entry,
+# and `scripts/check-sources.mjs` requires that all three agree with this file in BOTH directions:
+# a patch named here and missing, and a patch present in `patches/` and named here by neither this
+# file nor a declaration, are both failures. The guard reads this file rather than the recipe's loop,
+# so the table it enforces is not derived from the thing it is supposed to constrain.
+#
+# 0001  ReadAt host source hook. The host supplies the byte range the engine reads; without the hook
+#       the web build has no way to serve the archive it was handed.
+# 0002  numeric strto exceptions. Upstream still calls unguarded `std::strtod`/`std::strtof` on
+#       script-supplied values, which throws out of the engine on a malformed number.
+#
+# Not here, and deliberately: `0003-scene-checkpoint.patch` is a save/restore FEATURE, not a
+# platform adaptation. It still sits in `patches/` from the previous port. Nothing in the minimal
+# port applies it, and while it remains in the checkout this file's own rule reports it as an
+# unmanaged patch -- which is the intended state until the third patch is integrated or archived,
+# not a green light to weaken the guard.
+0001-pf8-readat-host-source.patch
+0002-numeric-strto.patch

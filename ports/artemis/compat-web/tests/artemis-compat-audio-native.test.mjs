@@ -569,9 +569,13 @@ int main() {
 }
 `;
 
-/** Where the pinned `vorbis_stream.cpp` lives: a completed recipe run, not a checkout. */
+/** Where the pinned `vorbis_stream.cpp` lives: a completed recipe run, not a checkout.
+ *  `ARTC_AUDIO_SRC` points at a guarded build-src (the tree that contains `src/`),
+ *  so a second pin can be probed without rewriting the default path. */
 function pinnedBackendSources() {
-  const buildSrc = join(ROOT, PORT, 'out', 'build-src', 'src');
+  const buildSrc = process.env.ARTC_AUDIO_SRC
+    ? join(process.env.ARTC_AUDIO_SRC, 'src')
+    : join(ROOT, PORT, 'out', 'build-src', 'src');
   return {
     buildSrc,
     files: [join(buildSrc, 'audio', 'vorbis_stream.cpp'), join(buildSrc, 'audio', 'audio_channels.cpp')],

@@ -28,7 +28,10 @@ export const SOURCE_ENTRIES = [
   'ports/artemis/compat-web/README.md',
   'ports/artemis/compat-web/patches/0001-pf8-readat-host-source.patch',
   'ports/artemis/compat-web/patches/0002-numeric-strto.patch',
-  'ports/artemis/compat-web/patches/0003-scene-checkpoint.patch',
+  // What the platform build is actually made of: the patch set is named here rather than inferred
+  // from the recipes' own patch loops, so a third patch cannot be applied (or silently dropped)
+  // without editing this file. See `compatPlatformPatches` for the two-directional check.
+  'ports/artemis/compat-web/PLATFORM-PATCHES.txt',
   'ports/artemis/compat-web/overlay/host/web_main.cpp',
   'ports/artemis/compat-web/overlay/cmake/web.cmake',
   // The audio seam. `audio_web.cpp` is compiled *instead of* the pinned `src/audio/audio.cpp`,
@@ -190,8 +193,71 @@ const COMPAT_STANDALONE_RECIPE = 'RUN-BUILD.sh';
 const COMPAT_PATCH_DECLARATIONS = [
   ['ports/artemis/compat-web/build.sh', /patches\/[\w.-]+\.patch/],
   ['ports/artemis/compat-web/RUN-BUILD.sh', /patches\/[\w.-]+\.patch/],
-  ['ports/artemis/compat-web/make-source-bundle.mjs', /^.*\['patches\//],
+  // An entry, not a mention. The generator header comments the retired patch with the same
+  // patches/NAME spelling, so a line match would count a comment as shipping it.
+  ['ports/artemis/compat-web/make-source-bundle.mjs', /^\s*\['patches\/[\w.-]+\.patch'/],
 ];
+
+/**
+ * The platforms the minimal port is built from, and the manifest that says so.
+ *
+ * `ports/artemis/compat-web/PLATFORM-PATCHES.txt` is the explicit list: the 0001/0002 platform
+ * adaptations, and nothing else. `0003-scene-checkpoint.patch` is a save/restore *feature*, not a
+ * platform adaptation, so it is not in the minimal port's set; a checkout that still holds the file
+ * while the list omits it must fail loudly rather than have a guard quietly admit it.
+ *
+ * The list is explicit on purpose. The previous version of this guard read the `for p in ...` loops
+ * the recipes spell, which meant the set of patches CI compiles was whatever those loops happened to
+ * contain -- the table was derived from the very thing it was supposed to constrain, and a third
+ * patch could be added to `patches/` with every declaration still green.
+ *
+ * `candidates` is the checkout's own view (tracked plus visible), while `parse` is a text reader set
+ * by the caller: worktree mode uses the filesystem, `--staged` uses `git show`, so the list is read
+ * from the same view as everything else. It is never read from the candidate list, which would make
+ * a file that was never committed able to declare itself.
+ */
+const COMPAT_PLATFORM_PATCH_LIST = 'ports/artemis/compat-web/PLATFORM-PATCHES.txt';
+
+function compatPlatformPatches(candidates, hasFile, parse) {
+  if (!hasFile(COMPAT_PLATFORM_PATCH_LIST)) return { names: [], problem:
+    `${COMPAT_PLATFORM_PATCH_LIST}: missing; the platform patch set has to be named explicitly, `
+    + `because a set inferred from the recipe's patch loop is the set the recipe already applies` };
+  const names = parse(COMPAT_PLATFORM_PATCH_LIST).split(/\r?\n/)
+    .map((line) => line.replace(/#.*$/, '').trim()).filter(Boolean);
+  const dir = 'ports/artemis/compat-web/patches/';
+  // The exact set, both directions. A named patch with no file stops the recipe's `patch` call; a
+  // patch file the list does not name is the 0003 shape -- present, unapplied, and invisible.
+  const problems = [];
+  for (const name of names) {
+    if (!hasFile(dir + name)) problems.push(`${dir}${name}: named in ${COMPAT_PLATFORM_PATCH_LIST} but missing`);
+  }
+  for (const file of candidates) {
+    const base = file.startsWith(dir) && file.endsWith('.patch') ? file.slice(dir.length) : '';
+    if (base && hasFile(file) && !names.includes(base)) {
+      problems.push(`${file}: present in the checkout but named in neither ${COMPAT_PLATFORM_PATCH_LIST} `
+        + `nor any patch declaration; unmanaged patches are the hole this contract closes`);
+    }
+  }
+  // The patch set the non-platform test compares against, so it is compared once per file rather
+  // than once per occurrence: a declaration names a patch in a guard list and again in its loop.
+  const declared = [];
+  for (const [manifest, pattern] of COMPAT_PATCH_DECLARATIONS) {
+    if (!hasFile(manifest)) continue;
+    for (const line of parse(manifest).split(/\r?\n/).map((l) => l.replace(/\\$/, '').trim())) {
+      if (!pattern.test(line)) continue;
+      for (const name of line.match(/[\w.-]+\.patch/g) ?? []) {
+        if (names.includes(name) || declared.includes(name)) continue;
+        if (hasFile(dir + name)) {
+          declared.push(name);
+          problems.push(`${manifest}: still applies ${name}. Current platform patches `
+            + `${names.length} explicit (${names.join(', ')}); this patch is not one of them, so the `
+            + `minimal port neither compiles it nor ships it -- retire the file or list it`);
+        }
+      }
+    }
+  }
+  return { names, problem: problems.join('\n') || null };
+}
 
 /**
  * The managed patch set: the patch files this checkout holds, in whichever view is being read.
@@ -290,6 +356,13 @@ function artemisCompatProblems(content, hasFile, bucket, candidates) {
   // section because that one returns early on a missing workflow, and this check must not be
   // skipped for a reason that has nothing to do with the patch set.
   if (hasFile(ARTEMIS_COMPAT.recipe)) {
+    // The explicit platform set first: it is the contract, and every declaration below is measured
+    // against it rather than against the recipe's own patch loop.
+    const platform = compatPlatformPatches(candidates, hasFile, content);
+    if (platform.problem) for (const problem of platform.problem.split('\n')) fail(problem);
+    if (!platform.names.length) {
+      fail(`${COMPAT_PLATFORM_PATCH_LIST}: names no platform patch, and the minimal port applies at least one`);
+    }
     const patchSet = compatPatchSet(candidates, hasFile);
     if (!patchSet.length) fail(`${ARTEMIS_COMPAT.recipe}: names no managed patch set, so this check has nothing to compare and fails closed`);
     for (const [file, pattern] of COMPAT_PATCH_DECLARATIONS) {
@@ -303,23 +376,43 @@ function artemisCompatProblems(content, hasFile, bucket, candidates) {
       const manifest = content(file);
       const lines = manifest.split(/\r?\n/).map((line) => line.replace(/\\$/, '').trim());
       const declared = lines.filter((line) => pattern.test(line));
-      for (const patch of patchSet) {
-        const name = patch.slice(patch.lastIndexOf('/') + 1);
+      // What is required to be declared is the platform set, not "everything in `patches/`". A
+      // retired patch such as 0003 may still sit in the checkout while the minimal port does not
+      // apply it; demanding it be declared would force the recipes to keep applying it, which is
+      // the opposite of retiring it. A patch that is neither named here nor by the platform list
+      // is already reported by `compatPlatformPatches`, once, by name.
+      for (const name of platform.names) {
+        const patch = `ports/artemis/compat-web/patches/${name}`;
         if (declared.some((line) => line.includes(name))) continue;
-        fail(`${patch}: managed patch named in none of ${file} `
+        fail(`${patch}: platform patch named in none of ${file} `
           + `(its entry list is ${ARTEMIS_COMPAT.recipe}, RUN-BUILD.sh and make-source-bundle.mjs), `
           + `so the shipping build and the source offer would omit it; name it there or leave it unmanaged`);
       }
       // The other direction: a name the file spells that no patch file backs stops the build at
       // patch time. Read from the whole file rather than the operand lines, because the generator
       // has no existence check of its own and a typo there is a silently smaller bundle.
-      for (const name of manifest.match(/[\w.-]+\.patch/g) ?? []) {
+      //
+      // Comments are stripped first. The declarations are prose-heavy on purpose -- each one says
+      // in words which patches it applies and why -- and a comment that names a RETIRED patch in
+      // order to say it is *not* applied is documentation, not an application. Without this, the
+      // honest note is reported as if the file had asked for a patch that is not there, and the
+      // only way to keep the gate green would be to delete the explanation.
+      const code = manifest.split(/\r?\n/)
+        .map((line) => line.replace(/(^|\s)(#|\/\/|\*).*$/, '$1'))
+        .join('\n');
+      for (const name of code.match(/[\w.-]+\.patch/g) ?? []) {
         if (!patchSet.includes(`ports/artemis/compat-web/patches/${name}`)) {
           fail(`${file}: names ${name}, which is not a managed patch file`);
         }
       }
     }
-    if (patchSet.length < 2) fail(`${ARTEMIS_COMPAT.recipe}: managed patch set shrank to ${patchSet.length}`);
+    // The set the recipes apply has to be the platform set. Where a declaration still names a
+    // retired patch, `compatPlatformPatches` reports it once per file, with the platform count, so
+    // a failed writer release shows up as a named mismatch rather than a silent pass.
+    if (patchSet.length < platform.names.length) {
+      fail(`${ARTEMIS_COMPAT.recipe}: managed patch set shrank to ${patchSet.length}, below the `
+        + `${platform.names.length} the platform list names`);
+    }
   }
 
   // --- the workflow this record names -------------------------------------

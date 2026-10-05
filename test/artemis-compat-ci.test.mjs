@@ -25,7 +25,10 @@ const WORKFLOW = '.github/workflows/build-wasm-artemis-compat.yml';
 const BRIDGE_WORKFLOW = '.github/workflows/build-wasm-artemis-bridge.yml';
 const SCRIPT = '.github/scripts/build-artemis-compat.sh';
 const RECIPE = 'ports/artemis/compat-web/build.sh';
-const PIN = '9f622629f595db85e6f76c45c06edde29d7d9961';
+// The reviewed upstream commit. `17200e64` is the fresh re-pull of artemis-compat's default branch
+// (`.ref/artemis-compat-refresh/src`, clean, 257 tracked files); the previous `9f622629` is kept
+// only as a comparison baseline in docs, and must NOT be what this build compiles.
+const PIN = '17200e64ea99681e3c27d694433c0ff78d7a7cee';
 
 /**
  * The `with:` block of the caller, read the way the guard reads it: `key: value` lines at the
@@ -431,6 +434,57 @@ function paths(workflow, trigger) {
   };
 }
 
+test('every fixed upstream commit is one full exact SHA, with no override path anywhere', () => {
+  // Moving the pin is a reviewed edit in four places, and a half-edit is the failure this guards:
+  // a run that checks out one commit while the recipe archives another ships a source tarball, a
+  // PIN file and a release tag that name a commit nobody compiled. Every literal is asserted to be
+  // the SAME full 40-hex SHA, so a shortened form or a second commit cannot slip through.
+  const FULL = /^[a-f0-9]{40}$/;
+  const pins = json(PINS);
+  assert.match(pins['artemis-compat'].commit, FULL, `${PINS}: the compat pin must be a full exact SHA`);
+  assert.equal(pins['artemis-compat'].commit, PIN);
+
+  const source = read(WORKFLOW);
+  const inputs = callInputs(source);
+  assert.equal(inputs.get('upstream-commit'), `'${PIN}'`,
+    'the checked-out commit is a literal reviewed SHA, never an expression');
+  assert.equal(inputs.get('build-env'), `ARTC_PIN=${PIN}`,
+    'the pin the recipe archives is the same literal as the checkout');
+  // No dispatch input may carry a commit, and no shell/expression override may reach either spot.
+  // `${{ }}` around a commit is how a dispatch input, a matrix or a reusable-workflow input would
+  // get in; the header comment already says there is deliberately no `upstream_commit` input.
+  const dispatch = source.match(/\n {2}workflow_dispatch:\n([\s\S]*?)\n {2}\w/);
+  assert.ok(dispatch, `${WORKFLOW} must still declare workflow_dispatch, with its inputs spelled out`);
+  for (const line of dispatch[1].split(/\r?\n/)) {
+    const input = line.match(/^ {6}([a-z][a-z0-9_-]*):/);
+    assert.ok(!input || !/commit|sha/i.test(input[1]),
+      `${WORKFLOW} must not offer a dispatch input named ${input?.[1]}: the pin cannot be bent at run time`);
+  }
+  for (const key of ['upstream-commit', 'build-env']) {
+    const value = inputs.get(key) ?? '';
+    assert.ok(!/\$\{\{/.test(value),
+      `${WORKFLOW}: ${key} must be a literal, not an expression that could fetch a different commit`);
+  }
+  // No `upstream_override` of any spelling, and no env var that could substitute for the pin.
+  assert.ok(!/upstream[_-]override/i.test(source),
+    `${WORKFLOW} must not define an upstream_override; the pin only moves by a reviewed edit`);
+  assert.ok(!/ARTC_PIN\s*[:=]\s*\$\{?(?!ARTC_PIN)/.test(source),
+    'ARTC_PIN must not be re-derived from anything else in the workflow');
+  // The pins file records the compat SHA once. A second record naming the same engine would be a
+  // second place to keep in sync, and the drift check dispatches `engines` on its own.
+  for (const [name, engine] of Object.entries(pins.engines ?? {})) {
+    assert.notEqual(engine.repository, pins['artemis-compat'].repository,
+      `${PINS}: ${name} must not point at the compat repository; that map is dispatchable`);
+  }
+  // The previous pin must not survive anywhere as a build input. It is still allowed in docs as a
+  // comparison baseline, but no file that decides what CI compiles may name it.
+  for (const file of [PINS, WORKFLOW, SCRIPT]) {
+    assert.ok(!read(file).includes('9f622629'),
+      `${file} still names the superseded pin 9f622629; the build would compile or archive the old `
+      + 'commit while the fresh re-pull is what was reviewed');
+  }
+});
+
 test('the compat workflow re-runs on each app input on push and on pull_request', () => {
   for (const trigger of ['push', 'pull_request']) {
     const { entries } = paths(WORKFLOW, trigger);
@@ -523,21 +577,53 @@ test('the portable suite that reads the app seam is what re-runs on its change',
     'the individual test file is covered by test/** on this workflow and must not be listed twice');
 });
 
-test('the scene checkpoint patch is applied by every managed recipe and shipped in the offer', () => {
-  // 0003 is the smallest patch and the only one whose absence is silent: the module still links,
-  // the run still goes green, and the saved room comes back black. `0001`/`0002` are named by the
-  // tests above through the files they edit; this one has no other reader, so the closure that
-  // makes it real -- both recipes, the source offer, and the portable suite that compiles it --
-  // is asserted here as one set.
-  const PATCH = 'patches/0003-scene-checkpoint.patch';
-  for (const recipe of [RECIPE, 'ports/artemis/compat-web/RUN-BUILD.sh',
-    'ports/artemis/compat-web/make-source-bundle.mjs']) {
-    assert.ok(read(recipe).includes(PATCH), `${recipe} must carry ${PATCH}`);
+test('the platform patch set is 2 explicit, and no declaration still applies a retired patch', () => {
+  // The minimal port's set is named by one file, not inferred from the recipes' patch loops: a
+  // table derived from the thing it constrains constrains nothing, which is how a third patch could
+  // previously land in `patches/` with every declaration still green.
+  //
+  // What the earlier version of this test asserted -- that `0003-scene-checkpoint.patch` is applied
+  // everywhere and shipped in the offer -- is exactly what the minimal port retires. The patch is a
+  // save/restore FEATURE, not a platform adaptation, so it is not a build input to this port.
+  //
+  // `scripts/check-sources.mjs` enforces the same list against the checkout; this test is the part
+  // that can be read as a statement of what the list is FOR, and it runs without a git repository.
+  const LIST = 'ports/artemis/compat-web/PLATFORM-PATCHES.txt';
+  const names = read(LIST).split(/\r?\n/)
+    .map((line) => line.replace(/#.*$/, '').trim()).filter(Boolean);
+  assert.deepEqual(names, ['0001-pf8-readat-host-source.patch', '0002-numeric-strto.patch'],
+    `${LIST} must name exactly the two platform adaptations, in application order; the count is `
+    + 'the contract CI compiles, so adding or removing one is a deliberate edit to this test too');
+
+  // Every named patch exists, and is one of the two the port is built from.
+  for (const name of names) {
+    assert.ok(read(`ports/artemis/compat-web/patches/${name}`).length > 0,
+      `the platform list names ${name}, so the file has to be there`);
   }
+
+  // Nothing in the closure still APPLIES a patch that is not on the list. Counted as patch
+  // references that are not the two above, with comments stripped: each declaration explains in
+  // prose which patches it applies, and a line saying `0003` is *not* applied is documentation.
+  const RETIRED = '0003-scene-checkpoint.patch';
+  for (const file of [RECIPE, 'ports/artemis/compat-web/RUN-BUILD.sh',
+    'ports/artemis/compat-web/make-source-bundle.mjs']) {
+    const code = read(file).split(/\r?\n/)
+      .map((line) => line.replace(/(^|\s)(#|\/\/|\*).*$/, '$1')).join('\n');
+    for (const name of code.match(/[\w.-]+\.patch/g) ?? []) {
+      assert.ok(names.includes(name),
+        `${file} references ${name}, which is not one of the ${names.length} platform patches; `
+        + 'retired patches must not be applied be anywhere in the closure');
+    }
+    assert.ok(!code.includes(RETIRED),
+      `${file} must not apply ${RETIRED}; it is retired from the minimal port`);
+  }
+  // The portable runner still has to discover the port's own tests/ directory. That is a separate
+  // requirement from the patch set (the audio and read-host regressions live there too), so it is
+  // asserted here rather than dropped along with the scene-specific case above.
   const runner = read('scripts/run-portable-tests.mjs');
   assert.ok(runner.includes("'ports/artemis/compat-web/tests'"),
-    'the scene regression lives in the port\'s own tests/ directory, so the runner has to discover '
-    + 'that directory: a suite it never scans is a regression nothing runs');
+    "the port's own tests/ directory holds regressions the portable runner has to reach: a suite it "
+    + 'never scans is a regression nothing runs');
 });
 
 test('the compat workflow names the one test file that pins its artifact contract', () => {

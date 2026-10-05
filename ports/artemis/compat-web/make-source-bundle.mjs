@@ -17,16 +17,19 @@
  * be checked out: `ARTC_PIN` from the environment overrides `--pin`, so the CI run records the
  * commit it actually built, and outside CI the pipeline's own pin is used.
  *
- *   node ports/artemis/compat-web/make-source-bundle.mjs --out <dir> [--work <dir>]
+ *   node ports/artemis/compat-web/make-source-bundle.mjs --out <dir> [--work <dir>] [--repo <dir>]
  *
- * Reads `source/` (the recipe's extraction of the pinned upstream commit) and the tracked
- * `patches/`, `overlay/` and `build.sh`. Writes `<out>/artemis-compat-source.tar.gz`.
+ * `src/` is `git archive` of the pinned commit from `--repo` (default
+ * `.ref/artemis-compat-refresh/src`). A build tree or a patched checkout is not
+ * corresponding source and is refused. Writes `<out>/artemis-compat-source.tar.gz`.
+ * `0003-scene-checkpoint.patch` is not an active patch and is not offered.
  *
  * Reads only: nothing under `.ref/` or `source/` is modified, and the scratch work directory is
  * the only thing removed.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -34,7 +37,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..', '..', '..');
 
 /** The pinned upstream commit, as recorded in `.github/upstream-pins.json`. */
-export const DEFAULT_PIN = '9f622629f595db85e6f76c45c06edde29d7d9961';
+export const DEFAULT_PIN = '17200e64ea99681e3c27d694433c0ff78d7a7cee';
 
 /**
  * What the bundle carries. Fixed names: a caller cannot widen the source offer by editing an
@@ -48,6 +51,7 @@ export const DEFAULT_PIN = '9f622629f595db85e6f76c45c06edde29d7d9961';
  */
 export const EXTRA_ENTRIES = [
   ['README.md', 'SOURCE-BUNDLE.md'],
+  ['PLATFORM-PATCHES.txt', 'PLATFORM-PATCHES.txt'],
   ['build.sh', 'build.sh'],
   // The standalone recipe. `build.sh` above is the record of what CI ran, but it cannot execute
   // inside this archive: it sources `ports/env.sh` and refuses a root that is not
@@ -56,7 +60,6 @@ export const EXTRA_ENTRIES = [
   ['RUN-BUILD.sh', 'RUN-BUILD.sh'],
   ['patches/0001-pf8-readat-host-source.patch', 'patches/0001-pf8-readat-host-source.patch'],
   ['patches/0002-numeric-strto.patch', 'patches/0002-numeric-strto.patch'],
-  ['patches/0003-scene-checkpoint.patch', 'patches/0003-scene-checkpoint.patch'],
   ['overlay/host/web_main.cpp', 'overlay/host/web_main.cpp'],
   ['overlay/cmake/web.cmake', 'overlay/cmake/web.cmake'],
   // The audio backend exists only in this repository: upstream's `src/audio/audio.cpp` is the
@@ -214,15 +217,78 @@ data. This archive is the source of the two modules beside it and nothing else.
 `;
 }
 
+/**
+ * Absolute path that may receive an extracted archive.
+ * Inside the repo: only a child of `.test` or `ports`. Outside it (CI temp): any
+ * absolute path. The repo root and every other repo directory are refused.
+ */
+export function assertExtractDir(root, target) {
+  const absRoot = resolve(root);
+  const abs = resolve(target);
+  if (!isAbsolute(abs) || abs === absRoot) {
+    throw new Error(`refusing to extract into ${abs}: not a new child of .test or ports`);
+  }
+  if (!abs.startsWith(absRoot + sep)) return abs;
+  const prefixes = ['.test', 'ports'].map((name) => resolve(absRoot, name) + sep);
+  if (!prefixes.some((prefix) => abs.startsWith(prefix))) {
+    throw new Error(`refusing to extract into ${abs}: not a new child of .test or ports`);
+  }
+  return abs;
+}
+
+/** `git ls-tree` of one commit: path -> blob sha. A dirty worktree never appears here. */
+export function gitTree(repo, pin) {
+  const listed = spawnSync('git', ['-C', repo, 'ls-tree', '-r', pin], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (listed.status !== 0) {
+    throw new Error(`git ls-tree ${pin} failed in ${repo}: ${(listed.stderr ?? '').trim()}`);
+  }
+  const files = new Map();
+  for (const line of listed.stdout.split('\n').filter(Boolean)) {
+    const match = line.match(/^\d+ blob ([0-9a-f]{40})\t(.+)$/);
+    if (!match) throw new Error(`unreadable git ls-tree line: ${line}`);
+    files.set(match[2], match[1]);
+  }
+  if (files.size === 0) throw new Error(`git tree ${pin} in ${repo} is empty`);
+  return files;
+}
+
+/** Byte identity of an extracted tree against the git tree. `extra` (src/NOTICE) is the only addition. */
+export function treeMatchesGit(dir, expected, { extra = new Set() } = {}) {
+  const seen = new Set();
+  const walk = (at) => {
+    for (const name of readdirSync(at).sort()) {
+      const path = join(at, name);
+      if (statSync(path).isDirectory()) walk(path);
+      else {
+        const rel = relative(dir, path).replace(/\\/g, '/');
+        seen.add(rel);
+        if (extra.has(rel)) continue;
+        const blob = expected.get(rel);
+        if (!blob) throw new Error(`${rel} is not in the pinned git tree`);
+        const hash = createHash('sha1').update(`blob ${statSync(path).size}\0`).update(readFileSync(path)).digest('hex');
+        if (hash !== blob) throw new Error(`${rel} does not match git blob ${blob}`);
+      }
+    }
+  };
+  walk(dir);
+  for (const rel of expected.keys()) {
+    if (!seen.has(rel)) throw new Error(`pinned file ${rel} is missing from the extracted tree`);
+  }
+}
+
 function main(argv) {
   const args = argv.slice(2);
   let out = '';
   let work = '';
+  let repoArg = '';
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] === '--out') out = args[++i] ?? '';
     else if (args[i] === '--work') work = args[++i] ?? '';
+    else if (args[i] === '--repo') repoArg = args[++i] ?? '';
     else {
-      console.error(`usage: node ports/artemis/compat-web/make-source-bundle.mjs --out <dir> [--work <dir>]`);
+      console.error(`usage: node ports/artemis/compat-web/make-source-bundle.mjs --out <dir> [--work <dir>] [--repo <dir>]`);
       process.exitCode = 2;
       return;
     }
@@ -230,12 +296,14 @@ function main(argv) {
   const { pin, name } = bundlePlan();
   const outDir = checkDir('--out', out);
   const workDir = checkDir('--work', work ? work : join(outDir, '.source-bundle-work'));
-  const source = join(HERE, 'out', 'source');
+  const repo = checkDir('--repo', repoArg ? repoArg : join(ROOT, '.ref', 'artemis-compat-refresh', 'src'));
   const bundle = join(workDir, name);
   const tarball = join(outDir, 'artemis-compat-source.tar.gz');
-  if (!existsSync(source) || !statSync(source).isDirectory()) {
-    throw new Error(`no extracted source at ${source}; run ports/artemis/compat-web/build.sh first`);
+  const source = assertExtractDir(ROOT, join(workDir, '.archive-src'));
+  if (!existsSync(join(repo, '.git')) && !existsSync(join(repo, 'HEAD'))) {
+    throw new Error(`no git repository at ${repo}; refusing to treat a build tree as corresponding source`);
   }
+  const expected = gitTree(repo, pin);
 
   // The one deletion, and it is the checked version of the recipe's own rule: `--work` is refused
   // above unless it is non-empty and absolute, and the recipe's paths are refused below. Resolved
@@ -244,17 +312,23 @@ function main(argv) {
     throw new Error(`refusing to remove ${workDir}: it is a live checkout or output directory`);
   }
   console.log(`## pin:      ${pin}`);
-  console.log(`## source:   ${source}`);
+  console.log(`## repo:     ${repo}`);
   console.log(`## work:     ${workDir}`);
   console.log(`## removing: ${bundle}`);
   rmSync(bundle, { recursive: true, force: true });
+  rmSync(source, { recursive: true, force: true });
   mkdirSync(bundle, { recursive: true });
+  mkdirSync(source, { recursive: true });
 
-  // The upstream source the recipe compiled, verbatim, at the same relative paths the recipe
-  // built from (including `src/host/`, so the host sources the patches edit are inside the
-  // offer rather than described by it). The bundle is flat where upstream is flat.
+  // The pinned commit, never a checkout or a patched build tree. `git archive` reads the object.
+  // A pipe between git and tar is refused by the sandbox (EPERM), so the archive is a file.
+  const pinTar = join(workDir, 'pin.tar');
+  run('git archive', 'git', ['-C', repo, 'archive', '--format=tar', '-o', pinTar, pin]);
+  run('tar', 'tar', ['-xf', 'pin.tar', '-C', '.archive-src'], { cwd: workDir });
+  treeMatchesGit(source, expected);
+
   const sourceFiles = copyTree(source, join(bundle, 'src'));
-  if (sourceFiles === 0) throw new Error(`${source} contains no files`);
+  if (sourceFiles !== expected.size) throw new Error(`${source} has ${sourceFiles} files, pin has ${expected.size}`);
 
   for (const [from, to] of EXTRA_ENTRIES) {
     const files = copyTree(join(HERE, from), join(bundle, to.replace(/\//g, sep)));
@@ -274,19 +348,20 @@ function main(argv) {
   // `src/NOTICE` is this generator's, not upstream's: it lands in the copied tree, so the diff is
   // the only place that can say the tree below `src/` is not byte-for-byte upstream.
   writeFileSync(join(bundle, 'src', 'NOTICE'), notice(pin, sourceFiles));
+  treeMatchesGit(join(bundle, 'src'), expected, { extra: new Set(['NOTICE']) });
 
   // The upstream tree as archived, minus this generator's own additions. `diff -ruN` exits 1 when
   // the trees differ, which is the normal case here (`src/NOTICE` is this generator's), so only
   // exit 2 or worse is a failure. The paths are passed in the git-bash dialect for the same reason
   // as the tar invocation below.
+  const diffPath = join(bundle, 'upstream-root.diff');
+  const diffFd = openSync(diffPath, 'w');
   const diff = spawnSync('diff', ['-ruN', '--exclude=NOTICE', paths.posix(source), paths.posix(join(bundle, 'src'))], {
-    cwd: REPO_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    cwd: REPO_ROOT, stdio: ['ignore', diffFd, 'inherit'],
   });
+  closeSync(diffFd);
   if (diff.error) throw new Error(`diff failed to start: ${diff.error.message}`);
-  if (diff.status !== 0 && diff.status !== 1) {
-    throw new Error(`diff exited ${diff.status}: ${(diff.stderr ?? '').trim()}`);
-  }
-  writeFileSync(join(bundle, 'upstream-root.diff'), diff.stdout ?? '');
+  if (diff.status !== 0 && diff.status !== 1) throw new Error(`diff exited ${diff.status}`);
   console.log(`## files:    ${sourceFiles} upstream + ${EXTRA_ENTRIES.length} tracked + `
     + `${UPSTREAM_ENTRIES.length} upstream licence files`);
 
