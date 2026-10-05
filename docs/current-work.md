@@ -1,11 +1,11 @@
 # 当前工作检查点 — 新对话先读
 
-> **当前摘要（2026-10-05 · doc-only · 未 commit · 仅此 2 文件 · 本块是唯一「现状」；下文历史原样保留，不得当现状。）**
-> - **prod writers 全 released**。`df13cc46` 已 closing：`8e9fed8f5c385a4ff5f3085ad0d34ad459a0d236` parent `1dc4006`（21 paths；pin `17200` active；2 PlatformPatches；runtime `0.1.13` / engines `0.1.14`）。non-force push origin/main actual same 0/0。真 index check 0；退休两 scene files 已 tracked 删除。root 115 / source offer 3 / staged source 0。新 native `1477363` / JS `153831` / source `65f` 纯 src 独立 RUN 0 cmp byte-equal。
-> - **`11b2250d` / `b83444de` 已 closing**（full app；portable 568/568；source 340；pkg `2437785` SHA `2757…`；offline consumer 0）。post-doc 中途改动不是 block，不当 active code writer。
-> - **已回未过**：`b0c94a06` closing。exact `8e9fed8` CI native `37263314120` **FAILURE**（原生编译 exit 0：JS `8fc9` / WASM `1477363`；Linux log hash `5aa` 仅日志、工件未确认）。失败点是 GPL source offer：staging 用 `.test` fresh ref 目录，CI checkout `.ref/artemis-compat`，sourcegen 默认 `.ref/artemis-compat-refresh/src`，双 path 传错，不是 native 算法错。package `37263313647` **SUCCESS** 只是聚合工件，不能代 native（native artifacts 0；新独立包未验，不得写 CI 全过）。`3c70ac0d` 仍仅 `.test` 新手测 prepared、未 closing、无任何 port/browser。
-> - **冻结**：`:4661` PID `41648` freeze `9a` 用户手测保留，不 stop/restart/操作。CI 后另起 `:4662`；不造 fake proof、源 SHA 不当 repo。goal paused；直接执行；无自动 3-run。语音 normal、MapPoint、audio hash 不变；不动态修动画。无 GH Release / npm；旧 fetch 历史 hash 不动。
-> - **next**：`9053f6fe` 是唯一 source/CI path writer：wrapper 传已核实 REF，或走 generator 已有 param，最短修 source offer + compat CI case。未返不能写 fixed。原音频 math / 新 172 source 逻辑不改。实测 path case 0 → small fix commit → 新 exact CI 校 native assets 0 / manifest / source offer / offline consumer → 新 manual `:4662`，留旧 `:4661`。本地 source `65f` / RUN 0 / 568 / 44 仍真实，身份与 CI 不同，不抹。goal paused，直接执行，无自动 3-run。
+> **当前摘要（2026-10-05 · doc 收尾 · 源码 73 不动 · 游戏未验 · 本块是唯一「现状」；下文历史原样保留，不得当现状。）**
+> - 产品 writer 已 closing。代码 `73c49188f26f0fbf13b71dc5549f37affa479974` parent `8e9fed8` 已 push，origin/main 同 SHA。fresh clone pin `172` ≠ repo SHA。source 纯 git archive；两 active patch；最小 WASM。runtime `0.1.13` / engines `0.1.14`。
+> - native CI `37265688704` / packages `37265688380` success。`.test/artemis-compat-refresh-final-ci/proof.json` status verified。CI actual 569 tests / pass 567 / skip 2 / fail 0（local 此前 568/568，source 新 case +1）。不重 build/native。
+> - 下载冻结 CI WASM `1477363` sha256 `5aa135ecfa0d36acb267d23e0a95e6f0dae42aae57c8cabf4259cfe4facbfc67` / JS `1538318` `fc9…`。Windows 与 CI 不同不能混。完整纯 source offer 平台 hash 不同，只记 actual proof，不硬 copy `65f`。source 对应源码自带独立 RUN 本地 0：same JS/WASM 实通过；音频算法及冻 MapPoint 未改。
+> - 新版 `http://127.0.0.1:4662/` PID `2612` 与旧 `http://127.0.0.1:4661/` PID `41648` 各 GET `/` **200**，有意留给用户亲测。不自动 3-run。旧声正常不以旧结果证明新版动画已修。仅旧 scene 非平台扩展退役；现 basic ARCV checkpoint 非 full scene。用户 START 与真实游戏效果待确认。
+> - Artifacts-only；default publish false；无 GH Release；npm/SDK 不入库。goal paused 不 resume。port/build/CI/入口完成，**不说全游戏验收 passed**。本批只这两 doc。`consume.mjs` 曾把 URL 当导出字符串 exit 1；独立 public configure/resolve 真 default 3 URL、三 distinct hash、verifyDefaults exit 0——失败已补核，不放大也不隐藏。
 
 ---
 
