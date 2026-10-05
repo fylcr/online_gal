@@ -40,7 +40,8 @@ npm run test:portable
 - **音频处理已验证，用户下一步亲测；自动验收已取消；probe 暂存失败未提交保留。** 源码未改，code SHA 仍 `9a2cedd`。67360ecc closing：无新增实测缺陷、产品 diff empty；focused 44/0/0（relay 21、worker 12、integrated 1、restore ACK 1、native 9 实 g++）；build/check 0；产物 fresh 0.1.12。WASM local `ac31337918` / CI `f95` 同 size **不能说 byte-same**；JS `799a` / RPC `08f`。本 doc 不是新音频版本，也不是游戏验收。
 - **已合成、未耳听**：PCM→WebAudio 自然 ended 累计 ACK pending 不丢不退；mute/pause 等已合成。真实耳听与游戏效果只待用户亲测，不宣全游戏可玩。
 - **禁止续旧三轮 goal。** 用户已停自动 warmup / runA / runB 与再生 native CI probe。goal revision 3 = audio/manual，不因旧 memory 强跑 2 runs。
-- **清理**：diag `fzid`（`aa5`）stop accepted，已换掉 `zwae`。server PID `69316` 已停；本次复核 `4661` 无 LISTEN；user foreground bsk untouched。f42 `user-cancel-request.json` 已写；job `5858` 仍待原 owner 收取——不全机器 clean。本批无新 job / browser。
-- **入口（已落）**：`http://127.0.0.1:4321/`（`/engines`）。Astro 5.18.2，job `pwsh-5986`，listen PID `46860`，purpose=userManualTesting，有意留给用户。e39 曾 HTTP 200（四 route + COOP/COEP/nosniff）。**本批 HEAD `/` 失败（4321 无 LISTEN，PID 46860 不在），未重启、未开浏览器。** 亲测前若端口仍空，由用户或原 owner 再起，不要当自动诊断。
-- **用户下一步**：打开上述入口，一次真实 START/点击解锁音频，亲测 BGM、语音、暂停与恢复。已提交音频代码不 bump、不重编 native、no Release、no npm。真实耳听未做，不得全游戏 PASS。
+- **清理**：diag `fzid` stop accepted（已换 `zwae`）。server `69316` 与误重启 `58988` 已 killed，`4661` free。f42 正式 closing（用户取消停手）。原自动 game job 已结束，不再写「待原 owner 收取」。本批无新 job / browser / server。
+- **入口已停**：手测服务 **4321 当前不在跑**（上一 owner 复核 PID `46860` gone，无需新复核）。用户在 `D:/online_gal` 自己跑已核命令 `pnpm --filter @online-gal/app dev`（脚本实为 `astro dev --host 127.0.0.1 --port 4321`），再开 `http://127.0.0.1:4321/`。
+- **已知存档限制（不修）**：`9a2cedd` runA 有效 ARCV+ARCL 26975B 后 native `artc_web_load` 返回 0 invalid checkpoint，runB 未跑。不是音频错误；按用户决定暂不扩展修复。不得全 game PASS。
+- **用户下一步**：上述命令起服务后，一次真实 START/点击解锁音频，亲测 BGM、语音、暂停与恢复。音频 44/44 与 build/check 0 已测，耳听需亲测。不 bump、不重编 native、no Release、no npm。
 - **未提交 a0 closing FAIL，冻结不修不扫**：`.github/scripts/build-artemis-compat.sh`、`ports/artemis/compat-web/tests/artemis-compat-scene-restore.test.mjs` + `scene-restore/`。发布仍 Artifacts only、`publish` 默认 false、no GH Release / no npm。
