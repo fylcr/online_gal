@@ -1,15 +1,13 @@
 # 当前工作检查点 — 新对话先读
 
-> **当前摘要（2026-10-05 · compat 主线 · 本块是唯一「现状」；下文历史记录原样保留，不得当现状。）**
-> - **本批 = 恢复候选准备入库（显式 pathspec commit + push + `.test` 证据）；game 尚未过；所有具体 writers 释放。** 不生产源码实现调整 / 版本再增 / 全构建 native 重编 / 服务器 / 浏览器。
-> - **新候选 = 本地 candidate（`5045f18e` 收口）**：runtime **`0.1.12`** / engines **`0.1.13`**（private + GPL）。**这是 candidate，不是可玩**。⚠ **绝不拿旧 `93` game 覆盖 ACK 版本；也不用被证明缺背景的旧 `93` / `c609` game 当新 candidate PASS。**
-> - **504 最终稳定 full gates**（**首次 mid-write 作废，不用旧 logs**）：`.test/artemis-compact-scene-candidate/logs/` 真实 **`build` 0 / `check` 0 / `test:portable` 564 pass / 0 fail / `check:sources` 89 pass / 89**；独立 source **RUN-BUILD exit 0**、**same both 测过**。
-> - **native 证据（`653` 新 body）**：baseline fails **2 → 14 tests PASS**。**WASM** `ac3c3bdd7f9e9cd359fcd4aca2454cfdb68ad0de5e689a8d16340b58fcb13790` / **JS** `799a61330a553e9816c9ef92b93532e4337d05c94d6f6840f99006b4e18dd7f8`。**最新 SOURCE** `371b4334c1aca6dc6cc3c1c5bc721a62c47a28027697a4baa46db3fcac35f7a9` **与 native `653` 初 `de16` 不同** ⇒ 只 record **最新源 generator + patch / overlay 真实齐备**，**不冒 copy 旧 hash**。`504` staging `dist` 原旧 native 已换 `out/build` 新 body 并重跑 `source.manifest` verify，**不 commit `dist`**。
-> - **RPC new** `08f0d2071a46a9a69f746e195f504e5e77e8f40a711e98b46912b91ecb679bd6`：`app` / `package` / `dist` **byte-equal**。runtime package **0.1.12** local `2294390` sha `e80299df2abc689d7b0e432d36645c4802195c9dbf899fa59fcd16758123a41c`：**离线 fresh root / compat import 0 / 3 URL offer 齐**。
-> - **所有具体 writers 已释放**：`337196c4`（根 source guard + `check-sources.test` fail-closed，**88/88、staged 0、scope 释放**）、`289cc11a`（宿主 `worker-host` / `compat-worker` + save/format 测试，**不改 native / mapping**）、`653d0c64`（ports patch / recipes / native probe / guarded `out/dist`）、`bd9dc6c1`（ONLY `.test` 探针）、`081edf3f`（受管 compat-ci case）**全部 closing**。**唯一未 release = `34cec20f` 的 `.test`-only final harness prepared：不碰、不等待。**
-> - **game 事实（`a5b4f6ea` · NOTPASS）**：旧 `93` 包 discard 热身**真 START 入 ADV**、**save ARCV `26959 B`**、推进**不同对白**；`restore await` 日志 **`layers=0`**、对白**回首句**但**卧室背景黑**，再次推进**对白正常背景仍黑**。**`runA/B` 未跑 ⇒ 不能一致验收**；report `.test/artemis-compact-ci-final-game/report.json`。**owner cleanup accepted，现场 0 active / port free。**
-> - **next**：**commit → same SHA CI → same SHA artifact download → browser 热身 ×2 → 真实背景恢复 / 继续**。**目标未完成**（game 尚未过）。**不改冻结 MapPoint / user bsk / daemon、不 kill unknown / no autoRelease / no NPM**。**不新造 custom framework / node cache**，**不把旧 `500` start 失败重写成当前阻塞**。**旧历史哈希留 divider 下，不动。**
-> - **发布面：用户 only —— Artifacts only、no GH Release / no npm**；**source hash 历史 divider 不动**。**unknown PID / bsk leave**，**user foreground 不 kill**。`.test/` gitignored ⇒ 本地证据，缺失不得当「已验收」。
+> **当前摘要（2026-10-05 · doc-only · 音频已验证、用户亲测 · 本块是唯一「现状」；下文历史原样保留，不得当现状。）**
+> - **音频处理已验证，用户下一步亲测；自动验收已取消；probe 暂存失败未提交保留。** 源码未改。实测代码 SHA 仍 `9a2cedd`。本 doc commit 不是新音频版本，也不是「game passed」。
+> - **67360ecc closing**：音频 scope 无新增实测缺陷，产品 diff empty。focused **44 pass / 0 fail / 0 skip**（relay 21、worker 12、integrated 1、restore ACK 1、native 9 实 g++）。`npm run build` / `check` **0**。产物 fresh **0.1.12**。WASM local `ac31337918` / CI `f95` 同 size，**不能说 byte-same**；JS `799a` / RPC `08f`；ACK/ARC/L 分段 CRC 内。
+> - **已合成**：PCM→WebAudio 自然 ended 累计 ACK pending 不丢不退；mute/pause 等已合成验证。真实耳听/游戏效果**仅待用户亲测**，不宣全游戏可玩。
+> - **禁止续旧三轮。** 用户明确停自动 warmup / runA / runB 与一切再生 native CI probe。goal **revision 3** = audio/manual，不因旧 memory 强跑 2 runs。
+> - **清理**：diag session `fzid`（profile `aa5`）stop accepted，旧 `zwae` 已换。server PID `69316` 归 diag 已停树：`4661` no LISTEN、PID gone；user foreground bsk **untouched**。f42 `.test/scene-final-game/user-cancel-request.json` 已写；job `5858` 仍未 closing、需原 owner 收取。不能称全机器 clean；本游戏实例已 0。本批无 job / browser / 自开 server。
+> - **入口**：新 manual 应用服务器只是给用户的入口，由其它代理做 HTTP 验证（URL 未知、不猜）；无 auto engine / browser 交互。
+> - **未提交 freeze（a0 sceneprobe closing FAIL，本 doc 不修不扫）**：`.github/scripts/build-artemis-compat.sh`、`ports/artemis/compat-web/tests/artemis-compat-scene-restore.test.mjs` + `ports/artemis/compat-web/tests/scene-restore/`。发布仍 Artifacts only、`publish` 默认 false、no GH Release / no npm。divider 下历史 hash 不动。
 
 ---
 
