@@ -5,8 +5,9 @@
 > - **67360ecc closing**：音频 scope 无新增实测缺陷，产品 diff empty。focused **44 pass / 0 fail / 0 skip**（relay 21、worker 12、integrated 1、restore ACK 1、native 9 实 g++）。`npm run build` / `check` **0**。产物 fresh **0.1.12**。WASM local `ac31337918` / CI `f95` 同 size，**不能说 byte-same**；JS `799a` / RPC `08f`；ACK/ARC/L 分段 CRC 内。
 > - **已合成**：PCM→WebAudio 自然 ended 累计 ACK pending 不丢不退；mute/pause 等已合成验证。真实耳听/游戏效果**仅待用户亲测**，不宣全游戏可玩。
 > - **禁止续旧三轮。** 用户明确停自动 warmup / runA / runB 与一切再生 native CI probe。goal **revision 3** = audio/manual，不因旧 memory 强跑 2 runs。
-> - **清理**：diag session `fzid`（profile `aa5`）stop accepted，旧 `zwae` 已换。server PID `69316` 归 diag 已停树：`4661` no LISTEN、PID gone；user foreground bsk **untouched**。f42 `.test/scene-final-game/user-cancel-request.json` 已写；job `5858` 仍未 closing、需原 owner 收取。不能称全机器 clean；本游戏实例已 0。本批无 job / browser / 自开 server。
-> - **入口**：新 manual 应用服务器只是给用户的入口，由其它代理做 HTTP 验证（URL 未知、不猜）；无 auto engine / browser 交互。
+> - **清理**：diag session `fzid`（profile `aa5`）stop accepted，旧 `zwae` 已换。server PID `69316` 已停；本次复核 `4661` 无 LISTEN；user foreground bsk **untouched**。f42 `user-cancel-request.json` 已写；job `5858` 仍待原 owner。不能称全机器 clean。本批无新 job / browser。
+> - **入口（已落）**：`http://127.0.0.1:4321/`（备用 `/engines`）。Astro 5.18.2，job `pwsh-5986`，listen PID `46860`，purpose=userManualTesting，有意留给用户。e39 曾实 HTTP 200（`/`、worker、js、wasm 四 route + 隔离头）。**本批只 HEAD `/`：连接失败，4321 无 LISTEN，PID 46860 不在；未重启、未开浏览器、未跑游戏。** 亲测前若仍空，由用户或原 owner 再起。
+> - **用户下一步**：打开入口，一次真实 START/点击解锁音频，亲测 BGM、语音、暂停与恢复。已提交音频不 bump、不重编 native、no Release、no npm。真实耳听未做，不得全游戏 PASS。
 > - **未提交 freeze（a0 sceneprobe closing FAIL，本 doc 不修不扫）**：`.github/scripts/build-artemis-compat.sh`、`ports/artemis/compat-web/tests/artemis-compat-scene-restore.test.mjs` + `ports/artemis/compat-web/tests/scene-restore/`。发布仍 Artifacts only、`publish` 默认 false、no GH Release / no npm。divider 下历史 hash 不动。
 
 ---
