@@ -119,7 +119,8 @@ cp LICENSE THIRD_PARTY_NOTICES.md "$DIST/"
 # binary from what is in the artifact. Its `--work` is a scratch tree; it is removed below.
 node ports/artemis/compat-web/make-source-bundle.mjs \
   --out "$DIST" \
-  --work "${RUNNER_TEMP:-/tmp}/artemis-compat-source-bundle"
+  --work "${RUNNER_TEMP:-/tmp}/artemis-compat-source-bundle" \
+  --repo "$REPO_ROOT/$ARTC_REF"
 
 # The manifest is the six published files by name, hashed from inside $DIST so the recorded paths
 # are the artifact's own names. It deliberately does NOT hash a shell glob of the directory: a

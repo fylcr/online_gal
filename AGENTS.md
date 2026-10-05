@@ -35,11 +35,10 @@ npm run test:portable
 - **子代理与主代理分工（用户明确定调）**：**主代理不承担任何具体工作** —— 编码、文档、构建、浏览器实测、测试、清理**全部由子代理执行**；主代理只负责任务**拆分顺序 / 证据审核 / 最后验收**。以前安排给 lead 亲跑的 next steps **必须改分配执行，不得倒退**。具体代码与细节默认由 `magpie/group/auto-deepseek-v4-1-flash` 承担；**Flash 不能胜任的复杂工作交给 `avemujica-grok/grok-4.7`**，其他模型按需分配；不确定模型擅长什么时先搜索或做小测试，不编造专长。发现当前路由做不成时，把已测证据 / 失败原因 / 待办交接给升级模型，**不对同一路由反复无效重试**。低并发、明确写入范围。每阶段更新 `docs/current-work.md`，让新对话立即接手。**主代理尽可能少做工作，不逐文件审查；最终闸门是执行代理的实际正常工作 / 端到端验证，不是 lead 逐文件读代码。**
 - **不要动被用户冻结的东西**：例如 m03520 冻结的鼠标映射缺陷；`docs/fetch-engine-artifacts.md` 里的历史 hash 不得改写。
 
-## 当前状态（2026-10-05 · doc-only · 未 commit）
+## 当前状态（2026-10-05 · doc-only · 未 commit · 仅此 2 文件）
 
-- **cd5cb4b4 closing（真修源）**：src=git archive `17200e64` 257 files（排 NOTICE）byte-equal git tree；无 web target / overlay inside / 0003。改 CMake、已 apply 的 0001 拒；`patch --forward` 第二次 non-0。source `882552/65f5f48d010566af57235b7262417c1d642f8bfefc6c14c3352954bd8a38337d` 两 tar identical。RUN emsdk 6.0.9 exit 0；cmp JS `153831/8fc`、wasm `1477363/dde` equal。dist 新 body，manifest check 0。受管 source offer 3/3 actual 0。
-- **3c2 patched bundle 失败只作历史**，不是当前 state、当时未修。e235 未留独立目录 claim；这次已实补据。
-- **根 `11b2250d` 未 closing**：roots CI pin/guards 仍 active。已 115 pass 0 fail / source worktree 0 落盘，**未 released**（owner 判断）。`b83444de-d88e-4509-bd07-40cc9fc66767` 仅 generated/临时 index/最后 app check/full portable/package 验证未返 — 不 count、不提前 passed。
-- **其它 prod writers released**。current pin 严格 `17200`（不是 173）。不替 caller 猜 lifecycle。native audio / hash math unchanged；语音 normal keep。
-- **冻结**：`:4661` PID `41648` freeze `9a` 不 stop/restart、当前 page 不覆盖。自动 3-run 已取消。无 GH Release / npm。
-- **next**：两 final actual 0 → release → commit 具名退役 / 新 source pin → 同 SHA CI verified → 新手测 URL（保旧）给用户。goal paused，本请求直接执行、不 resume 虚称。本批不 commit。
+- **prod writers 全 released**。`df13cc46` 已 closing：`8e9fed8f5c385a4ff5f3085ad0d34ad459a0d236` parent `1dc4006`（21 paths；pin `17200` active；2 PlatformPatches；runtime `0.1.13` / engines `0.1.14`）。non-force push origin/main actual same 0/0。真 index check 0；退休两 scene files 已 tracked 删除。root 115 / source offer 3 / staged source 0。新 native `1477363` / JS `153831` / source `65f` 纯 src 独立 RUN 0 cmp byte-equal。
+- **`11b2250d` / `b83444de` 已 closing**（full app；portable 568/568；source 340；pkg `2437785` SHA `2757…`；offline consumer 0）。post-doc 中途改动不是 block，不当 active code writer。
+- **已回未过**：`b0c94a06` closing。exact `8e9fed8` CI native `37263314120` **FAILURE**（原生编译 exit 0：JS `8fc9` / WASM `1477363`；Linux log hash `5aa` 仅日志、工件未确认）。失败点是 GPL source offer：staging 用 `.test` fresh ref 目录，CI checkout `.ref/artemis-compat`，sourcegen 默认 `.ref/artemis-compat-refresh/src`，双 path 传错，不是 native 算法错。package `37263313647` **SUCCESS** 只是聚合工件，不能代 native（native artifacts 0；新独立包未验，不得写 CI 全过）。`3c70ac0d` 仍仅 `.test` 新手测 prepared、未 closing、无任何 port/browser。
+- **冻结**：`:4661` PID `41648` freeze `9a` 用户手测保留，不 stop/restart/操作。CI 后另起 `:4662`；不造 fake proof、源 SHA 不当 repo。goal paused；直接执行；无自动 3-run。语音 normal、MapPoint、audio hash 不变；不动态修动画。无 GH Release / npm；旧 fetch 历史 hash 不动。
+- **next**：`9053f6fe` 是唯一 source/CI path writer：wrapper 传已核实 REF，或走 generator 已有 param，最短修 source offer + compat CI case。未返不能写 fixed。原音频 math / 新 172 source 逻辑不改。实测 path case 0 → small fix commit → 新 exact CI 校 native assets 0 / manifest / source offer / offline consumer → 新 manual `:4662`，留旧 `:4661`。本地 source `65f` / RUN 0 / 568 / 44 仍真实，身份与 CI 不同，不抹。goal paused，直接执行，无自动 3-run。

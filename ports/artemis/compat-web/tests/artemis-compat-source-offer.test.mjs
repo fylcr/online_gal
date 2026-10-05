@@ -8,9 +8,10 @@
  */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { DEFAULT_PIN, assertExtractDir, gitTree, treeMatchesGit } from '../make-source-bundle.mjs';
@@ -64,6 +65,53 @@ test('a modified CMake or an already-applied patch is not the pinned tree', () =
     assert.notEqual(again.status, 0, 'an already-applied patch must be non-zero under --forward');
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a non-default --repo archives that pin, and a missing repo or pin is refused', () => {
+  const repo = join(ROOT, '.ref', 'artemis-compat');
+  if (!gitOk(repo)) { console.log(`SKIP ci repo: no ${DEFAULT_PIN} in ${repo}`); return; }
+  const base = join(ROOT, '.test', 'artemis-compat-refresh-ci-path-fix');
+  rmSync(base, { recursive: true, force: true });
+  mkdirSync(join(base, 'out'), { recursive: true });
+  const gen = join(ROOT, 'ports/artemis/compat-web/make-source-bundle.mjs');
+  const run = (repoPath, pin) => spawnSync(process.execPath, [gen, '--out', join(base, 'out'), '--work', join(base, 'work'), '--repo', repoPath], {
+    cwd: ROOT, encoding: 'utf8', env: { ...process.env, ...(pin === undefined ? {} : { ARTC_PIN: pin }) },
+  });
+  const wrong = join(base, 'wrong-repo');
+  mkdirSync(wrong);
+  writeFileSync(join(wrong, 'f'), 'x\n');
+  for (const args of [['init'], ['add', 'f'], ['-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-m', 't']]) {
+    assert.equal(spawnSync('git', ['-C', wrong, ...args], { encoding: 'utf8' }).status, 0);
+  }
+  const missing = run(join(base, 'missing'));
+  const badRepo = run(wrong, DEFAULT_PIN);
+  const badPin = run(repo, 'zz');
+  const ok = run(repo, DEFAULT_PIN);
+  writeFileSync(join(base, 'run.log'), [`missing exit=${missing.status}`, missing.stderr, `wrong exit=${badRepo.status}`, badRepo.stderr, `badpin exit=${badPin.status}`, badPin.stderr, `ok exit=${ok.status}`, ok.stdout, ok.stderr].join('\n'));
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr, /no git repository/);
+  assert.notEqual(badRepo.status, 0);
+  assert.notEqual(badPin.status, 0);
+  assert.equal(ok.status, 0, ok.stderr);
+  const tarPath = join(base, 'out', 'artemis-compat-source.tar.gz');
+  const hash = createHash('sha256').update(readFileSync(tarPath)).digest('hex');
+  writeFileSync(join(base, 'bundle.sha256'), `${hash}  artemis-compat-source.tar.gz\n`);
+  assert.equal(hash, '65f5f48d010566af57235b7262417c1d642f8bfefc6c14c3352954bd8a38337d');
+  const extract = join(base, 'extract');
+  rmSync(extract, { recursive: true, force: true });
+  mkdirSync(extract);
+  const extracted = spawnSync('tar', ['-xzf', relative(extract, tarPath).split(String.fromCharCode(92)).join('/'), '-C', '.'], { cwd: extract, encoding: 'utf8' });
+  assert.equal(extracted.status, 0, extracted.stderr);
+  const top = readdirSync(extract);
+  assert.equal(top.length, 1);
+  assert.notEqual(top[0], 'src');
+  const src = join(extract, top[0], 'src');
+  treeMatchesGit(src, gitTree(repo, DEFAULT_PIN), { extra: new Set(['NOTICE']) });
+  assert.doesNotMatch(readFileSync(join(src, 'CMakeLists.txt'), 'utf8'), /add_executable\(artemis-compat/);
+  assert.equal(readFileSync(join(extract, top[0], 'PIN'), 'utf8').trim(), DEFAULT_PIN);
+  for (const rel of ['patches/0001-pf8-readat-host-source.patch', 'patches/0002-numeric-strto.patch', 'overlay/cmake/web.cmake', 'overlay/host/web_main.cpp']) {
+    assert.equal(existsSync(join(extract, top[0], rel)), true, rel);
   }
 });
 

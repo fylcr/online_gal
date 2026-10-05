@@ -280,6 +280,9 @@ test('the source offer is generated from the pin and carries the patches that we
   const script = read(SCRIPT);
   assert.match(script, /make-source-bundle\.mjs/);
   assert.match(script, /--out "\$DIST"/);
+  assert.match(script, /--repo "\$REPO_ROOT\/\$ARTC_REF"/,
+    'the offer must archive the checkout this run built, not a local refresh path');
+  assert.match(read('ports/artemis/compat-web/make-source-bundle.mjs'), /--repo <dir>/);
   const pin = json(PINS)['artemis-compat'].commit;
   const bundle = read('ports/artemis/compat-web/make-source-bundle.mjs');
   assert.ok(bundle.includes(pin), 'the bundle generator defaults to the same pin');
