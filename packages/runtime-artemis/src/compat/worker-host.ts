@@ -14,11 +14,12 @@ import {
   COMPAT_SAVE_SLOT,
   COMPAT_WINDOW_BYTES,
   READ_FATAL,
+  type CompatAnimationTraceOptions,
   type CompatFileDescriptor,
   type CompatSharedBlock,
 } from './protocol.js';
 
-export interface CompatWorkerInit {
+export interface CompatWorkerInit extends CompatAnimationTraceOptions {
   readonly engineJsUrl: string;
   readonly wasmUrl: string;
   /** Raw source only. The published worker already contains the helper, so production leaves this out. */
@@ -194,6 +195,7 @@ export class CompatWorkerHost {
       initialFiles: (init.initialFiles ?? []).map((file) => ({ path: file.path, data: file.data })),
       ...(init.readTimeoutMs === undefined ? {} : { readTimeoutMs: init.readTimeoutMs }),
       ...(init.surface === undefined ? {} : { surface: init.surface }),
+      ...(init.animationTrace === true ? { animationTrace: true } : {}),
     };
     try {
       // `request` stamps the id, so nothing here may carry one: two id sources is how a reply gets

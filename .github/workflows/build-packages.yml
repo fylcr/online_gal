@@ -83,6 +83,14 @@ on:
       - 'package.json'
       - 'ports/artemis/harness/glue/compare-imports-map.mjs'
       - 'ports/artemis/harness/glue/verify-imports-map.mjs'
+      # Native probes the portable suite compiles from the pinned source. Not `ports/**`:
+      # an engine-source edit still belongs to the engine workflow. These are the only
+      # compat-web inputs that step reads.
+      - 'ports/artemis/compat-web/tests/**'
+      - 'ports/artemis/compat-web/patches/**'
+      - 'ports/artemis/compat-web/PLATFORM-PATCHES.txt'
+      - 'ports/artemis/compat-web/overlay/**'
+      - 'ports/artemis/compat-web/make-source-bundle.mjs'
       # The app-side compat asset seam, named exactly. The portable suite run below imports this
       # helper directly and `test/artemis-compat-app-assets.test.mjs` imports `astro.config.mjs`,
       # so both are inputs to the suite this job runs -- "a change to a test must not land
@@ -103,6 +111,14 @@ on:
       - 'package.json'
       - 'ports/artemis/harness/glue/compare-imports-map.mjs'
       - 'ports/artemis/harness/glue/verify-imports-map.mjs'
+      # Native probes the portable suite compiles from the pinned source. Not `ports/**`:
+      # an engine-source edit still belongs to the engine workflow. These are the only
+      # compat-web inputs that step reads.
+      - 'ports/artemis/compat-web/tests/**'
+      - 'ports/artemis/compat-web/patches/**'
+      - 'ports/artemis/compat-web/PLATFORM-PATCHES.txt'
+      - 'ports/artemis/compat-web/overlay/**'
+      - 'ports/artemis/compat-web/make-source-bundle.mjs'
       - 'apps/app/astro.config.mjs'
       - 'apps/app/scripts/artemis-assets.mjs'
   workflow_dispatch:
@@ -156,6 +172,26 @@ jobs:
       # bytes are a function of one commit, and a lockfile that has to be updated mid-build is a
       # lockfile that is not the one the release promises. `packages/engines` already has an
       # importer in `pnpm-lock.yaml`, so this succeeds on a clean clone.
+      # Portable native probes (tween / first-transition / animation-observe / frame clock)
+      # compile pin 17200e64 with g++ and fail, never skip, when the compiler or the
+      # pin is absent. ubuntu-latest has neither g++ nor that checkout. The commit is
+      # the same literal as `artemis-compat.commit` in `.github/upstream-pins.json`
+      # and as `upstream-commit` in build-wasm-artemis-compat.yml — not `main`.
+      # Shallow, no SDK, no extra .so. libz-dev is the observer's declared link dep.
+      - name: Install the native probe toolchain and the pinned source
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install -y g++ libz-dev
+          pin=17200e64ea99681e3c27d694433c0ff78d7a7cee
+          dest=.ref/artemis-compat
+          mkdir -p "$(dirname "$dest")"
+          git clone --depth 1 --branch main https://github.com/Weiss-UltimateSavior/artemis-compat.git "$dest"
+          git -C "$dest" fetch --depth 1 origin "$pin"
+          git -C "$dest" checkout --detach "$pin"
+          actual="$(git -C "$dest" rev-parse HEAD)"
+          [ "$actual" = "$pin" ] || { echo "::error::checked out $actual, expected $pin"; exit 1; }
+
       - name: Install workspace dependencies
         run: |
           set -eu

@@ -9,7 +9,7 @@
  * The recipe is not a convenience. The pinned upstream tree has no `build.sh`, no `ports/` and no
  * web CMake target at all -- `overlay/cmake/web.cmake` is *appended* to the upstream
  * `CMakeLists.txt` by `ports/artemis/compat-web/build.sh`, which also copies the host overlay in
- * and applies the two patches. Without that script the bundle is a pile of files with no
+ * and applies the patches named in PLATFORM-PATCHES.txt. Without that script the bundle is a pile of files with no
  * documented way to turn them back into the binary beside it, which is not the "preferred form
  * for making modifications" GPL-3.0 §1 asks for. So the recipe travels in the archive.
  *
@@ -39,6 +39,21 @@ const ROOT = resolve(HERE, '..', '..', '..');
 /** The pinned upstream commit, as recorded in `.github/upstream-pins.json`. */
 export const DEFAULT_PIN = '17200e64ea99681e3c27d694433c0ff78d7a7cee';
 
+/** Same list build.sh applies. A patches/*.patch the list omits is not corresponding source. */
+export function platformPatchEntries() {
+  const listed = readFileSync(join(HERE, 'PLATFORM-PATCHES.txt'), 'utf8').split(/\r?\n/)
+    .map((line) => line.replace(/#.*$/, '').trim()).filter(Boolean);
+  if (!listed.length) throw new Error('PLATFORM-PATCHES.txt names nothing');
+  const onDisk = readdirSync(join(HERE, 'patches')).filter((name) => name.endsWith('.patch')).sort();
+  for (const name of onDisk) {
+    if (!listed.includes(name)) throw new Error(`unlisted patch ${name}`);
+  }
+  for (const name of listed) {
+    if (!onDisk.includes(name)) throw new Error(`listed patch missing: ${name}`);
+  }
+  return listed.map((name) => [`patches/${name}`, `patches/${name}`]);
+}
+
 /**
  * What the bundle carries. Fixed names: a caller cannot widen the source offer by editing an
  * invocation, and the destination inside the archive is a constant so a recipient can find it.
@@ -58,8 +73,7 @@ export const EXTRA_ENTRIES = [
   // `ports/artemis/compat-web/out`, and the archive has neither. Without a second recipe the
   // offer would document the build without making it reproducible off this repository.
   ['RUN-BUILD.sh', 'RUN-BUILD.sh'],
-  ['patches/0001-pf8-readat-host-source.patch', 'patches/0001-pf8-readat-host-source.patch'],
-  ['patches/0002-numeric-strto.patch', 'patches/0002-numeric-strto.patch'],
+  ...platformPatchEntries(),
   ['overlay/host/web_main.cpp', 'overlay/host/web_main.cpp'],
   ['overlay/cmake/web.cmake', 'overlay/cmake/web.cmake'],
   // The audio backend exists only in this repository: upstream's `src/audio/audio.cpp` is the

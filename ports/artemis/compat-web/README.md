@@ -1,20 +1,21 @@
 # artemis-compat web worker
 
 Pin `17200e64ea99681e3c27d694433c0ff78d7a7cee` of
-`Weiss-UltimateSavior/artemis-compat` (GPL-3.0), plus the two active patches
+`Weiss-UltimateSavior/artemis-compat` (GPL-3.0), plus the active patches
 and the overlay in this directory. Not the official SDK, and not a renamed
 wasm2c bridge.
 
-The active patch set is exactly `0001-pf8-readat-host-source.patch` and
-`0002-numeric-strto.patch`, both platform adaptations; `PLATFORM-PATCHES.txt`
-is the explicit list the recipes, the source gate and CI all read.
+The active patch set is `0001-pf8-readat-host-source.patch`,
+`0002-numeric-strto.patch` and `0003-tween-loopdelay.patch`.
+`PLATFORM-PATCHES.txt` is the explicit list the recipes, the source gate and
+CI all read.
 `0003-scene-checkpoint.patch` is a save/restore *feature*, not a platform
 adaptation, so it is retired from this minimal port and is no longer in
 `patches/`. Its source, the probe fixture and the native scene-restore
 regression are archived under `.test/refresh-integration/retired/` as hashed
 historical evidence, not as build input.
 
-Platform range: the fresh `17200e64` source with these two patches builds the
+Platform range: the fresh `17200e64` source with these patches builds the
 Emscripten web bridge (wasm2c offline render plus the `artc_web_*` host seam).
 The bundle offers the platform only; the retired scene-checkpoint feature is
 not applied and not shipped.
@@ -238,10 +239,10 @@ real `AudioContext`.
 ## Building from the source bundle
 
 `make-source-bundle.mjs` writes a GPL-3.0 source offer that is also a buildable
-tree. It carries the pinned `src/`, the two active patches (`0001` ReadAt,
-`0002` the `std::sto*` sites that throw), every overlay — including the
+tree. It carries the pinned `src/`, the active patches (`0001` ReadAt,
+`0002` the `std::sto*` sites that throw, `0003` lytween loopdelay), every overlay — including the
 three audio files above, which exist nowhere upstream — the tracked `build.sh`,
-and `RUN-BUILD.sh`. `0003` is not in the offer.
+and `RUN-BUILD.sh`. The retired scene-checkpoint patch is not this `0003` and is not in the offer.
 
 `build.sh` is included for its *build logic* and is not rewritten for the
 archive: it sources `ports/env.sh` and refuses any path not ending in

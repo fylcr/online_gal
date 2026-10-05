@@ -78,6 +78,11 @@ export const OPTIONAL_CABI = [
   '_artc_web_now_ms',
 ] as const;
 
+/** Default-off dispatch observation. Only true requires an engine built with the ENV export. */
+export interface CompatAnimationTraceOptions {
+  readonly animationTrace?: boolean;
+}
+
 export interface CompatFileDescriptor {
   readonly id: number;
   /** Source path passed to `GameSource.readRange`, e.g. `root.pfs`. */

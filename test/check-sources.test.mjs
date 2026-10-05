@@ -82,7 +82,7 @@ const COMPAT_SCRIPT = [
 ].join('\n');
 
 /**
- * The fixture's platform patch set: the two adaptations the minimal port is built from.
+ * The fixture's platform patch set. Retired is 0003-scene-checkpoint, not 0003-tween-loopdelay.
  *
  * `0003-scene-checkpoint.patch` is deliberately NOT here. It is a save/restore feature rather than
  * a platform compile input, so the minimal port retires it -- and the guard has to fail closed on a
@@ -91,7 +91,7 @@ const COMPAT_SCRIPT = [
  * The call sites are built from this list rather than re-spelling it, so a fixture patch cannot go
  * missing from one site by accident. Declared before `COMPAT_BUNDLE`, which interpolates it.
  */
-const COMPAT_PLATFORM_PATCHES = ['0001-pf8-readat-host-source.patch', '0002-numeric-strto.patch'];
+const COMPAT_PLATFORM_PATCHES = ['0001-pf8-readat-host-source.patch', '0002-numeric-strto.patch', '0003-tween-loopdelay.patch', '0004-animation-dispatch-observe.patch'];
 const COMPAT_PATCH_ENTRIES = COMPAT_PLATFORM_PATCHES
   .map((name) => `  ['patches/${name}', 'patches/${name}'],`).join('\n');
 /** The explicit list the guard reads in place of the recipes' patch loops. */
@@ -599,7 +599,7 @@ test('a listed patch missing from a shipping declaration fails by name, per decl
   f.put(`ports/artemis/compat-web/patches/${RETIRED}`);
   f.put(BUILD, `${COMPAT_BUILD}\n"$HERE"/patches/${RETIRED}\n`);
   const unlisted = f.check().errors;
-  assert.ok(unlisted.some((error) => error.includes(`${BUILD}: still applies ${RETIRED}. Current platform patches 2 explicit`)),
+  assert.ok(unlisted.some((error) => error.includes(`${BUILD}: still applies ${RETIRED}. Current platform patches ${COMPAT_PLATFORM_PATCHES.length} explicit`)),
     'a declaration applying an unlisted patch has to fail, naming the current platform count');
   assert.ok(unlisted.some((error) => error.includes(`${RETIRED}: present in the checkout but named in neither`)),
     'and the unlisted file itself has to be reported, which is the other half of the same state');
@@ -615,7 +615,7 @@ test('a listed patch missing from a shipping declaration fails by name, per decl
     'a comment explaining that a retired patch is NOT applied must not read as applying it');
 });
 
-test('the minimal port passes with exactly the two platform patches', (t) => {
+test('the minimal port passes with exactly the platform patches', (t) => {
   // The baseline: the fixture is the minimal port, and it is clean in both views. Every regression
   // below is a named way of breaking it, so this is what makes them meaningful rather than
   // assertions that a permanently-red guard is still red.
@@ -627,8 +627,8 @@ test('the minimal port passes with exactly the two platform patches', (t) => {
 });
 
 test('an unlisted patch present in the checkout fails closed by name', (t) => {
-  // The shipped hole this closes. A patch lands in `patches/` -- 0003 did exactly this -- while the
-  // platform list still names only the two adaptations. The minimal port neither compiles it nor
+  // The shipped hole this closes. A patch lands in `patches/` while the platform list omits it.
+  // The minimal port neither compiles it nor
   // offers it, and the run has to say so instead of quietly building a different set than the one
   // on disk. Read from the FILE LIST, not from the declarations, so a patch that no declaration
   // mentions at all is still caught; that is the half the old dynamic check could not see.

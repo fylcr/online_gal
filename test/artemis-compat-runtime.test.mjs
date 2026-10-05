@@ -315,7 +315,7 @@ const flush = async () => {
  * session with exactly one frame already spent on the boot. `frames` counts everything the worker
  * saw, boot included.
  */
-async function rig(t, { hostParts = makeHost(), script = readyScript() } = {}) {
+async function rig(t, { hostParts = makeHost(), script = readyScript(), gameConfig } = {}) {
   const workers = [];
   // The runtime builds its own `CompatWorkerHost`; the only seam a test has is `new Worker` itself.
   const realWorker = globalThis.Worker;
@@ -336,6 +336,7 @@ async function rig(t, { hostParts = makeHost(), script = readyScript() } = {}) {
     runtimeId: 'artemis',
     surface: hostParts.host.surface,
     mode: 'new',
+    ...(gameConfig === undefined ? {} : { gameConfig }),
   });
   return { ...hostParts, workers, runtime };
 }
@@ -344,6 +345,20 @@ async function rig(t, { hostParts = makeHost(), script = readyScript() } = {}) {
 const framesOf = (worker) => worker.posted.filter((m) => m.type === 'frame').length;
 
 /* --------------------------------------------------------------------------------------------- */
+
+test('runtime load forwards only boolean true animationTrace and leaves default off absent', async t => {
+  for (const animationTrace of [undefined, false, '1', true]) {
+    const env = await rig(t, { gameConfig: animationTrace === undefined ? {} : { animationTrace } });
+    try {
+      await env.runtime.load();
+      const init = env.workers[0].posted.find(message => message.type === 'init');
+      if (animationTrace === true) assert.equal(init.animationTrace, true);
+      else assert.equal(Object.hasOwn(init, 'animationTrace'), false);
+    } finally {
+      env.runtime.dispose(); await env.runtime.whenDisposed();
+    }
+  }
+});
 
 test('the engine resolves to three DISTINCT urls: the RPC worker is never the generated glue', () => {
   api.configureArtemisCompat({ engineBase: 'https://cdn.invalid/artemis/' });

@@ -28,6 +28,8 @@ export const SOURCE_ENTRIES = [
   'ports/artemis/compat-web/README.md',
   'ports/artemis/compat-web/patches/0001-pf8-readat-host-source.patch',
   'ports/artemis/compat-web/patches/0002-numeric-strto.patch',
+  'ports/artemis/compat-web/patches/0003-tween-loopdelay.patch',
+  'ports/artemis/compat-web/patches/0004-animation-dispatch-observe.patch',
   // What the platform build is actually made of: the patch set is named here rather than inferred
   // from the recipes' own patch loops, so a third patch cannot be applied (or silently dropped)
   // without editing this file. See `compatPlatformPatches` for the two-directional check.
@@ -201,10 +203,9 @@ const COMPAT_PATCH_DECLARATIONS = [
 /**
  * The platforms the minimal port is built from, and the manifest that says so.
  *
- * `ports/artemis/compat-web/PLATFORM-PATCHES.txt` is the explicit list: the 0001/0002 platform
- * adaptations, and nothing else. `0003-scene-checkpoint.patch` is a save/restore *feature*, not a
- * platform adaptation, so it is not in the minimal port's set; a checkout that still holds the file
- * while the list omits it must fail loudly rather than have a guard quietly admit it.
+ * `ports/artemis/compat-web/PLATFORM-PATCHES.txt` is the explicit list. The retired file is
+ * `0003-scene-checkpoint.patch` (save/restore), not `0003-tween-loopdelay.patch`. A checkout that
+ * still holds an unlisted file must fail loudly rather than have a guard quietly admit it.
  *
  * The list is explicit on purpose. The previous version of this guard read the `for p in ...` loops
  * the recipes spell, which meant the set of patches CI compiles was whatever those loops happened to
@@ -375,7 +376,10 @@ function artemisCompatProblems(content, hasFile, bucket, candidates) {
       // name relative to this directory, so the file name is what has to appear.
       const manifest = content(file);
       const lines = manifest.split(/\r?\n/).map((line) => line.replace(/\\$/, '').trim());
-      const declared = lines.filter((line) => pattern.test(line));
+      const readsList = /PLATFORM-PATCHES\.txt/.test(manifest);
+      const declared = readsList
+        ? platform.names.map((name) => `patches/${name}`)
+        : lines.filter((line) => pattern.test(line));
       // What is required to be declared is the platform set, not "everything in `patches/`". A
       // retired patch such as 0003 may still sit in the checkout while the minimal port does not
       // apply it; demanding it be declared would force the recipes to keep applying it, which is

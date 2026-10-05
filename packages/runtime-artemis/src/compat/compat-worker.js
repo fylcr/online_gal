@@ -264,7 +264,14 @@ function deliver(event) {
       }
     } else if (event.kind === 'resize') {
       if (cabi._artc_web_resize) {
-        cabi._artc_web_resize(event.width | 0, event.height | 0);
+        /* Native Resize stores CSS only. Present reads this canvas, and this build's glue has no
+         * set_canvas, so the backing is updated here — once, and only when the size actually changes. */
+        var w = event.width | 0, h = event.height | 0, canvas = self.Module.canvas;
+        if (canvas && w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
+          canvas.width = w;
+          canvas.height = h;
+        }
+        cabi._artc_web_resize(w, h);
         count++;
       }
     } else if (event.kind === 'pointer' || event.kind === 'input') {
@@ -383,6 +390,20 @@ function handleInit(request) {
   if (!(windowBytes > 0)) {
     post({ type: 'init-failed', id: request.id, reason: 'shared window is empty' });
     return;
+  }
+  /* ENV is installed by Emscripten before preRun; its callback receives the actual Module.
+   * Default off leaves old glue and its normal initialization untouched. */
+  if (request.animationTrace === true) {
+    self.Module.preRun = [function (m) {
+      try {
+        if (!m || !m.ENV) throw new Error('missing ENV');
+        m.ENV.ARTC_ANIMATION_TRACE = '1';
+      } catch (error) {
+        fatal = 'animationTrace requires a compat engine exporting ENV; trace was not enabled: ' + text(error);
+        pendingInit = null;
+        post({ type: 'init-failed', id: request.id, reason: fatal });
+      }
+    }];
   }
   /* Canvas, ready hook, document#canvas and the WebGL prototype must all exist before the glue runs. */
   self.Module.canvas = request.canvas || null;

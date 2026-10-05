@@ -13,7 +13,7 @@
 #
 # Layout expected, which is what the archive unpacks to:
 #   src/        the pinned upstream tree (with patches/overlay NOT yet applied)
-#   patches/    the two active patches, applied here in this order
+#   patches/    the active patches, applied here in this order
 #   overlay/    the host + audio + cmake overlays, copied in here
 #   build.sh    the CI recipe, kept as the record of what CI ran
 # Output: out/build/artemis-compat.js and out/build/artemis-compat.wasm
@@ -34,9 +34,14 @@ LOG="$HERE/out/build.log"
 # unpacked bundle, so a HERE that does not look like one is a mistake, not a
 # layout to adapt to.
 for f in "$SRC" "$HERE/overlay/audio/audio_web.cpp" "$HERE/overlay/cmake/web.cmake" \
-         "$HERE/patches/0001-pf8-readat-host-source.patch" \
-         "$HERE/patches/0002-numeric-strto.patch"; do
+         "$HERE/PLATFORM-PATCHES.txt"; do
   [ -e "$f" ] || { echo "refusing: $f is missing; run this in an unpacked bundle" >&2; exit 2; }
+done
+# Same list build.sh applies. An unlisted patches/*.patch is not corresponding source.
+mapfile -t PATCHES < <(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$HERE/PLATFORM-PATCHES.txt" | grep -v '^$')
+[ "${#PATCHES[@]}" -ge 1 ] || { echo "refusing: PLATFORM-PATCHES.txt names nothing" >&2; exit 2; }
+for name in "${PATCHES[@]}"; do
+  [ -f "$HERE/patches/$name" ] || { echo "refusing: listed patch missing: $name" >&2; exit 2; }
 done
 case "$HERE" in
   */artemis-compat-*) ;;
@@ -87,9 +92,17 @@ cp "$HERE/overlay/host/web_main.cpp" "$BUILD/src/host/web_main.cpp"
 rm -rf "$BUILD/overlay"
 cp -a "$HERE/overlay" "$BUILD/overlay"
 
-for p in "$HERE"/patches/0001-pf8-readat-host-source.patch \
-         "$HERE"/patches/0002-numeric-strto.patch; do
-  say "patch $(basename "$p")"
+shopt -s nullglob
+for extra in "$HERE"/patches/*.patch; do
+  base="$(basename "$extra")"
+  ok=0
+  for name in "${PATCHES[@]}"; do [ "$base" = "$name" ] && ok=1; done
+  [ "$ok" = 1 ] || { echo "refusing: unlisted patch $base" >&2; exit 2; }
+done
+shopt -u nullglob
+for name in "${PATCHES[@]}"; do
+  p="$HERE/patches/$name"
+  say "patch $name"
   # --forward --batch: an already-applied or reversed hunk is a non-zero exit.
   # GNU patch without --forward assumes -R and would keep going on a patched tree.
   patch --dry-run --forward --binary -d "$BUILD" -p1 --batch <"$p" >>"$LOG" 2>&1

@@ -46,6 +46,14 @@ self.importScripts = (...urls) => {
 };
 const queued = [];
 parentPort.on('message', (data) => {
+  const canvas = data && data.canvas;
+  if (canvas && canvas.buffer instanceof ArrayBuffer && !canvas.getContext) {
+    const held = canvas.buffer;
+    Object.defineProperty(canvas, 'width', { get() { return new Int32Array(held)[0]; }, set(v) { new Int32Array(held)[0] = v; } });
+    Object.defineProperty(canvas, 'height', { get() { return new Int32Array(held)[1]; }, set(v) { new Int32Array(held)[1] = v; } });
+    canvas.ctx = { id: 1 };
+    canvas.getContext = function () { return this.ctx; };
+  }
   if (typeof self.onmessage === 'function') self.onmessage({ data });
   else queued.push(data);
 });
@@ -223,6 +231,63 @@ function spawn() {
   live.add(worker);
   return worker;
 }
+
+test('CMake adds ENV without dropping the existing runtime exports or native clock ABI', () => {
+  const cmake = readFileSync(join(root, 'ports/artemis/compat-web/overlay/cmake/web.cmake'), 'utf8');
+  assert.deepEqual(cmake.match(/EXPORTED_RUNTIME_METHODS=([^"\r\n]+)/)[1].split(','),
+    ['ccall', 'cwrap', 'HEAPU8', 'FS', 'UTF8ToString', 'ENV']);
+  assert.ok(cmake.includes('_artc_web_now_ms,'), 'the existing now_ms ABI remains');
+});
+
+test('typed animationTrace reaches preRun Module ENV, off never writes and old glue refuses on', async () => {
+  for (const animationTrace of [undefined, false, true]) {
+    const { source } = makeSource();
+    const worker = spawn();
+    const probes = [];
+    worker.addEventListener('message', event => event.data.type === 'probe' && probes.push(event.data.line));
+    const page = new CompatWorkerHost({ source, createWorker: () => worker });
+    try {
+      await page.load({
+        engineJsUrl: glue(`
+var writes = 0;
+// Deliberately NOT self.Module. A callback closing over the factory config cannot pass.
+var actual = { ENV: new Proxy({ KEEP: 'unchanged' }, { set: function (obj,key,value) { writes++; obj[key]=value; return true; } }) };
+var hooks = self.Module.preRun || [];
+for (var hook of hooks) hook(actual);
+self.Module._artc_web_open = function () { self.probe('hooks=' + hooks.length + ',writes=' + writes + ',env=' + actual.ENV.ARTC_ANIMATION_TRACE + ',keep=' + actual.ENV.KEEP); return 1; };
+self.Module._artc_web_dispose = function () {};
+`),
+        wasmUrl: 'file:///x.wasm', canvas: null, descriptors: DESCRIPTORS, animationTrace,
+      });
+      assert.deepEqual(probes, [animationTrace === true ? 'hooks=1,writes=1,env=1,keep=unchanged' : 'hooks=0,writes=0,env=undefined,keep=unchanged']);
+    } finally {
+      page.dispose(); await page.whenDisposed(); await worker.terminate();
+    }
+  }
+  // Both sync and real-style asynchronous preRun must reject explicitly before native open.
+  for (const asynchronous of [false, true]) {
+    const { source } = makeSource();
+    const worker = spawn();
+    const probes = [];
+    worker.addEventListener('message', event => event.data.type === 'probe' && probes.push(event.data.line));
+    const page = new CompatWorkerHost({ source, createWorker: () => worker });
+    const file = join(temp, `old-env-${asynchronous}.js`);
+    writeFileSync(file, `${FAKE}\n
+self.Module._artc_web_open = function () { self.probe('SHOULD_NOT_OPEN'); return 1; };
+var init = self.Module.onRuntimeInitialized;
+function start() { for (var hook of self.Module.preRun || []) hook({}); init(); }
+${asynchronous ? 'setTimeout(start, 1);' : 'start();'}\n`);
+    try {
+      await assert.rejects(page.load({
+        engineJsUrl: pathToFileURL(file).href, wasmUrl: 'file:///x.wasm',
+        canvas: null, descriptors: DESCRIPTORS, animationTrace: true,
+      }), /animationTrace requires a compat engine exporting ENV; trace was not enabled/);
+      assert.deepEqual(probes, []);
+    } finally {
+      page.dispose(); await page.whenDisposed(); await worker.terminate();
+    }
+  }
+});
 
 /* The native input CABI, spelled for real: key takes two ints, pointer takes two floats. */
 const INPUT_CABI = `
@@ -648,4 +713,138 @@ test('the page refuses out-of-range reads and treats an unknown patch path as ex
   Atomics.store(block.control, CONTROL.SEQUENCE, sequence);
   assert.equal(await host.answer({ fileId: 9, offset: 0, length: 8, sequence }), READ_MISSING);
   assert.equal(Atomics.load(block.control, CONTROL.COUNT), READ_MISSING);
+});
+
+/* Production get reads canvas.width. Production set assigns it and returns 0, or -4 when the
+ * selector misses. Neither exists in this build's glue (name count is 0), so the fake is the
+ * boundary, not a claim that native ran. */
+const GET_SIZE = `
+function _emscripten_get_canvas_element_size(target, width, height) {
+  var canvas = self.document.querySelector(self.Module.UTF8ToString(target));
+  if (!canvas) return -4;
+  self.Module.HEAP32[width >>> 2] = canvas.width;
+  self.Module.HEAP32[height >>> 2] = canvas.height;
+  return 0;
+}
+`;
+
+function resizeGlue() {
+  return glue(`
+${GET_SIZE}
+var css = [1280, 720];
+self.Module._artc_web_open = function () {
+  self.__gl = self.Module.canvas.getContext('webgl2');
+  self.probe('open-backing=' + self.Module.canvas.width + 'x' + self.Module.canvas.height);
+  return 1;
+};
+self.Module._artc_web_resize = function (w, h) {
+  css[0] = w | 0; css[1] = h | 0;
+  self.probe('call=resize');
+};
+self.Module._artc_web_frame = function () {
+  var wp = self.Module._malloc(4), hp = self.Module._malloc(4);
+  var sel = self.Module._malloc(16);
+  self.Module.stringToUTF8('#canvas', sel);
+  _emscripten_get_canvas_element_size(sel, wp, hp);
+  var fw = self.Module.HEAP32[wp >>> 2], fh = self.Module.HEAP32[hp >>> 2];
+  self.Module._free(wp); self.Module._free(hp); self.Module._free(sel);
+  self.probe('present=' + fw + 'x' + fh + ',css=' + css[0] + 'x' + css[1]
+    + ',same=' + String(self.document.querySelector('#canvas') === self.Module.canvas)
+    + ',ctx=' + String(self.Module.canvas.getContext('webgl2') === self.__gl));
+  self.probe('call=frame');
+  return 1;
+};
+self.Module._artc_web_started = function () { return 1; };
+`);
+}
+
+/** Node has no OffscreenCanvas. The buffer is the only thing that crosses the worker boundary;
+ * the bootstrap reattaches width/height/getContext on arrival. A MessagePort cannot carry a size. */
+function backing(width, height) {
+  const bytes = new ArrayBuffer(8);
+  new Int32Array(bytes).set([width, height]);
+  return { canvas: { buffer: bytes }, transfer: [bytes], close() {} };
+}
+
+async function bootSurface(width, height) {
+  const { source } = makeSource();
+  const session = new Session({ source });
+  const surface = backing(width, height);
+  try {
+  session.worker.postMessage({
+    type: 'init', id: 1, canvas: surface.canvas, engineJsUrl: resizeGlue(),
+    wasmUrl: 'file:///artemis-compat.wasm', descriptors: DESCRIPTORS, block: session.block.buffer,
+    surface: { width, height },
+  }, surface.transfer);
+  const deadline = Date.now() + 1500;
+  let ready = false;
+  while (Date.now() < deadline) {
+    const failed = session.messages.find((message) => message.type === 'init-failed' || message.type === 'fatal' || message.type === 'worker-error');
+    if (failed) throw new Error(`${failed.type}: ${failed.reason}; saw ${JSON.stringify(session.messages)}`);
+    if (session.take('ready')) { ready = true; break; }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  if (!ready) throw new Error(`no ready; saw ${JSON.stringify(session.messages)} probes=${JSON.stringify(session.probes)}`);
+  } catch (error) {
+    await session.terminate();
+    throw error;
+  }
+  const resize = async (w, h) => {
+    session.worker.postMessage({ type: 'input', id: 2, kind: 'resize', width: w, height: h });
+    await session.wait('input-ok');
+  };
+  const frame = async () => {
+    session.worker.postMessage({ type: 'frame', id: 3 });
+    await session.wait('frame-ok');
+  };
+  return { session, probes: session.probes, surface, resize, frame };
+}
+
+test('boot 1280x720: Present reads the transferred backing, not a 300 default', async () => {
+  let boot;
+  try { boot = await bootSurface(1280, 720); } catch (error) { throw error; }
+  try {
+    await boot.resize(1280, 720);
+    await boot.frame();
+    assert.deepEqual(boot.probes.filter((line) => line.startsWith('call=')), ['call=resize', 'call=frame']);
+    assert.deepEqual(boot.probes.filter((line) => !line.startsWith('call=')), [
+      'open-backing=1280x720',
+      'present=1280x720,css=1280x720,same=true,ctx=true',
+    ]);
+  } finally {
+    boot.surface.close();
+    await boot.session.terminate();
+  }
+});
+
+test('resize 1920x1080 then 640x360 updates the same backing Present reads', async () => {
+  const boot = await bootSurface(1280, 720);
+  try {
+    await boot.resize(1280, 720);
+    await boot.frame();
+    await boot.resize(1920, 1080);
+    await boot.frame();
+    await boot.resize(640, 360);
+    await boot.frame();
+    assert.deepEqual(boot.probes.filter((line) => line.startsWith('call=')), [
+      'call=resize', 'call=frame', 'call=resize', 'call=frame', 'call=resize', 'call=frame',
+    ]);
+    assert.deepEqual(boot.probes.filter((line) => !line.startsWith('call=')), [
+      'open-backing=1280x720',
+      'present=1280x720,css=1280x720,same=true,ctx=true',
+      'present=1920x1080,css=1920x1080,same=true,ctx=true',
+      'present=640x360,css=640x360,same=true,ctx=true',
+    ]);
+    await boot.resize(undefined, undefined);
+    await boot.frame();
+    await boot.resize(Number.NaN, 400);
+    await boot.frame();
+    assert.deepEqual(boot.probes.filter((line) => line.startsWith('present=')).slice(-2), [
+      'present=640x360,css=0x0,same=true,ctx=true',
+      'present=640x360,css=0x400,same=true,ctx=true',
+    ]);
+  } finally {
+    boot.surface.close();
+    await boot.session.terminate();
+  }
 });

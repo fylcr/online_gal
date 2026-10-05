@@ -1,0 +1,101 @@
+--- a/src/script/lua_tag_dispatch.cpp
++++ b/src/script/lua_tag_dispatch.cpp
+@@ -15,6 +15,11 @@
+ // block.
+ #include "script/lua_engine.h"
+ #include "log/logger.h"
++#include "script/asb_parser.h"
++#include "render/compositor.h"
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
+ #include <map>
+ #include <string>
+ 
+@@ -27,6 +32,86 @@
+ // compositor.
+ LuaEngine::TagAttrs LuaEngine::TraceAndCollectAttrs(lua_State *L,
+                                                      const std::string &tagname) {
++    // Both e:tag and DispatchTag reach here. Observe before the summary dedup, never poll waits.
++    static const bool animation_trace = [] {
++        const char *value = std::getenv("ARTC_ANIMATION_TRACE");
++        return value && std::strcmp(value, "1") == 0;
++    }();
++    if (animation_trace) {
++        const bool animation = tagname == "lytween" || tagname == "lytweendel" ||
++            tagname == "tweenset" || tagname == "/tweenset" || tagname == "anime" ||
++            tagname == "trans" || tagname == "uitrans" || tagname == "wt";
++        const bool cg = tagname == "lyc" || tagname == "lyprop" || tagname == "lyedit";
++        if (animation || cg || tagname == "wait") {
++            // Raw reads cannot invoke a table's __index. Each escaped field has a fixed byte ceiling.
++            auto escape = [](const char *src, size_t size, char *out) {
++                size_t n = 0, i = 0;
++                for (; src && i < size && n < 62; ++i) {
++                    const unsigned char c = src[i];
++                    if (c == '\n' || c == '\r' || c == '\t' || c == '\\' || c == '"' || c == 0) {
++                        out[n++] = '\\';
++                        out[n++] = c == '\n' ? 'n' : c == '\r' ? 'r' : c == '\t' ? 't' : c == 0 ? '0' : c;
++                    } else out[n++] = c < 32 || c == 127 ? '?' : c;
++                }
++                if (src && i < size) out[n++] = '~';
++                out[n] = 0;
++            };
++            const char *keys[] = {"id", "file", "param", "time", "from", "to", "alpha",
++                "xscale", "yscale", "zoom", "anchorx", "anchory", "clip", "type", "rule",
++                "vague", "delay", "loop", "loopdelay", "yoyo", "ease", "mode", "scenario", "0"};
++            char values[24][65] = {};
++            for (size_t i = 0; i < 24; ++i) {
++                lua_pushstring(L, keys[i]);
++                lua_rawget(L, 2);
++                size_t size = 0;
++                const char *value = lua_tolstring(L, -1, &size);
++                escape(value, size, values[i]);
++                lua_pop(L, 1);
++            }
++            const bool cg_change = values[1][0] || values[7][0] || values[8][0] || values[9][0] || values[12][0];
++            const bool animation_wait = tagname == "wait" &&
++                (transition_wait_ || values[3][0] || values[22][0] || values[23][0]);
++            if (animation || (cg && cg_change) || animation_wait) {
++                char script[65] = "unknown", pc[32] = "unknown", alpha_start[32] = "unknown";
++                if (script_runner_ && script_runner_->Loaded()) {
++                    const std::string &file = script_runner_->CurrentFile();
++                    escape(file.data(), file.size(), script);
++                    std::snprintf(pc, sizeof(pc), "%zu", script_runner_->CurrentIndex());
++                }
++                if (compositor_) {
++                    lua_pushliteral(L, "id");
++                    lua_rawget(L, 2);
++                    size_t size = 0;
++                    const char *id = lua_tolstring(L, -1, &size);
++                    for (const auto &layer : compositor_->Layers()) {
++                        if (id && layer.id.size() == size && std::memcmp(layer.id.data(), id, size) == 0) {
++                            std::snprintf(alpha_start, sizeof(alpha_start), "%.6g", layer.alpha);
++                            break;
++                        }
++                    }
++                    lua_pop(L, 1);
++                }
++                static unsigned long long seq = 0;
++                const double now_ms = NowMs();
++                char line[2304];
++                std::snprintf(line, sizeof(line),
++                    "anim seq=%llu phase=dispatch-start tag=%s script=\"%s\" pc=%s now_ms=%.3f "
++                    "id=\"%s\" resource=\"%s\" param=\"%s\" time=\"%s\" from=\"%s\" to=\"%s\" alpha=\"%s\" "
++                    "xscale=\"%s\" yscale=\"%s\" zoom=\"%s\" anchorx=\"%s\" anchory=\"%s\" clip=\"%s\" "
++                    "type=\"%s\" rule=\"%s\" vague=\"%s\" delay=\"%s\" loop=\"%s\" loopdelay=\"%s\" "
++                    "yoyo=\"%s\" ease=\"%s\" mode=\"%s\" scenario=\"%s\" arg0=\"%s\" "
++                    "alpha_start=%s trans_active_before=%d waiting=%d timed_wait=%d transition_wait=%d",
++                    ++seq, tagname.c_str(), script, pc, now_ms,
++                    values[0], values[1], values[2], values[3], values[4], values[5], values[6],
++                    values[7], values[8], values[9], values[10], values[11], values[12], values[13],
++                    values[14], values[15], values[16], values[17], values[18], values[19], values[20],
++                    values[21], values[22], values[23], alpha_start,
++                    compositor_ && compositor_->TransitionActive() ? 1 : 0,
++                    waiting_ ? 1 : 0, timed_wait_ ? 1 : 0, transition_wait_ ? 1 : 0);
++                Log(kLogInfo, line);
++            }
++        }
++    }
+     Log(kLogDebug, "tag: " + tagname);
+     // first-occurrence tag trace: reveals what the scripts ask the engine
+     // for without flooding logcat at frame rate

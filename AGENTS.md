@@ -34,11 +34,11 @@ npm run test:portable
 - **浏览器/游戏实测**：同一时刻只跑一个引擎实例；收尾关掉自己开的窗口、标签页、诊断服务器与后台 job（窗口堆多了会把机器卡死）。
 - **子代理与主代理分工（用户明确定调）**：**主代理不承担任何具体工作** —— 编码、文档、构建、浏览器实测、测试、清理**全部由子代理执行**；主代理只负责任务**拆分顺序 / 证据审核 / 最后验收**。以前安排给 lead 亲跑的 next steps **必须改分配执行，不得倒退**。具体代码与细节默认由 `magpie/group/auto-deepseek-v4-1-flash` 承担；**Flash 不能胜任的复杂工作交给 `avemujica-grok/grok-4.7`**，其他模型按需分配；不确定模型擅长什么时先搜索或做小测试，不编造专长。发现当前路由做不成时，把已测证据 / 失败原因 / 待办交接给升级模型，**不对同一路由反复无效重试**。低并发、明确写入范围。每阶段更新 `docs/current-work.md`，让新对话立即接手。**主代理尽可能少做工作，不逐文件审查；最终闸门是执行代理的实际正常工作 / 端到端验证，不是 lead 逐文件读代码。**
 - **不要动被用户冻结的东西**：例如 m03520 冻结的鼠标映射缺陷；`docs/fetch-engine-artifacts.md` 里的历史 hash 不得改写。
+## 当前状态（2026-10-05 · 源已提交 · 同 SHA CI 待核）
 
-## 当前状态（2026-10-05 · doc 收尾 · 源码 73 不动 · 游戏未验）
-
-- 产品 writer 已 closing。代码 `73c49188f26f0fbf13b71dc5549f37affa479974` parent `8e9fed8` 已 push，origin/main 同 SHA。fresh clone pin `172` ≠ repo SHA。source 纯 git archive；两 active patch；最小 WASM。runtime `0.1.13` / engines `0.1.14`。
-- native CI `37265688704` / packages `37265688380` success。`.test/artemis-compat-refresh-final-ci/proof.json` status verified。CI actual 569 tests / pass 567 / skip 2 / fail 0（local 此前 568/568，source 新 case +1）。不重 build/native。
-- 下载冻结 CI WASM `1477363` sha256 `5aa135ecfa0d36acb267d23e0a95e6f0dae42aae57c8cabf4259cfe4facbfc67` / JS `1538318` `fc9…`。Windows 与 CI 不同不能混。完整纯 source offer 平台 hash 不同，只记 actual proof，不硬 copy `65f`。source 对应源码自带独立 RUN 本地 0：same JS/WASM 实通过；音频算法及冻 MapPoint 未改。
-- 新版 `http://127.0.0.1:4662/` PID `2612` 与旧 `http://127.0.0.1:4661/` PID `41648` 各 GET `/` **200**，有意留给用户亲测。不自动 3-run。旧声正常不以旧结果证明新版动画已修。仅旧 scene 非平台扩展退役；现 basic ARCV checkpoint 非 full scene。用户 START 与真实游戏效果待确认。
-- Artifacts-only；default publish false；无 GH Release；npm/SDK 不入库。goal paused 不 resume。port/build/CI/入口完成，**不说全游戏验收 passed**。本批只这两 doc。
+- runtime **0.1.14** / engines **0.1.15**，不再 bump。产品 upstream **17200e64**。行为变更只有 loopdelay、worker resize、webBoot 基帧、默认 off 的 `gameConfig.animationTrace`。**用户标题 / CG / 卡顿未实测，不得说已解决。** Tyrano loader **无安卓画面实测**。
+- 本轮实测：`npm run check` **0**；`node scripts/check-sources.mjs` **0**（340/340）；`test:portable` **581/581 fail0 skip0**（含受管 observer **1**、first-transition **1**、tween **1**、frame-clock **4**）。观察测试本机 `ZLIB_ROOT=.test/zlib-mingw-probe`（自编 libz，非借来的 `.a`）。e040 隔离 **0/0/11** 仍是其自己的结果，不是这 581。
+- 源对应四 patch（0001–0004）+ host/cmake/黑基帧/ENV/RUN。native JS **153843** `9a9b50d0…a146cb3`、WASM **1480956** `c3b06e12…4f4a3a10`、pure 源 `a61c5342…886058`、包 **2444555** `7e390a4e…`、offline **0** 是 b85 收据，**本提交不重编 native/WASM**。
+- b85 曾误改 `.test/package.json`，原文未知，证据只在 `.test/artemis-testbed-manifest-recovery`。**不得说已还原成功。** 后续 npm 消费者用自己的隔离目录，禁止再装共享 `.test` 根。
+- `4661` PID **41648** / `4662` PID **2612** 有意保留。`4663` prepared、未 listen，用户手测新包待验证。语音 / MapPoint **freeze**。无自动三轮、无 Release、无 npm。goal **paused rev7，不 resume**。
+- next：同 SHA 下载验工件，再由用户在 `4663` 独立持久 server 手测。不在此生成包，不做自动游戏验收。

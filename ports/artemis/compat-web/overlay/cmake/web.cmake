@@ -81,7 +81,7 @@ if(ARTC_BUILD_WEB)
         "-sUSE_WEBGL2=1"
         "-sFULL_ES2=1"
         "-sFORCE_FILESYSTEM=1"
-        "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,HEAPU8,FS,UTF8ToString"
+        "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,HEAPU8,FS,UTF8ToString,ENV"
         "-sEXPORTED_FUNCTIONS=_malloc,_free,_artc_web_open,_artc_web_frame,_artc_web_pointer,_artc_web_pointer_move,_artc_web_key,_artc_web_resize,_artc_web_started,_artc_web_stage_width,_artc_web_stage_height,_artc_web_revision,_artc_web_presented,_artc_web_exit_requested,_artc_web_last_error,_artc_web_pause,_artc_web_now_ms,_artc_web_dispose,_artc_web_save,_artc_web_load,_artc_web_log_sink,_artc_web_audio_pump,_artc_web_audio_voice_count,_artc_web_audio_voice_handle,_artc_web_audio_voice_key,_artc_web_audio_voice_rate,_artc_web_audio_read_stereo,_artc_web_audio_ended,_artc_web_audio_played_frames,_artc_web_audio_ack"
         "-fwasm-exceptions"
         "-ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=/src"

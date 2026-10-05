@@ -97,7 +97,10 @@ test('a non-default --repo archives that pin, and a missing repo or pin is refus
   const tarPath = join(base, 'out', 'artemis-compat-source.tar.gz');
   const hash = createHash('sha256').update(readFileSync(tarPath)).digest('hex');
   writeFileSync(join(base, 'bundle.sha256'), `${hash}  artemis-compat-source.tar.gz\n`);
-  assert.equal(hash, '65f5f48d010566af57235b7262417c1d642f8bfefc6c14c3352954bd8a38337d');
+  const again = run(repo, DEFAULT_PIN);
+  assert.equal(again.status, 0, again.stderr);
+  assert.equal(createHash('sha256').update(readFileSync(tarPath)).digest('hex'), hash,
+    'the same pin and patch list must produce the same archive');
   const extract = join(base, 'extract');
   rmSync(extract, { recursive: true, force: true });
   mkdirSync(extract);
@@ -110,7 +113,7 @@ test('a non-default --repo archives that pin, and a missing repo or pin is refus
   treeMatchesGit(src, gitTree(repo, DEFAULT_PIN), { extra: new Set(['NOTICE']) });
   assert.doesNotMatch(readFileSync(join(src, 'CMakeLists.txt'), 'utf8'), /add_executable\(artemis-compat/);
   assert.equal(readFileSync(join(extract, top[0], 'PIN'), 'utf8').trim(), DEFAULT_PIN);
-  for (const rel of ['patches/0001-pf8-readat-host-source.patch', 'patches/0002-numeric-strto.patch', 'overlay/cmake/web.cmake', 'overlay/host/web_main.cpp']) {
+  for (const rel of ['patches/0001-pf8-readat-host-source.patch', 'patches/0002-numeric-strto.patch', 'patches/0003-tween-loopdelay.patch', 'patches/0004-animation-dispatch-observe.patch', 'overlay/cmake/web.cmake', 'overlay/host/web_main.cpp']) {
     assert.equal(existsSync(join(extract, top[0], rel)), true, rel);
   }
 });

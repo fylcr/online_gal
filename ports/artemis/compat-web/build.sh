@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Reproducible artemis-compat worker build.
 # Inputs: a local git object of the pin (default: fresh main 17200e64) plus the
-# two active patches and the overlay in this directory. Does not compile .ref
+# active patches and the overlay in this directory. Does not compile .ref
 # and does not export EM_CONFIG. One configure, one build, -j2.
 #
 #   bash ports/artemis/compat-web/build.sh [-j N]
@@ -168,14 +168,23 @@ rm -rf "$BUILD/overlay"
 cp -a "$HERE/overlay/audio" "$BUILD/overlay.tmp"
 mkdir -p "$BUILD/overlay"
 mv "$BUILD/overlay.tmp" "$BUILD/overlay/audio"
-# 0003 is a save/restore feature, not a platform compile input. It stays on
-# disk and is not applied. Active set: ReadAt host bytes, and the sto* sites
-# that throw (wasm numeric).
-for p in "$HERE"/patches/0001-pf8-readat-host-source.patch \
-         "$HERE"/patches/0002-numeric-strto.patch; do
-  say "patch $(basename "$p") sha256=$(sha256sum "$p" | cut -d' ' -f1)"
-  # No `--forward`: a patch that is already applied is a recipe that no longer
-  # matches its source, and that has to stop the build.
+# Active set is PLATFORM-PATCHES.txt. Retired, and not applied, is
+# 0003-scene-checkpoint.patch. A file in patches/ that the list omits is refused.
+mapfile -t PATCHES < <(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$HERE/PLATFORM-PATCHES.txt" | grep -v '^$')
+[ "${#PATCHES[@]}" -ge 1 ] || { echo "refusing: PLATFORM-PATCHES.txt names nothing" >&2; exit 2; }
+shopt -s nullglob
+for extra in "$HERE"/patches/*.patch; do
+  base="$(basename "$extra")"
+  ok=0
+  for name in "${PATCHES[@]}"; do [ "$base" = "$name" ] && ok=1; done
+  [ "$ok" = 1 ] || { echo "refusing: unlisted patch $base" >&2; exit 2; }
+done
+shopt -u nullglob
+for name in "${PATCHES[@]}"; do
+  p="$HERE/patches/$name"
+  [ -f "$p" ] || { echo "refusing: listed patch missing: $name" >&2; exit 2; }
+  say "patch $name sha256=$(sha256sum "$p" | cut -d' ' -f1)"
+  # --forward: an already-applied hunk is a recipe that no longer matches, and stops the build.
   patch --dry-run --forward --binary -d "$BUILD" -p1 --batch <"$p" >>"$LOG" 2>&1
   patch --forward --binary -d "$BUILD" -p1 --batch <"$p" >>"$LOG" 2>&1
 done

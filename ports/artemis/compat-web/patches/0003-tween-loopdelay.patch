@@ -1,0 +1,71 @@
+--- a/src/render/compositor.h
++++ b/src/render/compositor.h
+@@ -266,6 +266,7 @@
+         bool started = false;
+         int repeat = 0;          // extra traversals; -1 repeats indefinitely
+         bool yoyo = false;       // alternate traversal direction
++        double loop_delay_ms = 0; // wait between repeats (lytween loopdelay)
+         double Duration() const;
+         float FinalValue() const;
+     };
+--- a/src/render/compositor.cpp
++++ b/src/render/compositor.cpp
+@@ -521,6 +521,9 @@
+     const int yoyo = static_cast<int>(ToF(get("yoyo"), 0));
+     tw.repeat = std::max(-1, loop != 0 ? loop : yoyo);
+     tw.yoyo = loop == 0 && yoyo != 0;
++    // loop+yoyo both nonzero stays the single slot above. Official docs do
++    // not say how the two counts combine; do not guess.
++    tw.loop_delay_ms = std::max(0.0, static_cast<double>(ToF(get("loopdelay"), 0)));
+     tw.ease = ParseEase(get("ease"));
+     tw.start_ms = now_ms;
+     // from/to: explicit attrs win; else "<param>=a,b"; else current -> to.
+@@ -538,8 +541,11 @@
+ 
+ double Compositor::Tween::Duration() const {
+     if (time_ms <= 0) return delay_ms;
+-    return repeat < 0 ? std::numeric_limits<double>::infinity() :
+-        delay_ms + time_ms * (1.0 + repeat);
++    if (repeat < 0) return std::numeric_limits<double>::infinity();
++    // One gap after each finished traversal except the last. repeat is the
++    // extra count, so a finite tween waits `repeat` times.
++    const int extra = std::max(0, repeat);
++    return delay_ms + time_ms * (1.0 + extra) + loop_delay_ms * extra;
+ }
+ 
+ float Compositor::Tween::FinalValue() const {
+@@ -677,16 +683,25 @@
+             }
+         }
+         const double run = since - tw.delay_ms;
+-        const bool done = tw.time_ms <= 0 ||
+-            (tw.repeat >= 0 && run >= tw.time_ms * (1.0 + tw.repeat));
++        const double span = tw.time_ms + tw.loop_delay_ms;
++        const double budget = tw.time_ms * (1.0 + std::max(0, tw.repeat))
++            + tw.loop_delay_ms * std::max(0, tw.repeat);
++        const bool done = tw.time_ms <= 0 || (tw.repeat >= 0 && run >= budget);
+         float v = tw.FinalValue();
+-        if (!done) {
+-            const double cycle = std::floor(run / tw.time_ms);
+-            const float t = static_cast<float>(std::fmod(run, tw.time_ms) / tw.time_ms);
+-            const bool reverse = tw.yoyo && std::fmod(cycle, 2.0) >= 1.0;
+-            const float from = reverse ? tw.to : tw.from;
+-            const float to = reverse ? tw.from : tw.to;
+-            v = from + (to - from) * ApplyEase(tw.ease, t);
++        if (!done && span > 0) {
++            const double cycle = std::floor(run / span);
++            const double into = run - cycle * span;
++            if (into >= tw.time_ms) {
++                // Between repeats the value stays at the value that traversal ended on.
++                const bool reverse = tw.yoyo && std::fmod(cycle, 2.0) >= 1.0;
++                v = reverse ? tw.from : tw.to;
++            } else {
++                const float t = static_cast<float>(into / tw.time_ms);
++                const bool reverse = tw.yoyo && std::fmod(cycle, 2.0) >= 1.0;
++                const float from = reverse ? tw.to : tw.from;
++                const float to = reverse ? tw.from : tw.to;
++                v = from + (to - from) * ApplyEase(tw.ease, t);
++            }
+         }
+         ApplyParam(*target, tw.param, v);
+         changed = true;

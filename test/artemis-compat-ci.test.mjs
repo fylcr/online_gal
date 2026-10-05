@@ -286,8 +286,11 @@ test('the source offer is generated from the pin and carries the patches that we
   const pin = json(PINS)['artemis-compat'].commit;
   const bundle = read('ports/artemis/compat-web/make-source-bundle.mjs');
   assert.ok(bundle.includes(pin), 'the bundle generator defaults to the same pin');
-  for (const file of ['README.md', 'patches/0001-pf8-readat-host-source.patch',
-    'patches/0002-numeric-strto.patch', 'overlay/host/web_main.cpp', 'overlay/cmake/web.cmake']) {
+  assert.match(bundle, /platformPatchEntries\(\)/, 'the offer takes its patches from PLATFORM-PATCHES.txt');
+  const names = read('ports/artemis/compat-web/PLATFORM-PATCHES.txt').split(/\r?\n/)
+    .map((line) => line.replace(/#.*$/, '').trim()).filter(Boolean);
+  assert.ok(names.includes('0003-tween-loopdelay.patch'), 'the third native patch is loopdelay, not scene-checkpoint');
+  for (const file of ['README.md', 'overlay/host/web_main.cpp', 'overlay/cmake/web.cmake']) {
     assert.ok(bundle.includes(`'${file}'`), `the source offer must carry ${file}`);
   }
 });
@@ -346,11 +349,12 @@ test('the source offer ships a recipe that builds without this repository', () =
     'the standalone recipe is a build input and must be a required source entry');
 
   const recipe = read('ports/artemis/compat-web/RUN-BUILD.sh');
-  // It has to apply both patches and append the web CMake target itself: those are the three
-  // steps `build.sh` performs that the pinned tree cannot supply.
-  for (const patch of ['0001-pf8-readat-host-source.patch', '0002-numeric-strto.patch']) {
-    assert.ok(recipe.includes(patch), `RUN-BUILD.sh must apply ${patch}`);
-  }
+  // The patch set is PLATFORM-PATCHES.txt, not a second hardcoded list.
+  assert.match(recipe, /PLATFORM-PATCHES\.txt/, 'RUN-BUILD.sh must read the platform patch list');
+  assert.match(recipe, /unlisted patch/, 'an unlisted patch must be refused');
+  const names = read('ports/artemis/compat-web/PLATFORM-PATCHES.txt').split(/\r?\n/)
+    .map((line) => line.replace(/#.*$/, '').trim()).filter(Boolean);
+  assert.deepEqual(names, ['0001-pf8-readat-host-source.patch', '0002-numeric-strto.patch', '0003-tween-loopdelay.patch', '0004-animation-dispatch-observe.patch']);
   assert.match(recipe, /cat "\$HERE\/overlay\/cmake\/web\.cmake" >>"\$BUILD\/CMakeLists\.txt"/,
     'RUN-BUILD.sh must append the web CMake target, which the pinned CMakeLists.txt lacks');
   assert.match(recipe, /ARTC_BUILD_WEB=ON/, 'the web target has to be switched on');
@@ -580,7 +584,7 @@ test('the portable suite that reads the app seam is what re-runs on its change',
     'the individual test file is covered by test/** on this workflow and must not be listed twice');
 });
 
-test('the platform patch set is 2 explicit, and no declaration still applies a retired patch', () => {
+test('the platform patch set is 4 explicit, and no declaration still applies a retired patch', () => {
   // The minimal port's set is named by one file, not inferred from the recipes' patch loops: a
   // table derived from the thing it constrains constrains nothing, which is how a third patch could
   // previously land in `patches/` with every declaration still green.
@@ -594,19 +598,18 @@ test('the platform patch set is 2 explicit, and no declaration still applies a r
   const LIST = 'ports/artemis/compat-web/PLATFORM-PATCHES.txt';
   const names = read(LIST).split(/\r?\n/)
     .map((line) => line.replace(/#.*$/, '').trim()).filter(Boolean);
-  assert.deepEqual(names, ['0001-pf8-readat-host-source.patch', '0002-numeric-strto.patch'],
-    `${LIST} must name exactly the two platform adaptations, in application order; the count is `
+  assert.deepEqual(names, ['0001-pf8-readat-host-source.patch', '0002-numeric-strto.patch', '0003-tween-loopdelay.patch', '0004-animation-dispatch-observe.patch'],
+    `${LIST} must name exactly the platform adaptations, in application order; the count is `
     + 'the contract CI compiles, so adding or removing one is a deliberate edit to this test too');
 
-  // Every named patch exists, and is one of the two the port is built from.
+  // Every named patch exists. Retired is 0003-scene-checkpoint, not 0003-tween-loopdelay.
   for (const name of names) {
     assert.ok(read(`ports/artemis/compat-web/patches/${name}`).length > 0,
       `the platform list names ${name}, so the file has to be there`);
   }
 
-  // Nothing in the closure still APPLIES a patch that is not on the list. Counted as patch
-  // references that are not the two above, with comments stripped: each declaration explains in
-  // prose which patches it applies, and a line saying `0003` is *not* applied is documentation.
+  // Nothing in the closure still APPLIES a patch that is not on the list. Comments stripped:
+  // a line saying 0003-scene-checkpoint is *not* applied is documentation, not an application.
   const RETIRED = '0003-scene-checkpoint.patch';
   for (const file of [RECIPE, 'ports/artemis/compat-web/RUN-BUILD.sh',
     'ports/artemis/compat-web/make-source-bundle.mjs']) {

@@ -181,6 +181,22 @@ public:
             return req.accepted;
         });
 
+        // Establish the boot base frame **before the first script tag runs**.
+        //
+        // Why: `Compositor::BeginTransition` calls `CaptureFrame`, and `CaptureFrame`
+        // returns immediately while `scene_fbo_ == 0`. The scene FBO only comes into
+        // existence on the first `Draw`, and the boot chain (`system/first.iet` plus the
+        // queued boot tags) runs its opening `[trans]` before any Draw has happened --
+        // so the capture is skipped, `trans_have_frame_` stays false, `BeginTransition`
+        // returns false, and the opening fade never activates. Drawing once here, with
+        // no layers yet, allocates the FBO and clears it black, which makes the legal
+        // old black frame that the opening transition captures.
+        //
+        // It must stay before `BootFramework()`: drawing afterwards would capture the
+        // new picture the boot chain just staged and fade it into itself. The call is
+        // skipped when there is no GL context for the same reason `Start()` failed.
+        ctx->compositor().Draw();
+
         if (!ctx->BootFramework()) return false;
         booted = true;
         return true;

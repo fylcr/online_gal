@@ -224,6 +224,7 @@ export class CompatArtemisRuntime implements RuntimeInstance {
         // with READ_MISSING, which the engine reports as a refusal rather than as an absence.
         surface,
         initialFiles,
+        animationTrace: this.options.gameConfig?.['animationTrace'] === true,
       });
       if (this.disposed) throw new Error('the Artemis compat runtime was disposed while starting');
       // The boot frame. It is driven at the host's own surface coordinate, so the engine's resize
