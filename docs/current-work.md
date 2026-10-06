@@ -1,10 +1,12 @@
 # 当前工作检查点 — 新对话先读
 
-> **当前摘要（2026-10-05 · 代码 `73c5162a8d38548ecedafe5ca22f4fbb2c8b035c` 已 push 且同 SHA CI success · 文档提交不是工件 SHA · 本块是唯一「现状」；下文历史原样保留，不得当现状。）**
-> - 代码 **73c5162a8d38548ecedafe5ca22f4fbb2c8b035c**。runtime **0.1.14** / engines 仓库 **0.1.15**，pin **17200e64…**（独立仓库）。CI 真 **581/579/0 fail/2 skip**（旧 audio 构建源 / old 9f；observer、首转场、tween 实跑）。离线 **0**，ZIP digest=API。proof status **verified**。Linux WASM **1480956** `d4a54476…`、JS **153843** `9a9b50…`。平台 hash 不得与 Windows 混。**标题 / CG / 卡顿未亲测，不得称 root 全修。** Tyrano 无安卓画面。
-> - `4663` PID **36944**（父 **78256** 已退出，仍听）与 `4661` **41648**、`4662` **2612** 有意同留，不自动三轮。一次 GET：4663 `/` 与 `/api/identity` **200** accepted、hash=proof；4661/4662 `/` **200**。served 勾选在 START 传入 `gameConfig.animationTrace`；receipt 的 `schema-not-wired` 是旧 metadata，不是开关。page trace wiring verified by served module; native observed on CI/fixture, user game not run。
-> - b85 误改共享 `.test/package.json`，原 dependencies **未能确认，不得称还原成功**。后续 npm 隔离目录。无 GH Release、无 npm。goal **paused rev7，不 resume / 不完成**。
-> - 文档 HEAD 与代码 SHA 必须分开：新 doc SHA 不能当既有工件证明。next：用户先停旧页游戏 → 打开 4663 → START 前勾记录 → 自己亲测。代理不停旧进程，36944 留下。
+> **当前摘要（2026-10-06 · 官方 4664 已授权作对比 oracle · official-vs-compat 进行中 · 未提交）**
+> - **替代旧错误摘要**：上一版写的「官方动画能否作对照仍未定 / 本轮不启动 official-vs-compat」**已作废**。用户确认官方 4664 **能正常播放**、独立 16:9 视口正常，并最终明确「**都是正常的，可以进行对比了**」——范围是**淡入淡出 / title / CG**（不是只有尺寸）。官方据此**已授权**作该游戏这些片段的**行为 oracle**，可正式对比。
+> - **官方显示已收口**：只两处最小 CSS 改（`#stage` 16:9 框 + `engine.html` canvas `100%!important`），宽 1024×576 / 窄 1019×573 皆同比例填满，无溢出剪边黑屏；**无** buffer/descriptor/getContext/GL viewport 写。证据 `.test/artemis-official-user-manual/FINAL-IFRAME-ACCEPTANCE.md` + `evidence/wide-full-frame.png`、`narrow-full-frame.png`；wasm `7ceabed28b84…` / js `50706baf…` / data `c12515a6…` 前后不变；4664 PID 71972 原样。
+> - **输入同一性已实同**：14/14 文件 hash + size 相同（含两 PNG 1280×720 / 2560×1440），两宿主差异仅 `system.ini` 的 `ASYNCIFY_URL`/`ASYNCIFY_HASH_LIST_URL`/`SAVEPATH`；证据 `.test/artemis-official-compat-parity/`。
+> - **在途**：唯一 A/B 浏览器代理写域 `.test/artemis-official-compat-ab/**`，报告**未回**；无产物即未完成，**不重跑双引擎**。compat 的 fade / title / CG 是否仍异常**仍未确认**，**不得**写「根因已定位 / 已红」。
+> - **compat 身份**：源码 `73c5162a8d38548ecedafe5ca22f4fbb2c8b035c` 已 push，runtime 0.1.14 / engines 0.1.15，pin `17200e64…`；CI 581 tests / 579 pass / 0 fail / 2 skip。
+> - **接手**：读本块 → `docs/artemis-official-compat-handoff.md`（新交接）→ 历史交接仅背景。本轮只做文档，**不新开**调查 / 测试 / 实现 / 浏览器 / 服务，测试 browser session 结束要 stop、原用户页不动。
 
 ---
 
