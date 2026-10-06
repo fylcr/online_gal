@@ -1,13 +1,11 @@
 # 当前工作检查点 — 新对话先读
 
-> **当前摘要（2026-10-06 · 环境已验通 · 代码交新对话 · 零在途 writer）**
-> - **环境已验通**：单实例对比环境 `http://127.0.0.1:4670/`，run `rn20261006a`，PID **77504**（node，父 `nohup.exe` 74200 存活 = 真 detached 持久）。纯 engine iframe 1024×576、无嵌套、无内 scroll；两 lane 真实完整 title 截图已实测（同 run `rn20261006a`）。证据 `.test/artemis-comparison-ready/{FINAL-ENVIRONMENT-PASS.md,environment.json,REUSABLE-READY.md,raw/unnested-geometry-rn20261006a.json}`。`check-env.mjs` **16/16 PASS**（只 unit，无 GPU）。
-> - **活跃身份已复验**：`/api/identity` 官方 wasm `7ceabed28b84…d145e`/5998665 B、compat wasm `d4a54476ab2b…ec923`/1480956 B、`0.1.14`/code `73c5162a…`/pin `17200e64…`；served glue `"end":3756 == remote_package_size 3756` 且 data 实际 **3756 B** sha `0dc1ecd6…` 三相一致。
-> - **零配置入口**：开 4670 → 先「关闭 game」→ 点**新对比编号（fresh）**只一次 → 官方 START 看目标阶段 → 关 game → compat START，沿同 run 比。**不两边并跑 / 不复用已写 save 跳开场 / 不清任何 IDB**；不手改 source const。重启一条命令 `.test/artemis-comparison-ready/launch-4670.sh`（前台 `exec node`，需配 `Start-Process`/`nohup` 才持久）。
-> - **零在途 writer**：所有 subagent 已 closed，无 active writer；旧 AB actor `4a9b0e19` 已 closed。**不等待其 REPORT**。
-> - **冻结不动**：单 4670/77504；原四服务 4661/41648、4662/2612、4663/58184、4664/71972 有意保留，不 cleanup kill。用户 IDB / asset / `.ref` / harness 不动。
-> - **代码交新对话**：未测边界 = 中间 1s fade pixel 未抓、CG 播放对比未执行；`Detected invalid hash`/字体缺失属静态遗留，**未证无害也未 cleanup**。**本轮只交可定位状态，不分析代码、不重配环境。**
-> - **Goal**：`goal-93d83444…` rev2 environment-only 目标完成交接，lead 会收 goal；**本工具别虚 complete**。历史 goal-bb… rev14 / paused rev13 均**不作现状**。设计/取用纪律见 `AGENTS.md` 硬约定（模型分工、证据纪律）。
+> **当前摘要（2026-10-06 · API 已验通 · 只留 4670 · doc-only 收口）**
+> - **AI 接口已验通**：4670 唯一项目测试服务（PID **45892**，`netstat` 实核 LISTEN）；官方→stop→compat→非空 PNG→stop→session close 全链真实跑通，**无 UI 点击**。入口见 [artemis-official-compat-handoff.md](artemis-official-compat-handoff.md)。当前 run `rmuwkk5v0`，ownerLock=free / browserConnected=false / engine=null / phase=closed。
+> - **旧测试服务已停**：4661/41648、4662/2612、4663/58184、4664/71972、4665/69900 已按 exact PID `taskkill /F`（无 `/T`）停，端口无 LISTEN；DSH 19387（33756）存活。**用户已覆盖旧「四服务有意保留」**：本轮只为 4670 服务，source 目录保留。
+> - **无在途 writer**：所有 API/test 作者已 closed、无在途 browser session 或 finite job。旧 AB actor `4a9b0e19` 已 closed，**不等其 REPORT**。
+> - **验证与限制**：25/25 offline contract + 独立 review 3/3 均 EXIT 0（source-only，无 GPU claim）；compat capture 是真实非空 2D PNG（1024×576，25220 B），official WebGL `preserveDrawingBuffer=false` → canvas 读可能 blank，须用 browser 工具截图。**未测**：中间 1s fade pixel、CG 播放、official PNG 可用性。
+> - **本轮 doc-only**：不改产品/接口/WASM/IDB/schema；官方 `7ceabed2…`、compat `d4a54476…`/code `73c5162a…`/pin `17200e64…`、源胶水 `78929c4c…`/源 data `7f9b94c9…` 原样未改。历史 goal 均不作现状；设计纪律见 `AGENTS.md` 硬约定。
 
 ---
 
