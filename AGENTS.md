@@ -6,7 +6,7 @@
 
 1. **`docs/current-work.md`** — 滚动工作检查点：当前任务、已测证据/未知点、未提交改动、代理写入范围、进程清理与下一步。**每次新对话先从这里接手，随阶段更新，不依赖旧对话恢复。** 文首「当前摘要」块是**唯一现状**，其下按时间倒序的历史记录不得当现状。
 2. **`docs/artemis-official-compat-handoff.md`** — 当前官方 4664 ↔ compat 对比交接：目标、立即下一步、已测 vs 未知、身份与入口表、在途写域与规则。**新对话读它，不读旧交接当现状。**
-3. `docs/session-5697f1a7-handoff.md` — **历史**交接总结（2026-09-17 → 2026-10-04，266 轮）：历史现状、**已被推翻的结论**、构建/验收命令与证据标准。不要重读原会话，也不要逐句覆盖旧记录。
+3. `docs/session-5697f1a7-handoff.md` — **历史**交接总结（2026-09-17 → 2026-10-04，266 轮）：历史现状、**已被推翻的结论**、构建/验收命令与证据标准。不要重读原会话，也不要逐句覆盖旧记录。**该文件当前为 modified 未提交状态，本轮不 stage。**
 4. `docs/项目状态与恢复指南.md` — 更早的能力矩阵与实测数据。
 5. `README.md` — 支持范围与「可运行 / 仅识别」的真实边界，不要读成「全都可用」。
 6. `docs/source-layout.md` — 目录职责、上传清单与检查方式。
@@ -39,6 +39,6 @@ npm run test:portable
 
 - **官方 4664 显示已收口**：START 前 `#stage` 即预留 1024×576 黑框，START 后不生长；宽 1280 / 窄 800 两窗口下 canvas 都同比例填满 frame（宽 1024×576、窄 1019×573），无溢出/剪边/黑屏。方案=两处最小 CSS 改（16:9 框从 `#game` 移到 `#stage`；`engine.html` canvas `100%!important`），**无** buffer/descriptor/getContext/GL viewport 写。
 - **用户已授权对比（关键更新）**：用户确认官方 4664 **能正常播放**、独立 16:9 视口正常，并最终明确「**都是正常的，可以进行对比了**」——范围是**淡入淡出 / title / CG**（不只是尺寸）。因此官方可作为该游戏这些片段的**行为 oracle**，official-vs-compat 对比**已授权、进行中**。
-- **在途**：唯一 A/B 浏览器代理写域 `.test/artemis-official-compat-ab/**`，报告未回。**compat 的 fade / title / CG 是否仍异常仍未确认**，不得先写「根因已定位」。
+- **在途**：唯一 A/B 浏览器代理（`4a9b0e19`，**尚未 closing，不得当 failed / released**）写域 `.test/artemis-official-compat-ab/**`，报告未回。**用户此前亲测 15:33 fade 实际无效（异常已确认）**；**本轮同输入的 A/B 对照结果与具体原因仍未确认**，不得先写「根因已定位」。用户**已否定** static-IF 反馈当根因（需真实 attachment / destination ID 或实际 pixels 红，本轮不新 probe）。
 - **不要做**：不新开动画调查 / 测试 / 实现 / 浏览器 / 服务；不重跑双引擎 A/B；不用历史未测结论（含候选 6f、`ROOT_CAUSE.md`）当起点。
-- 接手顺序：`docs/current-work.md` 文首摘要 → `docs/artemis-official-compat-handoff.md` → 历史交接（仅背景）。
+- 接手顺序：`docs/current-work.md` 文首摘要 → `docs/artemis-official-compat-handoff.md` → 历史交接（仅背景）。当前三份有效文档合计不足 100 行即可，不追长状态史。
