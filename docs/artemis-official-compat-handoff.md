@@ -1,7 +1,7 @@
 # Artemis 官方 ↔ compat 对比交接（当前现状 · 新对话第 2 读）
 
 > 本文件是**当前有效**的官方/compat 对比交接。`docs/session-5697f1a7-handoff.md` 及其前的多份 handoff 是**历史**，只作背景，**不得当现状**，也不要用它逐句覆盖旧记录。
-> 本文件写于文档提交前，**状态：aborted** —— 提交完成后由收尾步骤写回。
+> 本文件写于文档提交前，**状态：committed** —— 已随 `f6cca83a655689ed3b49272a0d7c00f8cd4dcc0c` 提交并 push（见文末「提交记录」）。
 
 ## 目标
 
@@ -97,4 +97,4 @@
 
 ## 提交记录
 
-- **状态：aborted** —— 文档提交尚未完成，完成后回写本行（full SHA / push 结果）。
+- **状态：committed** —— 本文件随文档提交 `f6cca83a655689ed3b49272a0d7c00f8cd4dcc0c`（docs-only）一同 push 到 `origin/main`，remote `ls-remote` 与此 SHA 一致，ahead/behind 0/0。该 SHA 是**文档提交**，**不是** compat 工件 / 源码身份（源码身份仍是 `73c5162a8d38548ecedafe5ca22f4fbb2c8b035c`）。
