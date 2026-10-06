@@ -1,12 +1,13 @@
 # 当前工作检查点 — 新对话先读
 
-> **当前摘要（2026-10-06 · 官方 4664 已授权作对比 oracle · official-vs-compat 进行中 · 交接已保存，文档提交与代码身份分离）**
-> - **替代旧错误摘要**：上一版写的「官方动画能否作对照仍未定 / 本轮不启动 official-vs-compat」**已作废**。用户确认官方 4664 **能正常播放**、独立 16:9 视口正常，并最终明确「**都是正常的，可以进行对比了**」——范围是**淡入淡出 / title / CG**（不是只有尺寸）。官方据此**已授权**作该游戏这些片段的**行为 oracle**，可正式对比。
-> - **官方显示已收口**：只两处最小 CSS 改（`#stage` 16:9 框 + `engine.html` canvas `100%!important`），宽 1024×576 / 窄 1019×573 皆同比例填满，无溢出剪边黑屏；**无** buffer/descriptor/getContext/GL viewport 写。证据 `.test/artemis-official-user-manual/FINAL-IFRAME-ACCEPTANCE.md` + `evidence/wide-full-frame.png`、`narrow-full-frame.png`；wasm `7ceabed28b84…` / js `50706baf…` / data `c12515a6…` 前后不变；4664 PID 71972 原样。
-> - **输入同一性已实同**：14/14 文件 hash + size 相同（含两 PNG 1280×720 / 2560×1440），两宿主差异仅 `system.ini` 的 `ASYNCIFY_URL`/`ASYNCIFY_HASH_LIST_URL`/`SAVEPATH`；证据 `.test/artemis-official-compat-parity/`。
-> - **在途**：唯一 A/B 浏览器代理（`4a9b0e19`，**尚未 closing**）写域 `.test/artemis-official-compat-ab/**`，目录现只有 `shots/`、**无 REPORT**，报告**未回**；**不得**当 failed / released，**不重跑双引擎**。**本轮同输入的 A/B 对照结果与具体原因仍未确认**；已知用户**此前亲测 15:33 fade 实际无效（异常已确认）**，**不得**写「根因已定位 / 已红」。用户**已否定** static-IF 反馈当根因：需真实 attachment / destination ID 或实际 pixels 红，**本轮不新 probe**。
-> - **compat 身份**：源码 `73c5162a8d38548ecedafe5ca22f4fbb2c8b035c` 已 push，runtime 0.1.14 / engines 0.1.15，pin `17200e64…`；CI 581 tests / 579 pass / 0 fail / 2 skip。
-> - **接手**：读本块 → `docs/artemis-official-compat-handoff.md`（新交接）→ 历史交接仅背景。本轮只做文档，**不新开**调查 / 测试 / 实现 / 浏览器 / 服务，测试 browser session 结束要 stop、原用户页不动。
+> **当前摘要（2026-10-06 · 环境已验通 · 代码交新对话 · 零在途 writer）**
+> - **环境已验通**：单实例对比环境 `http://127.0.0.1:4670/`，run `rn20261006a`，PID **77504**（node，父 `nohup.exe` 74200 存活 = 真 detached 持久）。纯 engine iframe 1024×576、无嵌套、无内 scroll；两 lane 真实完整 title 截图已实测（同 run `rn20261006a`）。证据 `.test/artemis-comparison-ready/{FINAL-ENVIRONMENT-PASS.md,environment.json,REUSABLE-READY.md,raw/unnested-geometry-rn20261006a.json}`。`check-env.mjs` **16/16 PASS**（只 unit，无 GPU）。
+> - **活跃身份已复验**：`/api/identity` 官方 wasm `7ceabed28b84…d145e`/5998665 B、compat wasm `d4a54476ab2b…ec923`/1480956 B、`0.1.14`/code `73c5162a…`/pin `17200e64…`；served glue `"end":3756 == remote_package_size 3756` 且 data 实际 **3756 B** sha `0dc1ecd6…` 三相一致。
+> - **零配置入口**：开 4670 → 先「关闭 game」→ 点**新对比编号（fresh）**只一次 → 官方 START 看目标阶段 → 关 game → compat START，沿同 run 比。**不两边并跑 / 不复用已写 save 跳开场 / 不清任何 IDB**；不手改 source const。重启一条命令 `.test/artemis-comparison-ready/launch-4670.sh`（前台 `exec node`，需配 `Start-Process`/`nohup` 才持久）。
+> - **零在途 writer**：所有 subagent 已 closed，无 active writer；旧 AB actor `4a9b0e19` 已 closed。**不等待其 REPORT**。
+> - **冻结不动**：单 4670/77504；原四服务 4661/41648、4662/2612、4663/58184、4664/71972 有意保留，不 cleanup kill。用户 IDB / asset / `.ref` / harness 不动。
+> - **代码交新对话**：未测边界 = 中间 1s fade pixel 未抓、CG 播放对比未执行；`Detected invalid hash`/字体缺失属静态遗留，**未证无害也未 cleanup**。**本轮只交可定位状态，不分析代码、不重配环境。**
+> - **Goal**：`goal-93d83444…` rev2 environment-only 目标完成交接，lead 会收 goal；**本工具别虚 complete**。历史 goal-bb… rev14 / paused rev13 均**不作现状**。设计/取用纪律见 `AGENTS.md` 硬约定（模型分工、证据纪律）。
 
 ---
 
