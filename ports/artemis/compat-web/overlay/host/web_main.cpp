@@ -332,8 +332,11 @@ public:
         }
         Step();
         if (ctx && ctx->Started()) {
-            ctx->compositor().Update(ctx->lua().NowMs());
+            // CRITICAL FIX: Call NowMs() only ONCE to ensure consistent timestamp
+            // across Update() and animation checks. Multiple calls can return different
+            // values in WASM, causing animation skips and frame stuttering.
             const double now = ctx->lua().NowMs();
+            ctx->compositor().Update(now);
             const bool animating = ctx->compositor().PendingAnimationMs(now) > 0 ||
                                    ctx->compositor().TransitionActive() ||
                                    ctx->compositor().PendingTextMs(now) > 0;

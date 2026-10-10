@@ -20,3 +20,8 @@
 0003-tween-loopdelay.patch
 # Default-off shared Lua animation/CG dispatch observation; no animation changes.
 0004-animation-dispatch-observe.patch
+# 0005  First-frame timing fix. Compositor::Update was using the stale now_ms_ member
+#       (initialized to 0) instead of the incoming now_ms parameter when checking
+#       PendingTextMs, causing incorrect animation timing on the first frame and
+#       leading to title replays, missing fade transitions, and broken CG animations.
+0005-compositor-update-first-frame.patch

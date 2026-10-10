@@ -168,6 +168,12 @@ rm -rf "$BUILD/overlay"
 cp -a "$HERE/overlay/audio" "$BUILD/overlay.tmp"
 mkdir -p "$BUILD/overlay"
 mv "$BUILD/overlay.tmp" "$BUILD/overlay/audio"
+
+# Convert line endings to Unix format to ensure patches apply correctly
+# (Windows checkouts often have CRLF, but patches expect LF)
+say "converting line endings (dos2unix)"
+find "$BUILD" -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.c" \) -exec dos2unix {} \; 2>>/dev/null || true
+
 # Active set is PLATFORM-PATCHES.txt. Retired, and not applied, is
 # 0003-scene-checkpoint.patch. A file in patches/ that the list omits is refused.
 mapfile -t PATCHES < <(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$HERE/PLATFORM-PATCHES.txt" | grep -v '^$')

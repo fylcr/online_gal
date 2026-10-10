@@ -1,0 +1,12 @@
+--- a/src/render/compositor.cpp
++++ b/src/render/compositor.cpp
+@@ -666,7 +666,8 @@ void Compositor::AdvanceAnime(double now_ms, bool *changed) {
+ }
+ 
+ bool Compositor::Update(double now_ms) {
+-    bool changed = PendingTextMs(now_ms_) > 0;
++    // Use the incoming now_ms rather than the stale now_ms_ to avoid incorrect first-frame timing.
++    bool changed = PendingTextMs(now_ms) > 0;
+     now_ms_ = now_ms;
+     for (auto it = tweens_.begin(); it != tweens_.end();) {
+         Tween &tw = *it;
