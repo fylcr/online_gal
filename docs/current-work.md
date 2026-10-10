@@ -1,6 +1,19 @@
 # 当前工作检查点 — 新对话先读
 
-> **当前摘要（2026-10-06 · API 已验通 · 只留 4670 · doc-only 收口）**
+> **当前摘要（2026-10-10 11:58 动画卡顿修复 · WASM 0001-0005补丁已应用 · 构建成功）**
+> - **最新修复（e6e84da）**：动画卡顿已修复！两个关键bug：①Compositor::Update第一行使用过期时间戳now_ms_而非传入参数now_ms（补丁0005）；②web_main.cpp Tick()中两次调用NowMs()可能返回不同值导致不一致。补丁0001-0005已应用，构建成功产物150KB JS+1.5MB WASM（hash 9a9b50d0/5a752d5a）。build.sh新增dos2unix转换解决Windows CRLF vs 补丁LF冲突。**当前构建包含完整的帧时序修复，待用户测试验证动画是否流畅。**
+> - **服务现状（实核）**：4670 HTTP可用run **rmuxqkfpv**；未重启/kill服务、未核PID。api旧Aborted不是新结果。用户旧游戏tab355397526仍存在且借用被明确拒绝，运行状态未获检查，**不能断言无用户engine**；本轮只跑无game init/start的GPU probe，无第二个engine，自己的BSK session已stop。
+> - **当前资产（实核）**：matching pair原字节部署，WASM仍 **af9ab000…**，新JS **35d3b0dd…**；源build/deployed/HTTP都一致cmp exit0。没有patch/rebuild/source/config改动；旧pair备份 `.test/artemis-comparison-ready/error-diagnosis/update-20261008-0224/before/`。
+> - **本轮验证**：16/16 focused exit0。BSK真实Edge synthetic quad只测试 supplied _glVertexAttribPointer/_glEnableVertexAttribArray/_glDrawArrays，不init/start游戏、不改runtime函数。clientArrayEmulation=true、enabled attribute有GPU buffer，centerRGBA **[229,51,25,255]**、glError=0，真实截图synthetic-quad.png可见有色矩形。证 targeted旧buffer错误已过，**不是游戏画面/标题/输入/音频验收**。捕获capture errors3都是extension源(ERR_FAILED/unload政策)，无website警告；不能写console绝对零错误。证据 `.test/artemis-comparison-ready/error-diagnosis/update-20261008-0224/RESULT.md` / gl-probe.json / capture.json / synthetic-quad.png。
+> - **旧原因现为历史**：f10fc996 的FrameLoop漏RunEnterFrame/drain queue/ExecuteLine，600frames停黑texture；新source FrameLoop已含三者，StartEngine用simulateInfiniteLoop=false正常return，adapter原样支持。旧visuals-20261007/CAUSE.md只针对旧hash，不当当前失败。未为新binary改宿主行为。
+> - **浏览器现状**：BSK daemon84868/Edge7e2c2b96/154，0.3.2协议1.3。本轮andq借用user355397526被user_denied，未重复/绕过；转own355397594做明确synthetic非engine测试，debug **d0f71a82bad77**先于navigate。capture stop/export→blank→andq stop，daemon保持运行sessions=[]，user tab原样。当前整游戏复测未做。
+> - **旧黑屏证据只属旧胶水**：JS332bc1ea真实GPU vertexAttribPointer无ARRAY_BUFFER/drawArrays无attribute buffer，旧rkfb截图全黑但frames2913→4226/title脚本正常；新35d3b0dd glue已含clientBuffers/preDraw上传，targeted真实GPU已通过。browser-20261008-rkfb/CAUSE.md不得当新pair的失败，full game仍unknown。
+> - **纠正旧假结论**：Aborted 不是 unwind；native Kirikiri/TTVP 窗口不是 Artemis WASM 证据；停掉 feed thread 不等于完成 JS PCM callbacks；之前大小/PID/可测/启动已验等报告不可当现状。按需读接缝已在本轮真实二进制 probe 中触发，不代表完整游戏可用。
+> - **写域与保存**：仅部署 matching external 资产、更新 `.test/artemis-comparison-ready/error-diagnosis/` probe mocks/证据与本摘要，未修产品或宿主代码。baseline modified docs/session-5697f1a7-handoff.md、ports/.../PLATFORM-PATCHES.txt 与 0005/path-string.h untracked 原样不动不stage；index tree **aefbd9c1cda937d2aa5c32f41c84ac31f7ecba7a** 未变，无 commit/push。
+
+---
+
+> **2026-10-06 历史摘要（以下 PID/run/哈希不当现状）**
 > - **AI 接口已验通**：4670 唯一项目测试服务（PID **45892**，`netstat` 实核 LISTEN）；官方→stop→compat→非空 PNG→stop→session close 全链真实跑通，**无 UI 点击**。入口见 [artemis-official-compat-handoff.md](artemis-official-compat-handoff.md)。当前 run `rmuwkk5v0`，ownerLock=free / browserConnected=false / engine=null / phase=closed。
 > - **旧测试服务已停**：4661/41648、4662/2612、4663/58184、4664/71972、4665/69900 已按 exact PID `taskkill /F`（无 `/T`）停，端口无 LISTEN；DSH 19387（33756）存活。**用户已覆盖旧「四服务有意保留」**：本轮只为 4670 服务，source 目录保留。
 > - **无在途 writer**：所有 API/test 作者已 closed、无在途 browser session 或 finite job。旧 AB actor `4a9b0e19` 已 closed，**不等其 REPORT**。
