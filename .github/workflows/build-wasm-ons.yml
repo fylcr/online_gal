@@ -1,72 +1,39 @@
 # ONS web engine wasm. One engine per workflow so that a push touching ONS does not queue the
 # KiriKiri or Artemis builds, and so a failure names the engine it belongs to.
 #
-# The `paths:` list is the whole trigger design. Requirements 3 and 4 -- "rebuild only when the
-# corresponding engine updates" and "a build must not build all engines" -- are satisfied by this
-# being an exact list rather than a wildcard: the shared inputs every engine depends on are named
-# explicitly (`ports/env.sh`, the reusable workflow, the manifest tool, the engine's own build
-# script), and an unrelated push does not match any of them. A `paths-ignore` design cannot do that
-# because it has to enumerate everything that is NOT an input.
+# The `paths:` list is a cheap negative filter, not the authorization. An expensive native/WASM
+# build and its GitHub Release share one condition: the exact `github.event.before..after` range
+# contains a change to this package's release inputs. Those inputs are `src/**`, `scripts/**`,
+# `package.json` and `tsconfig.json`. Lockfiles, sibling packages, ports, licenses, docs, committed
+# assets and this workflow are deliberately absent: a push that touches only those starts nothing.
+# GitHub can also decline to evaluate a paths filter above a file-count limit; the result is the
+# same safe one, no build and no release. The job rechecks the exact range before any native step
+# and fails closed when before is zero or either endpoint is missing.
 #
-# There is a second reading of "only when the engine updates" that paths cannot express: the
-# upstream can move while this repository does not change at all. That is
-# `check-upstream-drift.yml`, which compares the pins in `.github/upstream-pins.json` against the
-# live remotes on a schedule and dispatches this workflow when ONS has moved.
+# Upstream movement is not an input. `check-upstream-drift.yml` reports it and does not dispatch
+# this workflow.
 name: Build wasm (ONS)
 
 on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/build-wasm-ons.yml'
-      - '.github/workflows/build-wasm-reusable.yml'
-      - '.github/scripts/build-ons.sh'
-      - '.github/scripts/make-manifest.mjs'
-      # Added when packaging was wired in, because from that point the script is an input to this
-      # pipeline in exactly the way `build-ons.sh` and `make-manifest.mjs` already are: change it
-      # and the published tarball changes, so it must be able to trigger a rebuild.
-      - '.github/scripts/make-package.mjs'
-      # The packager ships `packages/runtime-ons` with its dependency closure materialised into
-      # `package/node_modules/@online-gal/*`, so this package and the four siblings the tarball
-      # vendors ARE the published artifact. Changing one of them without a rebuild leaves the
-      # release serving bytes that no longer match the source -- the exact failure the tarball
-      # exists to prevent. `pnpm-lock.yaml` is the same argument one step removed: the tarball's
-      # `dist/` is compiled by the TypeScript version the lockfile pins.
-      #
-      # Deliberately NOT listed: the other eight `packages/*`. They are compiled by
-      # `pnpm run build:packages` as well, so an edit there can break the packaging step -- but it
-      # cannot change what this pipeline publishes, and listing them would rebuild the ONS engine
-      # wasm for edits that cannot reach it. The line being drawn is "is it inside the
-      # artifact?", not "does it get compiled?".
-      - 'packages/runtime-ons/**'
-      - 'packages/engine-api/**'
-      - 'packages/vfs/**'
-      - 'packages/image-codec/**'
-      - 'packages/player-host/**'
-      - 'pnpm-lock.yaml'
-      # Both land verbatim in the tarball root as `package/LICENSE` and
-      # `package/THIRD_PARTY_NOTICES.md` -- GPL-3.0 §5(a) requires the licence to travel with the
-      # work, so an edit to either changes the published bytes. `make-package.mjs` fails the build
-      # outright if either file is missing, which is the other half of why they are listed here.
-      - 'LICENSE'
-      - 'THIRD_PARTY_NOTICES.md'
-      - '.github/upstream-pins.json'
-      - 'ports/env.sh'
-      - 'ports/ons/build/**'
-      # NOT 'ports/lib/engine-artifacts.json'. That file records what the publish step
-      # produced -- it is an output of this pipeline, not an input to it. Listing it means
-      # every hash update, which is a one-line edit, rebuilds every engine.
-  pull_request:
-    paths:
-      - '.github/scripts/build-ons.sh'
-      - 'ports/ons/build/**'
+      - 'packages/runtime-ons/src/**'
+      - 'packages/runtime-ons/scripts/**'
+      - 'packages/runtime-ons/package.json'
+      - 'packages/runtime-ons/tsconfig.json'
   workflow_dispatch:
     inputs:
       publish:
         description: 'Publish the built artifacts as a GitHub Release'
-        required: false
+        required: true
         type: boolean
-        default: true
+        default: false
+      version:
+        description: 'Full SemVer for this manual release, including +metadata. Required when publish is true.'
+        required: false
+        type: string
+        default: ''
       upstream_commit:
         description: 'Override the pinned upstream commit (blank = use .github/upstream-pins.json)'
         required: false
@@ -99,12 +66,10 @@ jobs:
       artifact-name: wasm-ons
       artifact-dir: dist/ons
       artifact-files: onsyuri.wasm onsyuri.js onsyuri.html
-      version: 0.7.7beta
-      # Stated explicitly rather than left to the reusable workflow's `engine-<engine>-<version>`
-      # default. Here the default happens to produce the same string, but this tag is the URL a
-      # consumer downloads from (`ports/lib/engine-artifacts.json`), so it is pinned visibly in every
-      # engine workflow rather than being derivable in one and spelled out in another.
-      release-tag: engine-ons-0.7.7beta
+      # Empty here. The preflight step writes the one full SemVer, and the reusable workflow reads
+      # it from that step. There is no 0.7.7beta fallback: that string is historical provenance,
+      # not this runtime's version.
+      version: ''
       # Packaging is what makes the build output consumable. A consumer runs
       # `pnpm add https://github.com/fylcr/online_gal/releases/download/<tag>/online-gal-runtime-ons-<version>.tgz`
       # and gets a runtime that needs no Emscripten SDK and no wasm build of its own. Each engine
@@ -119,10 +84,9 @@ jobs:
       # opt-IN rather than a default: krkr's engine is a URL-served page with no `assets/` at all,
       # and silently handing it this flag would ship a tarball full of megabytes no code path reads.
       package-engine-assets: true
-      # A pull request builds and checks but must not publish: a PR's bytes are unreviewed, and a
-      # release is a public promise that these are the bytes the manifest describes.
-      # `inputs.publish` is an empty string on `push` (no `inputs` context for that event), and GitHub
-      # compares values of different types by coercing BOTH to a number -- `'' == false` -- so the
-      # obvious `inputs.publish != false` is FALSE on a push and silently skips publishing. Name the
-      # events instead, so nothing is left to a coercion rule.
-      publish: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
+      # Push authorization is the preflight exit status, not this expression. A manual run must
+      # opt in with the boolean true; the default false and a pull request both stay off.
+      publish: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish == true) }}
+      immutable-release: true
+      release-engine: ons
+      manual-version: ${{ inputs.version }}

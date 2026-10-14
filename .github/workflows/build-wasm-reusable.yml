@@ -105,14 +105,30 @@ on:
         required: true
         type: string
       version:
-        description: 'Version string recorded in the manifest and used in the release tag'
-        required: true
+        description: 'Version string recorded in the manifest and used in the release tag. ONS/KRKR leave this empty; their preflight selects the one SemVer.'
+        required: false
         type: string
+        default: ''
       publish:
         description: 'Create/update the GitHub Release with these bytes'
         required: false
         type: boolean
         default: true
+      immutable-release:
+        description: 'ONS/KRKR only. Create one new release for the exact SemVer and never clobber or reuse one. Every other caller leaves this false.'
+        required: false
+        type: boolean
+        default: false
+      release-engine:
+        description: 'ons or krkr when immutable-release is true; ignored otherwise.'
+        required: false
+        type: string
+        default: ''
+      manual-version:
+        description: 'Operator SemVer for an immutable manual dispatch. Passed as data, never interpolated into a shell string by the caller.'
+        required: false
+        type: string
+        default: ''
       release-tag:
         description: 'Release tag; defaults to engine-<engine>-<version>'
         required: false
@@ -189,12 +205,32 @@ jobs:
     steps:
       - name: Check out this repository
         uses: actions/checkout@v4
+        with:
+          # An immutable push must diff the event's exact endpoints. The default shallow checkout
+          # cannot, and a missing endpoint is a failure rather than a guess from HEAD~1.
+          # Depth 0 is the full fetch. It has to stay a string: numeric 0 is falsy, so
+          # `&& 0 || 1` always selects 1 and the later range check fails closed.
+          fetch-depth: ${{ inputs.immutable-release && github.event_name == 'push' && '0' || '1' }}
+
+      - name: Preflight immutable runtime release
+        id: runtime-release
+        if: inputs.immutable-release
+        env:
+          RELEASE_ENGINE: ${{ inputs.release-engine }}
+          EVENT_NAME: ${{ github.event_name }}
+          PUBLISH: ${{ inputs.publish }}
+          MANUAL_VERSION: ${{ inputs.manual-version }}
+          RANGE_BEFORE: ${{ github.event.before }}
+          RANGE_AFTER: ${{ github.event.after }}
+          REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: node .github/scripts/runtime-release-gate.mjs preflight
 
       # The upstream checkout is fetched here rather than by the build script so that every engine
       # gets the same guarantee: the commit is the pinned one, and a fetch failure is a step failure
       # with a readable name instead of a confusing error inside a build log 40 minutes later.
       - name: Check out upstream at the pinned commit
-        if: ${{ !inputs.skip-upstream-checkout }}
+        if: ${{ !inputs.skip-upstream-checkout && (inputs.immutable-release != true || steps.runtime-release.outputs.build == '1') }}
         run: |
           set -eu
           dest="$UPSTREAM_PATH"
@@ -222,13 +258,14 @@ jobs:
       # commit first is what makes `submodule update` pick the pinned submodule revision rather
       # than the branch tip.
       - name: Fetch submodules
-        if: inputs.upstream-submodules
+        if: ${{ inputs.upstream-submodules && (inputs.immutable-release != true || steps.runtime-release.outputs.build == '1') }}
         run: |
           set -eu
           cd "$UPSTREAM_PATH"
           git submodule update --init --recursive --depth 1
 
       - name: Install system dependencies
+        if: ${{ inputs.immutable-release != true || steps.runtime-release.outputs.build == '1' }}
         run: |
           set -eu
           sudo apt-get update
@@ -240,13 +277,14 @@ jobs:
       # which is independent of which engine is being built, so all engines share one entry.
       - name: Cache Emscripten SDK
         id: emsdk-cache
+        if: ${{ inputs.immutable-release != true || steps.runtime-release.outputs.build == '1' }}
         uses: actions/cache@v4
         with:
           path: ${{ env.EMSDK }}
           key: emsdk-${{ env.EMSDK_VERSION }}-${{ runner.os }}
 
       - name: Install Emscripten SDK
-        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        if: ${{ steps.emsdk-cache.outputs.cache-hit != 'true' && (inputs.immutable-release != true || steps.runtime-release.outputs.build == '1') }}
         run: |
           set -eu
           git clone https://github.com/emscripten-core/emsdk.git "$EMSDK"
@@ -258,6 +296,7 @@ jobs:
       # sanity strings, and alternating between them wipes the sysroot and makes CMake report a
       # missing ZLIB). Emscripten finds `$EMSDK/.emscripten` on its own.
       - name: Activate Emscripten SDK
+        if: ${{ inputs.immutable-release != true || steps.runtime-release.outputs.build == '1' }}
         run: |
           set -eu
           source "$EMSDK/emsdk_env.sh"
@@ -296,7 +335,7 @@ jobs:
       # from an empty directory rather than restore archives carrying the previous epoch. At a fixed
       # pin the component is a constant, so it does not change which archives come back.
       - name: Cache vcpkg binary artifacts
-        if: inputs.vcpkg-commit != ''
+        if: ${{ inputs.vcpkg-commit != '' && (inputs.immutable-release != true || steps.runtime-release.outputs.build == '1') }}
         uses: actions/cache@v4
         with:
           path: ${{ env.VCPKG_BINARY_CACHE }}
@@ -305,13 +344,14 @@ jobs:
             vcpkg-binary-${{ runner.os }}-${{ inputs.vcpkg-commit }}-${{ inputs.upstream-commit }}-
 
       - name: Set up vcpkg
-        if: inputs.vcpkg-commit != ''
+        if: ${{ inputs.vcpkg-commit != '' && (inputs.immutable-release != true || steps.runtime-release.outputs.build == '1') }}
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: ${{ env.VCPKG_ROOT }}
           vcpkgGitCommitId: ${{ inputs.vcpkg-commit }}
 
       - name: Build
+        if: ${{ inputs.immutable-release != true || steps.runtime-release.outputs.build == '1' }}
         env:
           # A build script that needs an engine-specific setting (the bridge's flavour, for
           # instance) gets it here rather than through a second input per setting.
@@ -351,7 +391,7 @@ jobs:
       # different module against a different glue, and the committed table says nothing about it
       # (measured -- the generator refuses to emit for it at all, two rows without a citation).
       - name: Gate the committed import map against this build
-        if: inputs.glue-import-map != ''
+        if: ${{ inputs.glue-import-map != '' && (inputs.immutable-release != true || steps.runtime-release.outputs.build == '1') }}
         env:
           GATE_BUILD_DIR: ${{ inputs.artifact-dir }}
           GATE_GLUE: ${{ inputs.glue-import-map }}
@@ -499,12 +539,25 @@ jobs:
       # have to be written together or a consumer is told to look somewhere the bytes are not.
       - name: Resolve release tag
         id: tag
+        if: ${{ inputs.immutable-release != true || steps.runtime-release.outputs.build == '1' }}
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release-tag }}
+          INPUT_ENGINE: ${{ inputs.engine }}
+          INPUT_VERSION: ${{ inputs.version }}
+          SELECTED_TAG: ${{ steps.runtime-release.outputs.tag }}
+          IMMUTABLE: ${{ inputs.immutable-release }}
         run: |
           set -eu
-          tag="${{ inputs.release-tag }}"
-          if [ -z "$tag" ]; then
-            tag="engine-${{ inputs.engine }}-${{ inputs.version }}"
+          if [ "$IMMUTABLE" = true ]; then
+            tag="$SELECTED_TAG"
+            [ -n "$tag" ] || { echo '::error::immutable release has no selected tag'; exit 2; }
+          else
+            tag="$INPUT_RELEASE_TAG"
+            if [ -z "$tag" ]; then
+              tag="engine-${INPUT_ENGINE}-${INPUT_VERSION}"
+            fi
           fi
+          git check-ref-format --allow-onelevel "refs/tags/$tag"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "## release tag: $tag"
 
@@ -513,15 +566,23 @@ jobs:
       # nobody can download would turn into a confusing engine bug on someone else's machine.
       - name: Generate manifest
         id: manifest
+        if: ${{ inputs.immutable-release != true || steps.runtime-release.outputs.build == '1' }}
+        env:
+          SELECTED_VERSION: ${{ steps.runtime-release.outputs.version }}
         run: |
           set -eu
           files=""
           for name in ${{ inputs.artifact-files }}; do
             files="$files --file $name"
           done
+          version="${{ inputs.version }}"
+          if [ "${{ inputs.immutable-release }}" = true ]; then
+            version="$SELECTED_VERSION"
+          fi
+          [ -n "$version" ] || { echo '::error::release version is empty'; exit 2; }
           node .github/scripts/make-manifest.mjs \
             --engine "${{ inputs.engine }}" \
-            --version "${{ inputs.version }}" \
+            --version "$version" \
             --upstream "${{ inputs.upstream-repository }} @ ${{ inputs.upstream-commit }}" \
             --emsdk "$EMSDK_VERSION" \
             --repository "${{ github.server_url }}/${{ github.repository }}" \
@@ -537,6 +598,7 @@ jobs:
       # and a Release asset for everyone else. Both carry the same bytes; the manifest is uploaded
       # beside them so a consumer can verify what it fetched.
       - name: Upload artifact
+        if: ${{ inputs.immutable-release != true || steps.runtime-release.outputs.build == '1' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact-name }}
@@ -562,7 +624,7 @@ jobs:
       #      carries THIS run's wasm rather than the committed one. The whole reason to package a
       #      build is to ship the build.
       - name: Install pnpm
-        if: inputs.package-dir != ''
+        if: ${{ inputs.package-dir != '' && (inputs.immutable-release != true || steps.runtime-release.outputs.build == '1') }}
         run: |
           set -eu
           # `corepack enable` then a bare `pnpm` is the modern form; `corepack prepare` is deprecated
@@ -572,20 +634,20 @@ jobs:
           pnpm --version
 
       - name: Install workspace dependencies
-        if: inputs.package-dir != ''
+        if: ${{ inputs.package-dir != '' && (inputs.immutable-release != true || steps.runtime-release.outputs.build == '1') }}
         run: |
           set -eu
           pnpm install --frozen-lockfile
 
       - name: Build the packages
-        if: inputs.package-dir != ''
+        if: ${{ inputs.package-dir != '' && (inputs.immutable-release != true || steps.runtime-release.outputs.build == '1') }}
         run: |
           set -eu
           pnpm run build:packages
 
       - name: Pack the runtime package
         id: package
-        if: inputs.package-dir != ''
+        if: ${{ inputs.package-dir != '' && (inputs.immutable-release != true || steps.runtime-release.outputs.build == '1') }}
         run: |
           set -eu
           # `package-dir` is space-separated so one job can ship both a per-engine package and a
@@ -609,9 +671,14 @@ jobs:
               # complete and is carrying four megabytes of files no code path can find.
               assets=()
             fi
+            version_args=()
+            if [ "${{ inputs.immutable-release }}" = true ]; then
+              version_args=(--version "${{ steps.runtime-release.outputs.version }}")
+            fi
             file="$(node .github/scripts/make-package.mjs \
               --package "$dir" \
               "${assets[@]}" \
+              "${version_args[@]}" \
               --out dist/packages \
               --quiet)"
             echo "## package: $file"
@@ -631,7 +698,7 @@ jobs:
       # Uploaded as its own artifact so a run can be consumed without waiting for a release, and so
       # the tarball and the loose files can be verified against each other in one download.
       - name: Upload package
-        if: inputs.package-dir != ''
+        if: ${{ inputs.package-dir != '' && (inputs.immutable-release != true || steps.runtime-release.outputs.build == '1') }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact-name }}-package
@@ -640,7 +707,7 @@ jobs:
           retention-days: 90
 
       - name: Publish release
-        if: inputs.publish
+        if: ${{ inputs.publish && inputs.immutable-release != true }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -648,6 +715,8 @@ jobs:
           tag='${{ steps.tag.outputs.tag }}'
           # `gh release create` fails when the tag exists, which is the normal case for a rebuild of
           # the same version -- so treat "already exists" as success and clobber the assets below.
+          # This branch is the legacy caller path. ONS/KRKR set immutable-release and use the
+          # following step, which never views, clobbers, or deletes.
           gh release view "$tag" >/dev/null 2>&1 || \
             gh release create "$tag" \
               --title "wasm: ${{ inputs.engine }} ${{ inputs.version }}" \
@@ -669,3 +738,21 @@ jobs:
               echo "## published $(basename "$tgz") to $tag"
             done
           fi
+
+      - name: Publish immutable runtime release
+        if: ${{ inputs.publish && inputs.immutable-release == true && steps.runtime-release.outputs.build == '1' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ENGINE: ${{ inputs.release-engine }}
+          SELECTED_VERSION: ${{ steps.runtime-release.outputs.version }}
+          SELECTED_TAG: ${{ steps.tag.outputs.tag }}
+          REPOSITORY: ${{ github.repository }}
+          UPSTREAM_REPOSITORY: ${{ inputs.upstream-repository }}
+          UPSTREAM_COMMIT: ${{ inputs.upstream-commit }}
+          TARGET_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
+          ARTIFACT_DIR: ${{ inputs.artifact-dir }}
+          ARTIFACT_FILES: ${{ inputs.artifact-files }}
+          PACKAGE_DIR: ${{ inputs.package-dir }}
+        run: node .github/scripts/runtime-release-gate.mjs publish

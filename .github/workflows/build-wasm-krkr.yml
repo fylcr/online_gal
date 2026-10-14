@@ -1,62 +1,28 @@
-# KiriKiri2 web engine wasm. See build-wasm-ons.yml for why each engine gets its own workflow and
-# why the trigger is an exact `paths:` list rather than `paths-ignore`.
-#
-# `paths` here is broader than ONS's because this engine's build is assembled from four places at
-# once: upstream's own CMake preset, the vcpkg port overlays under `ports/krkr/kirikiroid2/`, the
-# emsdk port-flag fix the build script applies, and `patch-vlfs-host-source.mjs` (which installs the
-# host byte-source seam and imports `ports/lib/ref.mjs` to find the checkout). A push touching any of
-# them changes the wasm.
+# KiriKiri2 web engine wasm. See build-wasm-ons.yml for the shared rule: paths are only a cheap
+# filter, and the exact before..after range authorizes the expensive build plus its release.
+# This package has no scripts directory. Upstream CMake, vcpkg overlays and the host-source patch
+# are not automatic release inputs; the next real runtime release packs the checkout it builds.
 name: Build wasm (KiriKiri2)
 
 on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/build-wasm-krkr.yml'
-      - '.github/workflows/build-wasm-reusable.yml'
-      - '.github/scripts/build-krkr.sh'
-      - '.github/scripts/make-manifest.mjs'
-      - '.github/upstream-pins.json'
-      - 'ports/env.sh'
-      - 'ports/krkr/kirikiroid2/**'
-      # NOT 'ports/lib/engine-artifacts.json'. That file records what the publish step
-      # produced -- it is an output of this pipeline, not an input to it. Listing it means
-      # every hash update, which is a one-line edit, rebuilds every engine.
-      - 'ports/lib/ref.mjs'
-      # The `package-dir` closure. `@online-gal/runtime-kag` is now packed into a published tarball
-      # by this workflow, so an edit to the package or to any of the four dependencies it vendors
-      # changes the released bytes. Judged by "is it inside the published artifact", not "does it get
-      # compiled". Note the engine bytes are NOT in this package (see the `package-dir` comment
-      # below), so `dist/krkr` edits still come from `ports/krkr/**` and this list is purely the
-      # TypeScript half of the release. `pnpm-lock.yaml` is in the list for the same reason it is in
-      # ONS's: the tarball's `dist/` is compiled by the TypeScript version the lockfile pins.
-      - '.github/scripts/make-package.mjs'
-      - 'packages/runtime-kag/**'
-      - 'packages/engine-api/**'
-      - 'packages/vfs/**'
-      - 'packages/image-codec/**'
-      - 'packages/player-host/**'
-      - 'pnpm-lock.yaml'
-      - 'LICENSE'
-      - 'THIRD_PARTY_NOTICES.md'
-  pull_request:
-    paths:
-      - '.github/scripts/build-krkr.sh'
-      - 'ports/krkr/kirikiroid2/**'
-      - 'ports/lib/ref.mjs'
-      - '.github/scripts/make-package.mjs'
-      - 'packages/runtime-kag/**'
-      - 'packages/engine-api/**'
-      - 'packages/vfs/**'
-      - 'packages/image-codec/**'
-      - 'packages/player-host/**'
+      - 'packages/runtime-kag/src/**'
+      - 'packages/runtime-kag/package.json'
+      - 'packages/runtime-kag/tsconfig.json'
   workflow_dispatch:
     inputs:
       publish:
         description: 'Publish the built artifacts as a GitHub Release'
-        required: false
+        required: true
         type: boolean
-        default: true
+        default: false
+      version:
+        description: 'Full SemVer for this manual release, including +metadata. Required when publish is true.'
+        required: false
+        type: string
+        default: ''
       upstream_commit:
         description: 'Override the pinned upstream commit (blank = use .github/upstream-pins.json)'
         required: false
@@ -91,18 +57,13 @@ jobs:
       artifact-name: wasm-krkr
       artifact-dir: dist/krkr
       artifact-files: index.wasm index.js vlfs.js index.html shell.html assets.zip
-      version: kirikiroid2-web-20260920
-      # Stated explicitly instead of left to the reusable workflow's `engine-<engine>-<version>`
-      # default. That default would spell this tag `engine-krkr-kirikiroid2-web-20260920`, which is
-      # not the tag `ports/lib/engine-artifacts.json` tells the fetch helper to download from -- the
-      # build would publish to one place and every consumer would look in another, and neither side
-      # would report an error. The tag is a coincidence of naming, so it belongs in one visible place.
-      release-tag: engine-krkr-20260920
-      # `inputs.publish` is an empty string on `push` (no `inputs` context for that event), and GitHub
-      # compares values of different types by coercing BOTH to a number -- `'' == false` -- so the
-      # obvious `inputs.publish != false` is FALSE on a push and silently skips publishing. Name the
-      # events instead, so nothing is left to a coercion rule.
-      publish: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
+      # Empty here for the same reason as ONS. kirikiroid2-web-20260920 remains the historical
+      # catalog tag; it is not a fallback runtime version.
+      version: ''
+      publish: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish == true) }}
+      immutable-release: true
+      release-engine: krkr
+      manual-version: ${{ inputs.version }}
       # The runtime package, packed from the same job that just built the engine.
       #
       # NO `--assets-from` here, and that is the point rather than an omission. KiriKiri's wasm is a

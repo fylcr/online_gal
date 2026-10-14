@@ -263,7 +263,10 @@ function fileUrl(entry, file) {
   if (file.url) return file.url;
   if (entry.baseUrl) return `${String(entry.baseUrl).replace(/\/$/, '')}/${file.name}`;
   if (entry.repository && entry.releaseTag) {
-    return `${String(entry.repository).replace(/\/$/, '')}/releases/download/${entry.releaseTag}/${file.name}`;
+    // Encode each path segment only. A `+` in a SemVer tag or filename is not a form-space.
+    const tag = encodeURIComponent(entry.releaseTag);
+    const name = encodeURIComponent(file.name);
+    return `${String(entry.repository).replace(/\/$/, '')}/releases/download/${tag}/${name}`;
   }
   return null;
 }

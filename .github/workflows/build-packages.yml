@@ -77,6 +77,9 @@ on:
       # which is the engine workflows' job, while these two files are the only `ports/`
       # inputs the portable suite reads.
       - 'test/**'
+      - '.github/scripts/runtime-release-policy.mjs'
+      - '.github/scripts/runtime-release-gate.mjs'
+      - '.github/scripts/runtime-release-inventory.mjs'
       - 'scripts/run-portable-tests.mjs'
       - 'scripts/check-layout.mjs'
       - 'scripts/check-sources.mjs'
@@ -105,6 +108,9 @@ on:
       - '.github/scripts/smoke-consumer.mjs'
       - 'packages/**'
       - 'test/**'
+      - '.github/scripts/runtime-release-policy.mjs'
+      - '.github/scripts/runtime-release-gate.mjs'
+      - '.github/scripts/runtime-release-inventory.mjs'
       - 'scripts/run-portable-tests.mjs'
       - 'scripts/check-layout.mjs'
       - 'scripts/check-sources.mjs'

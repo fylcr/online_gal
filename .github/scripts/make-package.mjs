@@ -236,15 +236,18 @@ import {
 } from 'node:fs';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isSemVer } from './runtime-release-policy.mjs';
 
 const USAGE = `usage: node .github/scripts/make-package.mjs --package <dir> --out <dir>
-         [--assets-from <dir>] [--tarball-name NAME] [--source-date-epoch N] [--json] [--quiet]
+         [--assets-from <dir>] [--tarball-name NAME] [--version SEMVER] [--source-date-epoch N] [--json] [--quiet]
 
   --package      a package directory, e.g. packages/runtime-ons
   --out          directory to write the .tgz into
   --assets-from  directory holding the built engine files to vendor as package/assets
                  (default: the package's own assets/ directory). The binaries ship once, from
                  this directory; a second copy under dist/assets/ is refused.
+  --version      full SemVer written into the packed manifest and tarball name only;
+                 the tracked package.json is not modified
   --tarball-name override the output file name
   --source-date-epoch  mtime stamped into every tar entry (default 498073600 = 1985-10-26)
   --skip-freshness     do not refuse to pack when src/ is newer than dist/ (default: refuse)
@@ -268,6 +271,7 @@ const options = {
   out: null,
   assetsFrom: null,
   tarballName: null,
+  version: null,
   epoch: 498073600,
   json: false,
   quiet: false,
@@ -290,6 +294,7 @@ for (let index = 0; index < argv.length; index += 1) {
     case '--out': options.out = next(); break;
     case '--assets-from': options.assetsFrom = next(); break;
     case '--tarball-name': options.tarballName = next(); break;
+    case '--version': options.version = next(); break;
     case '--source-date-epoch': options.epoch = Number(next()); break;
     case '--json': options.json = true; break;
     case '--skip-freshness': options.skipFreshness = true; break;
@@ -379,6 +384,12 @@ if (manifestBytes[0] === 0xef && manifestBytes[1] === 0xbb && manifestBytes[2] =
 const manifest = JSON.parse(manifestBytes.toString('utf8'));
 if (!manifest.name) fail(2, `${manifestPath} has no "name"`);
 if (!manifest.version) fail(2, `${manifestPath} has no "version"`);
+if (options.version !== null) {
+  if (!isSemVer(options.version)) {
+    fail(1, `--version is not a full SemVer: ${options.version}`);
+  }
+  manifest.version = options.version;
+}
 
 const distDir = join(packageDir, 'dist');
 if (!existsSync(distDir)) {

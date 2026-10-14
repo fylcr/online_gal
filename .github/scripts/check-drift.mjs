@@ -159,7 +159,7 @@ if (options.markdown) {
     for (const item of moved) {
       lines.push(`| ${item.name} | ${item.branch} | \`${item.pinned}\` | \`${item.head}\` |`);
     }
-    lines.push('', 'Rebuilds have been dispatched for these engines. To make the new commit the pin,');
+    lines.push('', 'No build or release was dispatched. To make the new commit the pin,');
     lines.push('edit `.github/upstream-pins.json`, **verify the rebuilt artifacts**, and update');
     lines.push('`ports/lib/engine-artifacts.json` from the new release manifest.');
   }

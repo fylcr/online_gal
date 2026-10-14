@@ -145,3 +145,14 @@
 - 本文件**不**提供任何规避平台策略或执法的做法；它要求的是把来源、许可与责任人**记录清楚**。
 - 远程侧事实（branch protection、Actions allow-list、release 资产、`ARTEMIS_PUBLISH_ARTIFACTS` 变量值）**未查询**，因此**未知**，不是"不存在"。
 - 冻结记录（`.github/upstream-pins.json` 的 `expected`、`docs/fetch-engine-artifacts.md` 的历史 hash）**不得**被本政策的任何落地动作改写。
+
+## 4. ONS/KRKR 已实现的发布条件（2026-10-14）
+
+以上 PR-1 仍是未批准的全仓拟议。以下只描述本次已经写入 ONS 与 KRKR workflow 的行为，不改写前文，也不把 Artemis 算进去。
+
+- 自动：`main` push 的精确 `before..after` 只有在碰到该引擎自己的发布输入时，才先做昂贵 native/WASM 构建，成功后发布一个新的不可变版本。ONS 输入是 `packages/runtime-ons/src/**`、`scripts/**`、`package.json`、`tsconfig.json`；KRKR 输入是 `packages/runtime-kag/src/**`、`package.json`、`tsconfig.json`。
+- 自动版本取该包 tracked version 的 `major.minor.patch`，形式为 `BASE-beta-YYYYMMDDHHmm`，时钟是构建开始时一次读取的 `Asia/Shanghai`。不回写 tracked `package.json`。
+- 手动：必须显式 `publish=true` 加一个完整 SemVer；缺省、false、空白和非法都在昂贵构建前拒绝。
+- 碰撞按完整版本字符串判断。`1.0.0+a` 与 `1.0.0+b` 不同。已有 tag、release 或 asset 则保留原字节。创建成功后上传失败以非 0 退出，不 clobber、不删除。
+- drift 只报告。compat 仍是字面 `publish: false`；bridge 仍是原来的手动 opt-in 与 clobber 语义。旧 catalog pin `engine-ons-0.7.7beta` 与 `engine-krkr-20260920` 不随本次发布改变。
+- 这一节是源码契约，不是一次实际 GitHub Release 或 native 构建已经跑过的证明。
