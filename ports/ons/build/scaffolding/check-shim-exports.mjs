@@ -9,7 +9,7 @@
  */
 import { readFileSync } from 'node:fs';
 
-const glue = readFileSync('packages/runtime-ons/assets/onsyuri.js', 'utf8');
+const glue = readFileSync('packages/engine/core/onscripter-yuri/assets/onsyuri.js', 'utf8');
 
 const names = [
   '_ons_host_wait_event',

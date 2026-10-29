@@ -2,7 +2,7 @@
  * Real Node/classic-worker checkpoint harness for the compat save/restore path.
  *
  * This is the file that decides whether "save works" is a measured claim or a hopeful one. It runs the
- * **unmodified** `packages/runtime-artemis/src/compat/compat-worker.js` inside a real
+ * **unmodified** `packages/engine/core/artemis-compat/src/compat/compat-worker.js` inside a real
  * `worker_threads` classic-worker bootstrap, with a generated-glue stand-in that provides a real
  * `cwrap` (so `const char *` marshalling is exercised), a real `FS` over an in-memory tree (so files
  * are read and written, not asserted about), and a native CABI whose `artc_web_save` / `artc_web_load`
@@ -100,7 +100,7 @@ const REAL_SLOT = Buffer.from(
 const REAL_OLD_SLOT = REAL_SLOT.subarray(0, 35);
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const WORKER_SCRIPT = join(root, 'packages', 'runtime-artemis', 'src', 'compat', 'compat-worker.js');
+const WORKER_SCRIPT = join(root, 'packages', 'engine', 'core', 'artemis-compat', 'src', 'compat', 'compat-worker.js');
 const SIZE = 0x100000;
 const DESCRIPTORS = [{ id: 1, path: 'root.pfs', virtualPath: '/game/root.pfs', size: SIZE }];
 
@@ -147,14 +147,14 @@ execFileSync(process.execPath, [
   // Both entries: `/compat` is the wire surface, and the package root is where the provider and the
   // engine publication live. Compiling only one leaves the facade tests with nothing to build a
   // session from.
-  'packages/runtime-artemis/src/index.ts',
-  'packages/runtime-artemis/src/compat/index.ts',
+  'packages/engine/core/artemis-compat/src/index.ts',
+  'packages/engine/core/artemis-compat/src/compat/index.ts',
   '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'bundler',
   '--lib', 'ES2022,DOM', '--strict', '--noUncheckedIndexedAccess', '--skipLibCheck',
-  '--rootDir', 'packages/runtime-artemis/src', '--outDir', out,
+  '--rootDir', 'packages/engine/core/artemis-compat/src', '--outDir', out,
 ], { cwd: root, stdio: 'inherit' });
 writeFileSync(join(out, 'package.json'), '{"type":"module"}');
-symlinkSync(join(root, 'packages/runtime-artemis/node_modules'), join(out, 'node_modules'), 'junction');
+symlinkSync(join(root, 'packages/engine/core/artemis-compat/node_modules'), join(out, 'node_modules'), 'junction');
 const BOOTSTRAP = join(temp, 'bootstrap.cjs');
 writeFileSync(BOOTSTRAP, BOOTSTRAP_SOURCE);
 const api = await import(pathToFileURL(join(out, 'compat', 'index.js')).href);

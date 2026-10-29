@@ -54,7 +54,7 @@ import { repoRoot } from './ref.mjs';
  */
 const ENGINES = {
   ons: {
-    dest: 'packages/runtime-ons/assets',
+    dest: 'packages/engine/core/onscripter-yuri/assets',
     fromSource: 'bash ports/ons/build/fetch-web-engine.sh --from-source',
   },
   krkr: {

@@ -2,7 +2,7 @@
  * Demonstrates that `readPfsEntryData`'s "does it look like text" heuristic returns the **encrypted**
  * bytes for a binary asset, on an archive whose encryption is known from its version.
  *
- * The heuristic (packages/runtime-artemis/src/pfs.ts):
+ * The heuristic (packages/engine/core/artemis-compat/src/pfs.ts):
  *
  *     if (decodedLooksText && !rawLooksText) return decoded;
  *     return data.slice();          // binary asset → raw, i.e. still encrypted
@@ -36,7 +36,7 @@ import { resolve } from 'node:path';
 const GAME = process.env.ARTEMIS_GAME_DIR ?? resolve(import.meta.dirname, '..', '..', '..', '.ref', 'artemis-game');
 const PATH = `${GAME}/root.pfs`;
 
-/** Mirrors `looksLikeText` in packages/runtime-artemis/src/pfs.ts. */
+/** Mirrors `looksLikeText` in packages/engine/core/artemis-compat/src/pfs.ts. */
 function looksLikeText(bytes) {
   const sample = bytes.subarray(0, Math.min(256, bytes.byteLength));
   if (sample.byteLength === 0) return false;

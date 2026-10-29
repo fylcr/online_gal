@@ -33,12 +33,14 @@ import {
   type RuntimeOptions,
   type RuntimeProvider,
 } from '@online-gal/engine-api';
-import { artemisProvider } from '@online-gal/runtime-artemis';
-import { kirikiriProvider, kirikiriWasmProvider } from '@online-gal/runtime-kag';
-import { onscripterProvider, onscripterWasmProvider } from '@online-gal/runtime-ons';
-import { siglusProvider } from '@online-gal/runtime-siglus';
-import { tyranoProvider } from '@online-gal/runtime-tyrano';
-import { webProvider } from '@online-gal/runtime-web';
+import { artemisProvider } from '@online-gal/engine-core-artemis-compat';
+import { kirikiriWasmProvider } from '@online-gal/engine-core-kirikiroid2-web';
+import { kirikiriProvider } from '@online-gal/engine-interpreter-kirikiri-kag3';
+import { onscripterWasmProvider } from '@online-gal/engine-core-onscripter-yuri';
+import { onscripterProvider } from '@online-gal/engine-interpreter-onscripter';
+import { siglusProvider } from '@online-gal/engine-shell-siglus';
+import { tyranoProvider } from '@online-gal/engine-core-tyranobuilder';
+import { webProvider } from '@online-gal/engine-core-web-html5';
 
 export * from '@online-gal/engine-api';
 
@@ -99,7 +101,7 @@ export interface EngineRegistration {
 export const ENGINE_PACKAGES: readonly EngineRegistration[] = [
   {
     runtimeId: 'krkr2-wasm',
-    packageName: '@online-gal/runtime-kag',
+    packageName: '@online-gal/engine-core-kirikiroid2-web',
     kind: 'engine',
     provider: kirikiriWasmProvider,
   },
@@ -107,43 +109,43 @@ export const ENGINE_PACKAGES: readonly EngineRegistration[] = [
   // and a faithful compilation cannot drift the way a reimplementation can.
   {
     runtimeId: 'krkr2',
-    packageName: '@online-gal/runtime-kag',
+    packageName: '@online-gal/engine-interpreter-kirikiri-kag3',
     kind: 'interpreter',
     provider: kirikiriProvider,
   },
   {
     runtimeId: 'onscripter-wasm',
-    packageName: '@online-gal/runtime-ons',
+    packageName: '@online-gal/engine-core-onscripter-yuri',
     kind: 'engine',
     provider: onscripterWasmProvider,
   },
   {
     runtimeId: 'onscripter',
-    packageName: '@online-gal/runtime-ons',
+    packageName: '@online-gal/engine-interpreter-onscripter',
     kind: 'interpreter',
     provider: onscripterProvider,
   },
   {
     runtimeId: 'siglus',
-    packageName: '@online-gal/runtime-siglus',
+    packageName: '@online-gal/engine-shell-siglus',
     kind: 'shell',
     provider: siglusProvider,
   },
   {
     runtimeId: 'artemis',
-    packageName: '@online-gal/runtime-artemis',
+    packageName: '@online-gal/engine-core-artemis-compat',
     kind: 'engine',
     provider: artemisProvider,
   },
   {
     runtimeId: 'tyrano',
-    packageName: '@online-gal/runtime-tyrano',
+    packageName: '@online-gal/engine-core-tyranobuilder',
     kind: 'engine',
     provider: tyranoProvider,
   },
   {
     runtimeId: 'web',
-    packageName: '@online-gal/runtime-web',
+    packageName: '@online-gal/engine-core-web-html5',
     kind: 'engine',
     provider: webProvider,
   },

@@ -25,8 +25,8 @@
 | [`patch-vlfs-host-source.mjs`](kirikiroid2/patch-vlfs-host-source.mjs) | 修改上游 web 页面，安装 `window.__onlineGalVfsSource` 字节源接缝 |
 | [`run-build.sh`](kirikiroid2/run-build.sh) | 本地 Windows / Git Bash 配方；含 MinGW、WinFlexBison、Python Scripts 等本机路径 |
 | [`browser-test/`](kirikiroid2/browser-test/) 及 `diag-*` / `verify-*` 工具 | 构建与取数诊断，不是另一份引擎 |
-| [`runtime-kag/src/wasm-runtime.ts`](../../packages/runtime-kag/src/wasm-runtime.ts) | 统一运行时接口；以 iframe 承载引擎页面 |
-| [`wasm-page.ts`](../../packages/runtime-kag/src/wasm-page.ts) / [`wasm-config.ts`](../../packages/runtime-kag/src/wasm-config.ts) | 宿主字节源接缝、页面 URL 配置及 XP3/ZIP mount 选择 |
+| [`engine/core/kirikiroid2-web/src/wasm-runtime.ts`](../../packages/engine/core/kirikiroid2-web/src/wasm-runtime.ts) | 统一运行时接口；以 iframe 承载引擎页面 |
+| [`wasm-page.ts`](../../packages/engine/core/kirikiroid2-web/src/wasm-page.ts) / [`wasm-config.ts`](../../packages/engine/core/kirikiroid2-web/src/wasm-config.ts) | 宿主字节源接缝、页面 URL 配置及 XP3/ZIP mount 选择 |
 
 [`krkrsdl2/`](krkrsdl2/) 是已被替代的早期移植路线，保留同步 XHR / Range 等诊断材料，
 不是现行 CI 目标。本次整理不移动或删除它。
@@ -54,8 +54,8 @@ CI 输出在 `dist/krkr/`，文件为：`index.wasm`、`index.js`、`vlfs.js`、
 已发布资产的取用入口是 `node ports/lib/fetch-engine.mjs krkr`，
 哈希清单见 [`engine-artifacts.json`](../lib/engine-artifacts.json)。
 
-[`runtime-kag/package.json`](../../packages/runtime-kag/package.json) 声明
-`@online-gal/runtime-kag` 为 private、GPL-3.0-or-later，不发布 npm。
+[`engine/core/kirikiroid2-web/package.json`](../../packages/engine/core/kirikiroid2-web/package.json) 与 [`engine/interpreter/kirikiri-kag3/package.json`](../../packages/engine/interpreter/kirikiri-kag3/package.json) 声明
+`@online-gal/engine-core-kirikiroid2-web`、`@online-gal/engine-interpreter-kirikiri-kag3` 为 private、GPL-3.0-or-later，不发布 npm。
 当前 workflow **分别交付运行时 tarball 与引擎页面资产**，并未把六个引擎文件装入 tarball。
 下游不必编译 wasm，但需要部署整组引擎页面文件，并用
 `configureKirikiriWasm({ pageUrl })` 或运行时 `pageUrl` 指向其 `index.html`。

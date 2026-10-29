@@ -1,0 +1,22 @@
+{
+  "name": "@online-gal/engine-core-onscripter-yuri",
+  "version": "0.1.3",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b && node scripts/copy-runtime-assets.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@online-gal/engine-api": "workspace:*",
+    "@online-gal/engine-interpreter-onscripter": "workspace:*"
+  }
+}

@@ -39,10 +39,10 @@
  *   2. the consumer's top level has exactly one `@online-gal` package: `engines`
  *   3. the installed manifest declares no `dependencies`
  *   4. `listEngines()`, `engineProviders()` and `ENGINE_PACKAGES` each report 8
- *   5. every vendored package (10 of them) resolves *and* imports, from inside the archive
- *   6. none of those 10 resolves from the consumer's top level -- the executable proof that the
+ *   5. every vendored package (12 of them) resolves *and* imports, from inside the archive
+ *   6. none of those 12 resolves from the consumer's top level -- the executable proof that the
  *      vendored tree is the only tree, and that dropping `dependencies` is not a latent break
- *   7. `runtime-artemis`'s `dist/host/{boot,eh,runtime,asyncify,fd,bridge}.js` deep-import
+ *   7. `engine-core-artemis-compat`'s `dist/host/{boot,eh,runtime,asyncify,fd,bridge}.js` deep-import
  *   8. the repository did not change during any of it
  *
  * WHY IT NEEDS NO NETWORK
@@ -95,7 +95,7 @@ const repoRoot = resolve(here, '..', '..');
 /** The values that make the aggregate what it is; a change to any of them is a deliberate act. */
 const EXPECTED = {
   topLevelPackages: ['engines'],
-  vendoredPackageCount: 10,
+  vendoredPackageCount: 12,
   listEngines: 8,
   engineProviders: 8,
   enginePackages: 8,
@@ -452,15 +452,15 @@ for (const name of vendored) {
     resolved ? `resolved to ${resolved}` : code, 'MODULE_NOT_FOUND');
 }
 
-const artemisDir = join(vendoredRoot, 'runtime-artemis');
+const artemisDir = join(vendoredRoot, 'engine-core-artemis-compat');
 for (const moduleName of ARTEMIS_HOST_MODULES) {
   const file = join(artemisDir, 'dist', 'host', `${moduleName}.js`);
   if (!existsSync(file)) {
-    check(`runtime-artemis dist/host/${moduleName}.js ships in the archive`, false,
+    check(`engine-core-artemis-compat dist/host/${moduleName}.js ships in the archive`, false,
       'missing from the archive', 'a file');
     continue;
   }
-  const exports_ = await attempt(`runtime-artemis dist/host/${moduleName}.js deep-imports`, 'a module object',
+  const exports_ = await attempt(`engine-core-artemis-compat dist/host/${moduleName}.js deep-imports`, 'a module object',
     async () => Object.keys(await importFile(file)).length, (count) => `${count} exports`);
   if (exports_.ok) process.stdout.write(`## smoke-consumer: host/${moduleName}.js ${exports_.value} exports\n`);
 }

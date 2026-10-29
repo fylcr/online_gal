@@ -25,8 +25,8 @@
 | [`build/run-web-build-shimmed.sh`](build/run-web-build-shimmed.sh) | 现行配方；把 shim、鼠标位置接缝和诊断导出编入上游 web target |
 | [`build/fetch-web-engine.sh`](build/fetch-web-engine.sh) | 优先下载并校验发布制品；无可用制品时可回退到源码构建 |
 | [`harness/`](harness/) | 独立 page / worker / audio relay 和带 Range、COOP/COEP 的诊断服务器 |
-| [`runtime-ons/src/`](../../packages/runtime-ons/src/) | 统一 provider、worker 宿主、字节源桥接和解释器回退 |
-| [`runtime-ons/assets/`](../../packages/runtime-ons/assets/) | **已跟踪的引擎资产例外**：`onsyuri.html`、`onsyuri.js`、`onsyuri.wasm` |
+| [`engine/core/onscripter-yuri/src/`](../../packages/engine/core/onscripter-yuri/src/) / [`engine/interpreter/onscripter/src/`](../../packages/engine/interpreter/onscripter/src/) | 统一 provider、worker 宿主、字节源桥接 / 解释器回退 |
+| [`engine/core/onscripter-yuri/assets/`](../../packages/engine/core/onscripter-yuri/assets/) | **已跟踪的引擎资产例外**：`onsyuri.html`、`onsyuri.js`、`onsyuri.wasm` |
 
 [`build/run-web-build.sh`](build/run-web-build.sh) 是不带 shim 的比较路线；
 [`build/build-web.sh`](build/build-web.sh) 与 [`build/scaffolding/`](build/scaffolding/)
@@ -49,13 +49,13 @@
   请使用专用、无个人修改的检出；不要指向尚未保存修改的上游工作树。
 
 输出先在上游 `build_web/`，CI 收集到被忽略的 `dist/ons/`。
-`fetch-web-engine.sh --from-source` 则会覆盖已跟踪的 `runtime-ons/assets/`；
+`fetch-web-engine.sh --from-source` 则会覆盖已跟踪的 `engine/core/onscripter-yuri/assets/`；
 更新这些资产必须单独审查、测试和核对哈希，不属于单纯的目录整理。
 
 ## 包与运行条件
 
-[`runtime-ons/package.json`](../../packages/runtime-ons/package.json) 声明
-`@online-gal/runtime-ons` 为 private、GPL-3.0-or-later，不发布 npm。
+[`engine/core/onscripter-yuri/package.json`](../../packages/engine/core/onscripter-yuri/package.json) 与 [`engine/interpreter/onscripter/package.json`](../../packages/engine/interpreter/onscripter/package.json) 声明
+`@online-gal/engine-core-onscripter-yuri`、`@online-gal/engine-interpreter-onscripter` 为 private、GPL-3.0-or-later，不发布 npm。
 CI 使用 `package-engine-assets: true`，将本次引擎资产和 workspace 依赖闭包装入 tarball；
 运行时默认从包根 `assets/` 解析引擎文件。
 

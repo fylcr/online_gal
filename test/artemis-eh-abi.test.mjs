@@ -14,9 +14,9 @@ process.on('exit', () => {
   rmSync(target, { recursive: true, force: true });
 });
 const output = join(temporary, 'out');
-execFileSync(process.execPath, ['node_modules/typescript/bin/tsc', 'packages/runtime-artemis/src/host/eh.ts',
+execFileSync(process.execPath, ['node_modules/typescript/bin/tsc', 'packages/engine/core/artemis-compat/src/host/eh.ts',
   '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'bundler', '--lib', 'ES2022,DOM',
-  '--strict', '--skipLibCheck', '--rootDir', 'packages/runtime-artemis/src', '--outDir', output],
+  '--strict', '--skipLibCheck', '--rootDir', 'packages/engine/core/artemis-compat/src', '--outDir', output],
   { cwd: process.cwd(), stdio: 'inherit' });
 writeFileSync(join(output, 'package.json'), '{"type":"module"}');
 const { createArtemisEhImports, ArtemisCppThrow, ArtemisLongjmp, ARTEMIS_EH_IMPORTS } =

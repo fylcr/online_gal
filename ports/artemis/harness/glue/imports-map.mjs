@@ -394,37 +394,37 @@ function classify(name, fn) {
 const OWNER = {
   gl: {
     status: 'landed',
-    port: 'packages/runtime-artemis/src/host/gl.ts',
+    port: 'packages/engine/core/artemis-compat/src/host/gl.ts',
     note: 'the real WebGL2 context, forwarded verbatim, plus the glfw/al/event seams — 79 of the 99 rows are real; the other 20 are deliberate, documented refusals that still answer their per-call value: 19 `_al*`/`_alc*` audio rows (no AudioContext in this host, so they take OpenAL\'s own "no device/no context" answers, and `_alGetError` returns AL_INVALID_OPERATION 40964 rather than a default 0) and `_emscripten_enter_soft_fullscreen`; the refusals themselves are named in ARTEMIS_GL_REFUSED/ARTEMIS_GL_AUDIO_ANSWER in gl.ts',
   },
   fd: {
     status: 'landed',
-    port: 'packages/runtime-artemis/src/host/fd.ts',
+    port: 'packages/engine/core/artemis-compat/src/host/fd.ts',
     note: '@online-gal/vfs SyncFileBridge + a clock — 41 of the 48 rows are export keys; the 7 doubled names are one implementation each',
   },
   asyncify: {
     status: 'landed',
-    port: 'packages/runtime-artemis/src/host/asyncify.ts',
+    port: 'packages/engine/core/artemis-compat/src/host/asyncify.ts',
     note: 'the spill; see docs §18.3 — all 4 rows, via a synchronous `resolve` callback rather than the XHR/Asyncify unwinder',
   },
   async: {
     status: 'landed',
-    port: 'packages/runtime-artemis/src/host/async.ts',
+    port: 'packages/engine/core/artemis-compat/src/host/async.ts',
     note: 'the one seam: 30 `invoke_*` re-entry trampolines, all 30 rows, each handing its arguments to the module\'s own exported `dynCall_*` so the guest does the table lookup and the `__THREW__` bookkeeping — the mapping is 1:1 in `ARTEMIS_ASYNC_FORWARDS` and is not derivable from arity; see docs §18.3',
   },
   eh: {
     status: 'landed',
-    port: 'packages/runtime-artemis/src/host/eh.ts',
+    port: 'packages/engine/core/artemis-compat/src/host/eh.ts',
     note: 'throw/abort, never a return value — all 17 rows over 15 export keys',
   },
   runtime: {
     status: 'landed',
-    port: 'packages/runtime-artemis/src/host/runtime.ts',
+    port: 'packages/engine/core/artemis-compat/src/host/runtime.ts',
     note: 'heap growth, thread bookkeeping, asm! marshalling — all 8 rows',
   },
   todo: {
     status: 'landed',
-    port: 'packages/runtime-artemis/src/host/boot.ts',
+    port: 'packages/engine/core/artemis-compat/src/host/boot.ts',
     note: 'deliberate refusal: `_system` writes ENOSYS (52) into the guest errno slot and returns -1 — the only row is implemented, in boot.ts rather than a todo.ts of its own',
   },
 };

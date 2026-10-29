@@ -20,7 +20,7 @@ import { openSync, readSync, closeSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 
-import { readPfsEntryData, findPfsEntry } from '../../../packages/runtime-artemis/dist/pfs.js';
+import { readPfsEntryData, findPfsEntry } from '../../../packages/engine/core/artemis-compat/dist/pfs.js';
 
 // The pack chain is real game data and is never committed; point ARTEMIS_GAME_DIR at it.
 // Default stays beside the other reference checkouts, under the gitignored `.ref/`.

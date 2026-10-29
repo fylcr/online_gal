@@ -13,7 +13,7 @@
  *
  * THE ONE PROBLEM THAT SHAPES EVERYTHING
  *
- * `packages/runtime-ons/package.json` declares its dependencies as `workspace:*`:
+ * `packages/engine/core/onscripter-yuri/package.json` declares its dependencies as `workspace:*`:
  *
  *     "dependencies": { "@online-gal/engine-api": "workspace:*", ... }
  *
@@ -212,10 +212,10 @@
  *
  * Usage:
  *
- *   node .github/scripts/make-package.mjs --package packages/runtime-ons --out dist
- *   node .github/scripts/make-package.mjs --package packages/runtime-ons --out dist \
+ *   node .github/scripts/make-package.mjs --package packages/engine/core/onscripter-yuri --out dist
+ *   node .github/scripts/make-package.mjs --package packages/engine/core/onscripter-yuri --out dist \
  *        --assets-from dist/ons          # take engine bytes from a CI build instead of assets/
- *   node .github/scripts/make-package.mjs --package packages/runtime-ons --out dist \
+ *   node .github/scripts/make-package.mjs --package packages/engine/core/onscripter-yuri --out dist \
  *        --skip-freshness                # pack a deliberately stale dist/ (see below)
  *
  * Exit codes: 0 ok · 1 usage · 2 a required input is missing, is invalid, the build is stale, or
@@ -241,7 +241,7 @@ import { isSemVer } from './runtime-release-policy.mjs';
 const USAGE = `usage: node .github/scripts/make-package.mjs --package <dir> --out <dir>
          [--assets-from <dir>] [--tarball-name NAME] [--version SEMVER] [--source-date-epoch N] [--json] [--quiet]
 
-  --package      a package directory, e.g. packages/runtime-ons
+  --package      a package directory, e.g. packages/engine/core/onscripter-yuri
   --out          directory to write the .tgz into
   --assets-from  directory holding the built engine files to vendor as package/assets
                  (default: the package's own assets/ directory). The binaries ship once, from
@@ -315,7 +315,7 @@ if (!existsSync(manifestPath)) fail(2, `no package.json in ${packageDir}`);
 //
 // Placed before the manifest is even read, because the ledger's subject is the repository rather than
 // the package being built: an `engines` aggregate is only as trustworthy as the bytes it vendors, and
-// `runtime-ons` is in that closure, so a corrupted engine file poisons every package that ships it.
+// `engine-core-onscripter-yuri` is in that closure, so a corrupted engine file poisons every package that ships it.
 //
 // The lookup is by basename against a fixed set of candidate directories, and that is not a
 // convenience -- it is the narrowest thing that catches this defect without catching something else.
@@ -328,7 +328,7 @@ if (!existsSync(manifestPath)) fail(2, `no package.json in ${packageDir}`);
 // produced by `.github/scripts/build-krkr.sh` and are committed nowhere. Skipping is the honest
 // reading of "every file that is in the repository, must match", and the log says how many were
 // checked so a silent zero is visible.
-const LEDGER_CANDIDATE_DIRS = ['packages/runtime-ons/assets', 'assets', 'dist/assets'];
+const LEDGER_CANDIDATE_DIRS = ['packages/engine/core/onscripter-yuri/assets', 'assets', 'dist/assets'];
 const ledgerPath = join(repoRoot, 'ports', 'lib', 'engine-artifacts.json');
 let ledgerChecked = 0;
 if (existsSync(ledgerPath)) {
@@ -360,7 +360,7 @@ if (existsSync(ledgerPath)) {
   \`${'*'} text=auto eol=lf\`, which rewrites a text file in the worktree; an engine artefact is a
   BUILD OUTPUT whose sha256-pinned bytes ARE the substance, so that subtree must be exempt:
   git add --renormalize is not enough, the committed bytes are what has to change.
-    1. add the path to .gitattributes as \`-text -diff\` (see packages/runtime-ons/assets/**)
+    1. add the path to .gitattributes as \`-text -diff\` (see packages/engine/core/onscripter-yuri/assets/**)
     2. restore the correct bytes, then commit them
     3. bump the version of every package that vendors this file -- @online-gal/engines at minimum,
        because its version is what makes a stale aggregate distinguishable from a new one`);
@@ -668,7 +668,7 @@ if (existsSync(assetsSource)) {
 // same file twice in two forms, and the copy a consumer reads depends on which module resolves it.
 // Only checked when `--assets-from` is given, since that is the caller asserting where the engine
 // bytes come from; other packages have no reason to keep `dist/assets/` either, but they are not
-// what this guard is for. See packages/runtime-ons/scripts/copy-runtime-assets.mjs.
+// what this guard is for. See packages/engine/core/onscripter-yuri/scripts/copy-runtime-assets.mjs.
 if (options.assetsFrom && existsSync(join(staged, 'dist', 'assets'))) {
   fail(2, 'dist/assets/ duplicates the engine files that --assets-from supplies; the runtime resolves assets/ at the package root, so ship one copy and stop the build from writing dist/assets/');
 }
@@ -706,7 +706,7 @@ for (const name of vendored) {
 // This repository is one GPL work with several packages under it, so the root files are shipped
 // verbatim into every package. That is deliberate over-inclusion: the notice file names upstream
 // components whose licences travel with the vendored closure, and a recipient of
-// `@online-gal/runtime-ons` receives all four vendored packages' worth of third-party code, so
+// `@online-gal/engine-core-onscripter-yuri` receives all four vendored packages' worth of third-party code, so
 // giving them the whole notice file is the honest subset. Shipping a *narrower* notice would be
 // picking a subset of the obligations by hand, and the only safe hand-picked subset is "everything".
 //
@@ -831,8 +831,8 @@ const normalizedLineEndings = normalizeLineEndings(staged);
 
 // --- tar --------------------------------------------------------------------------------------
 
-// The filename flattens the scope: `@online-gal/runtime-ons` is not a legal file name, so the `/`
-// becomes a `-` and the tarball is `online-gal-runtime-ons-<version>.tgz`. npm's own convention
+// The filename flattens the scope: `@online-gal/engine-core-onscripter-yuri` is not a legal file name, so the `/`
+// becomes a `-` and the tarball is `online-gal-engine-core-onscripter-yuri-<version>.tgz`. npm's own convention
 // keeps the scope instead, but a release asset that a human types into a `pnpm add` line is worth
 // the unambiguous name, and `--tarball-name` overrides it either way. The version is whatever
 // `manifest.version` says, so the name moves when the package does — docs that hard-code a

@@ -18,6 +18,6 @@
   "dependencies": {
     "@online-gal/engine-api": "workspace:*",
     "@online-gal/vfs": "workspace:*",
-    "@online-gal/runtime-kag": "workspace:*"
+    "@online-gal/engine-interpreter-kirikiri-kag3": "workspace:*"
   }
 }

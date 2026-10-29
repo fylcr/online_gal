@@ -33,7 +33,7 @@
 # `ports/artemis/build/android-shim/`, and it needed the engine patch that has since been retired, so
 # it had no way to configure. The shim directory survives as the only C++ record of that host layer --
 # EGL setup, input translation, the directory registry -- and the modern TypeScript host in
-# `packages/runtime-artemis/src/host/` reads it as a reference. Nothing builds it any more.
+# `packages/engine/core/artemis-compat/src/host/` reads it as a reference. Nothing builds it any more.
 set -u
 
 # Repo root, upstream checkout and `emcc` all come from the shared environment. See `ports/env.sh`.

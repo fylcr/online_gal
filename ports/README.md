@@ -11,18 +11,18 @@
 | Artemis | 手写 C++ 产品、函数台账、wasm2c 拼接器 | 官方 asyncify wasm + 手写产品；仍保留未替换生成体 | [`artemis/README.md`](artemis/README.md) |
 
 ONS / KiriKiri 的浏览器宿主分别在
-[`runtime-ons`](../packages/runtime-ons/) 和 [`runtime-kag`](../packages/runtime-kag/)。
+[`engine/core/onscripter-yuri`](../packages/engine/core/onscripter-yuri/) 和 [`engine/core/kirikiroid2-web`](../packages/engine/core/kirikiroid2-web/)（解释器回退分别在 [`engine/interpreter/onscripter`](../packages/engine/interpreter/onscripter/) 与 [`engine/interpreter/kirikiri-kag3`](../packages/engine/interpreter/kirikiri-kag3/)）。
 Artemis 的目标只有 **asyncify 手写引擎 + 独立现代宿主**，宿主源码在
-[`runtime-artemis/src/host/`](../packages/runtime-artemis/src/host/)；
+[`engine/core/artemis-compat/src/host/`](../packages/engine/core/artemis-compat/src/host/)；
 当前 public provider 尚不能启动游戏，官方胶水部署仅作诊断，不是另一条出货路线。
 
 ## 主构建入口
 
 | 引擎 | Linux CI 脚本 | workflow | 输出 |
 | --- | --- | --- | --- |
-| ONS | [`build-ons.sh`](../.github/scripts/build-ons.sh) | [`build-wasm-ons.yml`](../.github/workflows/build-wasm-ons.yml) | `dist/ons/` 的引擎资产 + runtime-ons tarball |
-| KiriKiri | [`build-krkr.sh`](../.github/scripts/build-krkr.sh) | [`build-wasm-krkr.yml`](../.github/workflows/build-wasm-krkr.yml) | `dist/krkr/` 的页面资产 + 独立 runtime-kag tarball |
-| Artemis | [`build-artemis-bridge.sh`](../.github/scripts/build-artemis-bridge.sh) | [`build-wasm-artemis-bridge.yml`](../.github/workflows/build-wasm-artemis-bridge.yml) | asyncify `bridge.wasm` + runtime-artemis tarball；可用性未验收 |
+| ONS | [`build-ons.sh`](../.github/scripts/build-ons.sh) | [`build-wasm-ons.yml`](../.github/workflows/build-wasm-ons.yml) | `dist/ons/` 的引擎资产 + engine-core-onscripter-yuri tarball |
+| KiriKiri | [`build-krkr.sh`](../.github/scripts/build-krkr.sh) | [`build-wasm-krkr.yml`](../.github/workflows/build-wasm-krkr.yml) | `dist/krkr/` 的页面资产 + 独立 engine-core-kirikiroid2-web tarball |
+| Artemis | [`build-artemis-bridge.sh`](../.github/scripts/build-artemis-bridge.sh) | [`build-wasm-artemis-bridge.yml`](../.github/workflows/build-wasm-artemis-bridge.yml) | asyncify `bridge.wasm` + engine-core-artemis-compat tarball；可用性未验收 |
 
 共享流程见 [`build-wasm-reusable.yml`](../.github/workflows/build-wasm-reusable.yml)，
 private 包的依赖闭包与许可装配见 [`make-package.mjs`](../.github/scripts/make-package.mjs)。
@@ -49,7 +49,7 @@ workflow 的默认 commit 也须同步维护。当前 Emscripten 为 **6.0.9**�
 `.ref/`、`.test/`、编译输出、下载工具链、分段重写工作台与游戏/存档只留本机。
 例外必须明确：
 
-- [`runtime-ons/assets/`](../packages/runtime-ons/assets/) 已跟踪三个引擎资产，更新需单独验收。
+- [`engine/core/onscripter-yuri/assets/`](../packages/engine/core/onscripter-yuri/assets/) 已跟踪三个引擎资产，更新需单独验收。
 - [`artemis/vendor/artemis-sdk/`](artemis/vendor/artemis-sdk/) 已跟踪官方 SDK 参考文件，
   **其再分发授权尚未核实，不由根 GPL 声明覆盖**。
 

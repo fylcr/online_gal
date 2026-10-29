@@ -22,7 +22,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const PACKAGE = join(root, 'packages', 'runtime-artemis');
+const PACKAGE = join(root, 'packages', 'engine', 'core', 'artemis-compat');
 const temp = mkdtempSync(join(tmpdir(), 'artemis-compat-runtime-'));
 const out = join(temp, 'out');
 process.on('exit', () => {
@@ -32,10 +32,10 @@ process.on('exit', () => {
 });
 execFileSync(process.execPath, [
   join(root, 'node_modules/typescript/bin/tsc'),
-  'packages/runtime-artemis/src/index.ts',
+  'packages/engine/core/artemis-compat/src/index.ts',
   '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'bundler',
   '--lib', 'ES2022,DOM', '--strict', '--noUncheckedIndexedAccess', '--skipLibCheck',
-  '--rootDir', 'packages/runtime-artemis/src', '--outDir', out,
+  '--rootDir', 'packages/engine/core/artemis-compat/src', '--outDir', out,
 ], { cwd: root, stdio: 'inherit' });
 writeFileSync(join(out, 'package.json'), '{"type":"module"}');
 symlinkSync(join(PACKAGE, 'node_modules'), join(out, 'node_modules'), 'junction');

@@ -61,7 +61,7 @@
 # Only this script sets the epoch, and the asymmetry is deliberate: the ONS build was measured
 # byte-identical across four independent runner builds before any of this, so exporting the
 # variable there could only invalidate `ports/lib/engine-artifacts.json` and the adopted bytes in
-# `packages/runtime-ons/assets/` for no measured gain. If another engine is ever seen to drift the
+# `packages/engine/core/onscripter-yuri/assets/` for no measured gain. If another engine is ever seen to drift the
 # same way, this block is the fix to copy -- and krkr is the one that costs ~50 minutes because
 # vcpkg builds OpenCV from source on every run.
 set -eu

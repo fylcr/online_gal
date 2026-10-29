@@ -9,16 +9,19 @@
     "build": "astro build",
     "preview": "astro preview --host 127.0.0.1 --port 4321",
     "check": "astro check"
-  },  "dependencies": {
+  },
+  "dependencies": {
     "@online-gal/core": "workspace:*",
     "@online-gal/engine-api": "workspace:*",
     "@online-gal/image-codec": "workspace:*",
     "@online-gal/player-host": "workspace:*",
-    "@online-gal/runtime-artemis": "workspace:*",
-    "@online-gal/runtime-kag": "workspace:*",
-    "@online-gal/runtime-ons": "workspace:*",
-    "@online-gal/runtime-tyrano": "workspace:*",
-    "@online-gal/runtime-web": "workspace:*",
+    "@online-gal/engine-core-artemis-compat": "workspace:*",
+    "@online-gal/engine-core-kirikiroid2-web": "workspace:*",
+    "@online-gal/engine-interpreter-kirikiri-kag3": "workspace:*",
+    "@online-gal/engine-core-onscripter-yuri": "workspace:*",
+    "@online-gal/engine-interpreter-onscripter": "workspace:*",
+    "@online-gal/engine-core-tyranobuilder": "workspace:*",
+    "@online-gal/engine-core-web-html5": "workspace:*",
     "@online-gal/vfs": "workspace:*"
   },
   "devDependencies": {

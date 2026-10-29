@@ -26,27 +26,33 @@ importers:
       '@online-gal/engine-api':
         specifier: workspace:*
         version: link:../../packages/engine-api
+      '@online-gal/engine-core-artemis-compat':
+        specifier: workspace:*
+        version: link:../../packages/engine/core/artemis-compat
+      '@online-gal/engine-core-kirikiroid2-web':
+        specifier: workspace:*
+        version: link:../../packages/engine/core/kirikiroid2-web
+      '@online-gal/engine-core-onscripter-yuri':
+        specifier: workspace:*
+        version: link:../../packages/engine/core/onscripter-yuri
+      '@online-gal/engine-core-tyranobuilder':
+        specifier: workspace:*
+        version: link:../../packages/engine/core/tyranobuilder
+      '@online-gal/engine-core-web-html5':
+        specifier: workspace:*
+        version: link:../../packages/engine/core/web-html5
+      '@online-gal/engine-interpreter-kirikiri-kag3':
+        specifier: workspace:*
+        version: link:../../packages/engine/interpreter/kirikiri-kag3
+      '@online-gal/engine-interpreter-onscripter':
+        specifier: workspace:*
+        version: link:../../packages/engine/interpreter/onscripter
       '@online-gal/image-codec':
         specifier: workspace:*
         version: link:../../packages/image-codec
       '@online-gal/player-host':
         specifier: workspace:*
         version: link:../../packages/player-host
-      '@online-gal/runtime-artemis':
-        specifier: workspace:*
-        version: link:../../packages/runtime-artemis
-      '@online-gal/runtime-kag':
-        specifier: workspace:*
-        version: link:../../packages/runtime-kag
-      '@online-gal/runtime-ons':
-        specifier: workspace:*
-        version: link:../../packages/runtime-ons
-      '@online-gal/runtime-tyrano':
-        specifier: workspace:*
-        version: link:../../packages/runtime-tyrano
-      '@online-gal/runtime-web':
-        specifier: workspace:*
-        version: link:../../packages/runtime-web
       '@online-gal/vfs':
         specifier: workspace:*
         version: link:../../packages/vfs
@@ -75,59 +81,161 @@ importers:
       '@online-gal/engine-api':
         specifier: workspace:*
         version: link:../engine-api
+      '@online-gal/engine-core-artemis-compat':
+        specifier: workspace:*
+        version: link:../engine/core/artemis-compat
+      '@online-gal/engine-core-kirikiroid2-web':
+        specifier: workspace:*
+        version: link:../engine/core/kirikiroid2-web
+      '@online-gal/engine-core-onscripter-yuri':
+        specifier: workspace:*
+        version: link:../engine/core/onscripter-yuri
+      '@online-gal/engine-core-tyranobuilder':
+        specifier: workspace:*
+        version: link:../engine/core/tyranobuilder
+      '@online-gal/engine-core-web-html5':
+        specifier: workspace:*
+        version: link:../engine/core/web-html5
+      '@online-gal/engine-interpreter-kirikiri-kag3':
+        specifier: workspace:*
+        version: link:../engine/interpreter/kirikiri-kag3
+      '@online-gal/engine-interpreter-onscripter':
+        specifier: workspace:*
+        version: link:../engine/interpreter/onscripter
+      '@online-gal/engine-shell-siglus':
+        specifier: workspace:*
+        version: link:../engine/shell/siglus
       '@online-gal/image-codec':
         specifier: workspace:*
         version: link:../image-codec
       '@online-gal/player-host':
         specifier: workspace:*
         version: link:../player-host
-      '@online-gal/runtime-artemis':
-        specifier: workspace:*
-        version: link:../runtime-artemis
-      '@online-gal/runtime-kag':
-        specifier: workspace:*
-        version: link:../runtime-kag
-      '@online-gal/runtime-ons':
-        specifier: workspace:*
-        version: link:../runtime-ons
-      '@online-gal/runtime-siglus':
-        specifier: workspace:*
-        version: link:../runtime-siglus
-      '@online-gal/runtime-tyrano':
-        specifier: workspace:*
-        version: link:../runtime-tyrano
-      '@online-gal/runtime-web':
-        specifier: workspace:*
-        version: link:../runtime-web
       '@online-gal/vfs':
         specifier: workspace:*
         version: link:../vfs
 
   packages/engine-api: {}
 
+  packages/engine/core/artemis-compat:
+    dependencies:
+      '@online-gal/engine-api':
+        specifier: workspace:*
+        version: link:../../../engine-api
+      '@online-gal/vfs':
+        specifier: workspace:*
+        version: link:../../../vfs
+
+  packages/engine/core/kirikiroid2-web:
+    dependencies:
+      '@online-gal/engine-api':
+        specifier: workspace:*
+        version: link:../../../engine-api
+      '@online-gal/engine-interpreter-kirikiri-kag3':
+        specifier: workspace:*
+        version: link:../../interpreter/kirikiri-kag3
+      '@online-gal/vfs':
+        specifier: workspace:*
+        version: link:../../../vfs
+
+  packages/engine/core/onscripter-yuri:
+    dependencies:
+      '@online-gal/engine-api':
+        specifier: workspace:*
+        version: link:../../../engine-api
+      '@online-gal/engine-interpreter-onscripter':
+        specifier: workspace:*
+        version: link:../../interpreter/onscripter
+
+  packages/engine/core/tyranobuilder:
+    dependencies:
+      '@online-gal/engine-api':
+        specifier: workspace:*
+        version: link:../../../engine-api
+      '@online-gal/engine-core-web-html5':
+        specifier: workspace:*
+        version: link:../web-html5
+      '@online-gal/vfs':
+        specifier: workspace:*
+        version: link:../../../vfs
+
+  packages/engine/core/web-html5:
+    dependencies:
+      '@online-gal/engine-api':
+        specifier: workspace:*
+        version: link:../../../engine-api
+      '@online-gal/vfs':
+        specifier: workspace:*
+        version: link:../../../vfs
+
+  packages/engine/interpreter/kirikiri-kag3:
+    dependencies:
+      '@online-gal/engine-api':
+        specifier: workspace:*
+        version: link:../../../engine-api
+      '@online-gal/image-codec':
+        specifier: workspace:*
+        version: link:../../../image-codec
+      '@online-gal/player-host':
+        specifier: workspace:*
+        version: link:../../../player-host
+      '@online-gal/vfs':
+        specifier: workspace:*
+        version: link:../../../vfs
+
+  packages/engine/interpreter/onscripter:
+    dependencies:
+      '@online-gal/engine-api':
+        specifier: workspace:*
+        version: link:../../../engine-api
+      '@online-gal/image-codec':
+        specifier: workspace:*
+        version: link:../../../image-codec
+      '@online-gal/player-host':
+        specifier: workspace:*
+        version: link:../../../player-host
+      '@online-gal/vfs':
+        specifier: workspace:*
+        version: link:../../../vfs
+
+  packages/engine/shell/siglus:
+    dependencies:
+      '@online-gal/engine-api':
+        specifier: workspace:*
+        version: link:../../../engine-api
+      '@online-gal/vfs':
+        specifier: workspace:*
+        version: link:../../../vfs
+
   packages/engines:
     dependencies:
       '@online-gal/engine-api':
         specifier: workspace:*
         version: link:../engine-api
-      '@online-gal/runtime-artemis':
+      '@online-gal/engine-core-artemis-compat':
         specifier: workspace:*
-        version: link:../runtime-artemis
-      '@online-gal/runtime-kag':
+        version: link:../engine/core/artemis-compat
+      '@online-gal/engine-core-kirikiroid2-web':
         specifier: workspace:*
-        version: link:../runtime-kag
-      '@online-gal/runtime-ons':
+        version: link:../engine/core/kirikiroid2-web
+      '@online-gal/engine-core-onscripter-yuri':
         specifier: workspace:*
-        version: link:../runtime-ons
-      '@online-gal/runtime-siglus':
+        version: link:../engine/core/onscripter-yuri
+      '@online-gal/engine-core-tyranobuilder':
         specifier: workspace:*
-        version: link:../runtime-siglus
-      '@online-gal/runtime-tyrano':
+        version: link:../engine/core/tyranobuilder
+      '@online-gal/engine-core-web-html5':
         specifier: workspace:*
-        version: link:../runtime-tyrano
-      '@online-gal/runtime-web':
+        version: link:../engine/core/web-html5
+      '@online-gal/engine-interpreter-kirikiri-kag3':
         specifier: workspace:*
-        version: link:../runtime-web
+        version: link:../engine/interpreter/kirikiri-kag3
+      '@online-gal/engine-interpreter-onscripter':
+        specifier: workspace:*
+        version: link:../engine/interpreter/onscripter
+      '@online-gal/engine-shell-siglus':
+        specifier: workspace:*
+        version: link:../engine/shell/siglus
 
   packages/image-codec:
     dependencies:
@@ -147,83 +255,14 @@ importers:
         specifier: workspace:*
         version: link:../vfs
 
-  packages/runtime-artemis:
-    dependencies:
-      '@online-gal/engine-api':
-        specifier: workspace:*
-        version: link:../engine-api
-      '@online-gal/vfs':
-        specifier: workspace:*
-        version: link:../vfs
-
-  packages/runtime-kag:
-    dependencies:
-      '@online-gal/engine-api':
-        specifier: workspace:*
-        version: link:../engine-api
-      '@online-gal/image-codec':
-        specifier: workspace:*
-        version: link:../image-codec
-      '@online-gal/player-host':
-        specifier: workspace:*
-        version: link:../player-host
-      '@online-gal/vfs':
-        specifier: workspace:*
-        version: link:../vfs
-
-  packages/runtime-ons:
-    dependencies:
-      '@online-gal/engine-api':
-        specifier: workspace:*
-        version: link:../engine-api
-      '@online-gal/image-codec':
-        specifier: workspace:*
-        version: link:../image-codec
-      '@online-gal/player-host':
-        specifier: workspace:*
-        version: link:../player-host
-      '@online-gal/vfs':
-        specifier: workspace:*
-        version: link:../vfs
-
-  packages/runtime-siglus:
-    dependencies:
-      '@online-gal/engine-api':
-        specifier: workspace:*
-        version: link:../engine-api
-      '@online-gal/vfs':
-        specifier: workspace:*
-        version: link:../vfs
-
-  packages/runtime-tyrano:
-    dependencies:
-      '@online-gal/engine-api':
-        specifier: workspace:*
-        version: link:../engine-api
-      '@online-gal/runtime-web':
-        specifier: workspace:*
-        version: link:../runtime-web
-      '@online-gal/vfs':
-        specifier: workspace:*
-        version: link:../vfs
-
-  packages/runtime-web:
-    dependencies:
-      '@online-gal/engine-api':
-        specifier: workspace:*
-        version: link:../engine-api
-      '@online-gal/vfs':
-        specifier: workspace:*
-        version: link:../vfs
-
   packages/tjs2-bytecode:
     dependencies:
       '@online-gal/engine-api':
         specifier: workspace:*
         version: link:../engine-api
-      '@online-gal/runtime-kag':
+      '@online-gal/engine-interpreter-kirikiri-kag3':
         specifier: workspace:*
-        version: link:../runtime-kag
+        version: link:../engine/interpreter/kirikiri-kag3
       '@online-gal/vfs':
         specifier: workspace:*
         version: link:../vfs

@@ -45,7 +45,7 @@ The SDK's own packer is a Windows-only proprietary binary. In asyncify mode the
 pack needs to contain `system.ini` and *nothing else* — the readme is explicit that
 everything else comes from the server — so writing it is a 30-line pf8 job, and
 doing it here is what makes this recipe portable and keeps the SDK binary out of
-the toolchain. The format is the one `packages/runtime-artemis/src/pfs.ts` reads
+the toolchain. The format is the one `packages/engine/core/artemis-compat/src/pfs.ts` reads
 and `make-min-pack.py` documents.
 
 ## Licensing
@@ -89,7 +89,7 @@ def write_pf8(path, files, version="6"):
     r"""
     Write a `pf8`-family package, byte-compatible with the SDK's own packer.
 
-    Layout, matching what `packages/runtime-artemis/src/pfs.ts` parses:
+    Layout, matching what `packages/engine/core/artemis-compat/src/pfs.ts` parses:
 
         0   "pf"         2 bytes
         2   version      one ASCII digit; 6 is unkeyed, 8 and 9 are XOR-keyed

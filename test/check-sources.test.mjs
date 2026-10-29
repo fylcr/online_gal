@@ -59,7 +59,7 @@ function compatWorkflow(overrides = {}) {
     'artifact-files': 'artemis-compat.js artemis-compat.wasm',
     'build-env': `ARTC_PIN=${COMPAT_PIN}`,
     version: `compat-${COMPAT_PIN.slice(0, 7)}`,
-    'package-dir': 'packages/runtime-artemis',
+    'package-dir': 'packages/engine/core/artemis-compat',
     'package-engine-assets': 'true',
     publish: 'false',
     'glue-import-map': "''",
@@ -176,9 +176,10 @@ function fixture(t) {
     'check:sources': 'node scripts/check-sources.mjs',
     'test:sources': 'node --test test/check-sources.test.mjs',
   } }));
-  for (const name of ['runtime-ons', 'runtime-kag', 'runtime-artemis']) {
-    put(`packages/${name}/package.json`, JSON.stringify({
-      name: `@online-gal/${name}`, private: true, license: 'GPL-3.0-or-later',
+  for (const dir of ['engine/core/onscripter-yuri', 'engine/interpreter/onscripter', 'engine/core/kirikiroid2-web',
+    'engine/interpreter/kirikiri-kag3', 'engine/core/artemis-compat']) {
+    put(`packages/${dir}/package.json`, JSON.stringify({
+      name: `@online-gal/${dir.replaceAll('/', '-')}`, private: true, license: 'GPL-3.0-or-later',
     }));
   }
   const pins = {
@@ -238,7 +239,7 @@ const allowed = [
   'ports/artemis/src/render/compositor_hide.cpp', 'ports/artemis/reverse/rw-splice.py',
   'ports/artemis/reverse/test-rw-splice-diagnostics.py', 'ports/artemis/tools/assemble-rewrite-parts.py',
   'test/check-sources.test.mjs', 'docs/source-layout.md',
-  'packages/runtime-ons/assets/onsyuri.wasm',
+  'packages/engine/core/onscripter-yuri/assets/onsyuri.wasm',
   'ports/artemis/vendor/artemis-sdk/WebAssembly/artemis.wasm', INPUT,
   'ports/artemis/vendor/artemis-sdk/Android/arm64-v8a/libartemis.so',
   'ports/artemis/vendor/artemis-sdk/Android/armeabi-v7a/libartemis.so',
@@ -248,7 +249,7 @@ for (const file of allowed) {
 }
 test('asset exceptions do not permit arbitrary vendor binaries', () => {
   assert.ok(uploadProblem('ports/artemis/vendor/artemis-sdk/extra.wasm'));
-  assert.ok(uploadProblem('packages/runtime-ons/assets/extra.wasm'));
+  assert.ok(uploadProblem('packages/engine/core/onscripter-yuri/assets/extra.wasm'));
 });
 
 test('ledger uses numeric function identity and the last C++ mapping', () => {
@@ -341,10 +342,10 @@ test('visible new scratch and binary files are checked, not just tracked files',
 });
 test('staged package declarations are read from the index, not newer worktree bytes', (t) => {
   const f = fixture(t);
-  f.put('packages/runtime-artemis/package.json', JSON.stringify({
-    name: '@online-gal/runtime-artemis', private: false, license: 'MIT',
+  f.put('packages/engine/core/artemis-compat/package.json', JSON.stringify({
+    name: '@online-gal/engine-core-artemis-compat', private: false, license: 'MIT',
   }));
-  assert.ok(f.check().errors.some((error) => error.includes('runtime-artemis/package.json: runtime')));
+  assert.ok(f.check().errors.some((error) => error.includes('artemis-compat/package.json: runtime')));
   assert.deepEqual(f.check({ staged: true }).errors, []);
 });
 test('root manifest must include the real check and regression-test commands', (t) => {

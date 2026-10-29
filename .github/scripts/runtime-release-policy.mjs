@@ -28,21 +28,27 @@ const ZERO = '0'.repeat(40);
 
 export const RELEASE_INPUTS = {
   ons: [
-    'packages/runtime-ons/src/**',
-    'packages/runtime-ons/scripts/**',
-    'packages/runtime-ons/package.json',
-    'packages/runtime-ons/tsconfig.json',
+    'packages/engine/core/onscripter-yuri/src/**',
+    'packages/engine/core/onscripter-yuri/scripts/**',
+    'packages/engine/core/onscripter-yuri/package.json',
+    'packages/engine/core/onscripter-yuri/tsconfig.json',
+    'packages/engine/interpreter/onscripter/src/**',
+    'packages/engine/interpreter/onscripter/package.json',
+    'packages/engine/interpreter/onscripter/tsconfig.json',
   ],
   krkr: [
-    'packages/runtime-kag/src/**',
-    'packages/runtime-kag/package.json',
-    'packages/runtime-kag/tsconfig.json',
+    'packages/engine/core/kirikiroid2-web/src/**',
+    'packages/engine/core/kirikiroid2-web/package.json',
+    'packages/engine/core/kirikiroid2-web/tsconfig.json',
+    'packages/engine/interpreter/kirikiri-kag3/src/**',
+    'packages/engine/interpreter/kirikiri-kag3/package.json',
+    'packages/engine/interpreter/kirikiri-kag3/tsconfig.json',
   ],
 };
 
 const PACKAGE_DIR = {
-  ons: 'packages/runtime-ons',
-  krkr: 'packages/runtime-kag',
+  ons: 'packages/engine/core/onscripter-yuri',
+  krkr: 'packages/engine/core/kirikiroid2-web',
 };
 
 export function isSemVer(value) {
@@ -122,7 +128,8 @@ export function releaseIdentity(engine, version) {
   if (engine !== 'ons' && engine !== 'krkr') throw new Error(`not an immutable engine: ${engine}`);
   if (!isSemVer(version)) throw new Error(`version is not SemVer: ${version}`);
   const tag = `engine-${engine}-${version}`;
-  const packedPackage = engine === 'ons' ? '@online-gal/runtime-ons' : '@online-gal/runtime-kag';
+  const packedPackage = engine === 'ons'
+    ? '@online-gal/engine-core-onscripter-yuri' : '@online-gal/engine-core-kirikiroid2-web';
   // Same flattening as make-package.mjs: strip one leading @, then turn / into -.
   const tarball = `${packedPackage.replace(/^@/, '').replace(/\//g, '-')}-${version}.tgz`;
   return {

@@ -184,7 +184,7 @@ try {
   // nothing about why.
   summary.record = await cdp.evaluate(`(async () => {
     const platform = (await import('/src/lib/platform.ts')).getPlatform();
-    const vm = await import('${repoRootPosix}/packages/runtime-kag/src/wasm-config.ts');
+    const vm = await import('${repoRootPosix}/packages/engine/core/kirikiroid2-web/src/wasm-config.ts');
     const records = await platform.library.list();
     const out = [];
     for (const record of records) {

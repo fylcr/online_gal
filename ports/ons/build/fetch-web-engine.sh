@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gets the ONS web engine into `packages/runtime-ons/assets/`, compiling only when it must.
+# Gets the ONS web engine into `packages/engine/core/onscripter-yuri/assets/`, compiling only when it must.
 #
 # Two ways to obtain the same three files (`onsyuri.html`, `onsyuri.js`, `onsyuri.wasm`):
 #
@@ -48,7 +48,7 @@ FETCH="$PORTS_ROOT/ports/lib/fetch-engine.mjs"
 MANIFEST="$PORTS_ROOT/ports/lib/engine-artifacts.json"
 REPO="${REPO:-$REF_DIR/onscripter-yuri}"
 BUILD_WEB="$REPO/build_web"
-ASSETS="$PORTS_ROOT/packages/runtime-ons/assets"
+ASSETS="$PORTS_ROOT/packages/engine/core/onscripter-yuri/assets"
 FILES="onsyuri.html onsyuri.js onsyuri.wasm"
 
 # --- 1. the cheap path: a published artifact ------------------------------------------------
@@ -134,7 +134,7 @@ done
 # been *tested*, and silently rewriting the manifest here would let an untested build claim a
 # verified hash.
 echo
-echo "== ons: built from source and installed into packages/runtime-ons/assets/ =="
+echo "== ons: built from source and installed into packages/engine/core/onscripter-yuri/assets/ =="
 echo "   this build is not yet in the manifest; after testing it, update"
 echo "   ports/lib/engine-artifacts.json with the values below and publish a release."
 echo

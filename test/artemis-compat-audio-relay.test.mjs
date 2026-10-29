@@ -15,10 +15,10 @@ process.on('exit', () => {
 const out = join(temp, 'out');
 execFileSync(process.execPath, [
   join(root, 'node_modules/typescript/bin/tsc'),
-  'packages/runtime-artemis/src/compat/audio-relay.ts',
+  'packages/engine/core/artemis-compat/src/compat/audio-relay.ts',
   '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'bundler',
   '--lib', 'ES2022,DOM', '--strict', '--skipLibCheck',
-  '--rootDir', 'packages/runtime-artemis/src', '--outDir', out,
+  '--rootDir', 'packages/engine/core/artemis-compat/src', '--outDir', out,
 ], { cwd: root, stdio: 'inherit' });
 writeFileSync(join(out, 'package.json'), '{"type":"module"}');
 const { AudioRelay } = await import(pathToFileURL(join(out, 'compat/audio-relay.js')));

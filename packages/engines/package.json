@@ -17,11 +17,13 @@
   },
   "dependencies": {
     "@online-gal/engine-api": "workspace:*",
-    "@online-gal/runtime-kag": "workspace:*",
-    "@online-gal/runtime-ons": "workspace:*",
-    "@online-gal/runtime-siglus": "workspace:*",
-    "@online-gal/runtime-artemis": "workspace:*",
-    "@online-gal/runtime-tyrano": "workspace:*",
-    "@online-gal/runtime-web": "workspace:*"
+    "@online-gal/engine-core-kirikiroid2-web": "workspace:*",
+    "@online-gal/engine-interpreter-kirikiri-kag3": "workspace:*",
+    "@online-gal/engine-core-onscripter-yuri": "workspace:*",
+    "@online-gal/engine-interpreter-onscripter": "workspace:*",
+    "@online-gal/engine-shell-siglus": "workspace:*",
+    "@online-gal/engine-core-artemis-compat": "workspace:*",
+    "@online-gal/engine-core-tyranobuilder": "workspace:*",
+    "@online-gal/engine-core-web-html5": "workspace:*"
   }
 }

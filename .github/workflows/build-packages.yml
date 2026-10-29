@@ -3,7 +3,7 @@
 # WHY THIS EXISTS, AND WHY IT IS NOT ANOTHER ENGINE WORKFLOW
 #
 # Each engine's own workflow builds that engine's wasm and packs that engine's runtime package, which
-# is the right shape when the package carries the engine bytes: `@online-gal/runtime-ons` is the one
+# is the right shape when the package carries the engine bytes: `@online-gal/engine-core-onscripter-yuri` is the one
 # package whose `dist/wasm-runtime.js` reads its engine out of the package, so the wasm has to be
 # built and the fresh copy shipped (`--assets-from`). The other five load their engine from a URL the
 # caller supplies and need no engine build to package.
@@ -34,14 +34,14 @@
 #
 # `ports/**` is deliberately NOT listed, and this needs stating rather than leaving to inference:
 # this job builds no engine bytes at all. In particular, the `assets/` that ship inside
-# `@online-gal/runtime-ons` are the ones committed in this repository, not a fresh ONS build --
+# `@online-gal/engine-core-onscripter-yuri` are the ones committed in this repository, not a fresh ONS build --
 # `build:packages` compiles TypeScript and copies the harness `.mjs` files, and it deliberately does
-# NOT copy the engine binaries (see `packages/runtime-ons/scripts/copy-runtime-assets.mjs`, which
+# NOT copy the engine binaries (see `packages/engine/core/onscripter-yuri/scripts/copy-runtime-assets.mjs`, which
 # explains why: a checkout copy and a build copy disagree on line endings). The aggregate package
-# therefore pins the committed engine bytes, and `@online-gal/runtime-ons` published by the ONS
+# therefore pins the committed engine bytes, and `@online-gal/engine-core-onscripter-yuri` published by the ONS
 # workflow ships the freshly built ones. They are byte-identical today (html 24,399 B `78d57d84…`,
 # js 198,947 B `c88398fe…`, wasm 4,660,610 B `85419fe5…`, matching `ports/lib/engine-artifacts.json`),
-# and an edit to `packages/runtime-ons/assets/**` is caught by this workflow's own `paths` because
+# and an edit to `packages/engine/core/onscripter-yuri/assets/**` is caught by this workflow's own `paths` because
 # that directory is inside `packages/**`. They can still diverge after an ONS rebuild that does not
 # commit its output; see the version rule below.
 #
@@ -257,7 +257,7 @@ jobs:
           # rather than a `packages/*` glob: a glob would sweep in `core` and `tjs2-bytecode` on
           # the day somebody adds a package, and would pack a package with no `dist/` on a partial
           # build.
-          PACKAGE_DIRS: packages/engines packages/runtime-ons packages/runtime-kag packages/runtime-siglus packages/runtime-artemis packages/runtime-tyrano packages/runtime-web
+          PACKAGE_DIRS: packages/engines packages/engine/core/onscripter-yuri packages/engine/interpreter/onscripter packages/engine/core/kirikiroid2-web packages/engine/interpreter/kirikiri-kag3 packages/engine/shell/siglus packages/engine/core/artemis-compat packages/engine/core/tyranobuilder packages/engine/core/web-html5
         run: |
           set -eu
           rm -rf dist/packages
@@ -369,7 +369,7 @@ jobs:
               --title "packages @ ${{ steps.package.outputs.version }}" \
               --notes "All engine runtime packages and the aggregate \`@online-gal/engines\` built from ${{ github.sha }} on run [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
 
-          No engine bytes are built by this workflow: \`@online-gal/runtime-ons\` here carries the \`assets/\` committed in this repository. The freshly built ones are in the ONS release." \
+          No engine bytes are built by this workflow: \`@online-gal/engine-core-onscripter-yuri\` here carries the \`assets/\` committed in this repository. The freshly built ones are in the ONS release." \
               --target "${{ github.sha }}"
           # Only the aggregate goes up. The six runtime tarballs stay as workflow artifacts for
           # inspection; publishing them from here too would put two archives of the same version in

@@ -94,7 +94,7 @@ jobs:
       # `createArtemisBootTable` -- so the asset is a convenience for a consumer that wants these
       # bytes, and browser deploys still serve the module by URL. Having the bytes present is not a
       # claim that the packaged runtime boots a real game; that is the `real-game` job's question.
-      package-dir: packages/runtime-artemis
+      package-dir: packages/engine/core/artemis-compat
       # At most one `package-dir` may set this true. Here the files only have to be present for a
       # caller that supplies the module.
       package-engine-assets: true

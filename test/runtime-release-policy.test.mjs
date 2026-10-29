@@ -52,7 +52,7 @@ test('release identity keeps plus and encodes only the URL path segment', () => 
   const identity = releaseIdentity('ons', '1.0.0+a');
   assert.equal(identity.tag, 'engine-ons-1.0.0+a');
   assert.equal(identity.packageVersion, '1.0.0+a');
-  assert.equal(identity.tarball, 'online-gal-runtime-ons-1.0.0+a.tgz');
+  assert.equal(identity.tarball, 'online-gal-engine-core-onscripter-yuri-1.0.0+a.tgz');
   assert.equal(identity.manifestVersion, '1.0.0+a');
   assert.equal(identity.downloadTag, 'engine-ons-1.0.0%2Ba');
   assert.equal(encodePathSegment('engine-krkr-1.0.0+b'), 'engine-krkr-1.0.0%2Bb');
@@ -103,17 +103,17 @@ test('push range classifies only package-owned inputs, including rename and dele
   const repo = fixtureRepo();
   try {
     repo.commit('README.md', 'base\n', 'base');
-    const base = repo.commit('packages/runtime-ons/src/old.ts', 'old\n', 'add');
-    repo.git(['mv', 'packages/runtime-ons/src/old.ts', 'packages/runtime-ons/src/new.ts']);
+    const base = repo.commit('packages/engine/core/onscripter-yuri/src/old.ts', 'old\n', 'add');
+    repo.git(['mv', 'packages/engine/core/onscripter-yuri/src/old.ts', 'packages/engine/core/onscripter-yuri/src/new.ts']);
     repo.git(['commit', '-q', '-m', 'rename']);
     const renamed = repo.git(['rev-parse', 'HEAD']).toString().trim();
     const renamedFiles = changedPaths(base, renamed, repo.dir);
     assert.equal(classifyPaths(renamedFiles).ons, 1);
     assert.equal(classifyPaths(renamedFiles).krkr, 0);
-    assert.ok(renamedFiles.includes('packages/runtime-ons/src/old.ts'));
-    assert.ok(renamedFiles.includes('packages/runtime-ons/src/new.ts'));
+    assert.ok(renamedFiles.includes('packages/engine/core/onscripter-yuri/src/old.ts'));
+    assert.ok(renamedFiles.includes('packages/engine/core/onscripter-yuri/src/new.ts'));
 
-    repo.git(['rm', '-q', 'packages/runtime-ons/src/new.ts']);
+    repo.git(['rm', '-q', 'packages/engine/core/onscripter-yuri/src/new.ts']);
     repo.git(['commit', '-q', '-m', 'delete']);
     const deleted = repo.git(['rev-parse', 'HEAD']).toString().trim();
     assert.equal(classifyPaths(changedPaths(renamed, deleted, repo.dir)).ons, 1);
@@ -123,8 +123,8 @@ test('push range classifies only package-owned inputs, including rename and dele
       ons: 0, krkr: 0, files: ['packages/vfs/src/index.ts'],
     });
     for (const file of [
-      'packages/runtime-ons/README.md',
-      'packages/runtime-ons/assets/x.wasm',
+      'packages/engine/core/onscripter-yuri/README.md',
+      'packages/engine/core/onscripter-yuri/assets/x.wasm',
       'ports/ons/build/x',
       'pnpm-lock.yaml',
       'LICENSE',
@@ -133,7 +133,7 @@ test('push range classifies only package-owned inputs, including rename and dele
       assert.equal(classifyPaths([file]).ons, 0, file);
       assert.equal(classifyPaths([file]).krkr, 0, file);
     }
-    assert.equal(classifyPaths(['packages/runtime-kag/src/index.ts']).krkr, 1);
+    assert.equal(classifyPaths(['packages/engine/core/kirikiroid2-web/src/index.ts']).krkr, 1);
     assert.equal(classifyPaths(['packages/tjs2-bytecode/src/index.ts']).krkr, 0);
     assert.throws(() => changedPaths('0'.repeat(40), renamed, repo.dir), /all-zero/);
     assert.throws(() => changedPaths('not-a-sha', renamed, repo.dir), /40-hex/);
@@ -147,10 +147,10 @@ test('preflight rejects collision before the build marker and keeps existing byt
   const repo = fixtureRepo();
   try {
     writeFileSync(join(repo.dir, 'package.json'), '{"version":"0.1.3"}\n');
-    mkdirSync(join(repo.dir, 'packages/runtime-ons'), { recursive: true });
-    writeFileSync(join(repo.dir, 'packages/runtime-ons/package.json'), '{"version":"0.1.3"}\n');
-    const before = repo.commit('packages/runtime-ons/src/index.ts', 'one\n', 'one');
-    const after = repo.commit('packages/runtime-ons/src/index.ts', 'two\n', 'two');
+    mkdirSync(join(repo.dir, 'packages/engine/core/onscripter-yuri'), { recursive: true });
+    writeFileSync(join(repo.dir, 'packages/engine/core/onscripter-yuri/package.json'), '{"version":"0.1.3"}\n');
+    const before = repo.commit('packages/engine/core/onscripter-yuri/src/index.ts', 'one\n', 'one');
+    const after = repo.commit('packages/engine/core/onscripter-yuri/src/index.ts', 'two\n', 'two');
     const clock = new Date('2026-10-13T23:59:00Z');
     const inventory = { tag: [{ tag: 'engine-ons-0.1.3-beta-202610140759', status: 200 }], release: [], asset: [], history: [] };
     const blocked = planPublication({
@@ -193,12 +193,12 @@ function inventoryFor(version) {
 test('caller workflows narrow paths and do not publish from a pull request', () => {
   const ons = code('.github/workflows/build-wasm-ons.yml');
   const krkr = code('.github/workflows/build-wasm-krkr.yml');
-  assert.match(ons, /packages\/runtime-ons\/src\/\*\*/);
-  assert.match(ons, /packages\/runtime-ons\/scripts\/\*\*/);
+  assert.match(ons, /packages\/engine\/core\/onscripter-yuri\/src\/\*\*/);
+  assert.match(ons, /packages\/engine\/core\/onscripter-yuri\/scripts\/\*\*/);
   assert.doesNotMatch(ons, /pnpm-lock\.yaml/);
   assert.doesNotMatch(ons, /packages\/engine-api/);
-  assert.doesNotMatch(krkr, /packages\/runtime-kag\/\*\*/);
-  assert.match(krkr, /packages\/runtime-kag\/src\/\*\*/);
+  assert.doesNotMatch(krkr, /packages\/engine\/core\/kirikiroid2-web\/\*\*/);
+  assert.match(krkr, /packages\/engine\/core\/kirikiroid2-web\/src\/\*\*/);
   assert.match(ons, /default: false/);
   assert.match(krkr, /default: false/);
   assert.match(ons, /github\.event_name == 'workflow_dispatch' && inputs\.publish == true/);
@@ -232,12 +232,12 @@ test('historical catalog pins are unchanged', () => {
 test('lookup reads the paginated release history and keeps only the exact identity', () => {
   const pages = [
     [
-      { tag_name: 'engine-ons-1.0.0+a', assets: [{ name: 'online-gal-runtime-ons-1.0.0+a.tgz' }] },
-      { tag_name: 'engine-krkr-1.0.0+b', assets: [{ name: 'online-gal-runtime-kag-1.0.0+b.tgz' }] },
+      { tag_name: 'engine-ons-1.0.0+a', assets: [{ name: 'online-gal-engine-core-onscripter-yuri-1.0.0+a.tgz' }] },
+      { tag_name: 'engine-krkr-1.0.0+b', assets: [{ name: 'online-gal-engine-core-kirikiroid2-web-1.0.0+b.tgz' }] },
     ],
     [
-      { tag_name: 'engine-ons-nightly', assets: [{ name: 'online-gal-runtime-ons-1.0.0+b.tgz' }] },
-      { tag_name: 'engine-ons-1.0.0+b', assets: [{ name: 'onsyuri.wasm' }, { name: 'online-gal-runtime-ons-1.0.0+b.tgz' }] },
+      { tag_name: 'engine-ons-nightly', assets: [{ name: 'online-gal-engine-core-onscripter-yuri-1.0.0+b.tgz' }] },
+      { tag_name: 'engine-ons-1.0.0+b', assets: [{ name: 'onsyuri.wasm' }, { name: 'online-gal-engine-core-onscripter-yuri-1.0.0+b.tgz' }] },
     ],
   ];
   const body = `${JSON.stringify(pages[0])}${JSON.stringify(pages[1])}`;
@@ -252,8 +252,8 @@ test('lookup reads the paginated release history and keeps only the exact identi
   assert.equal(listCalls[0].some((arg) => arg === '/repos/example/online_gal/releases'), true);
   assert.equal(listCalls[0].includes('--jq'), false);
   assert.deepEqual(rowsB.history.map((row) => row.tag), ['engine-ons-nightly', 'engine-ons-1.0.0+b']);
-  assert.equal(rowsB.history[0].name, 'online-gal-runtime-ons-1.0.0+b.tgz');
-  assert.equal(rowsB.history[1].name, 'online-gal-runtime-ons-1.0.0+b.tgz');
+  assert.equal(rowsB.history[0].name, 'online-gal-engine-core-onscripter-yuri-1.0.0+b.tgz');
+  assert.equal(rowsB.history[1].name, 'online-gal-engine-core-onscripter-yuri-1.0.0+b.tgz');
   assert.deepEqual(collisionHits('1.0.0+b', rowsB, 'ons'), ['history']);
   assert.deepEqual(collisionHits('1.0.0+a', rowsB, 'ons'), []);
   const rowsA = lookup('example/online_gal', 'ons', '1.0.0+a', fake);

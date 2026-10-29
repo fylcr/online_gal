@@ -28,7 +28,7 @@ import { pathToFileURL } from 'node:url';
 
 const REPO = resolve(import.meta.dirname, '..', '..', '..');
 const { readPfsTableFrom, readPfsEntryFrom } = await import(
-  pathToFileURL(join(REPO, 'packages', 'runtime-artemis', 'dist', 'pfs.js')).href
+  pathToFileURL(join(REPO, 'packages', 'engine', 'core', 'artemis-compat', 'dist', 'pfs.js')).href
 );
 
 const argv = process.argv.slice(2);

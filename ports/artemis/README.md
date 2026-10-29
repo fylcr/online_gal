@@ -1,7 +1,7 @@
 # Artemis 源码导航
 
 本目录保存手写 C++ 引擎产品、桥接构建工具和诊断工具。浏览器侧的独立现代宿主位于
-[`packages/runtime-artemis/src/host/`](../../packages/runtime-artemis/src/host/)。
+[`packages/engine/core/artemis-compat/src/host/`](../../packages/engine/core/artemis-compat/src/host/)。
 整理目录不等于引擎或包已通过真实游戏验收。
 
 ## 当前出货路线与历史路线
@@ -71,9 +71,9 @@ dispatch**（`build-wasm-artemis-bridge.yml` 已移除 `push` / `pull_request` �
 
 ## 浏览器包与当前验收边界
 
-- [`runtime-artemis`](../../packages/runtime-artemis/) 是 private workspace 包，不发布 npm。
-  [`src/index.ts`](../../packages/runtime-artemis/src/index.ts) 目前导出 PFS / SHA-1 / probe / provider；
-  [`src/compat/`](../../packages/runtime-artemis/src/compat/) 是 compat 模块的 worker 与页侧读数宿主。
+- [`engine/core/artemis-compat`](../../packages/engine/core/artemis-compat/)（`@online-gal/engine-core-artemis-compat`） 是 private workspace 包，不发布 npm。
+  [`src/index.ts`](../../packages/engine/core/artemis-compat/src/index.ts) 目前导出 PFS / SHA-1 / probe / provider；
+  [`src/compat/`](../../packages/engine/core/artemis-compat/src/compat/) 是 compat 模块的 worker 与页侧读数宿主。
 - **当前验收边界（不得含糊）**：compat 引擎**已编译**，worker 与宿主使用 **SharedArrayBuffer
   镜像**解决同步读。**音频已不再是上游非 Android 分支的 stub**（旧文写 `PlayStream` 返回 false）：
   `overlay/audio/audio_web.cpp` 提供本地 **PCM pull** 后端，页面按 voice 拉取交错立体声 int16 并自行

@@ -5,16 +5,15 @@
 ## 源码、构建与当前交付边界
 
 本仓库原位维护三套原生引擎的适配源码与构建入口，未把 ONS / KiriKiri 的完整上游检出复制入库。
-详细目录、上传清单与检查方式见 [`源码布局指南`](docs/source-layout.md)。
+详细目录、上传清单与检查方式见 [`源码布局指南`](docs/source-layout.md)。全部文档见 [`文档索引`](docs/README.md)。
 
 | 引擎 | 源码导航 | 当前边界 |
 | --- | --- | --- |
 | ONScripter | [`ONS 导航`](ports/ons/README.md) | 固定上游源码 + 事件 shim / worker 宿主；CI private 包包含引擎资产；需要跨源隔离 |
-| KiriKiri | [`KiriKiri 导航`](ports/krkr/README.md) | 固定上游源码 + VLFS 补丁 / overlays；页面资产与 runtime-kag tarball 分开交付，须部署并配置 `pageUrl` |
+| KiriKiri | [`KiriKiri 导航`](ports/krkr/README.md) | 固定上游源码 + VLFS 补丁 / overlays；页面资产与 engine-core-kirikiroid2-web tarball 分开交付，须部署并配置 `pageUrl` |
 | Artemis | [`Artemis 导航`](ports/artemis/README.md) | 默认出货路线是 **compat 上游源码编译成 WASM**（provider 默认走它）；页面需跨源隔离与实际引擎配置，旧 SDK 桥只留显式 legacy 诊断；**全真游戏验收尚未过** |
 
 包保持 private / GPL-3.0-or-later，不发布 npm。**目录完整、构建成功、合成测试通过、真实游戏可用和再分发授权是不同结论。**
-本次仅整理导航和上传边界，保留现有源码、Git 索引及本地资料，不重新构建、不运行游戏、不提交或推送。
 下文保留历史实现和测量；当前 Artemis 状态以上述边界及其导航为准。
 
 参考并移植了两套移动端模拟器的架构思想：
@@ -44,7 +43,7 @@
 「仅识别」的引擎会被记录在游戏条目上，导入后**明确提示不可运行**，而不是给出一个点了没反应的启动按钮。
 Artemis 的 `availability` 是**实时 getter**：未通过 `configureArtemisCompat()` 指定 compat 引擎时求值为
 `unavailable`，已配置且页面满足能力前提时才是 `runnable`；它**不再**根据 host 列表静态求值。
-[`ArtemisRuntime.load()`](packages/runtime-artemis/src/runtime.ts) 的旧无条件 `UnsupportedEngineError`
+[`ArtemisRuntime.load()`](packages/engine/core/artemis-compat/src/runtime.ts) 的旧无条件 `UnsupportedEngineError`
 已撤下：`load()` 默认返回 **compat 源码 WASM 会话**，旧的 asyncify SDK 桥只有在游戏显式按名字要求
 （`gameConfig.wasm` / `wasmUrl`）时才被选中，且那是**诊断路径而非默认回退**。
 「默认可运行」仍有**实际前提**：页面必须 `crossOriginIsolated === true`（含 `SharedArrayBuffer`、
@@ -61,7 +60,7 @@ Artemis 的 `availability` 是**实时 getter**：未通过 `configureArtemisCom
 
 KiriKiri2 是 C++ 引擎（参考实现 Kirikiroid2 的 `src/` 约 7.2 MB，仅 TJS2 子系统就包含
 `tjsInterCodeGen.cpp` 110 KB、`tjsInterCodeExec.cpp` 92 KB、`tjsLex.cpp` 46 KB、
-`tjsVariant.cpp` 31 KB 等数十个文件）。本项目 `packages/runtime-kag/src/tjs/` 全部加起来
+`tjsVariant.cpp` 31 KB 等数十个文件）。本项目 `packages/engine/interpreter/kirikiri-kag3/src/tjs/` 全部加起来
 约 81 KB TypeScript，**不可能**等价于它。实际做的事情是：
 
 | 层 | 是否重写 | 说明 |
@@ -257,7 +256,7 @@ canvas，只有一条路径，没有可选项可表达。
 | --- | --- | --- |
 | `engine_input_queue_gate.h` | `player-host/input-gate.ts` | 忙碌时只缓存**完整手势**（down+up 成对）、上限 8 个、超出丢最新的而不是最旧的；失焦/卸载时丢弃未完成手势，避免「按下不放」被重放 |
 | `onscripter_presentation.h` | `player-host/presentation.ts` | `ons.wide` 包保持 4:3 脚本坐标、只按**更宽**的宽高比裁剪顶部；更窄的请求不裁剪，以免丢内容 |
-| `onscripter_save_storage.cpp` | `runtime-ons/save-storage.ts` | `save<NN>.dat` 与 `envdata`/`gloval.sav`/`kidoku.dat` 等固定状态文件的识别；旧布局存档**不覆盖**迁移到 `savedata/` |
+| `onscripter_save_storage.cpp` | `engine/interpreter/onscripter/src/save-storage.ts` | `save<NN>.dat` 与 `envdata`/`gloval.sav`/`kidoku.dat` 等固定状态文件的识别；旧布局存档**不覆盖**迁移到 `savedata/` |
 | `engine_options.h` | `engine-api/options.ts` | 选项键名逐一照搬，附带类型/范围/enum 校验 |
 | 插件调试信息 | `engine-api/compat.ts` | honoured / skipped / approximated 计数与三档结论 |
 
@@ -402,7 +401,7 @@ Siglus/Artemis 的「宿主 + FFI 契约」是同一形状，只是这里的二�
 许可证方面没有问题：OnscripterYuri 是 GPL-2.0-or-later，可并入本项目的 GPL-3.0-or-later，
 WASM 产物随附其 LICENSE。
 
-**仍未做**：接入平台的 `RuntimeProvider` 契约**已经完成**——`@online-gal/runtime-ons` 里的
+**仍未做**：接入平台的 `RuntimeProvider` 契约**已经完成**——`@online-gal/engine-core-onscripter-yuri` 里的
 `onscripter-wasm` provider（`priority: 95`，高于自研解释器的 90）已注册进 `BUILTIN_PROVIDERS`，
 平台能直接启动这个 WASM 引擎。仍未做的是另一半：用 `onsyuri_index.json` 的生成替换现有导入流程。
 
@@ -459,11 +458,11 @@ Artemis 那条正好验证了补丁包编号规则：说明书里写的「把汉
 | --- | --- | --- |
 | `engine_api/src/engine_input_queue_gate.h` | `player-host/src/input-gate.ts` | ✅ 已移植 |
 | `onscripter_runtime/include/onscripter_presentation.h` | `player-host/src/presentation.ts` | ✅ 已移植 |
-| `onscripter_runtime/src/onscripter_save_storage.cpp` | `runtime-ons/src/save-storage.ts` | ✅ 已移植（含迁移优先级） |
+| `onscripter_runtime/src/onscripter_save_storage.cpp` | `engine/interpreter/onscripter/src/save-storage.ts` | ✅ 已移植（含迁移优先级） |
 | `engine_api/src/engine_api.cpp`（注册/选项/调试信息） | `engine-api/` | ✅ 已移植 |
-| `siglus_runtime/include/siglus_ffi.h` | `runtime-siglus/src/runtime.ts` | ✅ 接口已转写 |
-| `rfvp_runtime/src/rfvp_runtime_provider.cpp` | `runtime-artemis/src/runtime.ts` | ✅ 接口已转写 |
-| `onscripter_runtime/src/onscripter_runtime.cpp`（75 KB） | `runtime-ons/src/` | ⚠️ 自研重写，**非逐行移植** |
+| `siglus_runtime/include/siglus_ffi.h` | `engine/shell/siglus/src/runtime.ts` | ✅ 接口已转写 |
+| `rfvp_runtime/src/rfvp_runtime_provider.cpp` | `engine/core/artemis-compat/src/runtime.ts` | ✅ 接口已转写 |
+| `onscripter_runtime/src/onscripter_runtime.cpp`（75 KB） | `engine/interpreter/onscripter/src/` | ⚠️ 自研重写，**非逐行移植** |
 | `siglus_runtime/src/siglus_audio_output.cpp` | — | ❌ 未移植 |
 | `siglus_runtime/src/siglus_jpeg_decoder.cpp` | — | ❌ 未移植 |
 
@@ -526,7 +525,7 @@ Artemis 那条正好验证了补丁包编号规则：说明书里写的「把汉
 
 ## 各运行时实现范围
 
-### KiriKiri / KAG3（`packages/runtime-kag`）
+### KiriKiri / KAG3（`packages/engine/core/kirikiroid2-web`、`packages/engine/interpreter/kirikiri-kag3`）
 
 这个包里有**两条**执行路径，先说的是主线：
 
@@ -586,7 +585,7 @@ TJS2 *源码文本*。因此编译型 `.ks`（`TJS2` 头部的字节码）会被
 **仍未实现**：字节码 **VM**（求值循环）。本平台目前对编译型 `.ks` 的处理是明确拒绝加载，
 而不是把它当空脚本播放。
 
-### ONScripter（`packages/runtime-ons`）
+### ONScripter（`packages/engine/core/onscripter-yuri`、`packages/engine/interpreter/onscripter`）
 
 这个包同样有**两条**执行路径：`onscripter-wasm`（`wasm-provider.ts`，`priority: 95`）跑的是
 从源码构建的 OnscripterYuri 真引擎（见上文「ONScripter：上游 WASM 构建」），
@@ -601,7 +600,7 @@ NScripter 命令语言解释器，扁平程序计数器 + 整数/字符串变量
 
 **明确未实现**：`anime` 动画、`vsp` 视频精灵、`movie`、`midi`、`systemcall`、`savescreenshot`、`fileexist`（固定回答「不存在」）。这些都会进入兼容性报告，附上具体原因。
 
-### SiglusEngine（`packages/runtime-siglus`）
+### SiglusEngine（`packages/engine/shell/siglus`）
 
 **只做识别与配置读取，不执行。** 这是刻意的设计，不是半成品：
 
@@ -616,7 +615,7 @@ Siglus 的引擎本身不在 AetherKiri 的 C++ 桥里，而在 Rust 的 `siglus
   引擎）与 `#WINDOW_TITLE`；支持 `;` / `//` 注释且不破坏引号内的分号。加密的 `Gameexe.dat`
   **没有公开解码器**，因此尺寸保持未知而不是猜测。
 - **`SiglusEngineHost` 接口**：把 `siglus_ffi.h` 的 C ABI 逐条转写成 TypeScript
-  （见 `packages/runtime-siglus/src/runtime.ts` 的对照表）。它声明但未实现，作用是记录
+  （见 `packages/engine/shell/siglus/src/runtime.ts` 的对照表）。它声明但未实现，作用是记录
   「一个 WebAssembly 移植需要暴露什么」，并让运行时**不会**伪装成能跑。
 
 因此 `SiglusRuntime.load()` 直接以 `UnsupportedEngineError` 失败，并列出缺失能力（`siglus_rs` 的
@@ -629,7 +628,7 @@ wasm 构建、WebGPU 离屏读回、`Scene.pck` 解包、`Gameexe.dat` 解码器
 > 需以 MPL 回馈。当前仓库只是声明接口、未复制任何 MPL 代码，所以尚无冲突，但移植时必须在
 > `THIRD_PARTY_NOTICES.md` 中登记。
 
-### ArtemisEngine（`packages/runtime-artemis`）
+### ArtemisEngine（`packages/engine/core/artemis-compat`）
 
 public package 当前能识别游戏、读取 PFS，并且 **provider 默认返回 compat 源码 WASM 会话**；
 compat 引擎已编译、已有合成测试，但**全真游戏验收尚未过**。详见 [`Artemis 源码导航`](ports/artemis/README.md)。
@@ -658,10 +657,10 @@ compat 引擎已编译、已有合成测试，但**全真游戏验收尚未过**
   `.test/refresh-integration/retired/`。**尾部才是恢复画面（含背景）的判据，取值域仍不是官方快照**，
   且需新旧宿主同版校验。
 
-- [`runtime.ts`](packages/runtime-artemis/src/runtime.ts) 的 `availability` 是**实时 getter**：
+- [`runtime.ts`](packages/engine/core/artemis-compat/src/runtime.ts) 的 `availability` 是**实时 getter**：
   未配置 compat 引擎时 `unavailable`，已配置且页面满足 `crossOriginIsolated` / `SharedArrayBuffer` /
   `OffscreenCanvas` 时 `runnable`。`load()` **不再无条件抛错**，默认走 `CompatArtemisRuntime`。
-- [`src/index.ts`](packages/runtime-artemis/src/index.ts) 在 SHA-1 / PFS / probe / provider 之外，
+- [`src/index.ts`](packages/engine/core/artemis-compat/src/index.ts) 在 SHA-1 / PFS / probe / provider 之外，
   还导出 `configureArtemisCompat()`、`CompatArtemisRuntime`、`CompatReadHost` / `CompatWorkerHost`；
   导入表、GL 或 Asyncify 组件测试不等于游戏验收，**当前亦无全真游戏证据**。
 - 出货引擎是 **compat 上游源码编译**（GPL-3.0，pin `9f622629…`）。`ports/artemis/src/` 的
@@ -674,7 +673,7 @@ compat 引擎已编译、已有合成测试，但**全真游戏验收尚未过**
   本次只整理源码入口，不推进冷启动修复、现代宿主接入或真实游戏复验。
   SDK 及行为重表达产品的再分发授权另行核实。
 
-下面几条是 `packages/runtime-artemis` 这个包自己的范围：
+下面几条是 `packages/engine/core/artemis-compat` 这个包自己的范围：
 
 - **探针与评分**：标记文件与补丁命名规则来自 Tyranor-Next 文档化的指纹表
   （`docs/Artemis自动引擎识别优化计划方案.md` 与 `ArtemisEngineFingerprintDetector.kt`），
@@ -685,7 +684,7 @@ compat 引擎已编译、已有合成测试，但**全真游戏验收尚未过**
 - **PFS 读取器**（`pfs.ts`）：`pf8`/`pf7`/`pf6` 容器，表头 + 变长记录。这解决了一个实际问题——
   打包发行的游戏根目录**只有 `root.pfs` 一个文件**，不看包内目录无法判断游戏是否完整。
   现在能列出包内条目，并直接从 `system.ini` 读取配置。
-- **SHA-1**（[`sha1.ts`](packages/runtime-artemis/src/sha1.ts)）：PFS 的载荷常用
+- **SHA-1**（[`sha1.ts`](packages/engine/core/artemis-compat/src/sha1.ts)）：PFS 的载荷常用
   `SHA-1(表字节)` 作为 XOR 密钥流。Web Crypto 支持 SHA-1，但 digest API 是异步的；
   这里提供同步纯 TypeScript 实现，按 FIPS 180-1 并用 Node 的 `crypto` 交叉验证。
   这是格式兼容用途，不是推荐将 SHA-1 用于安全设计。
@@ -697,7 +696,7 @@ compat 引擎已编译、已有合成测试，但**全真游戏验收尚未过**
   编译期前缀——浏览器里没有这个问题，但**也说明即使用 Lua 5.4 也不能替代 5.1**
   （`goto`、整除、`setfenv`、被移除的 `unpack` 都会让脚本出现可观察差异）。
 
-### TyranoBuilder / HTML5（`packages/runtime-web`、`packages/runtime-tyrano`）
+### TyranoBuilder / HTML5（`packages/engine/core/web-html5`、`packages/engine/core/tyranobuilder`）
 
 这些引擎自带渲染器和游戏循环，因此不做帧合成：游戏在 **iframe** 中运行，宿主通过 `postMessage` 按需喂给它文件。
 
@@ -790,13 +789,16 @@ packages/
 ├── vfs/                     数据源、归档读取器、路径工具
 ├── image-codec/             图像解码（原生格式 + TGA）
 ├── player-host/             图层合成、文本排版、音频、帧循环、输入、手势队列、宽屏几何
-├── runtime-kag/             KiriKiri/KAG3（TJS2 源码解释器 + 场景执行器）
+├── engine/                  引擎运行时，按 <kind>/<上游引擎全名> 分层
+│   ├── core/kirikiroid2-web/      KiriKiri 真实 WASM 引擎宿主（上游 kirikiroid2-web）
+│   ├── core/onscripter-yuri/      ONScripter 真实 WASM 引擎（上游 OnscripterYuri）
+│   ├── core/artemis-compat/       ArtemisEngine（识别 + PFS 读取 + SHA-1 + compat worker）
+│   ├── core/tyranobuilder/        TyranoBuilder（复用 Web 运行时 + shim）
+│   ├── core/web-html5/            HTML5 内嵌运行时
+│   ├── interpreter/kirikiri-kag3/ KiriKiri/KAG3（TJS2 源码解释器 + 场景执行器）
+│   ├── interpreter/onscripter/    ONScripter（容器解码 + 命令解释器 + savedata 约定）
+│   └── shell/siglus/              SiglusEngine（识别 + Gameexe.ini 读取 + FFI 契约声明）
 ├── tjs2-bytecode/           TJS2 字节码格式（容器 · 操作码表 · 宽度表 · 反汇编 · 分类）
-├── runtime-ons/             ONScripter（容器解码 + 命令解释器 + savedata 约定）
-├── runtime-siglus/          SiglusEngine（识别 + Gameexe.ini 读取 + FFI 契约声明）
-├── runtime-artemis/         ArtemisEngine（识别 + PFS 读取 + SHA-1 + FFI 契约声明）
-├── runtime-web/             HTML5 内嵌运行时
-├── runtime-tyrano/          TyranoBuilder（复用 Web 运行时 + shim）
 └── core/                    游戏库、存档、设置、会话启动
 ports/                       把上面的运行时接到真实引擎的构建配方与浏览器 harness
 ├── env.sh                   shell 侧共享环境（仓库根、.ref、emsdk、路径转换）
@@ -805,7 +807,7 @@ ports/                       把上面的运行时接到真实引擎的构建配
 ├── krkr/kirikiroid2/        KiriKiri（现行）：构建配方 + vcpkg overlay ports + 浏览器测试
 ├── krkr/krkrsdl2/           KiriKiri（早期方案，已被取代，保留其诊断结论）
 └── artemis/                 Artemis：asyncify 桥接构建、手写产品及历史诊断工具
-    ├── src/                 手写 C++ 产品（工作树 340 个；四个新产品尚未进索引）
+    ├── src/                 手写 C++ 产品（340 个，均已入索引）
     ├── REWRITE.md           重写约束；存在约束不表示全树已通过
     ├── rewrite-names.tsv    函数与产品路径台账（须区分占位和有效映射）
     ├── reverse/             拼接器、桥接构建与诊断配方；非独立完整引擎

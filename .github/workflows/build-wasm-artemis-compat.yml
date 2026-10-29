@@ -30,7 +30,7 @@ on:
       # overlays and the source-offer generator; the headers below cover the API the host binds.
       - 'ports/artemis/compat-web/**'
       - 'ports/env.sh'
-      - 'packages/runtime-artemis/**'
+      - 'packages/engine/core/artemis-compat/**'
       # The provider is an input to the package step, so a copy-only change here still has to
       # redraw the same conclusion about the SHA of what the tarball carries.
       - 'packages/vfs/**'
@@ -56,7 +56,7 @@ on:
       - '.github/workflows/build-wasm-artemis-compat.yml'
       - '.github/scripts/build-artemis-compat.sh'
       - 'ports/artemis/compat-web/**'
-      - 'packages/runtime-artemis/**'
+      - 'packages/engine/core/artemis-compat/**'
       - 'packages/vfs/**'
       # Same two app inputs as `push` above, and for the same reason: an author who edits the
       # asset seam has to see the artifact contract it is judged against before the merge, not
@@ -147,7 +147,7 @@ jobs:
       # The tarball carries this run's own modules as `assets/`, because the compat worker loads
       # both by URL beside the package. It does NOT carry a generated SDK glue: the host imports
       # the Emscripten module the artifact ships.
-      package-dir: packages/runtime-artemis
+      package-dir: packages/engine/core/artemis-compat
       package-engine-assets: true
       # Left empty on purpose. The committed import map in `ports/artemis/harness/glue/` is the
       # 207-import SDK bridge's import surface, byte for byte; this module is a different module

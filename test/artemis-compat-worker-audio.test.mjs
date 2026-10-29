@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createContext, runInContext } from 'node:vm';
 import test from 'node:test';
 
-const source = readFileSync(new URL('../packages/runtime-artemis/src/compat/worker-audio.js', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../packages/engine/core/artemis-compat/src/compat/worker-audio.js', import.meta.url), 'utf8');
 const sandbox = { self: {} };
 createContext(sandbox);
 runInContext(source, sandbox, { filename: 'worker-audio.js' });

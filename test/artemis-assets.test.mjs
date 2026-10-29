@@ -1,5 +1,5 @@
 /**
- * Tests for the asyncify asset seam (`packages/runtime-artemis/src/assets.ts`).
+ * Tests for the asyncify asset seam (`packages/engine/core/artemis-compat/src/assets.ts`).
  *
  * The module is compiled with the repo's own `tsc` into a temp directory and linked to the
  * workspace's `node_modules`, the same way `artemis-boot.test.mjs` does it, so the test runs
@@ -35,14 +35,14 @@ execFileSync(
   process.execPath,
   [
     join(repoRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
-    'packages/runtime-artemis/src/assets.ts',
+    'packages/engine/core/artemis-compat/src/assets.ts',
     '--target', 'ES2022',
     '--module', 'ESNext',
     '--moduleResolution', 'bundler',
     '--lib', 'ES2022,DOM',
     '--strict',
     '--skipLibCheck',
-    '--rootDir', 'packages/runtime-artemis/src',
+    '--rootDir', 'packages/engine/core/artemis-compat/src',
     '--outDir', outDir,
   ],
   { cwd: repoRoot, stdio: 'inherit' },
@@ -53,7 +53,7 @@ writeFileSync(join(outDir, 'package.json'), '{"type":"module"}');
 // resolve through this one link into the workspace. Resolution is asserted from inside the
 // output before anything relies on it.
 const link = join(outDir, 'node_modules');
-symlinkSync(join(repoRoot, 'packages', 'runtime-artemis', 'node_modules'), link, 'junction');
+symlinkSync(join(repoRoot, 'packages', 'engine', 'core', 'artemis-compat', 'node_modules'), link, 'junction');
 assert.equal(lstatSync(link).isSymbolicLink(), true, 'the node_modules link is a real symlink');
 const probe = join(outDir, 'resolve-probe.mjs');
 writeFileSync(probe, "export const url = import.meta.resolve('@online-gal/engine-api');\n");

@@ -14,9 +14,9 @@ process.on('exit', () => {
   if (realpathSync(dirname(temp)) === realpathSync(tmpdir()) && basename(temp).startsWith('artemis-module-loading-')) rmSync(temp, { recursive: true, force: true });
 });
 const out = join(temp, 'out');
-execFileSync(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), 'packages/runtime-artemis/src/session-core.ts', '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'bundler', '--lib', 'ES2022,DOM', '--strict', '--skipLibCheck', '--rootDir', 'packages/runtime-artemis/src', '--outDir', out], { cwd: root, stdio: 'inherit' });
+execFileSync(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), 'packages/engine/core/artemis-compat/src/session-core.ts', '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'bundler', '--lib', 'ES2022,DOM', '--strict', '--skipLibCheck', '--rootDir', 'packages/engine/core/artemis-compat/src', '--outDir', out], { cwd: root, stdio: 'inherit' });
 writeFileSync(join(out, 'package.json'), '{"type":"module"}');
-symlinkSync(join(root, 'packages/runtime-artemis/node_modules'), join(out, 'node_modules'), 'junction');
+symlinkSync(join(root, 'packages/engine/core/artemis-compat/node_modules'), join(out, 'node_modules'), 'junction');
 const { createArtemisSessionCore, ARTEMIS_CORE_EXPORTS: core, ARTEMIS_ARENA_PAGES: arena } = await import(pathToFileURL(join(out, 'session-core.js')));
 
 const text = new TextEncoder();

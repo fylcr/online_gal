@@ -12,7 +12,7 @@ const BASE = process.env.KIRI_APP_BASE ?? 'http://127.0.0.1:4321';
 const EXPRESSION = `(async () => {
   const platform = (await import('/src/lib/platform.ts')).getPlatform();
   const ea = await import('${repoRootPosixUrl}/packages/engine-api/src/index.ts');
-  const vm = await import('${repoRootPosixUrl}/packages/runtime-kag/src/wasm-config.ts');
+  const vm = await import('${repoRootPosixUrl}/packages/engine/core/kirikiroid2-web/src/wasm-config.ts');
   const withXp3 = new ea.MemoryGameSource('probe-with-xp3');
   withXp3.addFile('data.xp3', 'XP3 fake payload');
   const loose = new ea.MemoryGameSource('probe-loose');

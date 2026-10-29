@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = resolve(fileURLToPath(new URL('..', import.meta.url))), temp = mkdtempSync(join(tmpdir(), 'artemis-audio-'));
 process.on('exit', () => { if (realpathSync(dirname(temp)) === realpathSync(tmpdir()) && basename(temp).startsWith('artemis-audio-')) rmSync(temp, { recursive: true, force: true }); });
 const out = join(temp, 'out');
-execFileSync(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), 'packages/runtime-artemis/src/host/audio.ts', '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'bundler', '--lib', 'ES2022,DOM', '--strict', '--skipLibCheck', '--rootDir', 'packages/runtime-artemis/src', '--outDir', out], { cwd: root, stdio: 'inherit' });
+execFileSync(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), 'packages/engine/core/artemis-compat/src/host/audio.ts', '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'bundler', '--lib', 'ES2022,DOM', '--strict', '--skipLibCheck', '--rootDir', 'packages/engine/core/artemis-compat/src', '--outDir', out], { cwd: root, stdio: 'inherit' });
 writeFileSync(join(out, 'package.json'), '{"type":"module"}');
 const { createArtemisAudioHost } = await import(pathToFileURL(join(out, 'host/audio.js')));
 const { ArtemisMemory } = await import(pathToFileURL(join(out, 'host/memory.js')));

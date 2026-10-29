@@ -135,7 +135,7 @@ on:
         type: string
         default: ''
       package-dir:
-        description: 'Runtime package directory to pack into an npm tarball, e.g. packages/runtime-ons.
+        description: 'Runtime package directory to pack into an npm tarball, e.g. packages/engine/core/onscripter-yuri.
                       Space-separated for several. Empty = build the engine only, with no package.'
         required: false
         type: string

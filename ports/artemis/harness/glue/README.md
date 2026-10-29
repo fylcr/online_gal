@@ -239,7 +239,7 @@ a line number would be 1 forever.
 by `@online-gal/vfs`, `gl` by the real WebGL2 context and AudioContext, and `async` is
 the set of Asyncify re-entry trampolines a host has to unwind through rather than call
 normally. The `modern owner` column says which module under
-`packages/runtime-artemis/src/host/` decides each bucket, and it prefixes that with
+`packages/engine/core/artemis-compat/src/host/` decides each bucket, and it prefixes that with
 `landed:` or `planned:` — read the prefix, not the path. A path alone reads as "done"
 whether or not the file exists.
 

@@ -7,7 +7,7 @@ import { basename, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const srcRoot = join(repoRoot, 'packages', 'runtime-artemis', 'src');
+const srcRoot = join(repoRoot, 'packages', 'engine', 'core', 'artemis-compat', 'src');
 const temp = mkdtempSync(join(tmpdir(), 'artemis-suspend-'));
 const out = join(temp, 'out');
 

@@ -66,7 +66,7 @@ function recordedHashes(text) {
  */
 export function inspectArtemisAssets({
   dir = join(REPO_ROOT, 'dist/artemis-compat'),
-  rpc = join(REPO_ROOT, 'packages/runtime-artemis/dist/compat/compat-worker.js'),
+  rpc = join(REPO_ROOT, 'packages/engine/core/artemis-compat/dist/compat/compat-worker.js'),
 } = {}) {
   const with_ = (reason) => ({ available: false, dir, rpc, reason });
   try {

@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const WORKER_SCRIPT = join(root, 'packages', 'runtime-artemis', 'src', 'compat', 'compat-worker.js');
+const WORKER_SCRIPT = join(root, 'packages', 'engine', 'core', 'artemis-compat', 'src', 'compat', 'compat-worker.js');
 const PAST = 0x80000000;
 const SIZE = 0x80000000 + 4096;
 const DESCRIPTORS = [{ id: 1, path: 'root.pfs', virtualPath: '/game/root.pfs', size: SIZE }];
@@ -71,13 +71,13 @@ process.on('exit', () => {
 });
 execFileSync(process.execPath, [
   join(root, 'node_modules/typescript/bin/tsc'),
-  'packages/runtime-artemis/src/compat/index.ts',
+  'packages/engine/core/artemis-compat/src/compat/index.ts',
   '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'bundler',
   '--lib', 'ES2022,DOM', '--strict', '--noUncheckedIndexedAccess', '--skipLibCheck',
-  '--rootDir', 'packages/runtime-artemis/src', '--outDir', out,
+  '--rootDir', 'packages/engine/core/artemis-compat/src', '--outDir', out,
 ], { cwd: root, stdio: 'inherit' });
 writeFileSync(join(out, 'package.json'), '{"type":"module"}');
-symlinkSync(join(root, 'packages/runtime-artemis/node_modules'), join(out, 'node_modules'), 'junction');
+symlinkSync(join(root, 'packages/engine/core/artemis-compat/node_modules'), join(out, 'node_modules'), 'junction');
 const BOOTSTRAP = join(temp, 'bootstrap.cjs');
 writeFileSync(BOOTSTRAP, BOOTSTRAP_SOURCE);
 const api = await import(pathToFileURL(join(out, 'compat', 'index.js')).href);

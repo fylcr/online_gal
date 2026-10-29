@@ -33,16 +33,16 @@ process.on('exit', () => {
 
 const outDir = join(workDir, 'out');
 execFileSync(process.execPath, [join(repoRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
-  'packages/runtime-artemis/src/host/boot.ts', 'packages/runtime-artemis/src/host/suspend.ts',
+  'packages/engine/core/artemis-compat/src/host/boot.ts', 'packages/engine/core/artemis-compat/src/host/suspend.ts',
   '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'bundler',
   '--lib', 'ES2022,DOM', '--strict', '--skipLibCheck',
-  '--rootDir', 'packages/runtime-artemis/src', '--outDir', outDir], { cwd: repoRoot, stdio: 'inherit' });
+  '--rootDir', 'packages/engine/core/artemis-compat/src', '--outDir', outDir], { cwd: repoRoot, stdio: 'inherit' });
 writeFileSync(join(outDir, 'package.json'), '{"type":"module"}');
 
 // The output is in the OS temp dir, so the bare `@online-gal/vfs` specifier can only resolve
 // through this one link into the workspace. Resolution is asserted from inside the output.
 const link = join(outDir, 'node_modules');
-symlinkSync(join(repoRoot, 'packages', 'runtime-artemis', 'node_modules'), link, 'junction');
+symlinkSync(join(repoRoot, 'packages', 'engine', 'core', 'artemis-compat', 'node_modules'), link, 'junction');
 assert.equal(lstatSync(link).isSymbolicLink(), true, 'the node_modules link is a real symlink');
 const probe = join(outDir, 'resolve-probe.mjs');
 writeFileSync(probe, "export const url = import.meta.resolve('@online-gal/vfs/archives');\n");

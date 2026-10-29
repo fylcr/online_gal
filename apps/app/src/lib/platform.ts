@@ -9,8 +9,8 @@
 import { Platform, checkBrowserSupport, type BrowserSupport } from '@online-gal/core';
 import { DEFAULT_SETTINGS } from '@online-gal/core';
 import type { AppSettings, GameRecord, SaveSlotRecord } from '@online-gal/core';
-import { configureKirikiriWasm } from '@online-gal/runtime-kag';
-import { configureArtemisCompat } from '@online-gal/runtime-artemis';
+import { configureKirikiriWasm } from '@online-gal/engine-core-kirikiroid2-web';
+import { configureArtemisCompat } from '@online-gal/engine-core-artemis-compat';
 
 export type { AppSettings, GameRecord, SaveSlotRecord, BrowserSupport };
 

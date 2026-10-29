@@ -24,7 +24,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
  */
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const srcRoot = join(repoRoot, 'packages', 'runtime-artemis', 'src');
+const srcRoot = join(repoRoot, 'packages', 'engine', 'core', 'artemis-compat', 'src');
 const temp = mkdtempSync(join(tmpdir(), 'artemis-download-'));
 const out = join(temp, 'out');
 

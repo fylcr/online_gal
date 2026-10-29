@@ -47,7 +47,7 @@ export const SOURCE_ENTRIES = [
   // what lets the source bundle rebuild without this repository. Both travel with the build.
   'ports/artemis/compat-web/tests/artemis-compat-audio-native.test.mjs',
   'ports/artemis/compat-web/RUN-BUILD.sh',
-  'packages/runtime-artemis/src/compat/compat-worker.js',
+  'packages/engine/core/artemis-compat/src/compat/compat-worker.js',
   // The legacy / diagnostic SDK bridge. Kept required because the records it produced are still
   // cited; it is no longer the shipping Artemis path (see the pins file).
   '.github/scripts/build-artemis-bridge.sh', '.github/workflows/build-wasm-artemis-bridge.yml',
@@ -55,14 +55,14 @@ export const SOURCE_ENTRIES = [
   'ports/artemis/src/util/engine_context.h', 'ports/artemis/reverse/build-bridge-route.sh',
   'ports/artemis/reverse/rw-splice.py', 'ports/artemis/reverse/test-rw-splice-diagnostics.py',
   'ports/artemis/tools/assemble-rewrite-parts.py',
-  'packages/runtime-artemis/src/index.ts', 'packages/runtime-artemis/src/host/boot.ts',
-  'packages/runtime-ons/src/wasm-runtime.ts', 'packages/runtime-kag/src/wasm-runtime.ts',
-  'packages/runtime-kag/src/wasm-config.ts', 'scripts/check-sources.mjs',
+  'packages/engine/core/artemis-compat/src/index.ts', 'packages/engine/core/artemis-compat/src/host/boot.ts',
+  'packages/engine/core/onscripter-yuri/src/wasm-runtime.ts', 'packages/engine/core/kirikiroid2-web/src/wasm-runtime.ts',
+  'packages/engine/core/kirikiroid2-web/src/wasm-config.ts', 'scripts/check-sources.mjs',
   'test/check-sources.test.mjs', 'test/artemis-compat-ci.test.mjs',
 ];
 
 const ASSET_EXCEPTIONS = new Set([
-  'packages/runtime-ons/assets/onsyuri.wasm',
+  'packages/engine/core/onscripter-yuri/assets/onsyuri.wasm',
   'ports/artemis/vendor/artemis-sdk/WebAssembly/artemis.wasm',
   'ports/artemis/vendor/artemis-sdk/WebAssembly/asyncify/artemis.wasm',
   'ports/artemis/vendor/artemis-sdk/Android/arm64-v8a/libartemis.so',
@@ -638,11 +638,12 @@ export function inspectSources(root, { staged = false } = {}) {
       errors.push(`${manifestFile}: missing source-check or regression-test entry`);
     }
   }
-  for (const name of ['runtime-ons', 'runtime-kag', 'runtime-artemis']) {
-    const file = `packages/${name}/package.json`;
+  for (const dir of ['engine/core/onscripter-yuri', 'engine/interpreter/onscripter', 'engine/core/kirikiroid2-web',
+    'engine/interpreter/kirikiri-kag3', 'engine/core/artemis-compat']) {
+    const file = `packages/${dir}/package.json`;
     if (!requireFile(file)) continue;
     const pkg = JSON.parse(content(file));
-    if (pkg.name !== `@online-gal/${name}` || pkg.private !== true ||
+    if (pkg.name !== `@online-gal/${dir.replaceAll('/', '-')}` || pkg.private !== true ||
         pkg.license !== 'GPL-3.0-or-later') {
       errors.push(`${file}: runtime name/private/GPL-3.0-or-later declaration changed`);
     }

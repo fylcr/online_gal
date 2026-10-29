@@ -31,13 +31,13 @@ process.on('exit', () => {
 });
 execFileSync(process.execPath, [
   join(root, 'node_modules/typescript/bin/tsc'),
-  'packages/runtime-artemis/src/compat/read-host.ts',
+  'packages/engine/core/artemis-compat/src/compat/read-host.ts',
   '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'bundler',
   '--lib', 'ES2022,DOM', '--strict', '--noUncheckedIndexedAccess', '--skipLibCheck',
-  '--rootDir', 'packages/runtime-artemis/src', '--outDir', out,
+  '--rootDir', 'packages/engine/core/artemis-compat/src', '--outDir', out,
 ], { cwd: root, stdio: 'inherit' });
 writeFileSync(join(out, 'package.json'), '{"type":"module"}');
-symlinkSync(join(root, 'packages/runtime-artemis/node_modules'), join(out, 'node_modules'), 'junction');
+symlinkSync(join(root, 'packages/engine/core/artemis-compat/node_modules'), join(out, 'node_modules'), 'junction');
 
 const { CompatReadHost } = await import(pathToFileURL(join(out, 'compat', 'read-host.js')).href);
 const { allocateCompatBlock, CONTROL, READ_FATAL, READ_MISSING } = await import(

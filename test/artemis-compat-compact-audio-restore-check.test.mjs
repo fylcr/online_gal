@@ -16,8 +16,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { MessageChannel, Worker } from 'node:worker_threads';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const WORKER = join(root, 'packages', 'runtime-artemis', 'src', 'compat', 'compat-worker.js');
-const HELPER = join(root, 'packages', 'runtime-artemis', 'src', 'compat', 'worker-audio.js');
+const WORKER = join(root, 'packages', 'engine', 'core', 'artemis-compat', 'src', 'compat', 'compat-worker.js');
+const HELPER = join(root, 'packages', 'engine', 'core', 'artemis-compat', 'src', 'compat', 'worker-audio.js');
 
 /** Test-only classic-worker bootstrap: real `self`, real `importScripts`, queued early messages. */
 const BOOTSTRAP = `
@@ -69,13 +69,13 @@ process.on('exit', () => {
 const out = join(temp, 'out');
 execFileSync(process.execPath, [
   join(root, 'node_modules/typescript/bin/tsc'),
-  'packages/runtime-artemis/src/compat/index.ts',
+  'packages/engine/core/artemis-compat/src/compat/index.ts',
   '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'bundler',
   '--lib', 'ES2022,DOM', '--strict', '--skipLibCheck',
-  '--rootDir', 'packages/runtime-artemis/src', '--outDir', out,
+  '--rootDir', 'packages/engine/core/artemis-compat/src', '--outDir', out,
 ], { cwd: root, stdio: 'inherit' });
 writeFileSync(join(out, 'package.json'), '{"type":"module"}');
-symlinkSync(join(root, 'packages/runtime-artemis/node_modules'), join(out, 'node_modules'), 'junction');
+symlinkSync(join(root, 'packages/engine/core/artemis-compat/node_modules'), join(out, 'node_modules'), 'junction');
 const BOOTSTRAP_FILE = join(temp, 'bootstrap.cjs');
 writeFileSync(BOOTSTRAP_FILE, BOOTSTRAP);
 const { CompatWorkerHost } = await import(pathToFileURL(join(out, 'compat/index.js')).href);

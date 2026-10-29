@@ -176,7 +176,7 @@ test('the artifact carries exactly the modules, the source offer and the license
   // has to be the same set the record describes, in the same order.
   assert.deepEqual(inputs.get('artifact-files').split(/\s+/), expected);
   assert.equal(inputs.get('artifact-dir'), record['artifact-dir']);
-  assert.equal(inputs.get('package-dir'), 'packages/runtime-artemis');
+  assert.equal(inputs.get('package-dir'), 'packages/engine/core/artemis-compat');
   assert.equal(inputs.get('package-engine-assets'), 'true',
     'the compat worker loads both modules by URL beside the package');
   assert.equal(inputs.get('publish'), 'false',
@@ -192,7 +192,7 @@ test('the workflow that builds the shipping module runs on changes to its own in
   // The worker answers `artcReadRange` against this module, so a change on either side has to run.
   // Covered as the whole package, not just `src/compat/`: the tarball this run builds is packed
   // from the package, so a copy or a manifest edit changes the published bytes too.
-  assert.ok(source.includes("'packages/runtime-artemis/**'"),
+  assert.ok(source.includes("'packages/engine/core/artemis-compat/**'"),
     'the worker answers `artcReadRange` against this module, so a change on either side has to run');
   assert.ok(source.includes("'packages/vfs/**'"),
     'the VFS provider is an input to the package step, so a copy-only change still has to run');
@@ -522,7 +522,7 @@ test('the app inputs do not displace the engine inputs those workflows already h
     [WORKFLOW]: {
       push: [
         'ports/artemis/compat-web/**',
-        'packages/runtime-artemis/**',
+        'packages/engine/core/artemis-compat/**',
         'packages/vfs/**',
         '.github/scripts/build-artemis-compat.sh',
         '.github/upstream-pins.json',
@@ -530,7 +530,7 @@ test('the app inputs do not displace the engine inputs those workflows already h
       ],
       pull_request: [
         'ports/artemis/compat-web/**',
-        'packages/runtime-artemis/**',
+        'packages/engine/core/artemis-compat/**',
         'packages/vfs/**',
         '.github/scripts/build-artemis-compat.sh',
       ],

@@ -18,10 +18,13 @@ on:
   push:
     branches: [main]
     paths:
-      - 'packages/runtime-ons/src/**'
-      - 'packages/runtime-ons/scripts/**'
-      - 'packages/runtime-ons/package.json'
-      - 'packages/runtime-ons/tsconfig.json'
+      - 'packages/engine/core/onscripter-yuri/src/**'
+      - 'packages/engine/core/onscripter-yuri/scripts/**'
+      - 'packages/engine/core/onscripter-yuri/package.json'
+      - 'packages/engine/core/onscripter-yuri/tsconfig.json'
+      - 'packages/engine/interpreter/onscripter/src/**'
+      - 'packages/engine/interpreter/onscripter/package.json'
+      - 'packages/engine/interpreter/onscripter/tsconfig.json'
   workflow_dispatch:
     inputs:
       publish:
@@ -71,12 +74,12 @@ jobs:
       # not this runtime's version.
       version: ''
       # Packaging is what makes the build output consumable. A consumer runs
-      # `pnpm add https://github.com/fylcr/online_gal/releases/download/<tag>/online-gal-runtime-ons-<version>.tgz`
+      # `pnpm add https://github.com/fylcr/online_gal/releases/download/<tag>/online-gal-engine-core-onscripter-yuri-<version>.tgz`
       # and gets a runtime that needs no Emscripten SDK and no wasm build of its own. Each engine
       # sets its own `package-dir`, so packaging is opt-in per engine and an engine with none
       # still builds and publishes exactly as before. `krkr` and the Artemis bridge are wired the
       # same way; see `package-dir` in each of those workflows for what is specific to them.
-      package-dir: packages/runtime-ons
+      package-dir: packages/engine/core/onscripter-yuri
       # ONScripter is the one engine whose runtime reads its engine files out of the package:
       # `dist/wasm-runtime.js` resolves them as `new URL('../assets/', import.meta.url)` — that
       # file's parent directory is the package root, so they land in `<package>/assets/`. Without

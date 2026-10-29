@@ -16,7 +16,7 @@ import { closeSync, existsSync, openSync, readSync, readdirSync, statSync } from
 import { join, resolve } from 'node:path';
 
 import { DefaultProbeContext } from '../../../packages/engine-api/dist/index.js';
-import { inspectArtemis } from '../../../packages/runtime-artemis/dist/index.js';
+import { inspectArtemis } from '../../../packages/engine/core/artemis-compat/dist/index.js';
 
 // The pack chain is real game data and is never committed; point ARTEMIS_GAME_DIR at it.
 const ROOT = process.env.ARTEMIS_GAME_DIR ?? resolve(import.meta.dirname, '..', '..', '..', '.ref', 'artemis-game');

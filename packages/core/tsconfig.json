@@ -10,9 +10,11 @@
     { "path": "../vfs" },
     { "path": "../image-codec" },
     { "path": "../player-host" },
-    { "path": "../runtime-kag" },
-    { "path": "../runtime-ons" },
-    { "path": "../runtime-tyrano" },
-    { "path": "../runtime-web" }
+    { "path": "../engine/core/kirikiroid2-web" },
+    { "path": "../engine/interpreter/kirikiri-kag3" },
+    { "path": "../engine/core/onscripter-yuri" },
+    { "path": "../engine/interpreter/onscripter" },
+    { "path": "../engine/core/tyranobuilder" },
+    { "path": "../engine/core/web-html5" }
   ]
 }

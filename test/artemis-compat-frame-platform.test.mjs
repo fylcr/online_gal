@@ -23,13 +23,13 @@ process.on('exit', () => {
 });
 execFileSync(process.execPath, [
   join(root, 'node_modules/typescript/bin/tsc'),
-  'packages/runtime-artemis/src/index.ts',
+  'packages/engine/core/artemis-compat/src/index.ts',
   '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'bundler',
   '--lib', 'ES2022,DOM', '--strict', '--skipLibCheck',
-  '--rootDir', 'packages/runtime-artemis/src', '--outDir', out,
+  '--rootDir', 'packages/engine/core/artemis-compat/src', '--outDir', out,
 ], { cwd: root, stdio: 'inherit' });
 writeFileSync(join(out, 'package.json'), '{"type":"module"}');
-symlinkSync(join(root, 'packages/runtime-artemis/node_modules'), join(out, 'node_modules'), 'junction');
+symlinkSync(join(root, 'packages/engine/core/artemis-compat/node_modules'), join(out, 'node_modules'), 'junction');
 
 const { CompatArtemisRuntime } = await import(pathToFileURL(join(out, 'compat/runtime.js')).href);
 
@@ -64,7 +64,7 @@ test('tick(dt) never reaches the guest: artc_web_frame takes no time argument', 
   const native = readFileSync(
     new URL('../ports/artemis/compat-web/overlay/host/web_main.cpp', import.meta.url), 'utf8');
   const worker = readFileSync(
-    new URL('../packages/runtime-artemis/src/compat/compat-worker.js', import.meta.url), 'utf8');
+    new URL('../packages/engine/core/artemis-compat/src/compat/compat-worker.js', import.meta.url), 'utf8');
   assert.match(native, /EMSCRIPTEN_KEEPALIVE int artc_web_frame\(void\)/);
   assert.match(native, /compositor\(\)\.Update\(ctx->lua\(\)\.NowMs\(\)\)/);
   assert.match(worker, /_artc_web_frame: \{ ret: 'number', args: \[\] \}/);
@@ -87,7 +87,7 @@ test('shipped Update(now) is absolute elapsed: 60/39/120 Hz and a stall share on
 
 test('frame takes no dt; now_ms stays the HEAD query, not a second clock', () => {
   const worker = readFileSync(
-    new URL('../packages/runtime-artemis/src/compat/compat-worker.js', import.meta.url), 'utf8');
+    new URL('../packages/engine/core/artemis-compat/src/compat/compat-worker.js', import.meta.url), 'utf8');
   assert.match(worker, /_artc_web_frame: \{ ret: 'number', args: \[\] \}/);
   assert.match(worker, /_artc_web_now_ms: \{ ret: 'number', args: \[\] \}/);
   assert.match(worker, /function readNowMs\(/);

@@ -8,5 +8,5 @@
  * about the container format, and the analysis would then be measuring a
  * different thing from the runtime.
  */
-export { loadScriptBytes, decodeCompiledScript, sniffScriptFormat } from '@online-gal/runtime-kag';
-export type { DecodedScript } from '@online-gal/runtime-kag';
+export { loadScriptBytes, decodeCompiledScript, sniffScriptFormat } from '@online-gal/engine-interpreter-kirikiri-kag3';
+export type { DecodedScript } from '@online-gal/engine-interpreter-kirikiri-kag3';

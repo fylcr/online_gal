@@ -350,7 +350,7 @@ export function startOnsHost(options) {
      * Delivers an already-normalised input event to the engine.
      *
      * The DOM listeners call this after converting a browser event; a host that drives the
-     * runtime programmatically — the `RuntimeInstance` adapter in `@online-gal/runtime-ons` —
+     * runtime programmatically — the `RuntimeInstance` adapter in `@online-gal/engine-core-onscripter-yuri` —
      * calls it directly with coordinates already in engine space.
      *
      * `wasm-runtime.ts` calls this for every pointer and key event, and `host.d.mts` declares it,

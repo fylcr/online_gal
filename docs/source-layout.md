@@ -8,9 +8,9 @@
 
 | 引擎 | 本仓库维护的源码 | 构建时取得的引擎输入 | Linux CI 主入口 |
 | --- | --- | --- | --- |
-| ONScripter | [`ports/ons/`](../ports/ons/README.md) 的事件 shim、配方及 harness；[`runtime-ons`](../packages/runtime-ons/) 的浏览器适配 | 固定 commit 的 OnscripterYuri C++ 检出 | [`build-ons.sh`](../.github/scripts/build-ons.sh) |
-| KiriKiri | [`ports/krkr/`](../ports/krkr/README.md) 的 VLFS 接缝、vcpkg overlays、配方；[`runtime-kag`](../packages/runtime-kag/) 的 iframe 接线及解释器回退 | 固定 commit 的 kirikiroid2-web C++ 检出及 submodules | [`build-krkr.sh`](../.github/scripts/build-krkr.sh) |
-| Artemis（出货） | [`ports/artemis/compat-web/`](../ports/artemis/compat-web/) 的配方、补丁集与 overlay；[`runtime-artemis/src/compat/`](../packages/runtime-artemis/src/compat/) 的 worker 与页侧宿主 | **固定 commit 的 artemis-compat C++ 源码**（pin `9f62262…`），**不使用官方 SDK 字节** | [`build-artemis-compat.sh`](../.github/scripts/build-artemis-compat.sh) |
+| ONScripter | [`ports/ons/`](../ports/ons/README.md) 的事件 shim、配方及 harness；[`engine-core-onscripter-yuri`](../packages/engine/core/onscripter-yuri/) 的浏览器适配 | 固定 commit 的 OnscripterYuri C++ 检出 | [`build-ons.sh`](../.github/scripts/build-ons.sh) |
+| KiriKiri | [`ports/krkr/`](../ports/krkr/README.md) 的 VLFS 接缝、vcpkg overlays、配方；[`engine-core-kirikiroid2-web`](../packages/engine/core/kirikiroid2-web/) 的 iframe 接线及 [`engine-interpreter-kirikiri-kag3`](../packages/engine/interpreter/kirikiri-kag3/) 解释器回退 | 固定 commit 的 kirikiroid2-web C++ 检出及 submodules | [`build-krkr.sh`](../.github/scripts/build-krkr.sh) |
+| Artemis（出货） | [`ports/artemis/compat-web/`](../ports/artemis/compat-web/) 的配方、补丁集与 overlay；[`engine-core-artemis-compat/src/compat/`](../packages/engine/core/artemis-compat/src/compat/) 的 worker 与页侧宿主 | **固定 commit 的 artemis-compat C++ 源码**（pin `9f62262…`），**不使用官方 SDK 字节** | [`build-artemis-compat.sh`](../.github/scripts/build-artemis-compat.sh) |
 | Artemis（历史 / 诊断） | [`ports/artemis/src/`](../ports/artemis/src/) 的手写 C++ 产品、台账、拼接器 | 已跟踪官方 asyncify wasm，经固定 WABT 转译后替换部分函数体；未替换生成体仍保留 | [`build-artemis-bridge.sh`](../.github/scripts/build-artemis-bridge.sh)（**仅手动 dispatch**） |
 
 ONS / KiriKiri 没有把整份上游 C++ 复制进本仓库，但固定输入和适配源码都在仓库中。
@@ -33,9 +33,9 @@ Artemis 两条路线互不共用输入：出货路线是 GPL-3.0 上游源码的
 
 | 引擎 | 当前 GitHub 构建交付形状 | 必须保留的限制 |
 | --- | --- | --- |
-| ONS | runtime-ons private tarball，装入本次引擎资产和 workspace 依赖闭包 | worker 同步取数需要 SharedArrayBuffer；部署须正确设置隔离响应头 |
-| KiriKiri | runtime-kag private tarball + 单独的六个引擎页面资产 | tarball 未内置这六个文件；需要部署页面并配置 `pageUrl`，不是完全自包含包 |
-| Artemis（出货） | `dist/artemis-compat/`：`artemis-compat.js`、`artemis-compat.wasm`、对应源 `artemis-compat-source.tar.gz`(+`.sha256`)、`LICENSE`、`THIRD_PARTY_NOTICES.md`；runtime-artemis tarball 的 `assets/` 装入本次两个模块 | **`publish: false`**，不发 Release；已编译但**未验收** —— 检查点（`artc_web_save`/`artc_web_load`）与音频未验证（该目标音频是上游 stub），**不能说"可玩"** |
+| ONS | engine-core-onscripter-yuri private tarball，装入本次引擎资产和 workspace 依赖闭包 | worker 同步取数需要 SharedArrayBuffer；部署须正确设置隔离响应头 |
+| KiriKiri | engine-core-kirikiroid2-web private tarball + 单独的六个引擎页面资产 | tarball 未内置这六个文件；需要部署页面并配置 `pageUrl`，不是完全自包含包 |
+| Artemis（出货） | `dist/artemis-compat/`：`artemis-compat.js`、`artemis-compat.wasm`、对应源 `artemis-compat-source.tar.gz`(+`.sha256`)、`LICENSE`、`THIRD_PARTY_NOTICES.md`；engine-core-artemis-compat tarball 的 `assets/` 装入本次两个模块 | **`publish: false`**，不发 Release；已编译但**未验收** —— 检查点（`artc_web_save`/`artc_web_load`）与音频未验证（该目标音频是上游 stub），**不能说"可玩"** |
 | Artemis（历史） | bridge.wasm（asyncify 手写引擎 + SDK 转译） | 仅手动 dispatch；SDK 再分发问题未解决；**不是出货路径** |
 
 全部运行时包保持 `private: true`、GPL-3.0-or-later，不发布 npm。
@@ -55,7 +55,7 @@ Artemis 两条路线互不共用输入：出货路线是 GPL-3.0 上游源码的
 
 **已有资产例外不自动删掉：**
 
-- [`runtime-ons/assets/`](../packages/runtime-ons/assets/) 的三个引擎资产已跟踪；更新需另行验收。
+- [`engine/core/onscripter-yuri/assets/`](../packages/engine/core/onscripter-yuri/assets/) 的三个引擎资产已跟踪；更新需另行验收。
 - [`artemis/vendor/artemis-sdk/`](../ports/artemis/vendor/artemis-sdk/) 的九个官方参考文件已跟踪。
   其中 [`Copyright.txt`](../ports/artemis/vendor/artemis-sdk/Copyright.txt) 对 Artemis 本体保留全部权利，
   依赖库的许可不能作为整个 SDK 的再分发授权；保留文件也不是授权已解决。
@@ -73,7 +73,7 @@ SDK、转译剩余体和行为重表达产品的再分发范围需要独立核�
 占位、头文件和历史映射要区分；拼接器按函数编号收集存在的产品，后面的有效映射覆盖前面的。
 当前工作树有 **340 个映射函数 / 340 个 C++ 产品文件**。
 
-以下四个新产品还没有进入当前 Git 索引，提交时必须显式纳入，不能只执行 `git add -u`：
+此前未进索引的四个新产品现已全部在 Git 索引中（`git ls-files` 可核）；今后新增的产品仍须显式纳入，`npm run check:sources` 会对未进索引的必需文件发出警告：
 
 - [`compositor_effect.cpp`](../ports/artemis/src/render/compositor_effect.cpp)
 - [`compositor_hide.cpp`](../ports/artemis/src/render/compositor_hide.cpp)

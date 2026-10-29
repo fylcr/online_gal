@@ -37,10 +37,10 @@ function repo() {
     return git(['rev-parse', 'HEAD']).toString().trim();
   };
   commit('README.md', 'base\n');
-  mkdirSync(join(dir, 'packages/runtime-ons'), { recursive: true });
-  mkdirSync(join(dir, 'packages/runtime-kag'), { recursive: true });
-  writeFileSync(join(dir, 'packages/runtime-ons/package.json'), '{"version":"0.1.3"}\n');
-  writeFileSync(join(dir, 'packages/runtime-kag/package.json'), '{"version":"0.1.1"}\n');
+  mkdirSync(join(dir, 'packages/engine/core/onscripter-yuri'), { recursive: true });
+  mkdirSync(join(dir, 'packages/engine/core/kirikiroid2-web'), { recursive: true });
+  writeFileSync(join(dir, 'packages/engine/core/onscripter-yuri/package.json'), '{"version":"0.1.3"}\n');
+  writeFileSync(join(dir, 'packages/engine/core/kirikiroid2-web/package.json'), '{"version":"0.1.1"}\n');
   git(['add', '--', 'packages']);
   git(['commit', '-q', '-m', 'packages']);
   return { dir, git, commit, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
@@ -53,7 +53,7 @@ test('release matrix reports every approved 0/1 row', () => {
   const tree = repo();
   try {
     const onsBefore = tree.commit('docs/readme.md', 'docs\n');
-    const onsAfter = tree.commit('packages/runtime-ons/src/index.ts', 'export {}\n');
+    const onsAfter = tree.commit('packages/engine/core/onscripter-yuri/src/index.ts', 'export {}\n');
     const ons = planPublication({ engine: 'ons', mode: 'push', clock, before: onsBefore, after: onsAfter, repo: tree.dir, inventory: empty });
     row('runtime ONS-only', ons.build, ons.release);
     const krkr = planPublication({ engine: 'krkr', mode: 'push', clock, before: onsBefore, after: onsAfter, repo: tree.dir, inventory: empty });
@@ -89,8 +89,8 @@ test('release matrix reports every approved 0/1 row', () => {
     });
     row('distinct +metadata', otherMetadata.build, otherMetadata.release);
 
-    const renamedBefore = tree.commit('packages/runtime-ons/src/old.ts', 'old\n');
-    tree.git(['mv', 'packages/runtime-ons/src/old.ts', 'packages/runtime-ons/src/renamed.ts']);
+    const renamedBefore = tree.commit('packages/engine/core/onscripter-yuri/src/old.ts', 'old\n');
+    tree.git(['mv', 'packages/engine/core/onscripter-yuri/src/old.ts', 'packages/engine/core/onscripter-yuri/src/renamed.ts']);
     tree.git(['commit', '-q', '-m', 'rename']);
     const renamedAfter = tree.git(['rev-parse', 'HEAD']).toString().trim();
     const renamed = planPublication({ engine: 'ons', mode: 'push', clock, before: renamedBefore, after: renamedAfter, repo: tree.dir, inventory: empty });
@@ -145,7 +145,7 @@ test('release matrix reports every approved 0/1 row', () => {
       error.status = 1;
       throw error;
     }
-    if (args[0] === '-e') return 'online-gal-runtime-ons-1.0.0+a.tgz\n';
+    if (args[0] === '-e') return 'online-gal-engine-core-onscripter-yuri-1.0.0+a.tgz\n';
     return '';
   };
   const lookup = () => empty;
@@ -155,7 +155,7 @@ test('release matrix reports every approved 0/1 row', () => {
       RELEASE_ENGINE: 'ons', SELECTED_VERSION: '1.0.0+a', SELECTED_TAG: 'engine-ons-1.0.0+a',
       REPOSITORY: 'example/online_gal', UPSTREAM_REPOSITORY: 'https://example.invalid/ons', UPSTREAM_COMMIT: 'a'.repeat(40),
       TARGET_SHA: 'b'.repeat(40), RUN_ID: '1', SERVER_URL: 'https://github.example', ARTIFACT_DIR: 'dist/ons',
-      ARTIFACT_FILES: 'onsyuri.wasm', PACKAGE_DIR: 'packages/runtime-ons', GITHUB_WORKSPACE: ROOT,
+      ARTIFACT_FILES: 'onsyuri.wasm', PACKAGE_DIR: 'packages/engine/core/onscripter-yuri', GITHUB_WORKSPACE: ROOT,
     }, { execFile: fake, lookup });
   } catch (cause) {
     kept = /kept engine-ons-1\.0\.0\+a/.test(cause.message);
@@ -171,8 +171,8 @@ test('release matrix reports every approved 0/1 row', () => {
 test('same-minute rerun and unknown auth fail before the build marker', () => {
   const tree = repo();
   try {
-    const before = tree.commit('packages/runtime-ons/src/index.ts', 'a\n');
-    const after = tree.commit('packages/runtime-ons/src/index.ts', 'b\n');
+    const before = tree.commit('packages/engine/core/onscripter-yuri/src/index.ts', 'a\n');
+    const after = tree.commit('packages/engine/core/onscripter-yuri/src/index.ts', 'b\n');
     const env = {
       RELEASE_ENGINE: 'ons', EVENT_NAME: 'push', PUBLISH: 'true', RANGE_BEFORE: before, RANGE_AFTER: after,
       REPOSITORY: 'example/online_gal', GITHUB_WORKSPACE: tree.dir,
@@ -197,7 +197,7 @@ test('push preflight looks up the generated version and rejects before returning
   const tree = repo();
   try {
     const before = tree.commit('docs/one.md', 'one\n');
-    const after = tree.commit('packages/runtime-ons/src/index.ts', 'export {}\n');
+    const after = tree.commit('packages/engine/core/onscripter-yuri/src/index.ts', 'export {}\n');
     const seen = [];
     const env = {
       RELEASE_ENGINE: 'ons', EVENT_NAME: 'push', PUBLISH: 'true',
@@ -252,7 +252,7 @@ test('a second collision aborts before any release is created', () => {
     REPOSITORY: 'example/online_gal', UPSTREAM_REPOSITORY: 'https://example.invalid/ons',
     UPSTREAM_COMMIT: 'a'.repeat(40), TARGET_SHA: 'b'.repeat(40), RUN_ID: '1',
     SERVER_URL: 'https://github.example', ARTIFACT_DIR: 'dist/ons', ARTIFACT_FILES: 'onsyuri.wasm',
-    PACKAGE_DIR: 'packages/runtime-ons', GITHUB_WORKSPACE: ROOT,
+    PACKAGE_DIR: 'packages/engine/core/onscripter-yuri', GITHUB_WORKSPACE: ROOT,
   }, { execFile: fake, lookup: () => existing }), /exact identity exists/);
   assert.deepEqual(calls, []);
 });

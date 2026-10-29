@@ -5,8 +5,9 @@ platform ships, one call that turns a game directory into an engine choice, and 
 answer when nothing can run the game.
 
 It is not a new layer over the providers — the per-engine packages
-(`runtime-kag`, `runtime-ons`, `runtime-siglus`, `runtime-artemis`, `runtime-tyrano`,
-`runtime-web`) still own their own probes, decoders and runtimes. This package decides
+(`engine-core-kirikiroid2-web`, `engine-interpreter-kirikiri-kag3`, `engine-core-onscripter-yuri`,
+`engine-interpreter-onscripter`, `engine-shell-siglus`, `engine-core-artemis-compat`,
+`engine-core-tyranobuilder`, `engine-core-web-html5`, under `packages/engine/<kind>/<engine>/`) still own their own probes, decoders and runtimes. This package decides
 *which* provider to believe and refuses to pretend.
 
 ## What it is for
@@ -36,14 +37,14 @@ uses, and it is the reason a broad `web` match can never outrank a specific engi
 
 | priority | runtimeId | package | kind | inputs it recognises (`accepts`) | availability |
 | --- | --- | --- | --- | --- | --- |
-| 105 | `krkr2-wasm` | `runtime-kag` | engine | `.xp3`, `startup.tjs`, `Config.tjs`, `first.ks`, `System.tjs` | runnable |
-| 100 | `krkr2` | `runtime-kag` | interpreter | same as `krkr2-wasm` | runnable |
-| 95 | `onscripter-wasm` | `runtime-ons` | engine | `nscript.dat`, `nscript.___`, `nscr_sec.dat`, `onscript.nt2`, `onscript.nt3`, `.nsa` | runnable |
-| 90 | `onscripter` | `runtime-ons` | interpreter | same as `onscripter-wasm` | runnable |
-| 90 | `siglus` | `runtime-siglus` | shell | `Scene.pck`, `Gameexe.ini`, `Gameexe.dat` | **unavailable** |
-| 85 | `artemis` | `runtime-artemis` | engine | `root.pfs`, `system.ini`, `boot.ini`, `system/first.iet`, `.pfs`, `.iet` | configuration-based |
-| 80 | `tyrano` | `runtime-tyrano` | engine | `tyrano/`, `data/scenario/first.ks`, `tyrano/plugins/kag/kag.js` | runnable |
-| 20 | `web` | `runtime-web` | engine | `index.html`, `js/rpg_core.js`, `js/rmz_core.js` | runnable |
+| 105 | `krkr2-wasm` | `engine-core-kirikiroid2-web` | engine | `.xp3`, `startup.tjs`, `Config.tjs`, `first.ks`, `System.tjs` | runnable |
+| 100 | `krkr2` | `engine-interpreter-kirikiri-kag3` | interpreter | same as `krkr2-wasm` | runnable |
+| 95 | `onscripter-wasm` | `engine-core-onscripter-yuri` | engine | `nscript.dat`, `nscript.___`, `nscr_sec.dat`, `onscript.nt2`, `onscript.nt3`, `.nsa` | runnable |
+| 90 | `onscripter` | `engine-interpreter-onscripter` | interpreter | same as `onscripter-wasm` | runnable |
+| 90 | `siglus` | `engine-shell-siglus` | shell | `Scene.pck`, `Gameexe.ini`, `Gameexe.dat` | **unavailable** |
+| 85 | `artemis` | `engine-core-artemis-compat` | engine | `root.pfs`, `system.ini`, `boot.ini`, `system/first.iet`, `.pfs`, `.iet` | configuration-based |
+| 80 | `tyrano` | `engine-core-tyranobuilder` | engine | `tyrano/`, `data/scenario/first.ks`, `tyrano/plugins/kag/kag.js` | runnable |
+| 20 | `web` | `engine-core-web-html5` | engine | `index.html`, `js/rpg_core.js`, `js/rmz_core.js` | runnable |
 
 `inputs` is each provider's own `accepts` list, exposed as `EngineDescriptor.accepts` — it is
 what to check first when a game is reported as unknown. Note the two ONScripter rows and the
@@ -68,12 +69,12 @@ recognised as Artemis with high confidence, and a Siglus directory as Siglus. Ne
 runnable out of the box, but not for the same reason, and the difference is the subject
 of this repository's Artemis work:
 
-- **artemis** — the provider is **configuration-based**, not empty. `packages/runtime-artemis`
+- **artemis** — the provider is **configuration-based**, not empty. `packages/engine/core/artemis-compat`
   provides an independent asyncify session/host path: it instantiates a caller-configured asyncify
   WebAssembly bridge itself and renders into the host canvas, with the browser service layer
-  (`runtime-artemis/src/browser-services.ts`) supplying the `EM_ASM` / `syncfs` / IndexedDB /
+  (`engine/core/artemis-compat/src/browser-services.ts`) supplying the `EM_ASM` / `syncfs` / IndexedDB /
   video-element seams the guest reaches for, and real WebAudio for the OpenAL rows. Its
-  `availability` getter (`runtime-artemis/src/runtime.ts:1613`) reads
+  `availability` getter (`engine/core/artemis-compat/src/runtime.ts`) reads
   `configuredWasm === null ? 'unavailable' : 'runnable'` — so it is `unavailable` until a
   bridge is supplied, and becomes `runnable` the moment one is. Supply the deployment-wide
   fallback with `configureArtemisWasm({ wasm })`, or a per-game `options.gameConfig.wasm` /
@@ -83,7 +84,7 @@ of this repository's Artemis work:
   nothing, because availability is read from the configured binary and a session never routes
   through that list.
 - **siglus** — there is no WebAssembly build of RFVP or `siglus_rs` at all
-  (`runtime-siglus/src/runtime.ts`), so there is no configuration that makes it run.
+  (`engine/shell/siglus/src/runtime.ts`), so there is no configuration that makes it run.
 
 Two things the Artemis row must **not** be read as claiming. The official SDK JavaScript is a
 **diagnostic reference only, not the shipping path**: this runtime does not load, and does not
@@ -164,6 +165,12 @@ Outside it, the CI-produced tarballs are the interface. `.github/scripts/make-pa
 stages any package into a standard npm tarball with its dependency closure vendored in, and the
 release URL is the dependency:
 
+The three engine URLs below are releases published before the 2026-10 rename to
+`packages/engine/<kind>/<engine>/`, so they keep the old `runtime-*` names; a future build of the
+same packages produces `online-gal-engine-core-onscripter-yuri-<version>.tgz`,
+`online-gal-engine-core-kirikiroid2-web-<version>.tgz` and
+`online-gal-engine-core-artemis-compat-<version>.tgz`.
+
 ```jsonc
 {
   "dependencies": {
@@ -182,7 +189,7 @@ release URL is the dependency:
 
 Those URLs are *examples derived from the versions currently in the manifests*: the aggregate line
 carries `packages/engines/package.json`'s **0.1.8**, and the artemis line carries the **0.1.7** of
-`packages/runtime-artemis/package.json`. The previous release pair was engines **0.1.7** and artemis
+`packages/engine/core/artemis-compat/package.json`. The previous release pair was engines **0.1.7** and artemis
 **0.1.6**, as of commit `db70bd0`. Each URL spells out what those manifests' `version` fields would
 name on the next release; they are not a claim that either URL resolves, and not a resolution check
 of any kind.
@@ -215,7 +222,7 @@ import entry and SDK stack helpers; it still awaits its build, download and real
 Root cause and licence clearance are both unclaimed here. The aggregate's own 0.1.0 was
 published with the LF checkout form of `onsyuri.html` and
 then withdrawn, because the aggregate is the one tarball that vendors the committed copy rather than
-a fresh build (see the note on `packages/runtime-ons/assets/**` in `.gitattributes`).
+a fresh build (see the note on `packages/engine/core/onscripter-yuri/assets/**` in `.gitattributes`).
 
 That withdrawal is why the packer now checks the engine ledger itself. `ports/lib/engine-artifacts.json`
 pins every engine artefact by size and sha256, and those hashes check the bytes that ship — but they
@@ -223,7 +230,7 @@ only mean something if something compares them, and for a while nothing did. So 
 verifies every ledger entry that is committed anywhere under the engine-asset directories before it
 stages anything, and exits `2` naming the file, the two digests, the CR count and the fix. The rule
 it enforces is worth stating once: **the ledger is over the committed bytes, not the worktree's**, so
-`packages/runtime-ons/assets/**` is marked `-text -diff` in `.gitattributes` — an engine artefact is a
+`packages/engine/core/onscripter-yuri/assets/**` is marked `-text -diff` in `.gitattributes` — an engine artefact is a
 build output whose hash-pinned bytes *are* the substance, and `* text=auto eol=lf` must not get to
 decide them. If you change them, commit the bytes **and** bump the version of every package that
 vendors them. The check is skipped for ledger entries that exist only as build output (the six krkr
@@ -242,7 +249,7 @@ them, and a CRLF checkout of `8482272` now packs to the same `2,553,631` B /
 
 A tarball per engine is the right default here, because the engine workflows are the thing that
 actually build these packages and they build one engine each. Note that only the ONS tarball carries
-its engine bytes: `@online-gal/runtime-kag` and `@online-gal/runtime-artemis` load their engine from
+its engine bytes: `@online-gal/engine-core-kirikiroid2-web` and `@online-gal/engine-core-artemis-compat` load their engine from
 a URL the caller supplies, so adding `--assets-from` to those workflows would put megabytes in the
 archive that no code path reads.
 
@@ -260,11 +267,11 @@ compiling anything locally. See `docs/fetch-engine-artifacts.md` for the tarball
 reproducibility guarantees, and the token a consumer needs on this private repository.
 
 One consequence of that vendoring is worth knowing before it surprises someone. The aggregate
-package's copy of `runtime-ons` is the one committed in this repository, engine bytes included, and
+package's copy of `engine-core-onscripter-yuri` is the one committed in this repository, engine bytes included, and
 those four asset files are byte-identical to what `ports/lib/engine-artifacts.json` records today
 (`onsyuri.html` 24,399 B, `onsyuri.js` 198,947 B, `onsyuri.wasm` 4,660,610 B). So the two packages
 agree as things stand. They take the bytes from different places, though: the aggregate has no
-`--assets-from`, so it takes whatever is committed, while `@online-gal/runtime-ons` takes the fresh
+`--assets-from`, so it takes whatever is committed, while `@online-gal/engine-core-onscripter-yuri` takes the fresh
 build. Rebuild ONS and then either commit the new assets or bump both packages together — otherwise
 the aggregate would keep shipping the previous engine under a version that claims otherwise.
 
@@ -300,7 +307,7 @@ thing this document claims it is:
 - all ten vendored packages resolve *and* `import()` **from inside the archive**, while the
   consumer's own top level cannot resolve any of them (`MODULE_NOT_FOUND`) — the executable form of
   "a vendored copy is the only copy";
-- `@online-gal/runtime-artemis`'s `dist/host/{boot,eh,runtime,asyncify,fd,bridge}.js` all
+- `@online-gal/engine-core-artemis-compat`'s `dist/host/{boot,eh,runtime,asyncify,fd,bridge}.js` all
   deep-import, which is the part of the public surface a flat `exports` map does not cover;
 - the repository's `pnpm-lock.yaml` is unchanged afterwards.
 
