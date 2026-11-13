@@ -1,8 +1,9 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Player from '../components/Player.svelte';
 ---
 
-<Layout title="游玩 · Online Gal" bare>
-  <Player client:only="svelte" />
+<Layout title="播放" bare>
+  <div class="flex min-h-screen items-center justify-center bg-neutral text-neutral-content">
+    <a href="/" class="link">返回游戏库</a>
+  </div>
 </Layout>

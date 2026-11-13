@@ -1,0 +1,86 @@
+---
+/**
+ * Dock, outside `#swup` so it stays mounted across page transitions.
+ *
+ * Layout follows the viewport's aspect ratio, not its width (Tailwind's
+ * `landscape:` / `portrait:` = `@media (orientation: …)`):
+ * - landscape (width > height, "desktop"): vertical, left edge, vertically centred;
+ * - portrait (height ≥ width, "mobile"): horizontal, bottom, centred, floating
+ *   above the edge and the device safe area.
+ * The current page is marked
+ * server-side here and updated client-side by `markCurrentNav` in
+ * `src/lib/swup.ts` (it matches `a[data-nav]`).
+ *
+ * The highlight is one element that slides via `--dock-i`; the same function
+ * keeps that variable in sync, so the dock has no JS of its own. Icons are
+ * inline SVG so no icon library is needed.
+ */
+const path = Astro.url.pathname.replace(/\/+$/, '') || '/';
+
+const items = [
+  {
+    href: '/',
+    label: '游戏库',
+    // 2×2 grid
+    icon: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
+  },
+  {
+    href: '/settings',
+    label: '设置',
+    // sliders
+    icon: 'M4 6h16M4 12h16M4 18h16M15 4v4M9 10v4M13 16v4',
+  },
+];
+
+/** Same rule as `matchesNav` in `src/lib/swup.ts`: `/` exact, others also cover sub-pages. */
+const matches = (href: string) => (href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`));
+
+/** Index of the current page, -1 when none (the highlight is hidden). */
+const active = items.findIndex((item) => matches(item.href));
+---
+
+<nav
+  aria-label="主导航"
+  class="fixed z-20 landscape:top-1/2 landscape:left-6 landscape:-translate-y-1/2 portrait:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] portrait:left-1/2 portrait:-translate-x-1/2"
+>
+  <ul
+    data-dock
+    data-idle={active < 0 ? '' : undefined}
+    style={`--dock-i: ${Math.max(active, 0)}`}
+    class="group relative flex gap-1 rounded-2xl bg-base-200 p-1 landscape:flex-col portrait:flex-row"
+  >
+    {/*
+      One shared highlight that slides to the active item along the dock's axis.
+      Step = size-10 + gap-1 = 2.75rem.
+    */}
+    <span
+      aria-hidden="true"
+      class="pointer-events-none absolute top-1 left-1 size-10 rounded-xl bg-base-content/12 transition-[translate,opacity] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-data-idle:opacity-0 motion-reduce:transition-none landscape:translate-y-[calc(var(--dock-i)*2.75rem)] portrait:translate-x-[calc(var(--dock-i)*2.75rem)]"
+    />
+    {
+      items.map((item) => (
+        <li class="tooltip relative landscape:tooltip-right portrait:tooltip-top" data-tip={item.label}>
+          <a
+            href={item.href}
+            data-nav
+            aria-label={item.label}
+            aria-current={matches(item.href) ? 'page' : undefined}
+            class="flex size-10 items-center justify-center rounded-xl transition-colors not-aria-[current=page]:hover:bg-base-content/5"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              class="size-5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="square"
+              aria-hidden="true"
+            >
+              <path d={item.icon} />
+            </svg>
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</nav>

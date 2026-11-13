@@ -1,0 +1,25 @@
+{
+  "name": "@online-gal/plugin-system",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "build:site": "node scripts/build-site.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@online-gal/plugin-host": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "0.27.7"
+  }
+}

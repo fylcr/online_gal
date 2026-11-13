@@ -1,201 +1,126 @@
 ---
+/**
+ * Site shell: header, nav and footer are static HTML; only `#swup` is swapped
+ * on navigation. The player page uses `bare` and is excluded from swup (see
+ * `src/lib/swup.ts`), so leaving or entering it is always a full page load.
+ */
 import '../styles/global.css';
+import { Image } from 'astro:assets';
+import logo from '../assets/logo.webp';
+import Dock from '../components/Dock.astro';
+
+interface Crumb {
+  label: string;
+  /** Omitted on the last crumb (the current page). */
+  href?: string;
+}
 
 interface Props {
-  title?: string;
-  /** Hides the header for full-bleed surfaces such as the player. */
+  /** Document title. */
+  title: string;
+  /** Header heading; defaults to `title`. */
+  heading?: string;
+  /**
+   * Breadcrumbs, shown only when given (settings sub-pages). `root` is the
+   * page the leading `>` links to; `trail` is the levels below it, current last.
+   */
+  breadcrumbs?: { root: string; trail: Crumb[] };
+  /** Player page: no header/footer, full-viewport content. */
   bare?: boolean;
 }
 
-const { title = 'Online Gal', bare = false } = Astro.props;
-const path = Astro.url.pathname;
+const { title, bare = false, breadcrumbs } = Astro.props;
+const heading = Astro.props.heading ?? title;
 ---
 
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="swiss">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title}</title>
-    <meta
-      name="description"
-      content="浏览器环境的线上多引擎视觉小说模拟器：KiriKiri/KAG3、ONScripter、TyranoBuilder 与 HTML5 游戏。"
-    />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    {/* viewport-fit=cover makes env(safe-area-inset-*) report the notch / home bar (portrait dock). */}
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title} · online_gal</title>
   </head>
-  <body>
+  <body class="min-h-screen bg-base-100 font-sans text-base-content antialiased">
     {
-      !bare && (
-        <header class="site-header">
-          <div class="site-header__inner">
-            <a class="brand" href="/">
-              <span class="brand__mark" aria-hidden="true">OG</span>
-              <span class="brand__text">
-                <strong>Online Gal</strong>
-                <small>线上视觉小说模拟器</small>
-              </span>
-            </a>
-            <nav class="site-nav" aria-label="主导航">
-              <a href="/" class:list={['site-nav__link', { 'is-active': path === '/' }]}>
-                游戏库
-              </a>
-              <a
-                href="/settings"
-                class:list={['site-nav__link', { 'is-active': path.startsWith('/settings') }]}
-              >
-                设置
-              </a>
-              <a
-                href="/engines"
-                class:list={['site-nav__link', { 'is-active': path.startsWith('/engines') }]}
-              >
-                引擎
-              </a>
-            </nav>
+      bare ? (
+        <slot />
+      ) : (
+        <div class="flex min-h-screen flex-col">
+          {/*
+            Desktop vs mobile is decided by aspect ratio, not width: `landscape:` (width > height)
+            is desktop, `portrait:` (height ≥ width) is mobile.
+            Landscape grid: outer margin 24px (px-6). Column 1 = logo / dock, 48px wide.
+            Gutter 48px. Column 2 starts at 120px (landscape:pl-30): page title, content, footer.
+            Portrait: single column at px-6; the dock floats at the bottom, so the page reserves
+            room below the footer (dock 48px + 24px offset + 24px gap + safe area).
+          */}
+          <header>
+            <div class="flex h-24 items-center justify-between px-6">
+              <div class="flex items-center">
+                <a href="/" class="flex shrink-0 items-center" aria-label="online_gal 首页">
+                  <Image src={logo} alt="" width={48} height={48} densities={[1, 2]} class="size-12" loading="eager" />
+                </a>
+                {/* Swup container: replaced on every visit, fades with the content. */}
+                <h1 id="page-title" class="transition-fade ml-6 text-3xl font-bold tracking-tight landscape:ml-12">
+                  {heading}
+                </h1>
+              </div>
+              {/* Right-side button group: empty for now, filled as features land. */}
+              <div class="flex items-center gap-2" role="group" aria-label="操作" />
+            </div>
+          </header>
+
+          {/*
+            Breadcrumbs under the header, on column 2, path-style: `>` is the section root and
+            `/` precedes every level, spaced by gap-x-2 (`> / 音频`, `> / 音频 / 子项`). Swup container, fades with the content. The element is always
+            rendered (swup needs every container on both sides of a visit) and empty when the
+            page has no breadcrumbs.
+          */}
+          <div id="breadcrumbs" class="transition-fade px-6 text-sm landscape:pl-30">
+            {breadcrumbs && (
+              <nav aria-label="面包屑">
+                <ol class="flex flex-wrap items-center gap-x-2 text-base-content/40">
+                  <li>
+                    {breadcrumbs.trail.length === 0 ? (
+                      <span aria-current="page" class="text-base-content">&gt;</span>
+                    ) : (
+                      <a href={breadcrumbs.root} aria-label={heading} class="hover:text-base-content">&gt;</a>
+                    )}
+                  </li>
+                  {breadcrumbs.trail.map((crumb, i) => (
+                    <li class="flex items-center gap-x-2">
+                      <span aria-hidden="true">/</span>
+                      {i < breadcrumbs.trail.length - 1 && crumb.href ? (
+                        <a href={crumb.href} class="hover:text-base-content">{crumb.label}</a>
+                      ) : (
+                        <span aria-current="page" class="text-base-content">{crumb.label}</span>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </nav>
+            )}
           </div>
-        </header>
+
+          <Dock />
+
+          <main id="swup" class="transition-fade w-full flex-1 px-6 pt-6 pb-16 landscape:pl-30">
+            <slot />
+          </main>
+
+          <footer class="border-t border-base-300">
+            <div class="px-6 py-4 text-xs text-base-content/60 landscape:pl-30">
+              GPL-3.0-or-later
+            </div>
+          </footer>
+        </div>
       )
     }
-    <main class:list={['site-main', { 'site-main--bare': bare }]}>
-      <slot />
-    </main>
-    <footer class:list={['site-footer', { 'site-footer--hidden': bare }]}>
-      <p>
-        引擎运行于浏览器本地，游戏文件不会上传。基于
-        <a href="https://github.com/AetherKiri/AetherKiri" rel="noreferrer noopener" target="_blank"
-          >AetherKiri</a
-        >
-        的多运行时调度与
-        <a
-          href="https://github.com/Weiss-UltimateSavior/Tyranor-Next"
-          rel="noreferrer noopener"
-          target="_blank">Tyranor-Next</a
-        >
-        的引擎识别表构建。
-      </p>
-    </footer>
+    <script>
+      import { startSwup } from '../lib/swup';
+      startSwup();
+    </script>
   </body>
 </html>
-
-<style>
-  .site-header {
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    height: var(--header-height);
-    background: rgba(10, 12, 17, 0.82);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .site-header__inner {
-    max-width: var(--content-max);
-    height: 100%;
-    margin: 0 auto;
-    padding: 0 24px;
-    display: flex;
-    align-items: center;
-    gap: 32px;
-  }
-
-  .brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--text);
-    text-decoration: none;
-  }
-
-  .brand:hover {
-    text-decoration: none;
-  }
-
-  .brand__mark {
-    display: grid;
-    place-items: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    background: linear-gradient(140deg, var(--accent), #7d5bef);
-    color: #05101f;
-    font-weight: 800;
-    font-size: 0.82rem;
-    letter-spacing: 0.02em;
-  }
-
-  .brand__text {
-    display: flex;
-    flex-direction: column;
-    line-height: 1.15;
-  }
-
-  .brand__text small {
-    color: var(--text-dim);
-    font-size: 0.72rem;
-  }
-
-  .site-nav {
-    display: flex;
-    gap: 4px;
-    margin-left: auto;
-  }
-
-  .site-nav__link {
-    padding: 7px 14px;
-    border-radius: var(--radius-sm);
-    color: var(--text-muted);
-    text-decoration: none;
-    font-size: 0.92rem;
-    transition: background 0.14s ease, color 0.14s ease;
-  }
-
-  .site-nav__link:hover {
-    background: var(--bg-hover);
-    color: var(--text);
-    text-decoration: none;
-  }
-
-  .site-nav__link.is-active {
-    background: var(--accent-soft);
-    color: var(--accent-text);
-  }
-
-  .site-main {
-    max-width: var(--content-max);
-    margin: 0 auto;
-    padding: 28px 24px 64px;
-  }
-
-  .site-main--bare {
-    max-width: none;
-    padding: 0;
-  }
-
-  .site-footer {
-    max-width: var(--content-max);
-    margin: 0 auto;
-    padding: 24px;
-    border-top: 1px solid var(--border);
-    color: var(--text-dim);
-    font-size: 0.82rem;
-  }
-
-  .site-footer--hidden {
-    display: none;
-  }
-
-  @media (max-width: 640px) {
-    .site-header__inner {
-      padding: 0 14px;
-      gap: 12px;
-    }
-
-    .brand__text small {
-      display: none;
-    }
-
-    .site-main {
-      padding: 20px 14px 48px;
-    }
-  }
-</style>

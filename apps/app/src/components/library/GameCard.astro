@@ -1,0 +1,98 @@
+---
+/**
+ * One library card. Static markup for layout work; the interactive version
+ * will be a Svelte component fed by `platform.library.list()`.
+ *
+ * Layout idea taken from KunGal's galgame grid (portrait 5:7 cover, small
+ * label chip on the cover, bottom scrim with stats, two-line title). This is
+ * an independent implementation; no KunGal code (AGPL-3.0) is copied.
+ *
+ * Three states (spec `game-library-ui`): playable (link to `/play?id=`),
+ * unsupported in this build, unrecognized. Only playable cards are links, so
+ * there is never a dead "start" affordance.
+ */
+import type { MockGame } from '../../lib/mock-games';
+
+interface Props {
+  game: MockGame;
+}
+
+const { game } = Astro.props;
+const playable = game.status === 'playable';
+const Tag = playable ? 'a' : 'div';
+
+const blocked =
+  game.status === 'unsupported' ? '本测试版不支持' : game.status === 'unrecognized' ? '未识别' : null;
+---
+
+<li>
+  <Tag
+    href={playable ? `/play?id=${encodeURIComponent(game.id)}` : undefined}
+    aria-disabled={playable ? undefined : 'true'}
+    class:list={[
+      'card group overflow-hidden rounded-2xl bg-base-200 transition-colors',
+      playable ? 'hover:bg-base-300' : 'cursor-default',
+    ]}
+  >
+    {/* Cover: portrait 5:7. Inline style only for the per-game mock hue; real cards use the game image. */}
+    <figure class="relative aspect-[5/7] overflow-hidden">
+      <div
+        class:list={[
+          'absolute inset-0 transition-transform duration-300',
+          playable ? 'group-hover:scale-[1.03]' : 'grayscale',
+        ]}
+        style={`background-color: hsl(${game.hue} 35% 78%)`}
+      >
+        <span
+          aria-hidden="true"
+          class="absolute top-1/2 left-1/2 -translate-1/2 text-6xl font-bold text-base-content/15"
+        >
+          {game.title.slice(0, 1)}
+        </span>
+      </div>
+
+      {
+        game.engine && (
+          <span class="absolute top-2 left-2 rounded-full bg-base-100/90 px-2 py-0.5 text-xs font-medium">
+            {game.engine}
+          </span>
+        )
+      }
+
+      {
+        blocked ? (
+          <div class="absolute inset-0 flex items-center justify-center bg-base-100/60">
+            <span class="rounded-full bg-base-content px-3 py-1 text-xs font-medium text-base-100">
+              {blocked}
+            </span>
+          </div>
+        ) : (
+          /* Play time, bottom-right of the cover. Functional scrim: keeps it legible over any image. */
+          <div class="absolute inset-x-0 bottom-0 flex justify-end bg-gradient-to-t from-black/60 to-transparent px-2 pt-6 pb-2 text-xs text-white">
+            <span>{game.playTime ?? '未玩过'}</span>
+          </div>
+        )
+      }
+    </figure>
+
+    {/*
+      Fixed-height caption: the title always reserves two lines (h-10 = 2 × leading-5) and the
+      meta line is always rendered (h-4), so every card in the grid has the same height whatever
+      its title length or state. Grid stretch alone only equalises cards within one row.
+    */}
+    <div class="card-body gap-1 p-2">
+      <h2
+        class:list={[
+          'line-clamp-2 h-10 text-sm leading-5 font-medium',
+          playable ? 'transition-colors group-hover:text-primary' : 'text-base-content/50',
+        ]}
+      >
+        {game.title}
+      </h2>
+      {/* Developer, bottom-left. `mt-auto` pins it to the bottom; always rendered for equal height. */}
+      <p class="mt-auto h-4 truncate text-xs leading-4 text-base-content/50" title={game.developer ?? undefined}>
+        {game.developer ?? ''}
+      </p>
+    </div>
+  </Tag>
+</li>

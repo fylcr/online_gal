@@ -11,6 +11,7 @@
   "scripts": {
     "build:packages": "tsc -b tsconfig.packages.json && node packages/engine/core/onscripter-yuri/scripts/copy-runtime-assets.mjs && node packages/engine/core/artemis-compat/scripts/copy-compat-worker.mjs",
     "build": "npm run build:packages && pnpm --filter @online-gal/app build",
+    "build:site": "npm run build && node packages/plugin-system/scripts/build-site.mjs",
     "dev": "npm run build:packages && pnpm --filter @online-gal/app dev",
     "preview": "pnpm --filter @online-gal/app preview",
     "check": "npm run check:layout && tsc -b tsconfig.packages.json && pnpm --filter @online-gal/app check",

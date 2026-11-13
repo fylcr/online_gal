@@ -3,6 +3,8 @@
   "references": [
     { "path": "packages/engine-api" },
     { "path": "packages/vfs" },
+    { "path": "packages/plugin-host" },
+    { "path": "packages/plugin-system" },
     { "path": "packages/image-codec" },
     { "path": "packages/player-host" },
     { "path": "packages/engine/interpreter/kirikiri-kag3" },

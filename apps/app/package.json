@@ -13,23 +13,31 @@
   "dependencies": {
     "@online-gal/core": "workspace:*",
     "@online-gal/engine-api": "workspace:*",
-    "@online-gal/image-codec": "workspace:*",
-    "@online-gal/player-host": "workspace:*",
     "@online-gal/engine-core-artemis-compat": "workspace:*",
     "@online-gal/engine-core-kirikiroid2-web": "workspace:*",
-    "@online-gal/engine-interpreter-kirikiri-kag3": "workspace:*",
     "@online-gal/engine-core-onscripter-yuri": "workspace:*",
-    "@online-gal/engine-interpreter-onscripter": "workspace:*",
     "@online-gal/engine-core-tyranobuilder": "workspace:*",
     "@online-gal/engine-core-web-html5": "workspace:*",
-    "@online-gal/vfs": "workspace:*"
+    "@online-gal/engine-interpreter-kirikiri-kag3": "workspace:*",
+    "@online-gal/engine-interpreter-onscripter": "workspace:*",
+    "@online-gal/image-codec": "workspace:*",
+    "@online-gal/player-host": "workspace:*",
+    "@online-gal/vfs": "workspace:*",
+    "@swup/a11y-plugin": "5.2.1",
+    "@swup/head-plugin": "2.3.1",
+    "@swup/scripts-plugin": "2.1.0",
+    "swup": "4.10.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
     "@astrojs/svelte": "^9.0.1",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22.10.2",
     "astro": "^7.3.8",
+    "daisyui": "^5.7.50",
+    "sharp": "0.35.5",
     "svelte": "^5.43.6",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.6.3"
   }
 }

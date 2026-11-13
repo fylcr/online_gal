@@ -1,0 +1,8 @@
+{
+  "id": "online-gal.manager",
+  "name": "online-gal 管理器",
+  "description": "官方管理器：游戏库、播放器、引擎与设置。",
+  "apiVersion": 1,
+  "provenance": "official",
+  "role": "manager"
+}

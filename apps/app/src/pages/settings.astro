@@ -1,8 +1,36 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Settings from '../components/Settings.svelte';
+import { SETTINGS_SECTIONS } from '../lib/settings-sections';
 ---
 
-<Layout title="设置 · Online Gal">
-  <Settings client:load />
+<Layout title="设置">
+  <nav aria-label="设置分类" class="mx-auto w-full max-w-2xl">
+    <ul class="divide-y divide-base-300 overflow-hidden rounded-2xl bg-base-200">
+      {
+        SETTINGS_SECTIONS.map((section) => (
+          <li>
+            <a
+              href={`/settings/${section.id}`}
+              class="group flex items-center gap-6 px-6 py-5 transition-colors hover:bg-base-content/5"
+            >
+              <span class="flex-1">
+                <span class="block font-bold">{section.title}</span>
+                <span class="block text-sm text-base-content/60">{section.description}</span>
+              </span>
+              <svg
+                viewBox="0 0 24 24"
+                class="size-4 text-base-content/40 transition-transform group-hover:translate-x-0.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                aria-hidden="true"
+              >
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </nav>
 </Layout>

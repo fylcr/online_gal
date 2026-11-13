@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { defineConfig } from 'astro/config';
 import svelte from '@astrojs/svelte';
+import tailwindcss from '@tailwindcss/vite';
 
 import {
   artemisAssetPlugin,
@@ -151,6 +152,8 @@ if (!ARTEMIS.available) {
 
 export default defineConfig({
   output: 'static',
+  // The engine page was folded into settings; keep old links working.
+  redirects: { '/engines': '/settings/engines' },
   integrations: [svelte(), artemisAssetsIntegration(ARTEMIS)],
   server: {
     host: '127.0.0.1',
@@ -167,6 +170,6 @@ export default defineConfig({
     worker: {
       format: 'es',
     },
-    plugins: [kirikiriBuild(), artemisAssetPlugin(ARTEMIS)],
+    plugins: [tailwindcss(), kirikiriBuild(), artemisAssetPlugin(ARTEMIS)],
   },
 });

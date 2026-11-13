@@ -1,0 +1,30 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { SETTINGS_SECTIONS, type SettingsSection } from '../../lib/settings-sections';
+
+export function getStaticPaths() {
+  return SETTINGS_SECTIONS.map((section) => ({
+    params: { section: section.id },
+    props: { section },
+  }));
+}
+
+interface Props {
+  section: SettingsSection;
+}
+
+const { section } = Astro.props;
+---
+
+<Layout
+  title={`${section.title} · 设置`}
+  heading="设置"
+  breadcrumbs={{ root: '/settings', trail: [{ label: section.title }] }}
+>
+  <section class="mx-auto w-full max-w-2xl">
+    <p class="mb-6 text-sm text-base-content/60">{section.description}</p>
+    <div class="rounded-2xl bg-base-200 px-6 py-5">
+      <p class="text-sm text-base-content/50">待填充</p>
+    </div>
+  </section>
+</Layout>
