@@ -1,0 +1,6 @@
+{
+  "$comment": "The cf CLI revision this package is built from. scripts/fetch-upstream.mjs checks out exactly this commit into .ref/cf; scripts/build.mjs refuses any other.",
+  "repository": "https://github.com/cloudflare/cf.git",
+  "commit": "c240e41bd83591bcf001be1fee094234d154b286",
+  "path": "packages/cli"
+}

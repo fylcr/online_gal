@@ -1,0 +1,27 @@
+{
+  "name": "@online-gal/cf-browser",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "description": "The Cloudflare cf CLI's generated commands, built for the browser (openspec/changes/cf-account-admin).",
+  "exports": {
+    ".": {
+      "types": "./src/public.ts",
+      "default": "./dist/index.js"
+    },
+    "./LICENSE-MIT.txt": "./dist/LICENSE-MIT.txt",
+    "./LICENSE-APACHE.txt": "./dist/LICENSE-APACHE.txt"
+  },
+  "scripts": {
+    "fetch-upstream": "node scripts/fetch-upstream.mjs",
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/typecheck.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-auth": "0.18.4",
+    "@types/yargs": "17.0.35",
+    "esbuild": "0.27.7",
+    "yargs": "18.2.0"
+  }
+}

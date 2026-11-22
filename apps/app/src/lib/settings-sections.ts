@@ -14,5 +14,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: 'audio', title: '音频', description: '音乐、音效、语音音量与静音' },
   { id: 'engines', title: '引擎', description: '本构建可用的引擎与不可用原因' },
   { id: 'data', title: '数据', description: '存档导入导出、游戏库存储' },
+  { id: 'account', title: '账号', description: 'Cloudflare 账号与站点管理' },
   { id: 'advanced', title: '高级', description: '诊断信息' },
 ];

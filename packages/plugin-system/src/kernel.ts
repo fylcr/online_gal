@@ -1,7 +1,10 @@
 import type { PluginManifest } from '@online-gal/plugin-host';
 
+import { CloudflareAccount, CLOUDFLARE } from './account/cloudflare.js';
+import { Vault, type VaultStore } from './account/vault.js';
+import { parseBundle, verifyBundle, type TrustPolicy } from './attest.js';
 import { KernelError } from './errors.js';
-import { PACKAGE_FILE, contentTypeOf, encodePath, parsePackage, safeRelativePath, type PluginPackage } from './format.js';
+import { PACKAGE_FILE, contentTypeOf, encodePath, parsePackage, parsePluginJson, safeRelativePath, type PluginPackage } from './format.js';
 import {
   OFFICIAL_ID_PREFIX,
   formatSource,
@@ -9,6 +12,7 @@ import {
   parseSource,
   type PluginSource,
 } from './sources.js';
+import type { TrustRecord } from './trust-dns.js';
 
 /**
  * The plugin system kernel: the part of the Service Worker that owns installed
@@ -46,6 +50,20 @@ export interface KernelOptions {
   readonly pagesOpen?: () => Promise<boolean>;
   /** Tells open pages about changes (installed, updated, removed). */
   readonly notify?: (message: KernelNotice) => void;
+  /**
+   * Fetches the DNS trust record (design.md K16). Without it attestation is not enforced; with it,
+   * an `attestation-unavailable` failure puts the kernel in restricted mode (K17).
+   */
+  readonly fetchTrustRecord?: () => Promise<TrustRecord>;
+  /**
+   * Where account credentials are sealed (openspec cf-account-admin design.md A4). Without it the
+   * account API answers `account-unavailable`.
+   */
+  readonly vault?: VaultStore;
+  /** The URL of a fetch event's client, used to tell who is asking for the account (design.md A3). */
+  readonly clientUrl?: (clientId: string) => Promise<string | undefined>;
+  /** The site's public host, compared instead of `localhost` by the site-admin check (design.md A6). */
+  readonly siteHost?: string;
   readonly log?: (message: string, error?: unknown) => void;
 }
 
@@ -63,6 +81,8 @@ const STATE_CACHE = 'og-kernel';
 const PLUGIN_CACHE_PREFIX = 'og-plugin:';
 /** Unreferenced plugin caches younger than this may belong to an install in flight. */
 const ORPHAN_GRACE_MS = 60 * 60 * 1000;
+/** How long a fetched DNS trust record is reused; design.md K16 caps it at one hour. */
+const TRUST_CACHE_MS = 60 * 60 * 1000;
 
 /** Headers on everything the kernel serves: the engines need cross-origin isolation. */
 const ISOLATION_HEADERS: ReadonlyArray<readonly [string, string]> = [
@@ -93,10 +113,16 @@ export interface InstalledPlugin extends Generation {
   readonly manifest: PluginManifest;
   /** `official:<id>` or `github:<owner>/<repo>@<tag>`. */
   readonly source: string;
-  /** SHA-256 of the `plugin.json` bytes that were installed. */
+  /** SHA-256 of the content manifest bytes (mf-manifest.json in format 2, plugin.json in format 1). */
   readonly digest: string;
   readonly bytes: number;
   readonly installedAt: number;
+  /**
+   * Whether the package's provenance was checked against the DNS trust record (design.md K17):
+   * `verified`, `unverified` (installed while DNS was unreachable) or `revoked`. Absent when
+   * attestation was not enforced at install time.
+   */
+  readonly attestation?: AttestationStatus;
   /**
    * The generation this one replaced, kept while pages are open so a page
    * loaded before an update can still fetch the files it references.
@@ -117,6 +143,14 @@ const EMPTY_STATE: KernelState = Object.freeze({
   lastUpdateCheck: 0,
   plugins: Object.freeze({}),
 });
+
+export type AttestationStatus = 'verified' | 'unverified' | 'revoked';
+
+/** How provenance is treated for the current install: not enforced, DNS unreachable, or checked against the record. */
+type TrustState =
+  | { readonly mode: 'off' }
+  | { readonly mode: 'restricted' }
+  | { readonly mode: 'verifying'; readonly policy: TrustPolicy };
 
 /** What the official registry (`/registry/index.json`) says about a plugin. */
 export interface RegistryEntry {
@@ -147,6 +181,8 @@ export interface PluginInfo {
   readonly files: number;
   readonly installedAt: number;
   readonly active: boolean;
+  /** See `InstalledPlugin.attestation`. */
+  readonly attestation?: AttestationStatus;
 }
 
 export interface KernelStatus {
@@ -174,6 +210,8 @@ export type Route =
   | { readonly kind: 'plugin'; readonly id: string; readonly path: string }
   | { readonly kind: 'kernel-page' }
   | { readonly kind: 'api'; readonly name: string }
+  /** `/__cf/**`, any method: relayed with the account's token for the official manager only. */
+  | { readonly kind: 'cloudflare'; readonly path: string }
   | { readonly kind: 'not-found' };
 
 /**
@@ -184,10 +222,17 @@ export type Route =
 export function routeRequest(url: URL, method: string, origin: string): Route | null {
   if (url.origin !== origin) return null;
   const path = url.pathname;
-  // The kernel's own script and the registry must always reach the server:
-  // that is how the kernel and the plugins get updated.
-  if (path === '/sw.js' || path.startsWith('/registry/')) return null;
+  // The kernel script and registry must reach the server for updates; function-only registrations do too.
+  // `/__ca/**` is the micro-CA (design.md K18).
+  if (
+    path === '/sw.js' ||
+    path.startsWith('/registry/') ||
+    path === '/__ca' ||
+    path.startsWith('/__ca/')
+  ) return null;
   if (path.startsWith('/__kernel/api/')) return { kind: 'api', name: path.slice('/__kernel/api/'.length) };
+  // The Cloudflare relay (openspec cf-account-admin design.md A3): the kernel adds the token.
+  if (path === '/__cf' || path.startsWith('/__cf/')) return { kind: 'cloudflare', path: `${path}${url.search}` };
   if (method !== 'GET' && method !== 'HEAD') return null;
   if (path === '/__kernel' || path === '/__kernel/') return { kind: 'kernel-page' };
   if (path.startsWith('/__kernel/')) return { kind: 'not-found' };
@@ -274,6 +319,12 @@ const STATUS_BY_CODE: Readonly<Record<string, number>> = {
   'fetch-failed': 502,
   'integrity-failed': 502,
   'storage-missing': 503,
+  'attestation-invalid': 422,
+  'attestation-unavailable': 503,
+  'account-forbidden': 403,
+  'account-signed-out': 401,
+  'account-unavailable': 503,
+  'account-failed': 502,
 };
 
 function json(status: number, body: unknown): Response {
@@ -334,6 +385,9 @@ export class Kernel {
   private readonly lazyInflight = new Map<string, Promise<void>>();
   private readonly openCaches = new Map<string, Promise<Cache>>();
   private autoUpdate: Promise<void> | null = null;
+  /** The last DNS trust record, kept in memory only for now. */
+  private trustCache: { readonly policy: TrustPolicy; readonly at: number } | null = null;
+  private cloudflareAccount: CloudflareAccount | undefined;
 
   constructor(private readonly options: KernelOptions) {
     this.origin = options.origin.replace(/\/$/, '');
@@ -423,6 +477,7 @@ export class Kernel {
       files: plugin.files.length,
       installedAt: plugin.installedAt,
       active: state.activeManager === manifest.id,
+      ...(plugin.attestation === undefined ? {} : { attestation: plugin.attestation }),
     };
   }
 
@@ -476,6 +531,12 @@ export class Kernel {
     activate: boolean,
     knownRegistry: Registry | null,
   ): Promise<InstalledPlugin> {
+    // Third-party code is installed only with a checked provenance; with DNS unreachable there is none,
+    // so only packages the official site distributes go through (design.md K17). Nothing is downloaded.
+    const trust = await this.trustState();
+    if (trust.mode === 'restricted' && source.kind !== 'official') {
+      throw new KernelError('attestation-unavailable', 'the DNS trust record is unreachable, so only plugins distributed by this site can be installed for now');
+    }
     let base: string;
     let expected: RegistryEntry | null = null;
     if (source.kind === 'official') {
@@ -490,20 +551,54 @@ export class Kernel {
       base = githubBase(source, this.githubRaw);
     }
 
-    const packageBytes = await this.fetchBytes(`${base}${PACKAGE_FILE}`);
-    const digest = await sha256(packageBytes);
-    if (expected !== null && digest !== expected.digest) {
-      throw new KernelError('integrity-failed', `${PACKAGE_FILE} does not match the registry digest`, source.kind === 'official' ? source.id : null);
-    }
+    // Fetch and parse the entry point (plugin.json). Format 2 splits the
+    // package: plugin.json only points at mf-manifest.json (and optionally a
+    // bundle). Format 1 inlines everything (GitHub only).
+    const envelopeBytes = await this.fetchBytes(`${base}${PACKAGE_FILE}`);
     let raw: unknown;
     try {
-      raw = JSON.parse(new TextDecoder().decode(packageBytes));
+      raw = JSON.parse(new TextDecoder().decode(envelopeBytes));
     } catch {
       throw new KernelError('package-invalid', `${PACKAGE_FILE} is not valid JSON`);
     }
-    const pkg = parsePackage(raw);
+    const parsed = parsePluginJson(raw);
+
+    let pkg: PluginPackage;
+    let digest: string;
+    let bundlePath: string | undefined;
+    if (parsed.kind === 'envelope') {
+      const manifestBytes = await this.fetchBytes(`${base}${encodePath(parsed.envelope.manifest)}`);
+      digest = await sha256(manifestBytes);
+      if (expected !== null && digest !== expected.digest) {
+        throw new KernelError(
+          'integrity-failed',
+          `${parsed.envelope.manifest} does not match the registry digest`,
+          source.kind === 'official' ? source.id : null,
+        );
+      }
+      let manifestRaw: unknown;
+      try {
+        manifestRaw = JSON.parse(new TextDecoder().decode(manifestBytes));
+      } catch {
+        throw new KernelError('package-invalid', `${parsed.envelope.manifest} is not valid JSON`);
+      }
+      pkg = parsePackage(manifestRaw);
+      bundlePath = parsed.envelope.bundle;
+    } else {
+      if (source.kind === 'official') {
+        throw new KernelError(
+          'package-invalid',
+          'official packages must use format 2 (split plugin.json + mf-manifest.json)',
+          source.id,
+        );
+      }
+      pkg = parsed.pkg;
+      digest = await sha256(envelopeBytes);
+    }
+
     const { manifest } = pkg;
     this.checkProvenance(source, pkg, expected);
+    const attestation = await this.verifyAttestation(source, trust, base, bundlePath, digest, manifest.id);
     if (activate && manifest.role !== 'manager') {
       throw new KernelError('not-a-manager', `"${manifest.id}" is not a manager`, manifest.id);
     }
@@ -520,13 +615,14 @@ export class Kernel {
 
     if (existing !== undefined && existing.digest === digest && (await this.intact(existing))) {
       // Same package already in place: nothing to download.
-      const unchanged: InstalledPlugin = { ...existing, source: formatSource(source) };
+      // Same digest: a verified result may upgrade an unverified install, but never the other way round.
+      const unchanged: InstalledPlugin = { ...existing, source: formatSource(source), ...(attestation === 'verified' ? { attestation } : {}) };
       const next: KernelState = {
         ...state,
         activeManager: activate ? manifest.id : state.activeManager,
         plugins: { ...state.plugins, [manifest.id]: unchanged },
       };
-      if (next.activeManager !== state.activeManager || unchanged.source !== existing.source) {
+      if (next.activeManager !== state.activeManager || unchanged.source !== existing.source || unchanged.attestation !== existing.attestation) {
         await this.commit(next);
         if (next.activeManager !== state.activeManager) this.options.notify?.({ type: 'manager-changed', id: manifest.id });
       }
@@ -553,6 +649,7 @@ export class Kernel {
       files: pkg.files.map((file) => file.path),
       ...(lazy === null ? {} : { lazy, base }),
       ...(existing === undefined ? {} : { previous: generationOf(existing) }),
+      ...(attestation === undefined ? {} : { attestation }),
     };
     const next: KernelState = {
       ...state,
@@ -593,6 +690,60 @@ export class Kernel {
     }
     if (manifest.id.startsWith(OFFICIAL_ID_PREFIX)) {
       throw new KernelError('reserved-id', `plugin ids starting with "${OFFICIAL_ID_PREFIX}" are reserved for official plugins`, manifest.id);
+    }
+  }
+
+  /**
+   * Checks where the package comes from (design.md K15-K17) and returns its attestation status.
+   * - `off`: no trust record source is configured, nothing is enforced (the status stays absent).
+   * - `restricted`: DNS was unreachable; the official site's packages are installed as `unverified`
+   *   (GitHub sources were already refused in `installLocked`, before any download).
+   * - `verifying`: an official package must carry a bundle that verifies against the trust record.
+   *   GitHub bundles are optional and never raise trust, so they are not checked here.
+   */
+  private async verifyAttestation(
+    source: PluginSource,
+    trust: TrustState,
+    base: string,
+    bundlePath: string | undefined,
+    manifestDigest: string,
+    pluginId: string,
+  ): Promise<AttestationStatus | undefined> {
+    if (trust.mode === 'off') return undefined;
+    if (trust.mode === 'restricted') return 'unverified';
+    if (source.kind !== 'official') return undefined;
+    if (bundlePath === undefined) {
+      throw new KernelError('attestation-invalid', `"${pluginId}" is an official package but carries no attestation bundle`, pluginId);
+    }
+    const bytes = await this.fetchBytes(`${base}${encodePath(bundlePath)}`);
+    let raw: unknown;
+    try {
+      raw = JSON.parse(new TextDecoder().decode(bytes));
+    } catch {
+      throw new KernelError('attestation-invalid', 'plugin.bundle.json is not valid JSON', pluginId);
+    }
+    await verifyBundle(parseBundle(raw), manifestDigest, trust.policy, pluginId);
+    return 'verified';
+  }
+
+  /**
+   * Decides how provenance is treated right now. A fresh cached record is reused; otherwise the record is
+   * fetched, and only an unreachable resolver means restricted mode: a malformed record or resolvers that
+   * disagree is a tampering signal and fails the install instead (design.md K16, K17).
+   */
+  private async trustState(): Promise<TrustState> {
+    const fetchRecord = this.options.fetchTrustRecord;
+    if (fetchRecord === undefined) return { mode: 'off' };
+    const cached = this.trustCache;
+    if (cached !== null && this.now() - cached.at < TRUST_CACHE_MS) return { mode: 'verifying', policy: cached.policy };
+    try {
+      const policy = await fetchRecord();
+      this.trustCache = { policy, at: this.now() };
+      return { mode: 'verifying', policy };
+    } catch (error) {
+      if (!(error instanceof KernelError) || error.code !== 'attestation-unavailable') throw error;
+      this.trustCache = null;
+      return { mode: 'restricted' };
     }
   }
 
@@ -878,11 +1029,14 @@ export class Kernel {
     return routeRequest(new URL(request.url), request.method, this.origin);
   }
 
-  async respond(request: KernelRequest, route: Route): Promise<Response> {
+  /** `clientId` is the fetch event's; only account requests read it. */
+  async respond(request: KernelRequest, route: Route, clientId = ''): Promise<Response> {
     try {
       switch (route.kind) {
         case 'api':
-          return await this.api(request, route.name);
+          return await this.api(request, route.name, clientId);
+        case 'cloudflare':
+          return await this.relayCloudflare(request, route.path, clientId);
         case 'kernel-page':
           return html(200, kernelPage(this.options.kernelVersion));
         case 'not-found':
@@ -1041,13 +1195,14 @@ export class Kernel {
 
   // ---------------------------------------------------------------- API
 
-  private async api(request: KernelRequest, name: string): Promise<Response> {
+  private async api(request: KernelRequest, name: string, clientId: string): Promise<Response> {
     try {
       // A cross-site form can POST here as a top-level navigation; same-origin
       // `fetch` from a plugin page never has this mode.
       if (request.mode === 'navigate') {
         throw new KernelError('request-invalid', 'the kernel API is not reachable by navigation');
       }
+      if (name.startsWith('account/')) return await this.accountApi(request, name.slice('account/'.length), clientId);
       if (request.method === 'GET') {
         if (name === 'state') return json(200, { ok: true, ...(await this.status()) });
         if (name === 'registry') return json(200, { ok: true, registry: await this.registry() });
@@ -1096,6 +1251,95 @@ export class Kernel {
       }
     } catch (error) {
       return errorResponse(error);
+    }
+  }
+
+  // ---------------------------------------------------------------- account (openspec cf-account-admin)
+
+  private account(): CloudflareAccount {
+    if (this.options.vault === undefined) {
+      throw new KernelError('account-unavailable', 'this kernel has no credential vault');
+    }
+    this.cloudflareAccount ??= new CloudflareAccount({
+      origin: this.origin,
+      siteHost: this.options.siteHost ?? new URL(this.origin).hostname,
+      fetch: this.options.fetch,
+      vault: new Vault(this.options.vault),
+      now: this.now,
+    });
+    return this.cloudflareAccount;
+  }
+
+  /**
+   * Only the official manager's own pages and workers may use the account (design.md A3): the
+   * active manager must come from `official:`, and the asking client must be one of its pages,
+   * not a plugin page or the kernel page. A request whose client is unknown is refused.
+   */
+  private async assertAccountCaller(clientId: string): Promise<void> {
+    const state = await this.state();
+    const manager = state.activeManager === null ? undefined : state.plugins[state.activeManager];
+    if (manager === undefined || parseSource(manager.source).kind !== 'official') {
+      throw new KernelError('account-forbidden', 'the account is only available to the official manager');
+    }
+    const url = clientId === '' || this.options.clientUrl === undefined ? undefined : await this.options.clientUrl(clientId);
+    if (url === undefined) throw new KernelError('account-forbidden', 'the page asking for the account cannot be identified');
+    const caller = new URL(url);
+    const path = caller.pathname;
+    const inside = (prefix: string): boolean => path === prefix || path.startsWith(`${prefix}/`);
+    if (caller.origin !== this.origin || inside('/__plugins') || inside('/__kernel')) {
+      throw new KernelError('account-forbidden', 'the account is only available to the official manager');
+    }
+  }
+
+  private async accountApi(request: KernelRequest, rest: string, clientId: string): Promise<Response> {
+    const slash = rest.indexOf('/');
+    const provider = slash < 0 ? rest : rest.slice(0, slash);
+    const action = slash < 0 ? '' : rest.slice(slash + 1);
+    if (provider !== CLOUDFLARE) throw new KernelError('request-invalid', `unknown account provider "${provider}"`);
+    await this.assertAccountCaller(clientId);
+    const account = this.account();
+    if (request.method === 'GET' && action === 'status') {
+      return json(200, { ok: true, status: await account.status() });
+    }
+    if (request.method !== 'POST') {
+      throw new KernelError('request-invalid', `the account API does not accept ${request.method} ${action}`);
+    }
+    switch (action) {
+      case 'login':
+        return json(200, { ok: true, login: await account.login() });
+      case 'poll':
+        return json(200, { ok: true, poll: await account.poll() });
+      case 'logout':
+        await account.logout();
+        return json(200, { ok: true, status: await account.status() });
+      default:
+        throw new KernelError('request-invalid', `unknown account API "${action}"`);
+    }
+  }
+
+  /**
+   * A page's `/__cf/**` request. Only `/__cf/api/**` is relayed, with the token added; the
+   * OAuth endpoints are the kernel's own business. Failures use Cloudflare's error envelope so
+   * the browser cf reports them like any API error.
+   */
+  private async relayCloudflare(request: KernelRequest, pathAndQuery: string, clientId: string): Promise<Response> {
+    try {
+      await this.assertAccountCaller(clientId);
+      if (!pathAndQuery.startsWith('/__cf/api/')) {
+        throw new KernelError('account-forbidden', 'only /__cf/api/** is relayed for pages');
+      }
+      return await this.account().forward(request as Request, pathAndQuery);
+    } catch (error) {
+      const code = errorCode(error);
+      const message = errorMessage(error);
+      return json(STATUS_BY_CODE[code] ?? 500, {
+        success: false,
+        errors: [{ code, message }],
+        messages: [],
+        result: null,
+        ok: false,
+        error: { code, message },
+      });
     }
   }
 }

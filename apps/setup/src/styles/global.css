@@ -1,0 +1,76 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: false;
+}
+
+/*
+ * Swiss / International Typographic Style theme: white ground, black type,
+ * one signal red, no rounding, no shadow, hairline rules. Layout carries the
+ * hierarchy, so components stay flat.
+ */
+@plugin "daisyui/theme" {
+  name: "swiss";
+  default: true;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: #ffffff;
+  --color-base-200: #f2f2f2;
+  --color-base-300: #e0e0e0;
+  --color-base-content: #111111;
+  --color-primary: #e30613;
+  --color-primary-content: #ffffff;
+  --color-secondary: #111111;
+  --color-secondary-content: #ffffff;
+  --color-accent: #e30613;
+  --color-accent-content: #ffffff;
+  --color-neutral: #111111;
+  --color-neutral-content: #ffffff;
+  --color-info: #0057b8;
+  --color-info-content: #ffffff;
+  --color-success: #00843d;
+  --color-success-content: #ffffff;
+  --color-warning: #f2a900;
+  --color-warning-content: #111111;
+  --color-error: #e30613;
+  --color-error-content: #ffffff;
+
+  --radius-selector: 0rem;
+  --radius-field: 0rem;
+  --radius-box: 0rem;
+
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+
+  --border: 1px;
+
+  --depth: 0;
+  --noise: 0;
+}
+
+@theme {
+  --font-sans: 'Helvetica Neue', Helvetica, Arial, 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
+}
+
+/* swup page transition: fade `#swup` out, swap, fade in. */
+.transition-fade {
+  transition: opacity 180ms ease-out;
+  opacity: 1;
+}
+
+html.is-animating .transition-fade {
+  opacity: 0;
+}
+
+/* Header heading unchanged by this visit (set by `src/lib/swup.ts`): no fade. */
+html[data-static-title] #page-title {
+  transition: none;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transition-fade {
+    transition: none;
+  }
+}

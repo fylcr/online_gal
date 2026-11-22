@@ -1,0 +1,29 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import AdminSection from '../../components/admin/AdminSection.svelte';
+import { ADMIN_SECTIONS, type AdminSection as Section } from '../../lib/admin-sections';
+
+export function getStaticPaths() {
+  return ADMIN_SECTIONS.map((section) => ({
+    params: { section: section.id },
+    props: { section },
+  }));
+}
+
+interface Props {
+  section: Section;
+}
+
+const { section } = Astro.props;
+---
+
+<Layout
+  title={`${section.title} · 管理`}
+  heading="管理"
+  breadcrumbs={{ root: '/admin', trail: [{ label: section.title }] }}
+>
+  <section class="mx-auto w-full max-w-2xl">
+    <p class="mb-6 text-sm text-base-content/60">{section.description}</p>
+    <AdminSection client:load section={section.id} />
+  </section>
+</Layout>

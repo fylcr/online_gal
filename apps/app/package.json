@@ -11,6 +11,7 @@
     "check": "astro check"
   },
   "dependencies": {
+    "@online-gal/cf-browser": "workspace:*",
     "@online-gal/core": "workspace:*",
     "@online-gal/engine-api": "workspace:*",
     "@online-gal/engine-core-artemis-compat": "workspace:*",

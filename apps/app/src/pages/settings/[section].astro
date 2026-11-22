@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import AccountPanel from '../../components/account/AccountPanel.svelte';
 import { SETTINGS_SECTIONS, type SettingsSection } from '../../lib/settings-sections';
 
 export function getStaticPaths() {
@@ -23,8 +24,14 @@ const { section } = Astro.props;
 >
   <section class="mx-auto w-full max-w-2xl">
     <p class="mb-6 text-sm text-base-content/60">{section.description}</p>
-    <div class="rounded-2xl bg-base-200 px-6 py-5">
-      <p class="text-sm text-base-content/50">待填充</p>
-    </div>
+    {
+      section.id === 'account' ? (
+        <AccountPanel client:load />
+      ) : (
+        <div class="rounded-2xl bg-base-200 px-6 py-5">
+          <p class="text-sm text-base-content/50">待填充</p>
+        </div>
+      )
+    }
   </section>
 </Layout>

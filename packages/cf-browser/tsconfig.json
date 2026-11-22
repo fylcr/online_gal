@@ -1,0 +1,21 @@
+{
+  "$comment": "Type-checks the browser shims against the pinned upstream (`npx tsc -p packages/cf-browser`). Needs the .ref/cf checkout, so it is not part of tsconfig.packages.json; the bundle itself is built by scripts/build.mjs. `#generated` is typed by a stub so the check does not pull in ~6000 generated files.",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": false,
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "paths": {
+      "#lib/*": ["./src/lib/*", "../../.ref/cf/packages/cli/src/lib/*"],
+      "#api": ["../../.ref/cf/packages/cli/src/api/index.ts"],
+      "#operations/*": ["../../.ref/cf/packages/cli/src/commands/_generated/_operations/*"],
+      "#generated": ["./src/generated.d.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}
