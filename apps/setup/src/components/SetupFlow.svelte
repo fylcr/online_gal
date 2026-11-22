@@ -28,6 +28,7 @@
   let githubRerunError = $state('');
   let admin = $state.raw<SiteAdmin | null>(null);
   let productionBranch = '';
+  let projectWrittenAt: string | undefined;
   let values = $state<Record<string, string>>({});
   let verification = $state<Record<string, SetupVerification | 'pending' | undefined>>({});
   let allValid = $derived(SETUP_ITEMS.every((item) => item.source === 'account'
@@ -113,7 +114,7 @@
           }
         }
         githubToken = '';
-        await client.waitForNewProduction(owner, readSession(WRITTEN_KEY) ?? config.builtAt, lifetime.signal);
+        await client.waitForNewProduction(owner, projectWrittenAt ?? readSession(WRITTEN_KEY) ?? undefined, lifetime.signal);
       }
       await checkSwitch();
     } catch (error) {
@@ -138,6 +139,7 @@
       const state = await client.readProject(owner, lifetime.signal);
       if (lifetime.signal.aborted || run !== inspection || step !== 'login') return;
       productionBranch = state.branch ?? '';
+      projectWrittenAt = state.writtenAt;
       if (state.written || initialized) {
         if (state.missing.length) throw new Error('项目缺少初始化配置，请在 Cloudflare 控制台检查。');
         await rebuild(owner);
@@ -295,7 +297,7 @@
         <a class="btn btn-sm mt-4" href={'https://github.com/' + config.rebuild.repo + '/actions/runs/' + config.rebuild.runId} target="_blank" rel="noopener noreferrer">打开发布工作流</a>
       {:else if manualBuild}
         <p class="mt-2 text-sm">设置 Pages 项目查询所需的环境变量后，可运行 <code>npm run build:pages</code> 检查构建产物。</p>
-        <p class="mt-2 text-sm">Git 集成项目可用以下命令触发生产构建：</p>
+        <p class="mt-2 text-sm">Git 集成项目可用 <code>cf@1.0.0-rc.2</code> 触发生产构建：</p>
         <code class="mt-1 block break-all text-sm">cf pages deployments create {admin?.projectName ?? '&lt;project&gt;'} --branch {productionBranch || '&lt;production-branch&gt;'}</code>
         <p class="mt-2 text-sm">直接上传项目需要使用已配置的发布流程发布 <code>dist/site</code>。</p>
       {/if}

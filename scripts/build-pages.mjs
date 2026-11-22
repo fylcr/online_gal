@@ -28,7 +28,7 @@ export async function choosePhase(args, env, fetchProject = fetch) {
       throw new Error('无法读取 Cloudflare Pages 项目配置。');
     }
     const variable = body.result.deployment_configs?.production?.env_vars?.ONLINE_GAL_SITE;
-    if (variable) return { phase: 'site', rule: 4, record: variable.value };
+    if (variable && variable.value !== '') return { phase: 'site', rule: 4, record: variable.value };
     return { phase: 'setup', rule: 4 };
   }
   throw new Error('无法判断构建阶段，请传 --phase=setup 或 --phase=site。');
@@ -44,10 +44,13 @@ async function exists(path) {
   }
 }
 
-async function checkContents(dir, markers) {
+async function checkContents(dir, markers, rejectRegistry = false) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
-    if (entry.isDirectory()) await checkContents(path, markers);
+    if (entry.isDirectory()) {
+      if (rejectRegistry && entry.name === 'registry') throw new Error(`初始化构建包含注册表：${path}`);
+      await checkContents(path, markers, rejectRegistry);
+    }
     if (!entry.isFile()) continue;
     const data = await readFile(path);
     if (markers.some((marker) => entry.name.includes(marker) || data.includes(marker))) {
@@ -74,7 +77,7 @@ export async function verifyOutput(phase, out, repo = root) {
   const markers = ['registry/index.json', '__kernel'];
   const worker = await readFile(join(out, '_worker.js'));
   if (markers.some((marker) => worker.includes(marker))) throw new Error('初始化 Worker 包含插件内核代码。');
-  await checkContents(join(out, '_astro'), markers);
+  await checkContents(join(out, '_astro'), markers, true);
 }
 
 async function main() {

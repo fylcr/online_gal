@@ -126,7 +126,7 @@ export function onRequest(
   };
 
   if (url.pathname === '/__setup/verify') {
-    if (env.ONLINE_GAL_SITE !== undefined) return notFound();
+    if (env.ONLINE_GAL_SITE) return notFound();
     return request.method === 'POST' ? verifyToken(request, url, headers, fetchUpstream) : methodNotAllowed('POST');
   }
   if (url.pathname !== '/__setup/status') return notFound();

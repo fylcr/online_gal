@@ -10,7 +10,7 @@ export type SetupVerification =
 interface Deployment { id: string; created_on?: string; latest_stage?: { name?: string; status?: string } }
 interface Project {
   production_branch?: string;
-  deployment_configs?: { production?: { env_vars?: Record<string, unknown> | null } };
+  deployment_configs?: { production?: { env_vars?: Record<string, { value?: string } | null> | null } };
 }
 interface PollOptions { intervalMs?: number; timeoutMs?: number }
 type BuildResult = 'success' | 'failure' | 'canceled';
@@ -60,8 +60,19 @@ export function buildEnvPatch(record: string, values: Readonly<Record<string, st
 
 function projectState(project: Project) {
   const env = project.deployment_configs?.production?.env_vars ?? {};
+  const marker = env.ONLINE_GAL_SITE;
+  const record = marker?.value;
+  let writtenAt: string | undefined;
+  if (record) {
+    try {
+      const value = JSON.parse(record)?.at;
+      if (typeof value === 'string' && Number.isFinite(Date.parse(value))) writtenAt = value;
+    } catch { /* Keep malformed nonempty records initialized. */ }
+  }
   return {
-    written: Object.hasOwn(env, 'ONLINE_GAL_SITE'),
+    written: marker != null && record !== '',
+    record,
+    writtenAt,
     missing: SETUP_ITEMS.filter(({ name }) => !Object.hasOwn(env, name)).map(({ name }) => name),
     branch: project.production_branch,
   };
@@ -169,6 +180,14 @@ export class SetupClient {
 
   async write(owner: SiteAdmin, patch: ReturnType<typeof buildEnvPatch>, signal?: AbortSignal): Promise<'local' | 'switched' | 'already-written' | 'written'> {
     if (isLocalHost(new URL(this.origin).hostname)) return 'local';
+    const locks = globalThis.navigator?.locks;
+    if (locks) {
+      return locks.request('online-gal:setup:' + projectPath(owner), { signal }, () => this.writeAndCheck(owner, patch, signal));
+    }
+    return this.writeAndCheck(owner, patch, signal);
+  }
+
+  private async writeAndCheck(owner: SiteAdmin, patch: ReturnType<typeof buildEnvPatch>, signal?: AbortSignal): Promise<'switched' | 'already-written' | 'written'> {
     const status = await this.readStatus(signal);
     if (!status) return 'switched';
     const project = await this.readProject(owner, signal);
@@ -183,7 +202,8 @@ export class SetupClient {
     }
     const saved = await this.readProject(owner, signal);
     if (!saved.written || saved.missing.length) throw new Error('写入后未能核对全部初始化项，请检查 Pages 项目。');
-    writeSession(WRITTEN_KEY, new Date().toISOString());
+    if (saved.record !== patch.deployment_configs.production.env_vars.ONLINE_GAL_SITE.value) return 'already-written';
+    writeSession(WRITTEN_KEY, saved.writtenAt ?? new Date().toISOString());
     return 'written';
   }
 
@@ -221,9 +241,14 @@ export class SetupClient {
     reportBuildFailure(terminal);
   }
 
-  async waitForNewProduction(owner: SiteAdmin, after: string, signal?: AbortSignal, options?: PollOptions): Promise<void> {
-    const since = Date.parse(after);
+  async waitForNewProduction(owner: SiteAdmin, after: string | undefined, signal?: AbortSignal, options?: PollOptions): Promise<void> {
+    const since = Date.parse(after ?? '');
     const result = await poll(async (): Promise<BuildResult | undefined> => {
+      // Without a trustworthy write time, only the live route can confirm a switch.
+      if (!Number.isFinite(since)) {
+        if (!(await this.readStatus(signal).catch(() => ({ phase: 'setup' })))) return 'success';
+        return;
+      }
       const deployments = await this.api<Deployment[]>(`${projectPath(owner)}/deployments?env=production`, signal);
       const latest = deployments
         .filter(({ created_on }) => Date.parse(created_on ?? '') > since)
