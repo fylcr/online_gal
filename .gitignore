@@ -104,3 +104,20 @@ __pycache__/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Agent tooling that sits beside the source but is not part of it: the local
+# project-memory file, and per-agent OpenSpec skill/prompt copies plus scratch
+# (for example .pi/tmp-reconstruct.md). `openspec/` itself is tracked and stays so.
+MEMD.md
+/.pi/
+/.dsh/
+
+# Local Cloudflare tooling cache: wrangler state, bundles and logs from `npm run dev`
+# and `npm run configure:pages` runs. Regenerated on demand, never part of the source.
+/.wrangler/
+
+# Build output of the clean-base Artemis port (`ports/artemis/compat-web-clean`):
+# nested upstream clones, wasm/static archives, tarballs and packaged sites.
+# Regenerate with `build.sh`; only the source overlays are tracked.
+/ports/artemis/compat-web-clean/out/
+/ports/artemis/compat-web-clean/dist/
