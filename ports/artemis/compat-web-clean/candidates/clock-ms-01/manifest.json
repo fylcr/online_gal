@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "origin": "https://github.com/Weiss-UltimateSavior/artemis-compat.git",
+  "ref": "refs/heads/main",
+  "commit": "17200e64ea99681e3c27d694433c0ff78d7a7cee",
+  "tree": "20fe790f35e382795182b24c9e27e823c1020566",
+  "observedAt": "2026-10-11T07:47:13Z",
+  "replacements": {
+    "src/audio/audio.cpp": "audio/audio_web.cpp",
+    "src/pack/pf8_reader.cpp": "platform/pf8_reader.cpp",
+    "src/script/lua_engine.cpp": "candidates/clock-ms-01/lua_engine.cpp"
+  },
+  "platformFiles": [
+    "host/web_main.cpp",
+    "platform/pf8_reader.cpp",
+    "audio/audio_web.h",
+    "audio/audio_web.cpp",
+    "audio/audio_validation.h",
+    "candidates/clock-ms-01/lua_engine.cpp"
+  ],
+  "recipeFiles": [
+    "source-manifest.json",
+    "build.sh",
+    "CMakeLists.txt",
+    "make-source-bundle.mjs",
+    "README.md",
+    "candidates/clock-ms-01/manifest.json",
+    "candidates/clock-ms-01/README.md"
+  ],
+  "platformStatusAtRecipeHandoff": "Lane B sources not yet written; fail closed until all platformFiles exist",
+  "runtimeMethods": [
+    "ccall",
+    "cwrap",
+    "HEAPU8",
+    "FS",
+    "UTF8ToString",
+    "ENV"
+  ],
+  "allocatorExports": [
+    "_malloc",
+    "_free"
+  ],
+  "cAbi": [
+    {
+      "name": "artc_web_open",
+      "signature": "int artc_web_open(const char *pack, const char *os_id)"
+    },
+    {
+      "name": "artc_web_frame",
+      "signature": "int artc_web_frame(void)"
+    },
+    {
+      "name": "artc_web_pointer",
+      "signature": "void artc_web_pointer(float x, float y, int down)"
+    },
+    {
+      "name": "artc_web_pointer_move",
+      "signature": "void artc_web_pointer_move(float x, float y)"
+    },
+    {
+      "name": "artc_web_key",
+      "signature": "void artc_web_key(int key, int down)"
+    },
+    {
+      "name": "artc_web_resize",
+      "signature": "void artc_web_resize(int css_w, int css_h)"
+    },
+    {
+      "name": "artc_web_started",
+      "signature": "int artc_web_started(void)"
+    },
+    {
+      "name": "artc_web_stage_width",
+      "signature": "int artc_web_stage_width(void)"
+    },
+    {
+      "name": "artc_web_stage_height",
+      "signature": "int artc_web_stage_height(void)"
+    },
+    {
+      "name": "artc_web_revision",
+      "signature": "int artc_web_revision(void)"
+    },
+    {
+      "name": "artc_web_presented",
+      "signature": "int artc_web_presented(void)"
+    },
+    {
+      "name": "artc_web_exit_requested",
+      "signature": "int artc_web_exit_requested(void)"
+    },
+    {
+      "name": "artc_web_last_error",
+      "signature": "const char *artc_web_last_error(void)"
+    },
+    {
+      "name": "artc_web_pause",
+      "signature": "int artc_web_pause(int paused)"
+    },
+    {
+      "name": "artc_web_now_ms",
+      "signature": "double artc_web_now_ms(void)"
+    },
+    {
+      "name": "artc_web_dispose",
+      "signature": "void artc_web_dispose(void)"
+    },
+    {
+      "name": "artc_web_save",
+      "signature": "int artc_web_save(const char *file)"
+    },
+    {
+      "name": "artc_web_load",
+      "signature": "int artc_web_load(const char *file)"
+    },
+    {
+      "name": "artc_web_log_sink",
+      "signature": "void artc_web_log_sink(void (*sink)(int level, const char *message))"
+    },
+    {
+      "name": "artc_web_audio_pump",
+      "signature": "int artc_web_audio_pump(void)"
+    },
+    {
+      "name": "artc_web_audio_voice_count",
+      "signature": "int artc_web_audio_voice_count(void)"
+    },
+    {
+      "name": "artc_web_audio_voice_handle",
+      "signature": "double artc_web_audio_voice_handle(int index)"
+    },
+    {
+      "name": "artc_web_audio_voice_key",
+      "signature": "const char *artc_web_audio_voice_key(double handle)"
+    },
+    {
+      "name": "artc_web_audio_voice_rate",
+      "signature": "int artc_web_audio_voice_rate(double handle)"
+    },
+    {
+      "name": "artc_web_audio_read_stereo",
+      "signature": "int artc_web_audio_read_stereo(double handle, uintptr_t heapDest, int frames, intptr_t outGain, intptr_t outPan)"
+    },
+    {
+      "name": "artc_web_audio_ended",
+      "signature": "int artc_web_audio_ended(double handle)"
+    },
+    {
+      "name": "artc_web_audio_played_frames",
+      "signature": "double artc_web_audio_played_frames(const char *key)"
+    },
+    {
+      "name": "artc_web_audio_ack",
+      "signature": "int artc_web_audio_ack(double handle, double cumulativeFrames)"
+    }
+  ],
+  "clockCandidate": {
+    "name": "clock-ms-01",
+    "upstreamPath": "src/script/lua_engine.cpp",
+    "upstreamSha256": "6a88318159fe82b071fb7196575cf21845c249d054181e9f5e22ef31d888c6f9",
+    "replacementPath": "candidates/clock-ms-01/lua_engine.cpp",
+    "replacementSha256": "0e62a3ed33bae848395f5787736909e53492311ef33a96a81eedee24e5b75014",
+    "license": "GPL-3.0-or-later",
+    "scope": "NowMs conversion only; relative epoch and independent sampling retained"
+  }
+}

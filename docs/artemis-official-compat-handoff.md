@@ -1,7 +1,409 @@
 # Artemis 4670 AI 接口交接（AI 优先 · 新对话读这份）
 
-> 本文件是**当前有效**交接，主体是**给 AI 的机器接口**。旧 handoff 只作背景，**不得当现状**。
-> 代码身份 `73c5162a8d38548ecedafe5ca22f4fbb2c8b035c`（已 push）**绝不说「未落盘」**；doc HEAD 以 `git rev-parse HEAD` 为准。
+> **当前摘要（2026-10-11 · 用户亲测未解决 · 第六/七轮真实绘制NEEDS / 独审FINDINGS · 待父最终决策）— 唯一现状**
+> - 4670原根按钮组新增compat（净基线17200e64），key=clean-compat；父已批准按钮等价映射（实际无select）。旧official/compat/external及trial路径含义保留，固定服务端GAME，无目录picker/game-id。
+> - iframe=/compat/pkg/clean-root-baseline-02/index.html?embed=1&run=<run>&ns=<run>，沿new-run/fresh；独立saves:clean-root-baseline-02:<run>:Artemis。START同步锁控件，STOP严格匹配frame/source/origin/run/ns/engine/candidate的artemis-clean-stopped后才卸载解锁；在途load补发STOP，不复活，失败/无ACK保持锁定。
+> - range/adapter静审PASS；root final review5e56777c-9a3c-4ef0-ba44-f9dff2b65ac1 PASS_STATIC、无P0/P1；唯一P2修复复审实际JSON为PASS_STATIC/findings=[]（绑定run/output68d27884-6fd1-4680-bc04-448f05a5714d）。此前源码静态验收已接受，运行未验；冻结identity含义不变。
+> - 净来源17200e64ea99681e3c27d694433c0ff78d7a7cee加隔离A/B/C/VFS；不导入0005/旧R1–R4，不copy D树。音频/字体沿净C实际管线。全部测试用户亲做，4670当前process/source/在线未核，运行同等及低刷新改善未知。
+
+> - time08：取消全帧快照/yield后present推断；父接受time08新独审PASS_STATIC并授权clock-ms-01隔离源码实施，源独审父已接受，原EXIT1/EXIT2保留；recipe静审父已接受，新clock-ms-02编译/供包EXIT0，包静审父已接受，新clock root入口PASS_ENTRY_STATIC父已接受；用户亲测报告未解决原问题，具体步骤/测量/重复次数未提供；默认基线不变。非官方全等/FPS结论，版本unknown/许可未清，旧失败保持。
+
+> - 新clock-compat按钮与clock-root-ms-02 iframe已静态接线；固定GAME、独立namespace，STOP按session candidate严格ACK释放；未核在线。
+
+> - 包PASS_PACKAGE_STATIC及入口PASS_ENTRY_STATIC均父验收；用户先STOP等释放→刷新4670原根→选择整数毫秒clock-ms-02→START固定GAME，在线/实际页面未核；用户最新反馈“还是不行”，不再待首次反馈。
+
+> - 暂停NowMs；第五有限成果/Execute正常receiver父已接受，完整提交未READY。第六/七轮NEEDS，fresh独审FINDINGS（有限ACCEPT_STATIC/完整BLOCKED），owner参数P2待后续限定，待父最终决策；无实施或运行验收。
+> - 主-152真实data零/内-88 signed+4已核；+316是前置判定，+80非0仍可达L18 render。真链经renderer+16/f3259/f4882/f4715至owner+352/+356，GL draw/no-op swap端点已读但尚未交汇；owner字段已写p1，剩余追f4452实参p1身份/vptr到draw，不能自动呈现或称READY。
+> - 状态9只两对象gate，Stage+48/Trans!=0xd/旧P2保持；健康桥/STOP身份ACK/MapPoint不变。无新候选/产品资产服务，完整替换不fallback→失败累积→成功后缩减、所有测试用户亲做保持。版本/recipe/provenance/许可/在线/FPSunknown，旧rejected/工具失败历史不改。
+
+## 第六/七轮真实绘制边界同步（2026-10-12 · NEEDS / FINDINGS · 完整契约BLOCKED · 待父最终决策）
+
+父已接受第五有限成果与独审正常Execute receiver闭合，不接受完整提交READY；第六材料父已读，当时独审未完成。本轮实际作者run8a80d369-2b6d-40ff-816e-f3141e9337e4，outputReference=C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/e160df06-9e2f-4cf0-989d-cce2d74b15ce/core-platform-split/render-call-path-07.md；fresh审查run92eea3b4-e498-4eb0-99d0-962958da2fa7，同目录render-contract-review-07.md。作者NEEDS_NAMED_EVIDENCE；审查FINDINGS，有限静态成果ACCEPT_STATIC、局部完整契约NEEDS/完整替换BLOCKED，P2一项、无P0/P1，Merge OK with notes仅分析材料。新结果待父最终决策，不授实施/运行。本writer全文读取作者/审查及render-path-resolution-07/round06-report.md；三份原样copy到新guard并核hash，不改原输出/receipt，第六criterion-1 not-satisfied和旧rejected仍保持。
+
+第六selected-byte修复逐byte取最后初始化覆盖，uncovered/null不补零：主-152地址576028四字节真实data 00 00 00 00（段7119），不是默认零猜测；正常O外调整仍O。576160仅首byte覆盖、576628未覆盖限制保留。+316经f3256/f1603为前置状态/成员树判定，不是draw/submit；+80非0仅跳过+316，经L20仍到真正L18 render，不自动跳过绘制。第七主-88地址576092真实04 00 00 00为signed+4，f4860 receiver=O+4，flags=O+44、float=O+16；float==0且(flags & ~4)==0返回0，否则返回flags（并不保证否则非零）。metadata4不是table4/f4281，helper附带无语义lookup不得当映射。
+
+真正绘制链已补至owner虚接口：Display L18前置接口/分支后，保留Stage+48条件，renderer+16→table3170/f3259，按+56成员索引；正常member0主+16→f4882，内-24真实signed+4转O+4/次级vptr576648，+148→f4715，尺寸/变换/可见性门控后+156/+160→f4435/f4434，读adjusted+468 owner并调用+352/+356。正常member0不等所有运行成员固定。Execute正常receiver按父接受独审已闭，不再标unknown；f3519/f4109不是已证Lua恢复，状态9仅两对象更新gate。Stage+132对象+28、stage+128-1、Stage+48与Trans!=0xd及旧P2保持，Asyncify非Lua预算。
+
+GL/宿主终点分层：WAT a.xa=function76、a.gb=function113；f1506实际draw调用(5,4,5121,0)，f3921实际swap import。作者JS切片xa→GLctx.drawElements、gb→GLFW.swapBuffers空正文；独审源核imports/calls，但JS offset/hash属于作者派生，未独立重算或执行。这些终点未与selected owner+352/+356交汇，也未证明该Display可达f3921；不能由no-op swap推出自动呈现/rAF策略/GPU通过，提交时机仍unknown。
+
+独审P2：owner字段赋值无需再找，f4452正常构造已写mem[p0+472]=p1，且(O+4)+468=O+472；主/次vptr写入同段923988-923994。准确剩余缺口是追正常f4452实参p1的实际owner身份→最终vptr→+352/+356→draw，不以同布局f2020/f2052拼接。仅在本新增record照录finding与限定，不修改作者原报告或称已修复/父接受。含提交决策完整READY仍未成立；有限不透明core框架讨论可用，Present资源/viewport/compositor seam暂保留，Frame提交决策不得等同f4860/f3256或现授整体删除Present，无需全引擎/全Wait/全部成员还原。
+
+clock-ms-02用户亲测未解决；官方Android/WASM共享core及平台处理后compat完整替换、不patch/fallback→失败记录累积→解决后缩减目标与用户测试权保持。健康生命周期/single-flight/RPC/range/audio/dispose/严格STOP身份ACK/MapPoint不变。无新候选/产品/assets/services，版本/recipe/provenance/许可/4670在线/FPSunknown。runtime旧rejected、IndexError/offset/assert/timeout/410/503/交付/grep/doc转义及历史原P2不改。本轮作者和fresh审无新infra失败；本doc不运行helper或新分析。
+
+仅三doc当前摘要/本record与新guard；原第五record起完整历史suffix bytes保持。cwd=D:/online_gal，branch=main，HEAD9dd18ecf/index空/既存dirty，七项有限冻结hash未变，非全仓证明。证据D:/online_gal/.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/render-contract-closeout-07/含round06-report.md、round07-report.md、round07-review.md、copy-proof、三doc before/after/diff、before/after/proof与status/cached/partial。没有测试/编译/目标/browser/HTTP/服务进程/分析器/网络/git写/config/子代理；完成后结束唯一writer。
+
+## 对象链第五轮材料同步（2026-10-12 · 有限ACCEPT_STATIC / 完整提交设计BLOCKED · 待父最终决策）
+
+父接受上轮诚实partial陈述，不接受对象闭合。恢复解析已产生机械lookup，但runtime bc37db72 acceptance rejected原因是Stage/swap criterion未满足，不改写全部通过。本轮三实际报告全文读取，新结果待父最终接受，不授实现：Execute run=da1c8351-08d0-434e-a8e4-99e190ec68f3，outputReference=C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/307a463a-1c36-48d7-9aad-247ed5104969/core-platform-split/execute-instance-chain-05.md；Renderer run=44776830-0e07-4697-aa27-4430ea65df3c，同目录renderer-member-chain-05.md；Review run=74a073f7-c535-4f94-81aa-a63462e27400，同目录object-chain-review-05.md。两分析NEEDS；独审ACCEPT_STATIC仅有限静态成果、No issues found，含提交/swap职责的完整平台替换设计仍BLOCKED。报告原样copy/hash核同，新guard不改原输出或receipt。
+
+新增更正不改旧历史：旧创建前assert含is_absolute和字符串startswith；恢复报告说明is_absolute=True，实际原生反斜杠字符串与前向斜杠startswith失败，不能继续归因为Path不接受Windows absolute。旧assert/30s超时/180s恢复事实仍保留。2449/2450/1032/2451是invoke table参数，不是imports编号，分别映射f3840/f3743/f201/f3742；独审WAT确认函数imports共198（0–197），table起点1，table index不等于函数号。旧误称仅以本新增record更正。
+
+Execute真实LE槽：744164的03 0b 00 00→2819→f3519(object,time)，其f1539处理256队列项并清320项低6位；744472的ca 07 00 00→1994→f4109(object)，条件事件/虚槽+56/flag更新。独审直接source/data/elem抽核支持映射，不能叫Lua resume或据此否定全可达图脚本恢复。Execute作者仍列receiver缺口，独审新增table3726=f2798，构造table3734=f3744；正常成功初始化路径f3744 receiver→owner+64→全局849876→f3551已闭合，不再要求重查此赋值。只证明选定正常路径，不证所有实例/异常或vptr永不变。状态9只门控两对象更新，不跳过整个Stage；这些目标不是已证脚本预算，Wait/core职责与平台调度分开。
+
+Renderer值链：v8=Stage+140、v10=Stage+16是pair字段地址；f2900分配control并以内嵌+20构造f3731/vptr755684，object/control分别写Stage+24/+28。初始member0由f3617/f4455/f4452构造，主vptr576180、次级576648；control与对象/调整指针区分。独审核755696→1472→f4543、+140→1504→f4551，未调整主表576192→1062→f4884只是候选。f4543按+56、f4551/f4468按+60选成员，不能假定同永久成员。
+
+尚缺所选Display成员object+=*(vptr-152)之后实际vptr/+80目标及返回值提交门控意义，+316及后续到实际swap；f4884另有-20调整转+148。不能将主表+80或+140清flag、+316直接叫present。Renderer读576028四字节时单段不覆盖导致IndexError: list index out of range，调整文件未产；同bash后续lookup EXIT0不抹错。首组JSON offset被elem覆盖，仅可作elem坐标，后helper分data_binary_offset/elem_binary_offset，旧文件不冒改。helper属于guard内离线分析，非引擎执行/测试或候选产品。本doc不运行helper/恢复解析。
+
+独审区分：core作为不透明依赖的单飞行Frame/Step/DrainQueued有限框架设计已有材料，但包括提交决策的最小完整替换仍非READY；必要缺口仅调整后+80/返回意义、选定+316→swap、compat提交决策保留/删除/迁移。不要求全引擎、全部Wait或全部动态成员穷举，不以每帧/yield后present猜测。健康Open/Boot/Release、RPC/range/audio/dispose、严格STOP身份ACK和MapPoint冻结；core全等/版本/转换recipe/provenance/许可unknown。Trans!=0xd新报告限定与旧P2历史保持，Asyncify不等Lua预算，四行预算非官方策略。
+
+clock-ms-02用户亲测未解决；共用core与平台处理后compat整段替换方向和完整替换→失败记录累积→解决后缩减保持，全部测试用户亲做。无新候选/代码/assets/services，4670在线/FPS未知，旧410/503/交付/grep/doc转义/误位/ENOENT/超时/失败原报告冻结。仅三doc当前摘要/本record和新guard，原第四record起history完整bytes保持；cwd=D:/online_gal、branch=main、HEAD9dd18ecf/index空/既存dirty，七项有限冻结hash不变。证据D:/online_gal/.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/object-chain-closeout-05/含三报告copy/hash、三doc before/after/diff、before/after/proof、status/cached/partial。本writer无新分析/目标/测试/构建/HTTP/进程服务/网络/git写；完成即结束。
+
+## 对象解析第四轮partial同步（2026-10-12 · NEEDS / ACCEPT_STATIC部分陈述 / 解析BLOCKED · 待父最终决策）
+
+父已接受第三轮NEEDS有限材料与P2 VALID，原报告Trans type0摘要遗漏仍留历史，不撤销原FINDINGS。本轮三实际报告已全文读取；新结果待父最终决策，未授实施。Execute run=fdcaa707-50d1-4a1b-8640-94aa18b0f9f4，outputReference=C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/31511135-6dfe-44dc-84ce-52721aa7d0fa/core-platform-split/execute-table-join-04.md；Renderer run=b73cd3a0-4b5b-47ce-8e59-33fe82f7b2e0，同目录renderer-table-resolution-04.md；独审run=69c6d036-81b3-45f9-b351-f5ec0685a38d，同目录resolved-boundary-review-04.md。原样copy到新guard/execute-report.md、renderer-report.md、review-report.md，copy hash相等，不改原路径/receipt。
+
+两报告NEEDS_NAMED_EVIDENCE；独审ACCEPT_STATIC仅两份partial/缺口陈述，BLOCKED指对象解析与目标闭合验收，No issues found不能升级READY。Renderer创建前第一assert（含is_absolute与前缀）失败，后续不存在/父链检查/mkdir均未执行：
+
+```text
+Traceback (most recent call last):
+  File "<stdin>", line 4, in <module>
+AssertionError
+Command exited with code 1
+```
+
+object-resolution-04未创建，没有helper/data/elem解码、slice、真实LE槽值或table lookup；独审只ls见目录不存在，未重放Python或验证其环境。不能断言安全guard已完成，不能当WAT材料缺失/引擎失败。Execute如实消费失败屏障，未接管解码。helper本应是guard内离线数据分析（非产品/候选/引擎执行/测试），但本轮没有产出。本doc writer不恢复解析或探环境。
+
+局部源事实与候选分层：候选构造分配9796字节后写vptr744156/receiver+0，另对象写vptr744464/receiver+8；构造receiver尚未连接Execute实际receiver。Execute正常路径time+144→tween，状态+2876!=9只门控两个虚调用object与object/time；不可扩大成整个Stage更新被跳过。744164/744472只是候选基址+8，无真实LE值→elem/table索引→函数正文，第二调用不可命名Lua resume，Wait/Trans可达与恢复后Display未知。
+
+Stage+24虚槽+12 ABI为object/stage+196/1.0f，+140传object，仅槽/参数已证；renderer创建赋值/vptr/data/table/目标缺失。Display读取+132对象/+28检查后按+128-1分支；case0槽+296、另一输出对象调整指针/槽+80及renderer+316不能混成同对象，+316不可直接叫最终swap，提交链未闭合。无新机械目标结论。
+
+本轮两报告已保留Trans限定：type0 Evolution；仅+0xc70!=0xd时保存旧状态到+0xc74、转4、字段+0x10虚槽+0x38(object,0)；Now/+0xba4写在内门控外。原第三P2不抹去。四行ExecuteLine是compat策略非官方已证；Asyncify不等于Lua yield，既往JS独审partial不被本轮重证。版本unknown不否定局部对应或证明core全等，core可保留性/官方转换recipe/provenance/许可仍unknown。
+
+用户clock-ms-02亲测未解决；目标先辨官方Android/WASM共用核心及平台处理，再compat整段替换。首替Frame/Step/DrainQueued提交仍候选，不授实施；健康Open/Boot/Release、TS单飞行/RPC/range/audio/dispose/严格STOP身份ACK与MapPoint保持。完整替换→失败记录累积→解决后缩减目标不丢。无新候选/代码/assets/services，4670在线/FPS未知，全部运行测试用户亲做。旧410/503/交付/grep/doc转义/误位/ENOENT等历史保持。
+
+本轮仅三doc摘要/本record及新guard；原第三轮record起完整历史suffix bytes保留。cwd=D:/online_gal，branch=main，HEAD9dd18ecf/index空/既存dirty，七项有限冻结hash不变。证据D:/online_gal/.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/object-resolution-closeout-04/含三报告copy-proof、三doc before/after/diff、history/frozen证明、status/cached/partial。无分析重做、测试/构建/HTTP/目标/服务/进程/网络/git写；writer完成即结束。
+
+## 命名边界第三轮材料同步（2026-10-12 · NEEDS_NAMED_EVIDENCE / FINDINGS · 待父最终决策）
+
+本次补证run3728ca77-2e60-488d-808b-03427cc46114，outputReference=C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/badb6095-f982-4d1f-aa25-6d2058410e6a/core-platform-split/named-boundary-03.md，结论NEEDS_NAMED_EVIDENCE。实际独审run82b2b0bd-8280-45fc-a9f3-66b2485a7012，outputReference=C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/badb6095-f982-4d1f-aa25-6d2058410e6a/core-platform-split/named-boundary-review-03.md，Review verdict FINDINGS，Merge verdict OK with notes仅决策材料，不授实施。本轮新结果待父最终决策，不能写父已接受或READY。两报告全文读取、原样离线copy为guard/named-report.md、named-review.md并核hash相同，不改原报告/receipt。
+
+新增局部证据：保存frame time→tween→状态9门控两个虚调用→stage更新→清16bit flag→sound，shell随后Display仍是局部顺序。Stage对象+24虚槽+12实际传object、stage+196、float1.0；槽+140传object，尚无table目标/renderer实现名。Execute字段+8/+0对象初始化→虚表+8→table目标仍缺，不将第二调用命名Lua resume。Android Wait全文支持分类门控、定时flag/deadline与状态选择；Trans中间截断仍有消费gap，不能称全文已读。
+
+独审P2 finding原样待更正：补证摘要第11行Trans type0遗漏当前状态+0xc70 != 0xd门控。按审查0063f3fc.txt:162-170，type0执行Stage Evolution；仅当前状态不是0xd时保存旧状态到+0xc74、写状态4、调用字段+0x10对象虚槽+0x38（object,0）；独采Now及+0xba4写入在该内层门控外。此为审查指出的限定，不宣称原报告已修；不修改冻结原报告。核心等待/transition状态职责不能由纯Web帧调度替换冒称保真。
+
+补证报告称官方JS有界切片已见timeout/rAF/immediate main-loop、Asyncify unwind/pause/wake rewind/resume、_usleep忙等、swapInterval timing；独审JS单行270.2KB超过50KB上限，独立核验partial，未重新证明切片/这些细节，不等于证伪。Asyncify不等于Lua yield；GLFW实际swap及Stage renderer仍缺证，无60Hz/最终present保证。原grep错误保持，本轮补证称无新工具错误，不把正常exit当FINDINGS消除。
+
+首替仍待补证候选：host/web_main.cpp的Host::Frame/Step/DrainQueued与提交职责，经artc_web_frame，旧职责整体退出不fallback；若等待语义不符先替换core等待/恢复职责，不强行纯平台。保留Open/Boot/Release、健康single-flight/RPC/range/audio/dispose、MapPoint冻结及root严格STOP身份ACK；core可保留性未全证。下一命名缺口两组：Execute字段+8/+0构造赋值/虚表+8 table入口/目标正文，确认后追wait/resume；Stage+24 renderer初始化/槽+12/+140及Display提交到实际swap。无需全库还原，尚未实施或新增候选。
+
+clock-ms-02用户亲测未解决；用户目标官方Android/WASM共用core与平台处理后compat整段替换，完整替换→未解决记录累积→解决后缩减目标保持。版本identity/官方转换recipe/compat Android provenance/许可仍unknown；4670在线/FPS未知，全部运行测试用户亲做。官方原身份及旧候选冻结，无代码/assets/services变化。此前410/503/交付/grep/doc转义/guard误位/ENOENT全部保留，不继续排查。
+
+本轮只三doc当前摘要和本record及新guard，原GPT核心/平台边界材料同步标题起完整历史suffix bytes保持。cwd=D:/online_gal、branch=main、HEAD9dd18ecf/index空/既存dirty，七项有限保护hash未变，非全仓证明。证据D:/online_gal/.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/named-boundary-closeout-03/含两报告copy/hash、三doc before/after/diff、history/frozen证明与status/cached/partial。未分析/测试/构建/目标/HTTP/服务/进程/网络/git写/子代理；writer收口后结束。
+
+## GPT核心/平台边界材料同步（2026-10-12 · 两轮有限内容父已接受 · NEEDS_NAMED_EVIDENCE）
+
+第一报告run5dcb90bc-b1ed-4793-a423-9a8060ac723b，outputReference=C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/51eda1fb-1fc4-429a-b141-29aa2dcb05c4/core-platform-split/gpt-three-way-comparison-01.md。第一独审331a9565-063e-4610-a338-0a95190c2bcd，outputReference=C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/331a9565-063e-4610-a338-0a95190c2bcd_reviewer_output.md，对应reviewer_meta.json exitCode=1；父已接受ACCEPT_STATIC/findings=[]内容，但review/workflow51eda1fb-1fc4-429a-b141-29aa2dcb05c4仍failed，原doc lane未启动。Exact error：
+
+```text
+Required file-only output was not produced: C:\Users\ASUS\.pi\agent\sessions\--D--online_gal--\subagent-artifacts\outputs\51eda1fb-1fc4-429a-b141-29aa2dcb05c4\core-platform-split\gpt-three-way-review-01.json
+```
+
+第一报告/原审.md/meta原样copy为新guard/first-report.md、first-review.md、first-review-meta.json，hash相同；不创建缺失.json、不伪造成功receipt，不重复审查。内容接受不消除交付失败。
+
+本次补证run0463d439-d75c-415a-ac70-1f452ba7f1b1，outputReference=C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/a2afa683-42b4-4bba-bcaf-3f359c847e2f/core-platform-split/core-frame-boundary-02.md，判定NEEDS_NAMED_EVIDENCE；独审run0443d3bc-9548-4bb5-87d7-bb86baa19008，outputReference=C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/a2afa683-42b4-4bba-bcaf-3f359c847e2f/core-platform-split/core-frame-boundary-review-02.md，ACCEPT_STATIC/No issues found，仅报告质量，不是READY/实施/运行通过。初始本doc任务标待父最终决策；本writer转义错误停报后，父完整读取本次两报告并接受有限结论，明确不授实现。补证两条/usr/bin/grep: Unmatched ( or \(及partial保留失败。
+
+真实边界：Android↔WASM整数ms与Lua now独采31bit掩码是强局部对应；Execute→Display仅候选链，不是core全等。本次wasm2c补出两个虚调用void(object)、void(object,frame_time)，module_instance不算引擎参数；动态目标未知，第二调用不可命名Lua resume。stage execute/display门控/分支已见，真实参数/renderer提交仍缺证，不把前置差异硬归Web平台。官方版本identity/source与Android→WASM转换recipe、compat实际Android产物provenance仍unknown；Android库产出不等于游戏可用。
+
+首替候选收窄为host/web_main.cpp的Host::Frame()+Step()+DrainQueued()及提交判定，经既有artc_web_frame；不整包重写TS/Worker。暂保留Open/Boot/Release、健康single-flight/RPC/range/audio/dispose/root身份ACK及MapPoint冻结；core暂作依赖，不宣称等待恢复已证可保留。下一步只三项指定静态材料：Execute两虚调用对象初始化/虚表/table目标；其可达Wait/Trans yield/到期恢复与stage/Display顺序；stage间接参数/renderer提交槽及既有JS调度切片。不要求全库还原，不把TS/Worker资源管理当根因，不实施。
+
+官方原身份Android558b4f4b08e722b8c9bb336362846f755288bb0f7e8c38a45dc33c43d58fedcf、WASM7ceabed28b84e7689fc4b629fa232e2857f15c3b6e6fa3e09fc39dba082d145e与净pin17200e64ea99681e3c27d694433c0ff78d7a7cee保留，此doc轮不重算二进制。clock-ms-02用户亲测未解决；逐步完整替换→未解决留记录累积→解决后缩减范围目标保持。全部运行测试用户亲做，无新代码/assets/services/候选，4670在线/FPS未知，许可未清，专有伪C不搬入GPL仓库。
+
+本轮doc inline辅助命令解析前SyntaxWarning/SyntaxError unicodeescape EXIT1，零doc编辑，exact/partial存doc-write-error.txt；父授权用write UTF-8 record再读取插入，原失败不改写成功。Flash410/Opus503/guard误位/ENOENT/交付失败等历史完整保留，不再查Pi/provider。cwd=D:/online_gal、branch=main、HEAD9dd18ecf/index空/既存dirty，有限七项冻结hash不变。仅三doc摘要/本record及guard证据，原Opus503标题起历史suffix完整bytes保持；无测试/编译/运行/HTTP/进程/服务/分析器/git写/子代理。证据D:/online_gal/.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/gpt-core-boundary-closeout-02/保存原结果副本/copy-proof、三doc before/after/diff、history/frozen证明、status/cached/partial及失败恢复。writer完成即结束。
+
+## Opus503基础设施有界排查（2026-10-12 · blocked · 无对照结论）
+
+父核workflow253ee03d-89eb-4452-a18f-081a34144e1c及scout e872c38d-9582-40d0-b24e-192dc328210d均failed/terminal，required file-only output未产出。requestedModel=magpie/avemujica-aws/claude-opus-5-5，resolvedModel=magpie/avemujica-aws/claude-opus-5-5:low，thinking来自scout默认low。父实际读transcript前6行证实一次docs/current-work.md read已完成，不能说没有读文件；只产开场白，无函数映射/对照报告，无仓库写入证据。Exact error：
+
+```text
+503: {"code":null,"message":"avemujica-aws: claude-opus-5-5 requires adaptive thinking; omit thinking or use thinking.type=adaptive and output_config.effort (request id: 202610112359031917316858268d9d6Jpci08Dz)","param":null,"type":"api_error"}
+```
+
+原退役路由410仍保留。用户clock-ms-02亲测未解决；三方核心/平台对照暂停、无新候选。此次仅同协议基础设施静读，不是引擎证据。有界查明pi-subagents applyThinkingSuffix保留显式:off；pi-ai off转undefined reasoningEffort，但provider分支不同（deepseek会发thinking.disabled）。未定位实际magpie/avemujica-aws payload实现，因此本Opus路由:off是否真正省略上游thinking、同模型adaptive是否有安全per-run API均unknown，不建议自造字段/global hack，不发live probe。父/operator须另裁恢复，writer不重试或换CLI/foreground/model。
+
+窄源码锚：C:/Users/ASUS/.pi/agent/npm/node_modules/pi-subagents/src/runs/shared/child-tool-plan.js:48-56；src/runs/background/async-execution.js:840-860；C:/Users/ASUS/.pi/agent/npm/node_modules/@earendil-works/pi-ai/dist/providers/openai-completions.js:339-340,445-450,475-478。证据仅这些层，不能推断magpie实际payload。
+
+实际路径猜测ls原错误保留：/usr/bin/ls: cannot access 'C:/Users/ASUS/.pi/agent/npm/node_modules/pi-subagents/src/runs/async': No such file or directory；同命令后续ls成功整体EXIT0不抹错误，经父授权只读实际background目录继续。证据guard误建为headless-pass01/followup-opus503而非既有guard子dir；已断言绝对.ref/无reparse/不存在，父事后批准保留使用，不改写原范围偏离。没有配置/模块/provider修改或执行，没有凭据读取、引擎改动/运行测试；全部测试用户亲做。cwd=D:/online_gal、branch=main、HEAD9dd18ecf/index空/既存dirty，完整历史suffix保持，版本identity unknown/许可未清。writer收口后结束，无在途工作。
+
+## core/platform材料定位基础设施阻塞（2026-10-11 · preparation-blocked）
+
+父报告本波定位child 0c61a0ca-ff14-44c7-bcae-86773d04a6c1首个模型请求即失败，无可用分析/定位报告。workflow f127776a-7d3d-4f94-8f6e-1e212e215f76标preparation-blocked，不启动C++对照，待父同协议恢复，不自行换模型/CLI/provider或重跑定位。Exact error：
+
+```text
+410: {"code":null,"message":"Ollama Cloud: deepseek-v4-flash:0731 was retired at 2026-09-25 00:00:00 -0700 PDT (ref: df0be300-9f95-41ad-84cc-a20d0c68fe02)","param":null,"type":"api_error"}
+Required file-only output was not produced: C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/f127776a-7d3d-4f94-8f6e-1e212e215f76/core-platform-split/evidence-inventory.md
+```
+
+本阻塞不是分析结论，不改变用户亲测未解决/既有构建静审事实；尚无三方对照结论或新候选。文档writer后续只读输出另遇GBK UnicodeEncodeError EXIT1，exacterror保留guard/followup-read-error.txt；父授权改用read及UTF-8证据继续同run，原失败不改写成功。cwd=D:/online_gal、branch=main、actual HEAD9dd18ecfd3de16f5b271c34e87a31aea30c753d6/index空/既存dirty，相关status/index/窄partial供父恢复前审阅。仅三doc追加与当前摘要同步，原用户反馈record起历史完整保留；无定位/对照重跑、测试/编译/进程或服务操作。writer本次完成后结束，无在途具体工作。
+
+## 用户未解决反馈与core/platform方向调整（2026-10-11 · 仅文档记录）
+
+最新用户反馈（本轮m02169）clock-ms-02“还是不行”：记录为用户亲测报告未解决原问题，不再标待首次反馈。未提供具体测试步骤、测量/FPS或重复次数，不编造这些证据；不据此否定所有时钟问题。clock-ms-02的真实构建/供包EXIT0、PASS_PACKAGE_STATIC与PASS_ENTRY_STATIC父验收仍成立，但静态通过并不保证解决用户问题。保留本候选及旧候选assets/source/identity/入口不动，作为累积失败与回溯材料。
+
+用户提出先定位官方Android库与官方WASM相同部分作为引擎本体，再按官方Android→WASM的处理重建compat浏览器平台层。现在暂停继续NowMs/整数毫秒转换小修改；阶段转为官方Android↔官方WASM↔净compat共用引擎与平台层三方静态对照。父将另派只读材料定位及复杂C++对照，本writer不执行分析或产品实现；父尚未接受任何新对照结论，尚无新候选。“能正常出来安卓库文件”仅按Android产物构建路径线索记录，不改写为真实Android游戏运行验证，也不证明核心与官方等价。
+
+总目标保留：逐步整段直接替换→用户亲测未解决则留记录并累积继续→解决后逐步缩小范围定位。新方向调整替换对象，不授权本writer自动测试/build或继续时间seam。全部测试用户亲做；版本identity unknown、许可未清、REA/既有工具失败及WSL EXIT1/Git Bash EXIT2/review-file-only/路径ENOENT与授权纠正历史全部保留，成功记录不覆盖失败。
+
+本轮仅三doc当前摘要和新增本record、ignored证据guard。原clock入口父静态验收收口起完整历史suffix bytes保持；代码/ports源码recipe/out/dist/.test新旧供包root/API/服务/官方伪CAndroid/vendor/旧trial冻结。cwd=D:/online_gal，branch=main，HEAD9dd18ecf/index空/既存dirty，无git写、运行/HTTP/进程检查/测试/编译/服务操作或子代理。证据D:/online_gal/.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/core-platform-pivot-record-01/保存三doc before/after/diff、有限冻结库存、status/index/partial与历史证明，不称全仓零漂移。
+
+## clock入口父静态验收收口（2026-10-11 · doc-only · 待用户亲测）
+
+父已消费包独审22b236ed-fcfb-44af-bb9f-41e887c12154 PASS_PACKAGE_STATIC/findings=[]与入口独审efe4d221-2d6e-445e-892c-406c0f4c00ff PASS_ENTRY_STATIC/findings=[]及limitations，均接受。包执行作者runId=cd885bf6-da5a-4c3c-bcd4-a7b45ef0a296，outputReference=C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/80f33a38-4820-42b8-a6ab-4384c3cc8b83/platform-comparison/{clock-ms-02-build-supply}.md；入口作者runId=6752d12c-41f9-47b0-bc53-172acaee67fe，outputReference=C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/f7bd5a65-d1da-47be-9e06-3ecb7cb78550/platform-comparison/{clock-root-entry-01}.md。独审原outputReference分别为C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/22b236ed-fcfb-44af-bb9f-41e887c12154_reviewer_output.md及C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/efe4d221-2d6e-445e-892c-406c0f4c00ff_reviewer_output.md，本收口实际全文读取。
+
+已构建供包及原root新增clock-compat按钮；candidate/output=clock-ms-02，sourceSeam=clock-ms-01。WASM e61a1f49a7658518e3ec3b2d70441cd43824de7f432b0a8799367ee1cf8d2661，JS f79c78092dc5cc9701888931f7938d615f41b5fa9a244d34c09677984da0ddae。默认official与旧候选/净基线保持；共享STOP按session/frame/origin/run/ns/engine/candidate ACK才释放。全部运行测试用户亲做，目前没有用户效果反馈。
+
+用户步骤：先STOP现引擎并等锁释放→刷新原http://127.0.0.1:4670/→选择compat（整数毫秒 clock-ms-02）→START固定服务端GAME，不选dir/game-id；STOP后等完成再切换。server映射仅静读，4670在线/实际页面未知，未访问URL，不称游戏可运行/FPS改善/官方全等/Android版本等价。版本unknown/许可未清，REA没有成功取证。
+
+本轮仅三doc当前摘要及新record、ignored guard证据；历史从原clock-root-ms-02入口源码接线起完整bytes保持，root/新旧PKG/源码recipe/产物服务冻结。cwd为D:/online_gal，branch为main，不是D:/online_gal/main子目录；前作者报告连写瑕疵、review初次ENOENT及supervisor授权纠正保留，不改旧调用为成功。旧WSL EXIT1/Git Bash EXIT2/file-only交付失败仍保留。main/HEAD9dd18ecf/index空/既存dirty，无测试/编译/运行/请求/进程或服务检查及git写。证据D:/online_gal/.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/clock-entry-closeout-02/保存三doc before/after/diff、历史与有限冻结库存、status/cached/partial。此为已验入口文档同步，不新增代码审或运行PASS。
+
+## clock-root-ms-02入口源码接线（2026-10-11 · 待独审 · 运行未测）
+
+父接受22b236ed-fcfb-44af-bb9f-41e887c12154 PASS_PACKAGE_STATIC/findings=[]后授权本seam。原按钮组新增clock-compat：compat（整数毫秒 clock-ms-02），默认official及旧official/compat/external/净clean分支保留。START固定服务端GAME，不需目录/game-id；iframe=/compat/pkg/clock-root-ms-02/index.html?embed=1&run=<run>&ns=<run>，store=saves:clock-root-ms-02:<run>:Artemis。URL仅serve源码映射推导，未访问，不证明4670在线。
+
+PKG/clock-ms-02整包28文件与已审dist bytes/hash核同；新clock-root-ms-02复制净root三文件，range-source SHAba173d662fd304ae5d36981361af1552772594b58493e0f84318a7321eea9718不变，entry/index仅asset/候选身份/hash/namespace替换，其外bytes等价。复用整套clean modules/worker/helper及冻结input/MapPoint，未改生命周期/调度/字体/音频/VFS；direct打开不自动启动。
+
+共享clean STOP协议保留：同步锁控件、在途load补STOP，root session独立记录engine/candidate/run/ns；frame来源+origin+四身份匹配artemis-clean-stopped才卸载解锁，净ACK不能释放clock。初次及new-run失败恢复沿原applyRun/refreshMeta，静态身份取对应clock-ms-02/identity.json，不借旧run.json/net hash。未访问/迁移/清空IDB，不声称与AI全局互斥。
+
+证据D:/online_gal/.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/clock-root-entry-01/保存root before/after完整diff、adapter identity-only逆替换等同性、copy-hashes、冻结库存/status/index/partial及history证明。main/HEAD9dd18ecf/index空、既存dirty保持；原失败/旧包历史保留。全部运行测试用户亲做；无build/emit/tests/check/typecheck/目标/browser/game/HTTP/服务/FPS/网络，不自签入口PASS，效果未知/版本unknown/许可未清。待独审与父验收后用户再按单实例亲测。
+
+## clock-ms-02隔离编译与文件供包（2026-10-11 · EXIT0 · 待包独审）
+
+父接受recipe独审68a12c77-69f7-4298-b135-5ab1f60923b5 PASS_RECIPE_STATIC/findings=[]后另授新guard/out/dist。显式Git Bash、offline=1、CLOCK=clock-ms-01、CANDIDATE=clock-ms-02、parallel2一次build EXIT0：真实候选TU编译及链接，ZLIB/cache同root；固定pin17200e64原archive无改。clock-ms-02仅输出编号，仍clock-ms-01单一转换seam。旧WSL EXIT1/Git Bash EXIT2与file-only交付失败完整保留，不以本次成功抹旧记录。
+
+独立JS emit EXIT0、aux供包EXIT0，dist/clock-ms-02共28文件，配对本次JS/WASM/sourcebundle、worker/helper/modules、identity/README及delivery-sources.zip；out内本地package.zip。父额外授权仅生成entry/index副本显示标签与saves:clock-ms-02 namespace精确替换，原模板/生命周期逻辑不改，规则/diff附包。未打开/迁移IDB、不接root/.test、不部署，无可用URL声明。
+
+证据D:/online_gal/.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/clock-build-supply-02/含完整invocation/env/PID/logs/exits、真实build-proof/input/output hash、template diff/identity规则、包库存差异和窄保护库存。main/HEAD9dd18ecf/index空、既存dirty保持；本轮源/recipe/manifest/旧资产冻结，原history suffix bytes保持。
+
+待fresh只读包审，不自签PASS；全部运行测试用户亲做。本轮无tests/check/typecheck/合成执行/wasm instantiate/browser/game/FPS/HTTP/服务/网络；纯JS emit为授权构建。运行效果/在线/官方等价未测，版本unknown/专有许可未清，GPL源码包不解决专有SDK授权。父包验收后另授入口接线。
+
+## clock-sysroot-recipe-01静态修复（2026-10-11 · 待独审 · 未编译）
+
+父另授单seam：build.sh:39起按非空绝对EM_CACHE选择ZLIB sysroot，沿ports_unix→pwd-P→ports_win把同一cache路径导出给SDK；include/libz.a同root并保留缺项失败/不自动安装。unset/空时沿原SDK/cache，空变量unset避免SDK parser None路径错误；Windows drive斜杠/反斜杠、Git Bash绝对路径及空格均引用，relative/drive-relative值fail closed。ports/env.sh不修改EM_CACHE；现SDK tools/config.py:48-49/135-144及cache.py:198证实cache合同，未运行SDK探针。BUILD.txt重建说明同步有效cache路径与引用要求。无新选项，不改CMake/manifest/NowMs TU或目标列表。
+
+源码配方已修待独审，不自签PASS；原WSL EXIT1、Git Bash EXIT2与review-file-only交付失败仍保留，恢复审查b66860e3-3c5d-4c90-94a5-f3fc8e53e6a0结论BLOCKED不变。双sysroot混用有证，不称唯一根因已证。out/clock-ms-01失败现场冻结，无候选包/URL；未编译/configure/测试/check/typecheck/bash-n/compiler探针/运行/HTTP/服务。用户亲测、效果与版本unknown/许可未清。
+
+新证据D:/online_gal/.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/clock-sysroot-recipe-01/保存两recipe before/after bytes/hash/diff、窄冻结库存、git status/index/partial及doc history等同性。main/HEAD9dd18ecf/index空，既存dirty保持；下一候选输出仅计划clock-ms-02（仍clock-ms-01源码seam），未创建，须独审及父另授。
+
+## clock-ms-01隔离编译停报（2026-10-11 · BLOCKED_BUILD · 无包）
+
+父实际接受源独审de50d121-263b-4b0f-b365-592250d7c92d PASS_STATIC/findings=[]后另授本阶段。冻结源码/recipe/manifest未改。先建新guard/保护库存及独立离线Git/EM_CACHE，第一次入口误解析WSL bash，ARTC_CLEAN_CANDIDATE缺失EXIT1；父限定批准显式C:/Program Files/Git/usr/bin/bash.exe重试，原命令opt-in/offline/parallel2实际EXIT2。配置成功、Lua编译部分推进，audio TU报libc++ cstddef/math.h wrapper错误；不是NowMs源码逻辑结论。两次原日志/exit/env/PID与失败现场保留，不第三次重试。
+
+只读generated flags/response/CMakeCache证明ZLIB -isystem指向全局cache，libc++在独立EM_CACHE，math.h宏来自全局cache。双sysroot混用有证，唯一根因/完整驱动搜索序未核。建议父另授build.sh:39让有效EM_CACHE与ZLIB include/library同root（unset默认不变），重建指南注明一致sysroot，需新输出/cache及独审；本轮不实施修复。generated build.make仅列候选lua_engine.cpp，旧TU停用，但尚未成功编译该TU/链接。
+
+out/clock-ms-01保留source/build partial，dist/clock-ms-01未建；未emit/package，无JS/WASM配对包或URL，不接root/.test。全部运行测试用户亲做；未tests/check/typecheck/目标运行/browser/HTTP/服务/FPS/网络，效果及许可未清、版本unknown。main/HEAD9dd18ecf/index空、既存dirty保持，无git写。证据根D:/online_gal/.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/clock-build-supply-01/含两次完整logs/invocations/exits、保护前后库存、配置/输入hash与setup-diagnosis.md；原从源码实施record起历史bytes保留。
+
+## clock-ms-01源码实施（2026-10-11 · 待独立静审，未编译）
+
+父接受time08独审d2d0b241-814e-4169-b8fe-ee238f0c550d PASS_STATIC并另授本单seam；旧ENOENT/provider stream失败仍为历史。新增ports/artemis/compat-web-clean/candidates/clock-ms-01完整lua_engine.cpp，来源固定pin17200e64ea99681e3c27d694433c0ff78d7a7cee的git archive，与baseline-02原bytes核同。仅NowMs转换改为duration_cast<milliseconds>.count后显式double，其它bytes保留；不是搬专有反编译代码。
+
+ARTC_CLEAN_CLOCK=clock-ms-01明确opt-in，unset沿原manifest；CMake既有替换循环移除原TU后加入候选，保留audio/PF8与archive headers/includes。hash及sourcebundle记录包含候选，默认净来源/原产物/入口不改。本轮只recipe/source/manifest，未建out/clock-ms-01、未编译/供包/测试/check/运行/HTTP/服务。全部测试用户亲做；待独审及父另授下一构建阶段，无用户效果反馈。
+
+相对epoch、每次独立采样、ClockNow/Pause/Resume、steady deadline/CABI double与l_now实现不改；非负单样本损失[0,1)ms、负duration向零。TagWait pending>1/截断等边界可影响后续时序，不能承诺整体变化<1ms；l_now后续读取时机可能间接变化。非官方全等/FPS根因或收益保证；版本unknown、许可未清。
+
+证据：.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/clock-ms-source01/（before/after库存、source.diff/source-proof、静态selection闭包与git partial）。辅助脚本SyntaxError EXIT1与CRLF匹配AssertionError EXIT1均保留，经父限定恢复后按真实CRLF定点替换，不归一化整TU。main/HEAD9dd18ecf/index空、既存dirty保留，不stage/commit或改冻结历史。此前root/source源码静态验收已接受，运行未验；本轮未新测root/source/在线。
+
+## time08证据索引恢复（2026-10-11 · 待复审）
+
+规格语义不改。独审faee169d-e0d9-4c63-846e-a50e6cb9863d因错误路径evidence/invocation.json的ENOENT中止，未完成；正确留存路径为time-contract08/evidence/time08-invocation.json。索引修复workflow13dda9c9-b65c-4c1c-8e79-4cf628a75eff曾provider stream断开、review未启动，旧BLOCK/失败不改写PASS。本次仅静读恢复完整绝对路径/size/SHA及长函数offset索引，见.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/time-contract08/evidence-index-repair.md。留存-process/-noanalysis、EXIT0/PID97140仅历史记录，不重跑Ghidra或探进程。产品未改；待下一lane独审，未授实施。
+
+## time-contract08（2026-10-11 · READY_FOR_IMPLEMENTATION_SPEC实验规格待独审）
+
+父反馈static07独审只PASS_STATIC两个observed边界，不是全帧快照/脚本yield后present或实施许可。本轮正式撤销这两推断。复用static07 DB，以-process libartemis.so/-noanalysis补时间双证：CLua.Now006c3af8独立采CTime.Now并31bit mask；Animation CalcFrame00580050、CommandWait00615bfc、CommandTrans0063f3fc另采。全部函数SHA558b4f4b…，直接Ghidra12.1.4/JDK27正常EXIT0；不重import/reanalysis、不执行目标。
+
+父准许规格收敛为LuaEngine::NowMs完整转换职责直接替换实验：duration_cast<milliseconds>(ClockNow-init_time).count再double，原相对double转换停用；保留相对epoch、Pause/Resume期限移动、独立采样/CABI/预算/render/输入顺序。已有Lua l_now整数化不变，Lua可见时刻通常不变；内部浮点消费者量化，非官方绝对32bit/31bit时钟等价、非FPS根因或收益保证。新独立candidate overlay按manifest/CMake源替换，不污染净archive/旧供包；本轮未实施，待独审及父另授写域。
+
+规格/全部调用点与伪C/xref/汇编：.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/time-contract08/；绑定time-contract08.md。SDK可比性、Execute动态字段读闭包、用户运行效果未知，后两项不扩大时钟小seam。三doc仅摘要/新record，历史suffix保持；session历史/产品/vendor/原件冻结，全部运行测试用户亲做，许可未清。
+
+## Android static07取证检查点（2026-10-11 · PARTIAL待独审）
+
+import06因项目路径含.ref在ProjectLocator校验失败，未导入；历史失败不改写。static07使用获批ignored DB D:/online_gal/ports/artemis/out/android-static07/project/android，direct Ghidra12.1.4/JDK27，原.so SHA558b4f4b08e722b8c9bb336362846f755288bb0f7e8c38a45dc33c43d58fedcf。正常autoanalysis 182s、timeout=false、ELF/AARCH64:LE:64:v8A/default、imagebase00100000、21330 relocations，保存成功。GCC异常表/PNG/Varnode分析warnings保留，不以EXIT0冒称全闭包。focus01 helper误调用旧import冲突，未覆盖；停报后父批准修commandline，同DB focus02–07成功，原失败证据保留。
+
+原SHA限定：006f4838→pthread入口006f523c→android_main006f1270；active gate内poll→CTime.Now00605ff8（clock_gettime4整数ms）→必要Sleep00606074后重采样→Execute0065faac→Display00667950。Display→Stage006e90c4仍有renderer虚表frontier；EndRender005fb800确实eglSwapBuffers，但动态连接未闭合。Lua resume实现有证，不能断言Execute每帧resume/yield预算。Android/WASM引擎版本可比性未知；16ms shell等待不等于60Hz，也不是Web应搬的usleep。
+
+证据根.ref/artemis-platform-analysis/android-558b4f4b08e7/headless-pass01/android-import07/，完整伪C/xref/反汇编及logs/index ignored。首个候选为B帧时间快照owner，但暂停/epoch与脚本预算未闭合，尚不授产品替换；待独审/父裁定。root/P2原静审状态及净pin/资产身份沿原记录；不回迁R1–R4。所有测试/游戏用户亲做；本轮只分析器，无目标执行/build/服务/HTTP/FPS，许可未清。
+
+## root静审收口（2026-10-11 · 父最终验收尚待）
+
+原root最终独审review5e56777c-9a3c-4ef0-ba44-f9dff2b65ac1 PASS_STATIC、无P0/P1；其唯一P2已修。本轮实际消费复审JSON verdict=PASS_STATIC、findings=[]、No issues found：初始GET暂存与fresh失败恢复守卫准确，不覆盖成功fresh/已有身份/活动会话；START/STOP ACK锁及旧URL/trial未变。复审绑定run/output目录68d27884-6fd1-4680-bc04-448f05a5714d，outputReference=C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/68d27884-6fd1-4680-bc04-448f05a5714d/root-parity/run-recovery-review.json；未提供另一个reviewer runId，不臆造。原final outputReference=C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/2c55e2a1-7d99-4957-b4fe-462ebd843504/root-parity/final-review.json。
+
+静态root新增b-clean/pick('clean-compat')、label compat（净基线17200e64），固定服务端GAME/原START；STOP等真实释放ACK才卸载解锁。净17200e64+A/B/C/VFS，无0005/R1–R4回迁，无新增重写或动画修复。source/adapter独审、原workflow交付失败及恢复事实沿原记录保留。
+
+仅三doc当前摘要及本新增record，历史从root P2标题起原bytes保留；产品root/source/adapter/WASM/glue冻结，main/HEAD9dd18ecf、cached空，无stage/commit。全部测试用户亲做；本轮无编译/运行/请求/服务probe或启停。父最终验收尚待；验收后用户先停其他引擎→刷新http://127.0.0.1:4670/根页→净基线按钮→START；STOP未ACK不启另一引擎。当前服务在线/process是否用最新page未核；源码同流程接入不等于运行一致，性能/许可未知。
+
+## root P2 run身份恢复（2026-10-11 · 已修待复审）
+
+实际读取final-review.json：PASS_STATIC、无P0/P1，唯一P2为首次/run.json在fresh期间成功被丢弃、fresh失败后runId永久为空。新增initialRun暂存与restoreInitialRun守卫；初始响应到达及fresh两种失败分支调用，只有无runId/无runPending/无live/无cleanSession才applyRun。fresh成功、已取得身份或活动会话不被旧GET覆盖；不加HTTP重试。原root接线/STOP ACK/旧分支路径、组件与服务不改。
+
+本轮仅root四处定点文本替换与三doc当前摘要/新增record；历史从root integration标题起bytes保留。main/HEAD9dd18ecf、cached空、既存dirty保持；仅静读/编辑/窄hash/只读git，无测试或模拟/HTTP/browser/build/check/服务probe。全部测试用户亲做，运行/4670在线/性能/许可未知；待P2复审及父验收后才交付原root固定GAME流程，不推进重写。
+
+## root integration阶段（2026-10-11 · 待final静审）
+
+仅比较根page/index.html与三doc当前摘要/本轮record。已审source/adapter、净C/引擎/服务/资产、旧简化page/compat-index、AI接口保持；不增加pause/save/AI、不声称AI ownerLock全局互斥。new-run期间同步排他，初始run迟到不覆盖已选run；clean消息独立显示且不借旧title/status假释放。冻结identity fetch仅编写未请求。
+
+adapter独审实际adapter-review.json为PASS_STATIC/findings[]（父消费review7c77fb15-3240-488f-b667-15f3fb6808c5）；range恢复workflow4d20916e-7839-4d46-816b-1256ef699e55/review8f191691-33f7-40b0-b7ef-67174f9f9197 PASS_STATIC，原c047b60d交付失败保留。ROOT待final fresh review，不将组件静审等同运行验收。
+
+main/HEAD9dd18ecf，cached空，既存dirty保留。仅静读/文本编辑/窄hash/只读git；无build/emit/check/typecheck/test/模拟/HTTP/API/browser/game/WASM/FPS/网络/安装/服务进程probe/stage。历史suffix编辑前后窄hash核对；不改历史hash/record。父final验收后用户先停其它实例，在http://127.0.0.1:4670/选择clean-compat→START，STOP等待ACK；无ACK请保持单实例锁，不先启动另一引擎。净baseline-02原手动页保留，loose内存/启动耗时、游戏/输入/音频/字体/动画/许可未知。
+
+## root adapter源码阶段（2026-10-11）
+
+新child仅两页源新增，range-source hash ba173d66…不改。kind identity/trace/log/notification/ready/error/session-end带run/ns/engine=compat-clean/candidate；控制artemis-clean-stop→artemis-clean-stopped校验parent/origin/run/ns。局部session不重启，stop取消C、停loop/input、等load settle及whenDisposed、关独立DB后ACK，失败锁定不假ACK。不加AI/pause/save/capture/FPS。
+
+exact ENOENT clean-baseline-02/modules/runtime-artemis/src/compat/demo-input.js不存在；零写入停报后父批准窄恢复，只复用已知dist/compat/demo-input.js纯输入映射。未build/check/test/HTTP/browser/进程probe/stage，服务在线未知；完整报告绑定本stage adapter-source.md。待独审后另授root接线；下方旧摘要/历史原bytes保留。
+
+> **历史摘要（2026-10-11 · D父静态验收已接受 · 候选等待用户亲测）**
+> - fresh review两原P1 FIXED，无新可达P0/P1/P2，PASS_STATIC — OK；父已采纳。workflow f0b63844-4ba4-4ac2-a4db-1dfcaddf72e1 / review eba86791-c11a-4b79-b64e-308633c67549，实际artifacts见下记录。
+> - 原编译/源码归档/TSemit/供包EXIT0；净commit17200e64无R1–R4迁入，当前entry f50865a7…、WASM294bff39…、glue2fad40ac…保持，baseline-01原失败保留。
+> - 用户先停其它引擎，再手动选目录/稳定game-id/START；URL仅静态推导未访问、服务在线未知。全部运行测试用户亲做，原低刷新未解决、不称改善。
+> - 本轮doc-only，代码/候选/资产/identity/log/evidence冻结；历史bytes保留、staged空，不称worktreeclean。
+
+## D父静态验收收口（2026-10-11）
+
+父采纳实际fresh review：workflow f0b63844-4ba4-4ac2-a4db-1dfcaddf72e1，author a9739990-21ca-4c59-8caf-a9371b249694，review eba86791-c11a-4b79-b64e-308633c67549；绑定artifacts为 C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/f0b63844-4ba4-4ac2-a4db-1dfcaddf72e1/clean-web/d-entry-lifecycle-review.md 与同目录 d-entry-lifecycle-fix.md。报告实际已读：两原P1 FIXED，无新可达P0/P1/P2，PASS_STATIC — OK。末次误猜before快照名ENOENT原注记保留，独审未独立重算hash；结论基于此前完整entry.diff及入口/消费者静读。
+
+原native编译/源码归档/TSemit/供包EXIT0保持，不重编重包；净commit17200e64ea99681e3c27d694433c0ff78d7a7cee，无R1–R4迁入。WASM294bff398f1ed7d49b2cb5d1accb5441b0e92e851d863505a27fdf2ea7b503cd、glue2fad40ac126c6bf8a4bc938e9eca840fd4be8d6080a4ba0683c5e7680ec71f1a、entryf50865a7afab40af8de07b48f7aab616c15bbd1c36fd91916fa06f2cc56351a7身份沿用原证据，本doc-only未重算资产hash、不改代码/输出/identity/原日志。baseline-01原失败与所有历史记录保留。
+
+候选等待用户亲测：先停其它引擎，在 http://127.0.0.1:4670/compat/pkg/clean-baseline-02/index.html 手动选游戏目录、填稳定game-id、START。URL仅existing serve静态推导，未访问、服务在线未知；全部运行测试用户亲做。原低刷新未解决，不能标改善；游戏/音频/存档/动画/FPS/运行与许可未知，GPL不清除官方SDK专有风险。用户反馈新基线结果后父另拆下一原创整块重写；本阶段不推进源码。
+
+
+## D入口两P1定点修复（2026-10-11 · 待fresh复审）
+
+实际独审childb9ce7181-09a1-4e5f-a357-9f16a969042c为BLOCK，非通过。本次只修入口生命周期/会话checkpoint。真实模板out/baseline-02/candidate-entry.js已父追加授权；package.mjs原copy(run/candidate-entry.js,'entry.js')不改不执行。模板/双entry bytes一致，hash从8e524c55c9991dd28c8ea3679e572539f4f2ee969db003ab43a2a1e54fcbdc2c变f50865a7afab40af8de07b48f7aab616c15bbd1c36fd91916fa06f2cc56351a7；精确diff与原identity/hash保留entry-fix-evidence/。
+
+点击handler同步调用动作；START在任何await前取得starting状态/局部session并禁用控件。STOP在starting/operation拒绝，停止保持stopping至whenDisposed完成；失败不错误解锁。loop/input/notify绑定局部实例，startup终态等load settle后释放，不遗留旧实例。选择目录异步也锁入口；运行中目录/game-id控件禁用且namespace使用启动捕获值。SAVE/RESTORE排他operation，checkpoint绑定session，START/STOP清空，晚到SAVE只在同session/operation且未终态存入；终态释放先清checkpoint，旧结果不能跨会话回填。未改C/VFS/schema或原save数据。
+
+只静态编辑/hash/库存，未编译/测试/页面模拟/browser/game/HTTP/API/服务/FPS；native/glue/WASM/helper/sourcebundle及baseline-01冻结。原build/emit/package/log/hash保留历史，当前identity仅更新entry hash，新增修复证据不覆写历史报告；待fresh复审，不宣称候选可运行。
+
+
+## D baseline-02集成供包（2026-10-11 · 待fresh静审/用户亲测）
+
+父另授新baseline-02与离线对象cache；实际A writer/reviewer报告读完，workflowe196bbdd-4596-4142-9e6c-e18840379d8b / reviewer52cd855c-9d07-439e-97c1-e77c07eb86ff PASS_STATIC。唯一授权A hash变化make-source-bundle.mjs=45f76ed081d8bc7ba69d91412ae60a54f638bbab5390aa301ad945b07eff19d3；未改其他A/B/C/VFS。baseline-01原EXIT1/库存保持。
+
+`ARTC_CLEAN_OFFLINE=1 ARTC_CLEAN_CANDIDATE=baseline-02 bash ports/artemis/compat-web-clean/build.sh --parallel 2` 一次EXIT0，真实B host/PF8/audio编译；固定commit17200e64/tree20fe790f git archive输入（非.ref checkout，无旧overlay）；A source.tar.gz成功。`node node_modules/typescript/bin/tsc -p ports/artemis/compat-web-clean/out/baseline-02/tsconfig.emit.json` EXIT0，仅独立源码emit。`node ports/artemis/compat-web-clean/out/baseline-02/package.mjs` EXIT0，原日志/exit/输入和完整输出hash在out/baseline-02。
+
+C工厂createCleanArtemisRuntime(host,options,urls)；classic worker与独立worker-audio helper，加许可复用protocol/read-host/audio-relay基础层；不含旧runtime/worker-host/compat-worker调度。engine-api闭包、现VFS sources/path和现player-host GameLoop原byte emit，单rAF无新公共调度。页面手动选择目录、填写稳定game-id后START；既有IndexedDbStore schema不变，name=saves:clean-baseline-02:<game-id>隔离，原C CLEAN_STORE_PREFIX不改。先停其他实例；STOP释放旧实例后才可再START；pause/resume、save/restore按钮仅用户动作。
+
+父明确新增PKG child写域例外：D:/online_gal/.test/artemis-animation-delivery-ci/package/unpacked/package/clean-baseline-02/，不改497个旧PKG文件、任何旧page/index/serve。serve.js:92,402–407静态/compat/pkg映射及MIME已读，入口 `http://127.0.0.1:4670/compat/pkg/clean-baseline-02/index.html` **仅静态映射推导，未访问，服务在线未知**。所有worker/glue/WASM/helper URL由新child下import.meta.url变绝对，配对同build；out/candidate与PKG child逐文件SHA一致。
+
+JS/WASM/sourcebundle/worker/helper/C/VFS/page完整hash见d-evidence.json与candidate/identity.json；来源见package-evidence.json/input-hashes.json，静态import闭包零缺项；protected-before库存非doc零漂移、baseline-01保持、三docs原历史suffix保持、staged空。不冒称worktreeclean。未运行browser/game/HTTP/API/服务/WASM/FPS/测试/截图，不安装依赖/stage/commit；HTML已完整读daisyUI技能，仅语义类/原生控件无CSS依赖。全部运行测试用户亲做，游戏/音频/保存/动画/FPS/官方等价未知；GPL源码包不清除官方SDK专有许可风险，未输入官方伪C。供包完成待fresh独审，不等于运行验收。
+
+
+## A tar路径修复 / D继续阻塞记录（2026-10-11）
+
+build.sh:81是clean bundle唯一生产调用者；旧CI调用的是旧port，未改。Node child_process原调用把Windows绝对D:路径传作tar归档文件，tar解析为remote；新调用以guarded run为cwd，参数仅artemis-compat-source.tar.gz与source-bundle。归档名称/内容/身份/源hash/不覆盖/错误退出全保留。仅source修复待独审，不重打包，未触out/baseline-01。独审后父另授D新candidate及cache；未创建或选择名称。下方所有既有D/history records bytes保持。
+
+## D integration-only停报（2026-10-11）
+
+VFS独审workflow456403c7-9c8e-4198-a5f8-af06323b66ee / child6d635885-9ef6-4bff-929b-218b78a2ac3b已实际读PASS_STATIC，source hash96c9031efb258563ba85b9e0bbc9aab835ad45cdf21884e56bcbff2b11337a6b一致；父据此另授D。授权离线新cache恢复净clone Git对象，origin/HEAD/tree固定核对，通过git archive构建（非.ref checkout）。
+
+原命令 `ARTC_CLEAN_OFFLINE=1 ARTC_CLEAN_CANDIDATE=baseline-01 bash ports/artemis/compat-web-clean/build.sh --parallel 2` 整体EXIT1。CMake到 `[100%] Built target artemis-compat-clean`，之后make-source-bundle.mjs:68的tar失败：`tar (child): Cannot connect to D: resolve failed`；Node `Error: Command failed: tar -czf D:\online_gal\portsrtemis\compat-web-clean\outaseline-01rtemis-compat-source.tar.gz -C D:\online_gal\portsrtemis\compat-web-clean\outaseline-01\source-bundle .`，child128 / exec status2。原日志与exit保留out/baseline-01/build.log、build-exit.txt。
+
+遵守失败即停，未修A配方/产品逻辑、未重试/另打包，未TS emit/C worker装配/helper copy/page接线。**无candidate URL、不可交付部分产物。** JS152974B SHA2562fad40ac126c6bf8a4bc938e9eca840fd4be8d6080a4ba0683c5e7680ec71f1a / WASM1481163B SHA256294bff398f1ed7d49b2cb5d1accb5441b0e92e851d863505a27fdf2ea7b503cd为本次同build残留，不代表完整package。
+
+输入A/B/C/VFS全hash见out/baseline-01/input-hashes.json，重新核对零漂移；artifact/build身份见d-evidence.json，继承VFS保护库存核对见protection-check.json。main HEAD9dd18ecf，cached空；旧线/净clone不作为copy来源、旧page/index未改。未browser/game/FPS/HTTP/API/服务/截图/运行测试、未stage/commit/push/reset/stash/clean。所有测试用户亲做；待另授A供包tar路径修复/静审再恢复D，当前勿测试部分JS/WASM。未来完整交付后用户先停其他实例，再按独立candidate入口手动选择游戏/start、输入/resize/pause/resume/save/reload验证；本轮无可用入口。
+
+
+## VFS事务阶段记录（2026-10-11）
+
+仅改 `packages/vfs/src/sources.ts` 的 `IndexedDbStore.run`：先安装 transaction handlers，再执行 action；request success 只暂存结果，`oncomplete` 才 resolve；request error、transaction error/abort reject，native Promise 保证只 settle 一次。readonly/readwrite 与 read/write/remove/list 返回值和同步 action 异常语义未改。事务 complete 仅表示本事务提交完成，不作跨掉电 durability 承诺。源码已静读完成，未编译/测试，也未宣称保存成功；待独立review后才可另授D integration-only。
+
+## B resize阶段记录（2026-10-11）
+
+B resize跨seam及C source独审已PASS_STATIC；测试用户亲执行，保护与生命周期证据见clean-base。本阶段不改动画或VFS。
+
+## C阶段接手前记录（历史；以下摘要不当现状）
+
+> **历史摘要（2026-10-11 · clean Web C SOURCE_READY · 待fresh静审 · 未编译未测试）**
+> - A/B已fresh静审PASS；新增compat-clean/{runtime.ts,worker-host.ts,compat-worker.js}独立浏览器owner，现host单rAF tick→单在途frame，无R4 demand/credit/mailbox。首frame启动B；CSS/backing分离、epoch/request回执、防迟到、错误/exit/dispose保持。
+> - 父批准全部非mounted PF8 loose递归逐文件真实MEMFS预置→当前namespace存档恢复→native open/boot；MEMFS总内存/启动代价非有界，不删IDB/静默漏资源。PF8 range仍4MiB拆块、新HEAPU8/root+.000–.063，main不Atomics.wait。
+> - 精确D工厂createCleanArtemisRuntime(host,options,urls)、显式matching glue/WASM和classic worker/helper闭包见clean-base。仅基础protocol/read-host/worker-audio/audio-relay复用；native consumed ACK/pause/loop/EOF/restore epoch与现store隔离保持。
+> - HARD PRE-D：packages/vfs/src/sources.ts:385–397 request.onsuccess早resolve漏tx.abort；父另授独立VFS定点writer+review后才D。C仅await现WritableStore，不能冒称durable commit；无schema/namespace变化。
+> - .ref/artemis-compat-clean-browser-baseline/保留6783项before/恢复partial证据/after/source hash，三docs差异许可、历史suffix保留。main9dd18ecf/index空；manifest baac3a5c…/A/B/旧线/净clone/资产冻结。
+> - C SOURCE_READY待fresh review，D未实施/尚无可用新候选，未编译未测试/无联网/运行/服务/stage。全测试用户亲执行，无pseudo等价/游戏/FPS结论。
+
+> - C fresh review BLOCK: P1/P2 source fixes applied; awaiting independent re-review. Backing assignments now require actual per-dimension changes; CSS CABI resize stays unconditional after validation. Closed input exits before gesture audio; public async unlock rejects after dispose without a synchronous throw. No compile/tests; separate VFS transaction fix/review remains mandatory before D delivery.
+
+## clean Web C阶段记录（2026-10-11）
+
+全loose预置与VFS事务缺口已父裁定；实际类型engine-api/src/types.ts。猜测compat/types.ts ENOENT、文档exact-edit锚失败分别停报获准恢复，三docs失败前后byte相等。C完整D接线/来源与限制见ledger；下方B原历史不改。
+
+## B阶段接手前记录（历史）
+
+> **历史摘要（2026-10-11 · clean Web B SOURCE_READY · 待fresh静审 · 未编译未测试）— 已由C摘要覆盖**
+> - B新增净port六平台源：host/web_main.cpp、host/web_abi.h、platform/pf8_reader.cpp、audio三源，覆盖manifest28入口；A五配方冻结。先独立纯净Web基线，之后新线原创动画，不迁移/累计旧R1–R4；用户R4仍失败，新HEAD与旧pin相同。
+> - 父纠正：完整保留净mac_main.mm:335–349原生Update后再次NowMs、drawn_rev/animating gate、Draw/EndFrame及Boot/reset/exit/原4行Step；撤回单次取时/无条件Draw描述，原生gate不是R2scene-commit。open(pack,os_id)默认windows，非saveDir第二参数；存档沿/game pack parent。
+> - PF8仅Open/ReadAt range seam，OpenFd保持owned fd/pread/close，净parser不变；音频复用独立pull trio，唯一身份修订为WASM生命周期单调<=2^53-1、跨reopen不复用、耗尽拒绝。冻结MapPoint原bytes保持。
+> - C/D未实施：C需#canvas OffscreenCanvas、range exactcount/-1、4MiB拆块/新HEAPU8、root/patch映射；loose必须在同步ifstream前成真实MEMFS，必要文件先于start/load准备，不能异步穿透或全包预载。save恢复与IDB桥留C。
+> - UTF-8 strict恢复复用6774项before与五partial原件；原异常仍截断，独立诊断GBK复现不冒作原trace。长docs heredoc另遭截断/parse失败，父批准短命令+edit收口。证据.ref/artemis-compat-clean-platform-baseline/；main HEAD9dd18ecf/cached空，旧线/clone/资产保护。
+> - 本轮仅静读/hash/编辑，B源码完成等待fresh独立静审；未联网/编译/测试/check/SDK/WASM/browser/game/HTTP/API/进程操作，无candidate/stage；运行效果、可编译性、许可未知，测试用户亲自执行。
+
+## clean Web B阶段记录（2026-10-11 · UTF-8恢复）
+
+恢复先核6774项零漂移与三docs byte相等；新增六源及保护证据，三docs定向更新，历史保留。完整平台/复用来源/资源及C消费合同见docs/artemis-compat-clean-base.md。本轮作者静读不等于独立review或效果验收。
+
+## A阶段接手前记录（历史；以下摘要不当现状）
+
+> **历史摘要（2026-10-11 · clean Web A配方source完成 · B/C待写 · 未编译未测试）**
+> - 父裁定先独立干净Web平台基线，再在新线上原创重写动画；禁止迁移R1–R4。R4低刷新仍失败、无FPS或根因结论；R1旧成功不自动继承。旧链/入口/资产完整冻结。
+> - 净origin/ref/commit/tree不变：Weiss-UltimateSavior/artemis-compat，refs/heads/main，17200e64ea99681e3c27d694433c0ff78d7a7cee / 20fe790f35e382795182b24c9e27e823c1020566，取证2026-10-11T07:47:13Z；新HEAD与旧pin相同，不编造新版。净clone与原metadata只读，attributes可能影响checkout bytes。
+> - A唯一writer仅新增ports/artemis/compat-web-clean五配方文件与docs/artemis-compat-clean-base.md；manifest冻结精确CABI，replacement仅audio.cpp与pf8_reader.cpp，净render/script/core完整保留；不读旧overlay/patch/R1–R4/.ref作构建输入。未来网络固定commit→专用gitrepo→绝对guard source archive，独立candidate不覆盖。
+> - B下一writer独占新host/PF8/audio/CABI，尚未存在，配方明确fail closed；C随后独占新compat-clean三源；D最后另行授权纯编译/隔离供包/接线/页/台账。串行单writer，细表与平台合同见新ledger；MapPoint冻结，音频累计ACK与PF8 range合同不变。
+> - 实时main HEAD9dd18ecfd3de16f5b271c34e87a31aea30c753d6、cached空；guard .ref/artemis-compat-clean-build-baseline/前后6769路径库存保护旧port/runtime/净clone与既有1157项证据覆盖路径。session历史交接与既存dirty保留，无stage/commit/push/reset/stash/clean。
+> - 本轮仅静读/身份/hash/编辑；未联网、编译、测试/check/typecheck/contract/benchmark/CI/SDK诊断执行/WASM/browser/game/HTTP/API/进程操作，未产candidate或切4670。全部测试用户亲自执行；可编译性、动画/FPS/SDK健康/官方专有再分发风险未知；A待独立review。
+
+## clean Web A阶段记录（2026-10-11）
+
+配方source与CABI冻结已写；正式构建共享env仅发现SDK，EM_CONFIG或缺SDK/zlib即停，不安装。source bundle交付净archive+完整新platform+构建材料并核对预编译hash；没有搬上游整树入库，没有应用旧patch。B/C仍是后续source工作，不将A说成平台/引擎交付。两current文档只加本摘要与此记录，下面历史原字节保留。
+
+## 最新上游拉取记录（历史，已由上方A摘要覆盖）
+
+> **当前摘要（2026-10-11 · 最新上游干净基线已拉取 · 尚未构建/测试）— 唯一现状**
+> - 用户最新反馈：R4低刷新仍未解决；无FPS/根因结论。R1旧问题用户曾认解决，但新基线未继承旧链效果，不宣称新base已解决。R1–R4累计链完整保留为历史，当前开发转向新base，不继续套旧改动、不缩减旧链。
+> - 权威origin `https://github.com/Weiss-UltimateSavior/artemis-compat.git`；实际远端查询 `2026-10-11T07:47:13Z` 默认 `refs/heads/main`，clone EXIT0：commit `17200e64ea99681e3c27d694433c0ff78d7a7cee`，tree `20fe790f35e382795182b24c9e27e823c1020566`。上游没有更新（与旧pin相同），但干净工作基线已重新建立。
+> - 新source `D:/online_gal/.ref/artemis-compat-latest-17200e64/source`：纯远端checkout，无旧overlay/dist/官方SDK；status空、git diff/index一致。同级 `baseline.json`、`protected-before.json`/`protected-after.json`记录身份与保护证据；clone前绝对路径/不存在断言通过。compat LICENSE为GNU GPL v3，官方SDK/伪C仍有独立专有许可风险。
+> - main/HEAD `9dd18ecfd3de16f5b271c34e87a31aea30c753d6`、cached空；旧source/pin/产品/R1–R4候选/page/package/lock/dist/serve及历史dirty保持原样，包括session交接与path-string.h。定向复用R4 delivery protected-after的153项，并补充前后库存；不stage/commit/push/reset/stash/clean。
+> - 本轮仅git远端获取与静态身份核对；未build/test/check/typecheck/contract/benchmark/CI/browser/game/JS/WASM/HTTP/API/服务操作，未产新candidate；4670旧入口未切新base。测试全部由用户执行，不能把拉取说成重写已完成。
+> - 下一阶段：在正式ports建立以此净源为唯一engine输入的新隔离Web配方，逐项审查CMake/Emscripten、worker C ABI host、PF8/VFS、音频桥等必要适配，然后整块原创重写、优先动画；不复制旧render/tween/script owner/R4调度。具体重写范围待裁定，最小适配与动画效果未知；tracked产品不得依赖.ref专有源，遵守布局/许可。
+
+## R4交付接手前记录（历史；以下摘要及下一步均不当现状）
+
+> **当前摘要（2026-10-11 · R4源码复审PASS · TS emit EXIT0 · 独立供包PASS_STATIC · 待用户亲测）— 唯一现状**
+> - review `214c4056-244f-4b5f-a98a-43cb1911defc`唯一P1已精确修正：worker-host frame continuation后置条件仅检查frame-ok，删除前置拒绝已排除的重复running===false；新owner行为保持。该P1修正阶段仅静态改源，未运行typecheck/编译；随后独立局部复审PASS与emit结果见下，不冒充测试PASS。
+> - SOURCE_REVIEW PASS：独立复审c8bc92c5-73aa-4f20-b1b0-0e716145212f确认P1消除；正式三源冻结。纯TS实际emit `node node_modules/typescript/bin/tsc -p .test/artemis-rewrite-r4-delivery/configs/tsconfig.json` EXIT0，所有输出/tsbuildinfo隔离，未运行测试或产物。
+> - 独立R4候选已静态装配于旧PKG的assets/rewrite-r4-trial/，package0.1.15-r4与engine-api/vfs完整闭包；worker按原concat配方。runtime SHA `7ece321da95f090dc4c6b8b773aa09ac3187b1895a2a5adb285cac0c76374ac9`、worker SHA `2b47bcc4c6646326900d8bc93d20985c2912d9f907a240602aebeeebfc69966f`，R3 JS859b2179…/WASM `ea38ff9ba4a1fcec452a683cbd44706ca66099248f82e24d6c0b1674af15489a`逐byte复用；不是只用WASM身份冒认R4。
+> - 显式入口 `http://127.0.0.1:4670/compat/index.html?trial=rewrite-r4&ns=r4-7ece321d` 仅静态配置，无HTTP/浏览器确认。page仅R4分支隔离importmap/worker/base与完整manifest身份准入；旧路由与serve/候选冻结。独立供包最终 **PASS_STATIC**（无P0/P1 blocker），runId `bd86e4fe-c34c-4305-b8ff-03db873c8976`，outputReference `C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/a9ab56e2-14f4-420a-a04e-657f15c99ee9/rewrite/r4-delivery-audit.md`；候选待用户亲测，效果/GPU/FPS/可达/根因/官方完全等价/许可未知。
+> - R1旧问题用户认解决；累计R1–R4保留未缩减。R2/R3用户反馈低刷新仍不行；没有FPS或根因结论，效果测试全部由用户执行。
+> - 唯一Sol writer完成R4主线程需求↔worker ACK与生命周期单seam原创替换：仅runtime.ts、worker-host.ts、compat-worker.js；无新helper/依赖。删除60Hz accumulator/frameFailure/pause epoch、旧inflight/sendFrame核心；每真实host tick需求、单credit在途、latest coalesce、ACK最多补一次，无新tick不自循环。
+> - load首帧/started=1、无参native ABI与R1R2R3/audio counters保留；operation及持久化排队同步撤需求，成功后仅新需求继续。fatal/dispose终态；独立audio epoch保持。官方毫秒/单loop代际证据与原创worker credit策略分开记录。
+> - guard `.ref/artemis-rewrite-r4-baseline/source-sol/`保存原bytes/155项SHA256与实际diff。main HEAD9dd18ecf/cached空；既存dirty/untracked保护，不stage/commit/push/reset/stash/clean。详见`docs/artemis-rewrite-r4.md`。
+> - 本阶段仅纯TS emit及静态供包；未测试/check/typecheck/引擎/browser/HTTP/进程操作。证据`.test/artemis-rewrite-r4-delivery/`与`.ref/artemis-rewrite-r4-baseline/delivery-pre/`；无效果或可达结论。
+
+## 下一步
+
+独立供包静态审计已PASS_STATIC，下一步仅由用户亲自测试候选；代理不代测。R3低刷新用户反馈仍未解决，累计不缩减。所有实际测试用户独占。
+
+以下R3入口与审计证据保留，不代表待首次反馈或效果成功。独立审计 runId `785953d1-fba6-41c1-bb6f-1331dbbdaa6d`，outputReference `C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/3507794e-ec66-48a6-8ece-3490cb3f7dac/rewrite/r3-releasegl-review.md`：最终 **PASS_STATIC**。用户先停其他引擎（同刻一个），再手动START：`http://127.0.0.1:4670/compat/index.html?trial=rewrite-r3&ns=r3-ea38ff9b`（无embed、不自动boot；仅静态配置未请求）。JS153843B/859b2179e5fcdae043230bb725e99ff2d708551caebaa831aedf9e9a63fc8113，WASM1504392B/ea38ff9ba4a1fcec452a683cbd44706ca66099248f82e24d6c0b1674af15489a。source零改；page仅+9/-0，旧候选/runtime/serve保持。delivery-pre是postcompile/pre-delivery库存：首guard SyntaxError与外层未failfast导致build先执行，recipe绝对guard/exit=0保留，末尾exit-record失败独立记录；停报获准恢复，无重编译。90条compiler warning: + 3条CMake Warning = 93；109仅含warning字串行数。审计输出截断/GBK读取/helper断言三次中断不是PASS或源码缺陷，最终直接read闭合ReleaseGl比较，详见R3 ledger。不测试/探测服务，无低刷新改善结论。
+
+## R3接手前摘要（历史，不当现状）
+
+> **历史摘要（2026-10-11 · R2用户反馈低刷新未解决 · 保留R1+R2 · R3边界调查）— 唯一现状**
+> - Sol fresh源码review OK with notes / static blocker NO；累计{R1,R2}保留。用户对R2最新反馈「还是不行」：低刷新未解决，未测量FPS；不是撤销R1旧问题已判解决。全部测试用户亲自执行，代理不代测。
+> - 冻结产品源码/接线未改；`ARTC_OUT=rewrite-r2 bash ports/artemis/compat-web/build.sh -j 2` EXIT0，本地pin archive、ARTC_BUILD_TESTS=OFF，Emscripten6.0.9/CMake4.3.1。warnings见out/rewrite-r2/build.log，不执行引擎。
+> - 新WASM1503668B SHA256 `08a426da6bb54c59ed8e097a6dec277e8225fc923369d42d98081cd8a8a1ad9a`；JS153843B `1f7f7963125000660e8e39ed5f96b577edbd68e24831eea5725fd8d9b9b36d45`（与R1相同胶水，WASM不同）。独立rewrite-r2-trial matching pair/manifest已写，page只加显式R2/hash校验。
+> - 用户静态配置入口 `http://127.0.0.1:4670/compat/index.html?trial=rewrite-r2&ns=r2-08a426da`，无embed、不自动boot。用户先停已有实例，再手动START；**入口可达/加载未由代理验证；用户反馈低刷新仍未解决**，未探测4670/服务/API。
+> - guard `.ref/artemis-rewrite-r2-baseline/delivery-sol/`保存161项前态。批准host raw4d00e8d2…30402B，经原build dos2unix编译为edc167a1…29680B；父代理批准严格CRLF→LF字节关系，不改host/build；R1七源构建输入raw相等。R1/旧assets/runtime/server/其余源全保持，main HEAD9dd18ecf/index空不改。
+> - 历史供包阶段仅纯编译+静态供包；无测试/check/typecheck/benchmark/WASM/browser/game/HTTP/API/服务进程探测启停，无stage/commit/push/reset/stash/clean，无代理或Opus重试。f2890间接闭包/completion/VMDraw/materialanime/rollover/runtime调度/许可仍未知。
+
+> - **审计收口**：fresh源码review `85254823-87c3-4d60-8a6d-ca06faac8423`、真实纯编译EXIT0、独立artifact审计 `f328f2c1-d62c-4213-b5dd-c792f4a0778e`及恢复补证均static blocker NO。GBK读取阻塞已以UTF-8恢复；page完整diff仅9行新增无删除，原式source/build-src digest独立匹配。认证仅限定文件/装配/身份，不是全repo或效果认证。
+> - 最新补证output：`C:/Users/ASUS/.pi/agent/sessions/--D--online_gal--/subagent-artifacts/outputs/b876b9cb-1a8a-46dc-8e99-0f9ec0d44b7a/rewrite/r2-artifact-audit-recovery-utf8.md`（恢复output所属run目录b876b9cb-1a8a-46dc-8e99-0f9ec0d44b7a；未提供另一个恢复execution run ID，不猜）。本轮doc-only，产品/page/pair/manifest冻结；开始R3选域/边界调查，尚未R3实施，未缩减。静态review、编译与独立审计成功记录不推翻，但不等于效果成功。
+
+## 下一步
+
+R2首次反馈已收到：低刷新仍未解决，未测量FPS。下一步在累计R1+R2上调查R3边界、继续逐块独立手写替换旧职责，以官方 `.ref/artemis-official/wasm/asyncify` 伪C为指导；不打差异patch、不回退，失败记录后继续累计重写。尚未R3实施，不新建R3设计或缩减；解决后才逐步缩减。全部测试用户独占，代理不自测；历史4670监听不是当前健康证明。
+
+---
+
+## 历史 AI 接口交接（2026-10-06；以下操作不是当前执行授权）
+
+> 以下保留旧机器接口、验证、身份与操作说明，**不得当作当前服务存活/候选产物/测试结论**；当前策略以上方摘要及 `current-work.md` 为准。代理不得按下文自行探测、重启或测试，所有测试由用户执行。
+> 历史代码身份 `73c5162a8d38548ecedafe5ca22f4fbb2c8b035c`（已 push）**绝不说「未落盘」**；doc HEAD 以只读 `git rev-parse HEAD` 为准。
 
 ## 0. 单命令重启（仅确证服务 dead 时）
 
