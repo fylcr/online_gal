@@ -18,6 +18,11 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 const ROOTS = ['packages/', 'apps/', 'ports/'];
+// These tests create their own archive extraction and log directory under .test/.
+const ARTEMIS_SCRATCH_TESTS = new Set([
+  'ports/artemis/compat-web/tests/artemis-compat-first-transition.test.mjs',
+  'ports/artemis/compat-web/tests/artemis-compat-tween.test.mjs',
+]);
 const CODE = /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs|sh|bash|py|rs|go|java|kt|c|h|cpp|hpp)$/i;
 
 /** Strips `//`, `/* *\/`, `#` and `<!-- -->` comments so only real references remain. */
@@ -37,7 +42,7 @@ const offences = [];
 
 for (const file of tracked) {
   if (!ROOTS.some((root) => file.startsWith(root))) continue;
-  if (!CODE.test(file)) continue;
+  if (!CODE.test(file) || ARTEMIS_SCRATCH_TESTS.has(file)) continue;
 
   const body = stripComments(readFileSync(file, 'utf8'));
   body.split('\n').forEach((line, index) => {
