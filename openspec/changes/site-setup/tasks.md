@@ -5,7 +5,7 @@
 - **负责**：管理系统的对话（`cf-account-admin` 的对话）。
 - **配合**：`plugin-system` tasks.md 11.3（撤销内核对 `/__setup` 的放行）与 10.10（发布工作流用 `npm run build:pages`），由插件系统的对话完成。
 - **未决事项**：无。proposal 的 (f)、(g) 已由用户决定 G（2026-11-23）结案。
-- **当前要做**：第 6 节（决定 G：初始化只用 Cloudflare OAuth）。第 6 节完成并部署后，用户才做 4.3 第 4 步。
+- **当前要做**：无。第 6 节（决定 G）已于 2026-11-23 完成并部署（`d6c39cf`，部署 `42d9a7f6`，日志 `setup (规则 3)`），等用户做 4.3 第 4 步：在 `https://onlinegal.cc.cd/` 上点“登录 Cloudflare”。
 - **完成标准**：初始化构建只有初始化页；写入后自动（或按提示手动）再构建一次，得到与原设计一致、不含任何初始化代码的站点构建。
 
 ## 历史：上一版已完成的工作（v2，按用户决定 F 部分作废）
@@ -81,4 +81,5 @@
 - [x] 6.5 测试（`.test/site-setup.test.ts` 及初始化页逻辑测试）：删除校验相关与 `github-rerun` 成功/403 的用例；新增：PATCH 请求体只有两个键且不含任何 token、缺 `pages:write` 时不发 PATCH、`scopes` 为空时不拦截、`github-rerun` 不发出任何到 `api.github.com` 的请求、清单含 `input` 项时停下。保留 token 不进任何浏览器存储的用例。
 - [x] 6.6 验收：`npm run check`、`npm run build:setup`、上一条的测试、`npx openspec validate site-setup --strict` 通过；`dist/site/` 的初始化页里搜不到 `type="password"` 和 `api.github.com`。
   - 2026-11-23 实测：`npm run check` 0 错误（`apps/app` 20 文件、`apps/setup` 7 文件）；`npm run build:setup` 日志 `[build:pages] setup (规则 1)`；18 项初始化与账号测试全过；`openspec validate site-setup --strict` 通过。`dist/site/index.html` 与 `_astro/` 里搜不到 `type="password"`、`api.github.com`、`__setup/verify`、`CLOUDFLARE_API_TOKEN`、`GITHUB_TOKEN`；`api.github.com/user` 和 `__setup/verify` 只出现在 `_worker.js`（6.4 保留的服务器校验）。另跑了 `.test/site-setup-browser.mjs` 的 Edge 冒烟：深链接 `/settings/account/` 渲染出“登录 Cloudflare”，无内核，`/__setup/status` 由生成的 Worker 应答。
-- [ ] 6.7 提交并推送到 `main`，等 Cloudflare 的 Git 构建在 `online-gal` 项目上部署新的初始化构建（仍应是 `setup (规则 3)`），在 `https://onlinegal.cc.cd/` 确认页面只有"登录 Cloudflare"一个按钮。之后通知用户做 4.3 第 4 步。
+- [x] 6.7 提交并推送到 `main`，等 Cloudflare 的 Git 构建在 `online-gal` 项目上部署新的初始化构建（仍应是 `setup (规则 3)`），在 `https://onlinegal.cc.cd/` 确认页面只有“登录 Cloudflare”一个按钮。之后通知用户做 4.3 第 4 步。
+  - 2026-11-23 实测：提交 `d6c39cf` 推到 `main`，Pages 的 Git 集成自动构建生产部署 `42d9a7f6-988a-483a-b7bf-c69ea2104cee`（`github:push`，`latest_stage` 为 `deploy`/`success`），构建日志 `Executing user command: npm run build:pages` → `[build:pages] setup (规则 3)`，上传 6 个文件。`https://42d9a7f6.online-gal.pages.dev/` 与 `https://onlinegal.cc.cd/` 的 `index.html` 字节一致（sha256 `1a6f6780…`，6439 B，与本地 `dist/site` 一致），`/__setup/status` 返回 `{"phase":"setup","initialized":false}`。headless Edge 打开 `https://onlinegal.cc.cd/settings/account/?resume=true`：只有“登录 Cloudflare”一个按钮，`input[type=password]` 0 个、`input` 0 个，无 console 报错，无 Service Worker。
