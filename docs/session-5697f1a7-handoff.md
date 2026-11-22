@@ -4,7 +4,13 @@
 > 它的用途是让**零上下文的新对话**能直接接着开发，不必重读那份转写。
 > 生成方式：把该会话的 50 份滚动压缩摘要 + 用户原始发言 + 尾部事件 + Agent Team 流水做机器抽取与分层压缩。**下文所有具体路径、行号、字节数、哈希、错误串都是会话内记录的证据，不是重新测量过的结论**；标注（未验证）处需现场复核。
 
-## 0b. 最新恢复入口（2026-10-05 · compat 线；本节是唯一现状，下面 §0–§2 为 09-17→10-04 历史）
+## 0c. 当前摘要（2026-10-06 · 唯一现状；§0b 起为历史）
+
+- 官方手测页改为 START 才加载胶水。`callMain` 是胶水局部函数；`start-contract.test.mjs` exit 0。**未执行 main，未证游戏正常**。
+- 4664 新 PID **63132**（父 gone）keepalive。wasm sha 仍 `7ceabed2…f145e`。胶水副本无新 delta（仍 `236→3763`）。
+- 4661/4662/4663 未动。goal **paused rev10**。compat 0.1.14 冻结。用户先刷新再 START。本批未 Git commit。
+
+## 0b. 最新恢复入口（2026-10-05 · compat 线；历史，不是现状）
 
 - **ACK 修复已 settled（原 Grok `790232ff…` 已 closing 释放）**：busy 期到达的 ACK 被直接丢弃（旧回执 4 在 native 倒退成 2）已实测；修复 = 单飞行 RPC + 每 handle 最新累计 pending 槽 + epoch 与 `frames <= playedFrames` 双重守卫。实测 native consumed **4** / host `playedFrames` **4**，两个 audio 测试实际 **exit 0**（`.test/artemis-compact-audio-ack-final/b5-final2.log`、`integrated-final.log`）。**这只是 candidate，不是可玩；旧 game run 不自动覆盖 ACK fix，仍需新 CI 之后真实游戏 warmup×2。**
 - **本批 4 门 actual exit 全 0**：`build` 0、`check` 0、`test:portable` 0（**tests/pass 555、fail 0** — 新测试真纳入，非旧 554）、`check-sources` 0；打包 freshness **未跳**（checked 3）、engine ledger 3、离线 install+import smoke 0。新 worker `worker-host.js` `dd5c205c…`，`compat-worker.js` `3216e0f8…`（56712 B 未变）；runtime-dist 与 app-dist worker **byte-identical**。
