@@ -11,7 +11,8 @@
   - E：官方地址改为 `onlinegal.cc.cd`，用户之后亲自做一次初始化，把 cf token、account id 等写进 Pages secret。
 - **用户决定 F**（2026-11-22，第三轮，原话）："构建的时候直接用脚本 / 当检测到初次构建的时候只构建出初始页，其他所有的系统都不加载 / 初始化完成后再进行一次构建，与初始化有关的都不被构建，其他的系统才正常加载，与之前设计的一样"。
   - 据此改为**两阶段构建**（S2）。上一版的页面门槛、内核放行 `/__setup`、站点里的 `/setup` 页全部取消（S6）。
-- **尚未决定**：proposal 的 (f)、(g)，本文写的是默认做法。
+- **用户决定 G**（2026-11-23，原话）："初始化应该通过cf oauth拿权限，不需要手动再填填cf token了，然后github token暂时不需要，反正就是初始页只用cf oauth就能完成了，oauth的时候尽可能获取所有权限，避免后续的时候权限不够"。
+  - 据此：初始化页只靠 OAuth 登录完成，不手填、不校验 token；第一批初始化项只剩 `CLOUDFLARE_ACCOUNT_ID`；`github-rerun` 只给手动入口；proposal 的 (f)、(g) 结案（S5 第 2、4、6、7 步，S7）。
 
 可以复用的已有能力（`cf-account-admin`）：
 
@@ -38,9 +39,9 @@
 - 用一个构建脚本完成两种构建（用户决定 F）：
   - **初始化构建**：站点未初始化时，只构建初始化页和它需要的服务器接口；插件系统、管理器、注册表、引擎都不构建，也不加载。
   - **站点构建**：站点已初始化时，构建产物与 `plugin-system` 原有设计一致，不含任何与初始化有关的代码、页面、接口或路由。
-- 所有者登录、填写并校验全部初始化项后，一次写入 Pages 项目，再触发一次新的构建；构建完成后站点对所有人正常工作。
+- 所有者只用 Cloudflare OAuth 登录（决定 G），不手填任何 token；确认所有者后一次写入 Pages 项目，再触发一次新的构建；构建完成后站点对所有人正常工作。
 - 初始化只做一次（用户决定 D）。状态存放在 Cloudflare 项目里，与浏览器无关。
-- 填写的 token 只在页面内存中停留，不落盘。
+- OAuth token 只在页面内存中停留，不落盘，也不写成 Pages secret（access token 约 1 小时过期，refresh token 续期时会更换）。
 - 不新建 Cloudflare 资源（KV、D1），不新增外部依赖（新的 workspace 只使用仓库里已有的包和版本）。
 
 **Non-Goals**
@@ -49,8 +50,9 @@
 - 重置或重新初始化（用户决定 D）。初始化之后改密钥，到 Cloudflare 控制台修改。
   - 如果有人在控制台删掉 `ONLINE_GAL_SITE` 再构建，脚本会重新产出初始化构建。这是控制台操作的后果，不是本变更提供的功能。
 - 从预览地址初始化。A6 不匹配预览主机名，会停在所有者一步。
-- 检查 token 的权限范围（默认做法，等待 (f)）。例外：重跑 GitHub 工作流需要的权限，失败时退回手动（S5 第 7 步）。
-- 写入 GitHub 仓库的 Actions secrets（默认做法，等待 (g)）。
+- 手填或校验任何 token（决定 G）。登录申请的权限范围见 S5 第 2 步。
+- 初始化 GitHub token，或写入 GitHub 仓库的 Actions secrets（决定 G，原 (g)）。
+- 用 GitHub API 自动重跑工作流。`github-rerun` 只给手动入口（S5 第 7 步）。
 - 读取这些 secret 的服务器功能。初始化只负责写入，使用由以后的功能各自实现。
 
 ## Decisions
@@ -94,7 +96,7 @@
 1. 命令行 `--phase=setup` 或 `--phase=site`。
 2. 环境变量 `ONLINE_GAL_SITE` 存在且非空 → `site`。Cloudflare 的 Git 构建会把项目变量注入构建环境。
 3. `CF_PAGES === '1'`（Cloudflare 的构建环境）→ `setup`。
-4. `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`ONLINE_GAL_PAGES_PROJECT` 三者都有（发布工作流）→ 请求 `GET https://api.cloudflare.com/client/v4/accounts/{id}/pages/projects/{project}`：
+4. （可选路径，只用于发布工作流或本机手动构建；初始化不再写入 `CLOUDFLARE_API_TOKEN`，这三个变量要由操作者自己提供，决定 G）`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`ONLINE_GAL_PAGES_PROJECT` 三者都有 → 请求 `GET https://api.cloudflare.com/client/v4/accounts/{id}/pages/projects/{project}`：
    - 生产环境的 `env_vars` 含非空 `ONLINE_GAL_SITE` → `site`，否则 → `setup`；
    - 请求失败或 `success` 不为真 → 以非零状态退出，不猜。
 5. 以上都不满足 → 以非零状态退出，提示"无法判断构建阶段，请传 --phase=setup 或 --phase=site"。
@@ -172,6 +174,8 @@
 
 **`POST /__setup/verify`**
 
+- **当前无使用者**（决定 G）：初始化页不再手填 token，也不再调用这个接口。接口和它的两个 `kind` 先保留，供以后需要手填并校验的初始化项使用；本变更不删除，也不为它新增功能。
+
 - **何时可用**：只在 `env.ONLINE_GAL_SITE` 缺失或为空时可用。非空（包括无法解析）时，任何方法都返回 404。
 - **检查顺序**：
   1. 方法不是 POST：405，带 `Allow: POST`。
@@ -209,17 +213,14 @@
    - `initialized: true`：显示"初始化已写入，等待重新构建"，登录后直接到第 7 步。
    - `initialized: false`：进入第 2 步。
    - `next` 取当前地址的 `pathname + search`；`safeNext` 只接受以 `/` 开头、且不以 `//` 开头的值，否则用 `/`。
-2. **登录**：`login()` 取验证码，显示验证码、"打开验证页"按钮（`verificationUriComplete`，没有时用 `verificationUri`）和倒计时，由页面按 `interval` 调用 `poll()`，处理 `pending`、`slow-down`、`expired`、`denied`。
+2. **登录**：申请的权限范围是 `CF_DEFAULT_SCOPES`（`packages/plugin-system/src/account/cf-identity.generated.ts`，由 `packages/cf-browser/scripts/identity.mjs` 从 `@cloudflare/workers-auth` 0.18.4 生成，共 477 项，是 cf CLI 默认申请的全部权限）加 `offline_access`。这已是 cf 官方 client id 能申请的最大集合，满足决定 G 的"尽可能获取所有权限"，不改登录代码，不另造 scope。登录成功后以 token 响应里的 `scope` 为准；缺少 `pages:read` 或 `pages:write` 时停在这一步，说明缺哪一项，并提供"退出并更换账号"。`login()` 取验证码，显示验证码、"打开验证页"按钮（`verificationUriComplete`，没有时用 `verificationUri`）和倒计时，由页面按 `interval` 调用 `poll()`，处理 `pending`、`slow-down`、`expired`、`denied`。
 3. **所有者**：
    - `status().siteAdmin` 为空：显示 `siteAdminError`，或"当前账号没有拥有本站（<hostname>）的 Pages 项目"，并提供"退出并更换账号"（`logout()` 后回到第 2 步）。
    - 不为空：显示账号名和项目名。然后 `GET /accounts/{a}/pages/projects/{p}`，读取生产环境 `env_vars` 的键名和 `production_branch`：
      - 有非空 `ONLINE_GAL_SITE`：已经写入、只差构建，恢复记录里的写入时间并直接到第 7 步。不再填写或写入。
      - 没有：进入第 4 步。
-4. **填写并校验**：按 S7 清单显示每一项。
-   - `source: "account"` 的项自动填入并只读，例如账号 id 取 `siteAdmin.accountId`。
-   - `source: "input"` 的项：输入框为 `type="password"`、`autocomplete="off"`、`spellcheck="false"`；旁边有"创建 token"链接（`helpUrl`）和说明；失焦或点击"校验"时调用 `POST /__setup/verify`，显示结果（GitHub 显示 `login`，Cloudflare 显示状态，有过期时间时都显示）。
-   - `rebuild.kind` 为 `github-rerun` 时，GitHub token 一项的说明里写明：要自动重新构建，它需要对 `<repo>` 有 Actions 写权限；没有也能继续，到第 7 步手动重跑。
-   - 全部项校验通过后，"写入并构建"按钮才可用。
+4. **确认写入**（决定 G：不再填写和校验）：只读列出将要写入的键、类型和环境（S7 清单，第一批只有 `CLOUDFLARE_ACCOUNT_ID`，值取 `siteAdmin.accountId`，打码显示）和 `ONLINE_GAL_SITE`。页面没有任何 token 输入框和"校验"按钮。"写入并构建"按钮直接可用。
+   - 清单里若出现 `source: "input"` 的项（以后的变更登记），页面 MUST 停下并提示"该项需手动填写，初始化页暂不支持"，不写入。是否恢复手填由那个变更决定。
 5. （保留编号，原"内核"步骤已取消。）
 6. **写入**：
    - 支持 Web Locks 的浏览器先锁住同源同项目的提交。锁内重新查询 `/__setup/status`，再读取项目的 `ONLINE_GAL_SITE`。任一显示已写入或已初始化，就停止并按第 3 步处理。
@@ -228,22 +229,19 @@
      { "deployment_configs": {
          "production": { "env_vars": {
              "ONLINE_GAL_SITE": { "type": "plain_text", "value": "<S1 的 JSON 字符串>" },
-             "CLOUDFLARE_ACCOUNT_ID": { "type": "secret_text", "value": "<accountId>" },
-             "CLOUDFLARE_API_TOKEN": { "type": "secret_text", "value": "<token>" },
-             "GITHUB_TOKEN": { "type": "secret_text", "value": "<token>" } } },
+             "CLOUDFLARE_ACCOUNT_ID": { "type": "secret_text", "value": "<accountId>" } } },
          "preview": { "env_vars": {
              "ONLINE_GAL_SITE": { "type": "plain_text", "value": "<同上>" } } } } }
      ```
-     - 实际的 secret 键由 S7 清单生成，上面只是第一批。
+     - 实际的 secret 键由 S7 清单生成，上面是第一批（决定 G 后只有一项）。
+     - MUST NOT 把 OAuth access token 或 refresh token 写进任何变量：access token 约 1 小时过期，refresh token 每次续期会被更换，写成 secret 很快就失效。
      - `by` 是 `status().user.id`，取不到时用空字符串；`at` 是当前时间。
    - 成功后再 `GET` 一次项目，确认生产环境包含全部初始化项的键名，并核对非敏感的 `ONLINE_GAL_SITE` 记录。读回其他会话的记录时，继续检查该记录对应的部署。
    - 把写入时间存入 `sessionStorage['online-gal:setup-written-at']`。
-   - 清空内存里的 token。例外：`rebuild.kind` 为 `github-rerun` 时，GitHub token 保留到第 7 步发出重跑请求后再清空。
+   - OAuth 凭据继续留在 `CloudflareAccount` 内存里，第 7 步触发构建和轮询还要用；流程结束或页面关闭即丢失。
 7. **重新构建**（用户决定 C、F）：按配置的 `rebuild.kind`：
    - `pages-git`：`POST /accounts/{a}/pages/projects/{p}/deployments`，`multipart/form-data`，字段 `branch=<production_branch>`。Cloudflare 从该分支重新构建，构建环境里有了 `ONLINE_GAL_SITE`，脚本产出站点构建。把新部署 id 存入 `sessionStorage['online-gal:setup-deployment']`，每 5 秒查询 `GET .../deployments/{id}` 的 `latest_stage`。
-   - `github-rerun`：`POST https://api.github.com/repos/{repo}/actions/runs/{runId}/rerun`（GitHub token 作 Bearer，头同 S4）。
-     - 201：已触发。重跑使用同一个提交和标签，发布工作流的安全边界不变；构建脚本按 S2 第 4 条查到 `ONLINE_GAL_SITE`，产出站点构建。
-     - 其他状态（权限不足、超过 GitHub 允许重跑的期限等）：显示原因和手动入口 `https://github.com/{repo}/actions/runs/{runId}`（点 "Re-run all jobs"），或推一个新的 `v*` 标签。
+   - `github-rerun`（决定 G：没有 GitHub token，不调 GitHub API）：只显示两种手动方法：打开 `https://github.com/{repo}/actions/runs/{runId}` 点 "Re-run all jobs"，或推一个新的 `v*` 标签。发布工作流要产出站点构建，需要操作者自己在仓库里配好 S2 第 4 条的三个变量（`plugin-system` 7.7）。当前官方站是 `pages-git`，不走这条。
    - `manual`：设置好 S2 判断阶段所需的环境变量后，可运行 `npm run build:pages` 检查产物。Git 集成项目用 `cf pages deployments create <project> --branch <production-branch>` 触发生产构建。直接上传项目使用已配置的发布流程发布 `dist/site`。
    - `github-rerun` 和 `manual`：每 5 秒查询 `GET .../deployments?env=production`，等待一条 `created_on` 晚于写入时间、`latest_stage.name` 为 `deploy` 且 `latest_stage.status` 为 `success` 的部署。无法恢复写入时间时，以本站状态接口确认切换。
    - 任一方式：状态为 `failure` 或 `canceled` 时显示失败，提供"重新构建"，只重做这一步，因为变量已经写入。超过 30 分钟提示到 Cloudflare 控制台查看。
@@ -254,20 +252,20 @@
 **中断恢复**
 
 - 刷新后从第 1 步重新开始。
-- 第 3 步能发现"已写入、未构建"，直接到第 7 步，不会要求重新填写，也不会再次写入。
+- 第 3 步能发现"已写入、未构建"，直接到第 7 步，不会再次写入。
 - `sessionStorage` 里有部署 id 时，第 7 步直接接着轮询这个部署。
-- 刷新后 GitHub token 已经不在内存里，`github-rerun` 只能显示手动入口。
+- 刷新后 OAuth 凭据丢失，要重新登录一次才能继续第 7 步。
 
 **token 的处理**
 
 - 只存放在组件和 `CloudflareAccount` 的内存里。不写入 `localStorage`、`sessionStorage`、IndexedDB，不出现在 URL 和日志中。
-- 写入时，token 经 `_worker.js` 里的 `__cf` 中转发往 Cloudflare。这条中转路径不得记录请求体，这是 `cf-account-admin` 已有的约束。
+- 请求经 `_worker.js` 里的 `__cf` 中转发往 Cloudflare，OAuth token 在 `Authorization` 头里。这条中转路径不得记录请求体，这是 `cf-account-admin` 已有的约束。
 
 **本机地址**
 
 - 在 `localhost`、`127.0.0.1`、`[::1]` 上，A6 把主机名映射到 `siteHost` 对应的线上项目。
 - 为了不让本地调试改动线上项目，第 6、7 步在本机地址上不发请求，只显示将要写入的键、类型和环境（值打码）以及将要执行的重新构建方式，作为"本地预演"。
-- 第 4 步的校验照常进行，因为它只读。
+- 第 1–4 步照常进行，因为它们只读。
 
 ### S6 — 站点构建不含初始化系统（用户决定 F）
 
@@ -317,10 +315,9 @@ export const SETUP_ITEMS: readonly SetupItem[];
 | `name` | `source` | `verify` | `helpUrl` |
 |---|---|---|---|
 | `CLOUDFLARE_ACCOUNT_ID` | `account` | — | — |
-| `CLOUDFLARE_API_TOKEN` | `input` | `cloudflare` | `https://dash.cloudflare.com/profile/api-tokens` |
-| `GITHUB_TOKEN` | `input` | `github` | `https://github.com/settings/personal-access-tokens` |
 
-- 默认只校验有效，不检查权限范围（等待 (f)）。`help` 写明"按将来使用的功能授予权限"。
+- 决定 G 删除了 `CLOUDFLARE_API_TOKEN` 与 `GITHUB_TOKEN` 两项。OAuth token 会过期，不能当长期 secret。以后有服务器功能需要长期调用 Cloudflare API，由那个变更在清单里新增一项并决定 token 来源（用户自建长期 token，或服务端用 refresh token 续期）。
+- `source: 'input'` 与 `verify` 字段保留在类型里，当前没有条目使用。
 
 **扩展规则**
 
@@ -353,6 +350,15 @@ export const SETUP_ITEMS: readonly SetupItem[];
 - **不属于本变更**：`npm run build:site` 及其产物、`kernel.ts`、`.github/workflows/release.yml`（`plugin-system`）。
 - **提交**：使用显式 pathspec。共用文件只提交上面列出的部分。
 
+### S10 — 从仓库配置 Pages 的 Git 构建
+
+Pages 的构建命令由项目设置决定，所以读取仓库源码的构建无法为自身填入控制台表单。项目创建时连接 GitHub 或 GitLab；仓库提供 `npm run configure:pages -- <project>`，供已有权限的操作者通过 `cf@1.0.0-rc.2` 填入三项设置：`npm run build:pages`、仓库根目录、`dist/site`。不把凭据或部署配置文件放入仓库。
+
+- 命令使用 `cf` 的登录状态和账号选择。可以用 `--profile` 或 `CLOUDFLARE_ACCOUNT_ID` 选定目标账号；项目名必须明确给出。查询不到项目或项目没有 Git 来源时停止，不自动创建项目或更改 Git 来源。
+- `--dry-run` 只读取项目和显示目标设置。实际写入只发送 `build_config` 的三个字段，重新读取确认；配置已正确时跳过 PATCH。
+- 附加 `--deploy` 才用读回的生产分支发起新部署；返回部署 ID 只表示请求已受理。未初始化的生产项目在该部署生效后会暂时只显示初始化页。
+- 该命令不修改域名、分支、变量、密钥和官方发布流水线，也不为 Direct Upload 项目添加 Git 集成。
+
 ## Verification record
 
 2026-11-22 使用 `cf@1.0.0-rc.2` 验证，未变更生产项目：
@@ -363,13 +369,16 @@ export const SETUP_ITEMS: readonly SetupItem[];
 - **本地产物**：运行两阶段构建及生成的 Worker；浏览器打开设置深链后显示 Cloudflare 登录入口且没有内核接管。正式站 `dist/site` 不含 `_worker.js`、`__setup` 或 `ONLINE_GAL_SETUP`。15 项 `site-setup` 单测通过。
 - **官方发布依赖**：`cf` 已验证可以触发 Git 集成 Pages 构建。其 Pages Direct Upload 能提交已上传资源的 manifest 与 Worker，缺少 Pages 静态资源上传命令。发布 GitHub Actions 生成来源证明的完整产物仍待解决。
 
+2026-11-22 的发布记录：`1ba0a94` 仅将两份 Artemis 临时目录测试从布局检查中豁免；`8656bfb` 将初始化构建、Admin 和配套 OpenSpec 推送至 GitHub `main`，Pages 使用当时配置的 `npm run build:site` 构建通过，未启用生产初始化。GitHub Artemis 构建和 portable 测试在上一个基线提交上也失败。
+
 ## Risks / Trade-offs
 - **上线即锁**：未初始化的站点只有初始化页。用户已决定上线后亲自完成一次初始化（决定 E）。
-- **`/__setup/verify` 和 `/__cf` 在初始化构建里对任何同源页面开放**：任何人都可以借 verify 检查一个 token 是否有效；它只返回是否有效以及少量公开元数据，不能写入。写入和构建都要所有者的 Cloudflare 登录。
+- **`/__setup/verify` 和 `/__cf` 在初始化构建里对任何同源页面开放**：任何人都可以借 verify 检查一个 token 是否有效；它只返回是否有效以及少量公开元数据，不能写入。决定 G 之后页面不再调用 verify，风险不变。写入和构建都要所有者的 Cloudflare 登录。
 - **OAuth token 在页面内存里**：初始化构建没有内核，只能这样（A3 的例外）。页面只有一个，没有第三方代码，`X-Frame-Options: DENY` 防止被嵌入。
-- **token 经过本站的服务器接口**：都不记录。部署代码的人本来就能读取 secret，没有扩大信任范围。
-- **写错的 token 无法在站内更正**（决定 D）：所以第 4 步强制先校验。
-- **官方站点要多一次发布工作流运行**；GitHub 只允许在一定期限内重跑一次运行，超过期限要推新标签。
+- **OAuth token 经过本站的 `/__cf` 中转**：都不记录。部署代码的人本来就能读取 secret，没有扩大信任范围。
+- **申请 477 项权限**：登录页会列出很长的授权清单，所有者要看清楚再同意。token 只在内存里，用完即弃，不写入项目。
+- **没有长期 Cloudflare token**（决定 G）：站点里需要长期调 Cloudflare API 的功能，以后要另行登记初始化项或到控制台手动添加。
+- **`github-rerun` 只能手动重跑**：GitHub 只允许在一定期限内重跑一次运行，超过期限要推新标签。
 - **判断依赖 API**：发布工作流里查询项目失败时构建直接失败，不会误产出站点构建或初始化构建。
 - **部署配置文件会覆盖变量**：见 S1 的约束。
 

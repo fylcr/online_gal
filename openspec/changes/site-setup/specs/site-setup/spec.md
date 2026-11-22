@@ -2,9 +2,24 @@
 
 ## Purpose
 
-定义站点初始化。构建脚本根据 Pages 项目里的初始化记录决定产出初始化构建还是站点构建。初始化构建只有初始化页；所有者用 Cloudflare 登录，填写并校验全部初始化项，一次写入 Pages 项目，再触发一次新的构建。之后的站点构建不含任何初始化代码，访客无需登录即可正常使用。
+定义站点初始化。构建脚本根据 Pages 项目里的初始化记录决定产出初始化构建还是站点构建。初始化构建只有初始化页；所有者只用 Cloudflare OAuth 登录，不手填任何 token，确认所有者后一次写入 Pages 项目，再触发一次新的构建。之后的站点构建不含任何初始化代码，访客无需登录即可正常使用。
 
 ## ADDED Requirements
+
+### Requirement: Git-integrated Pages build settings can be applied from the repository
+
+仓库 MUST 提供 `npm run configure:pages -- <project>`，使用已认证的 `cf` CLI 给指定的 Git 集成 Pages 项目写入构建命令 `npm run build:pages`、仓库根目录和输出目录 `dist/site`。命令 MUST 在写入前确认项目有 Git 来源，且不得写入环境变量、密钥、域名、Git 来源或生产分支。配置相符时 MUST 跳过写入。除显式使用 `--deploy` 外 MUST NOT 触发部署。
+
+#### Scenario: Configure a new Git-integrated project without using the form
+
+- **WHEN** 操作者指定一个已连接 Git、尚未配置构建命令的 Pages 项目
+- **THEN** 命令写入三项构建设置并重新读取确认
+- **AND** 只有传入 `--deploy` 才用项目已有的生产分支发起新部署
+
+#### Scenario: Preview or reject an incompatible project
+
+- **WHEN** 操作者使用 `--dry-run`，或指定一个没有 Git 集成的项目
+- **THEN** 命令不写入配置也不触发部署，并分别显示所需配置或拒绝原因
 
 ### Requirement: One build script chooses the phase
 
@@ -54,25 +69,35 @@
 
 ### Requirement: Only the site owner initializes, without the kernel
 
-初始化页 MUST 在页面内用 `CloudflareAccount`（内存保管库）完成设备码登录，OAuth token 与填写的 token MUST 只存在于页面内存，MUST NOT 写入任何浏览器存储、URL 或日志。只有 A6 判定为拥有本站 Pages 项目的账号 MUST 能进入填写和写入步骤。
+初始化页 MUST 在页面内用 `CloudflareAccount`（内存保管库）完成设备码登录，申请的权限范围 MUST 是 `CF_DEFAULT_SCOPES` 的全部项加 `offline_access`。OAuth token MUST 只存在于页面内存，MUST NOT 写入任何浏览器存储、URL、日志或 Pages 项目变量。token 响应里的 `scope` 缺少 `pages:read` 或 `pages:write` 时，页面 MUST 停下并说明缺少的权限，不写入。只有 A6 判定为拥有本站 Pages 项目的账号 MUST 能进入写入步骤。
 
 #### Scenario: Not the owner
 
 - **WHEN** 登录的账号没有本站的 Pages 项目
 - **THEN** 页面停在所有者一步，只提供退出并更换账号
 
-### Requirement: Setup items are verified and written once
+#### Scenario: Granted scope lacks Pages write
 
-所有 `source: "input"` 的初始化项 MUST 校验通过后才能写入。写入 MUST 是一次 PATCH：每项写成生产环境的 `secret_text`，`ONLINE_GAL_SITE` 以 `plain_text` 写入生产与预览环境。项目里已有非空的 `ONLINE_GAL_SITE` 时，页面 MUST NOT 再次写入，只能触发重新构建。在本机地址上，页面 MUST NOT 写入或触发构建，只显示预演。
+- **WHEN** 登录成功，但 token 响应的 `scope` 里没有 `pages:write`
+- **THEN** 页面说明缺少 `pages:write`，不发出 PATCH，只提供退出并更换账号
+
+### Requirement: Setup is completed with OAuth only and written once
+
+初始化页 MUST NOT 显示任何 token 输入框或校验步骤，MUST NOT 调用 `POST /__setup/verify`。初始化项清单里出现 `source: "input"` 的项时，页面 MUST 停下说明不支持，不写入。写入 MUST 是一次 PATCH：每项写成生产环境的 `secret_text`，`ONLINE_GAL_SITE` 以 `plain_text` 写入生产与预览环境。项目里已有非空的 `ONLINE_GAL_SITE` 时，页面 MUST NOT 再次写入，只能触发重新构建。在本机地址上，页面 MUST NOT 写入或触发构建，只显示预演。
 
 #### Scenario: Reload after writing
 
 - **WHEN** 写入成功后所有者刷新页面并重新登录
-- **THEN** 页面直接进入重新构建，不要求重新填写，也不再写入
+- **THEN** 页面直接进入重新构建，不再写入
+
+#### Scenario: Written body carries no token
+
+- **WHEN** 所有者点击"写入并构建"
+- **THEN** PATCH 请求体的生产环境只有 `ONLINE_GAL_SITE` 与 `CLOUDFLARE_ACCOUNT_ID`，预览环境只有 `ONLINE_GAL_SITE`，不含 OAuth access token、refresh token 或 GitHub token
 
 ### Requirement: Writing triggers a new build and the page hands over
 
-写入后，页面 MUST 按构建时写入的方式触发一次新的构建：`pages-git` 用 create deployment，`github-rerun` 重跑产出初始化构建的那次工作流，`manual` 显示命令；失败时 MUST 显示原因和手动方法。新构建成功后，页面 MUST 等到 `/__setup/status` 不再返回 `phase: "setup"`，再回到原来的路径。
+写入后，页面 MUST 按构建时写入的方式触发一次新的构建：`pages-git` 用 create deployment，`github-rerun` MUST NOT 调用 GitHub API，只显示那次工作流的手动重跑入口和推新 `v*` 标签的方法，`manual` 显示命令；失败时 MUST 显示原因和手动方法。新构建成功后，页面 MUST 等到 `/__setup/status` 不再返回 `phase: "setup"`，再回到原来的路径。
 
 #### Scenario: Site build goes live
 
