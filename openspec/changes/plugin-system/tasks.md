@@ -1,6 +1,6 @@
 # Tasks: plugin-system
 
-把插件系统做成本地服务器：一个 Service Worker 内核接管本源的请求，从已安装的插件中应答；官方插件来自 Cloudflare Pages，第三方插件来自 GitHub 标签；管理器由 Astro 构建后打包成插件。`packages/plugin-host` 保留为插件规则层。范围以 `design.md` 的 Non-Goals 为界。
+把插件系统做成本地服务器：一个 Service Worker 内核接管本源的请求，从已安装的插件中应答；官方插件来自 Cloudflare Pages，第三方插件来自 GitHub 标签；管理器由 Astro 构建后打包成插件。`packages/plugin-host` 保留为插件规则层。范围以 `design.md` 的 Non-Goals 为界。管理系统（Cloudflare 账号、`/__cf`、浏览器版 cf、`/admin`）属于变更 `cf-account-admin`，由单独的对话负责，不在本文件跟踪；它与内核的接口是 design.md K19 的登记。
 
 ## 1. 插件规则层：契约与包骨架（`packages/plugin-host`）
 
@@ -59,10 +59,10 @@
 - [x] 7.1 `apps/app/plugin.manifest.json`：官方管理器 `online-gal.manager`，`role: "manager"`；构建时版本追加内容哈希
 - [x] 7.2 `packages/plugin-system/scripts/pack-plugin.mjs`：把任意目录打成插件包（第三方作者用它生成 `plugin.json`），使用与内核相同的 `parsePackage`；`--lazy <glob>`（可重复，`!` 开头的 glob 把匹配的文件留作立即下载）标记按需下载的文件，标记计入内容哈希
 - [x] 7.3 `packages/plugin-system/scripts/build-site.mjs`：产出 `dist/site/`——站点根的官方管理器静态页（原样复制，每个 `.html` 在 `</body>` 前注入 `load` 之后注册 `/sw.js` 的脚本；无顶层 `404.html`）、`sw.js`（esbuild classic、压缩，约 31.5 KiB）、`_headers`、`/registry/index.json` 与带内容哈希的 `/registry/p/<id>/<hash>/`
-- [x] 7.4 `_headers`：全站 COOP/COEP/nosniff；`/sw.js` 与注册表索引 `no-cache`；`/registry/p/*` `immutable`
+- [x] 7.4 `_headers`：全站 COOP/COEP/nosniff；注册表索引 `no-cache`（`/sw.js` 不要求，更新检查靠 `updateViaCache: 'none'`）；`/registry/p/*` `immutable`
 - [x] 7.5 根 `package.json` 新增 `build:site`；`build`/`dev`/`test` 不变
 - [x] 7.6 构建脚本给官方管理器的 lazy 配置是 `engines/**` 与 `**/*.map`：24 个文件共 3.1 MiB，安装时下载 14 个、约 0.1 MiB（10 个 lazy）。曾试过除入口页外全部 lazy，站点根提供静态页之后没有收益，已改回
-- [ ] 7.7 Cloudflare Pages 项目设置：构建命令 `npm run build:site`，输出目录 `dist/site`（需要用户在 Cloudflare 控制台操作）
+- [ ] 7.7 Cloudflare Pages 项目：创建用于直接上传的项目并关闭 Git 集成构建（构建由 10.10 的发布工作流执行，再 `wrangler pages deploy dist/site`）；需要用户在 Cloudflare 控制台创建项目与 API token，并写入 GitHub 仓库 secrets（`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`）
 
 ## 8. 测试与验证
 
@@ -82,3 +82,31 @@
 - [ ] 9.7 lazy 文件的预取策略（例如空闲时预取引擎）与离线提示：现在没取过的引擎文件离线时会返回 503
 - [ ] 9.8 站点根的注册脚本在 Service Worker 已激活却没有接管时 `reload` 一次（10 秒内最多一次）：这条硬刷新路径没有测试覆盖；用户切到第三方管理器后硬刷新会先看到官方管理器
 - [ ] 9.9 Service Worker 接管前后对未知路径的行为不一致：接管前 Cloudflare 回退到根 `index.html`，接管后内核对没有 `404.html` 的管理器返回纯文本 404；管理器在站点上存两份（根目录与 `registry/p/`）
+
+## 10. 包拆分与来源证明（format 2；设计见 design.md K14–K17）
+
+- [ ] 10.0 可行性验证（先于 10.3）：公共 Rekor 接受裸 ECDSA 公钥的 hashedrekord 并返回 SET 与 inclusion proof；DoH（cloudflare-dns.com、dns.google）能从 Service Worker 以 CORS 取 TXT 且带 AD 位；GitHub 通道另验：(a) 官方仓库公开、attestation 走公共 Sigstore；(b) Sigstore bundle 能在 Service Worker 里验证（`@sigstore/verify` 依赖 Node crypto，需试浏览器实现或最小自写验证器）并记下 `sw.js` 体积变化；(c) 证书里能取到 ref 与仓库 ID 扩展（Source Repository Identifier，据我所知 OID 1.3.6.1.4.1.57264.1.15；取不到就回报用户，不静默回退到不含仓库 ID 的哈希）；(d) `actions/attest-build-provenance` 的 `bundle-path` 输出格式（据我所知是 JSONL，单 subject 一行）；(e) Pages Functions 在 `__ca/` 路径下的路由，以及 `_headers` 不作用于 Function 响应；结果记入 design.md
+- [x] 10.1 `src/format.ts`：`parseEnvelope()`（plugin.json format 2，只允许 format/manifest/bundle，路径限同目录或子目录）；`parsePackage()` 改为接收 mf-manifest.json 正文；format 1 保留为只读兼容（仅 GitHub 来源）；`parseRegistry()` 的 digest 改指 mf-manifest.json
+- [ ] 10.2（plugin.json → mf-manifest.json → 核对 registry digest 已完成并通过测试；`KernelOptions.fetchTrustRecord` 可选注入已加：配置后官方包无 bundle 被拒、`github:` 在受限模式下于下载前被拒、官方包装成 `unverified`、记录在内存缓存 1 小时，均有测试；`refreshOfficial` 与 `checkUpdates` 经同一个 `installLocked` 走这条路径，未单独测试；`sw.ts` 尚未传入它（`fetchTrustRecord` 仍是 stub，传入会让 `github:` 全部被拒、官方包全标 `unverified`），所以现网仍不强制验证；`verifyBundle` 仍是 stub，配置后带 bundle 的官方包会以 `attestation-invalid` 失败；DoH 恢复后的后台补验未做）`src/kernel.ts` `installLocked()`：plugin.json → mf-manifest.json（核对 registry digest）→ bundle 验证 → 逐文件哈希；`refreshOfficial` 同步改；DoH 取不到时进入受限模式（只装官方来源、不验 bundle、标 `unverified`；`github:` 来源以 `attestation-unavailable` 拒绝），后台检查在 DoH 恢复后补验
+- [ ] 10.3（`parseBundle` 按 channel 分派、两条通道的承诺哈希、`normalizeWorkflowUri` 已完成并有测试；JWS、Rekor SET、inclusion proof 的密码学验证未做）`src/attest.ts`：bundle 解析、JWS(ES256) 验签、DER→raw 签名转换、Rekor SET 与 RFC 6962 inclusion proof、时间窗口、`SHA-256("microca|" + ca_fingerprint + "|" + anon_id + "|" + salt)`；按 bundle 的 `channel` 分派到对应分支，未知 channel 以 `attestation-invalid` 拒绝；`microca` 分支全部用 Web Crypto，不加依赖
+- [ ] 10.3b（`githubCommitment` 已加 repoId 参数、非十进制数字串被拒，`normalizeWorkflowUri` 已完成，测试已同步；Sigstore bundle 验证未做，等 10.0）`src/attest.ts` `github` 分支：Sigstore bundle 验证（方案依 10.0）、`workflowUri` 去 `@<ref>` 规范化、ref 必须是 `refs/tags/*`、subject 摘要对 mf-manifest.json、`SHA-256("github|" + issuer + "|" + repoId + "|" + workflowUri + "|" + salt)`（repoId 取自证书的 Source Repository Identifier，必须是十进制数字串；`githubCommitment` 增加该参数，`.test/plugin-attest.test.ts` 同步改）
+- [ ] 10.4（`hashAllowed` 的时间窗比对已完成并有测试；DoH 查询、AD 位、多解析器一致性、TXT 解析未做）`src/trust-dns.ts`：DoH 查询、AD 位、多解析器一致性、TXT 解析（`v`/`salt`/`hashes`，条目可带 after/before，单条超 255 字节按多段拼接）；结果缓存进状态，有效期取 DoH 返回的 TTL、上限 1 小时；现取失败且没有未过期缓存才算「DoH 不可达」（受限模式，K17）
+- [ ] 10.5（`InstalledPlugin.attestation` 可选字段已加，并在 `state` API 的 `PluginInfo` 里暴露；因为是可选字段，旧状态能直接读，暂未升 `STATE_FORMAT`；撤销标记未做）`STATE_FORMAT` 升到 2：记录 `attestation`（`verified` | `unverified` | `revoked`）与撤销标记；旧状态按格式不认识从空状态重建
+- [x] 10.6 错误码 `attestation-invalid`、`attestation-unavailable`，并映射 HTTP 状态
+- [ ] 10.7（`pack-plugin.mjs` 与 `build-site.mjs` 已产出 format 2 并实测 digest 一致；`_routes.json`（只含 `/__ca/*`）已生成，`__ca` 与 `_routes.json` 已加进保留名，真实构建验证过；官方包 plugin.json 固定带 `bundle` 指针与 `sign-plugin.mjs` 未做）`scripts/pack-plugin.mjs` 输出 plugin.json + mf-manifest.json；`scripts/build-site.mjs` 注册表 digest 改为 mf-manifest.json、官方包的 plugin.json 固定带 `bundle` 指针、生成 `_routes.json`（只让 `/__ca/*` 调用 Function）、保留名加 `__ca`；新增 `scripts/sign-plugin.mjs`（仅 `microca` 通道：临时密钥、取微型 CA 凭证、写 Rekor、产出 bundle）；`github` 通道不需要脚本，官方发布工作流生成 attestation，`pack-plugin.mjs --bundle` 指向它的产物
+- [ ] 10.8（内核 `routeRequest` 放行 `/__ca/**`、管理器保留路径、`build-site.mjs` 的 RESERVED 已完成并有测试；`functions/__ca/`、DNS 记录与发布流程文档未做）`functions/__ca/` 微型 CA（Pages Function，K18；随站点部署，取代单独的 Worker）、内核 `routeRequest` 对 `/__ca/**` 放行、管理器保留路径与 `build-site.mjs` 的 RESERVED 加 `__ca`、DNS TXT 记录与发布流程文档（需要用户提供域名、允许的 OIDC 主体与 Cloudflare 账号操作）
+- [ ] 10.9（拆分格式夹具已改；`.test/plugin-attest.test.ts` 覆盖解析、承诺哈希（含 repoId）、规范化与白名单；`.test/plugin-system.test.ts` 已补受限模式（官方包 `unverified`、`github:` 下载前被拒、记录被篡改不算不可达）、官方包无 bundle 被拒、记录缓存 1 小时、`/__ca/**` 放行与管理器保留路径；plugin 测试合计 105 项通过；bundle 篡改、DNS 缺哈希或时间窗外、解析器不一致、GitHub 来源坏 bundle、DoH 恢复后补验要等验证器实现后补）`.test/plugin-system.test.ts` 增补：拆分格式、digest 不符、bundle 篡改、DNS 缺哈希或时间窗外、解析器不一致、官方无 bundle、GitHub 来源坏 bundle、未知 `channel`、`github` 通道 `@<ref>` 后缀不同哈希相同、非 `refs/tags/*` 被拒、受限模式（装官方包标 `unverified`、`github:` 被拒、DoH 恢复后补验）、`github` 通道缺 repoId 或 repoId 非数字被拒、不同 repoId 哈希不同；`npx tsc -b tsconfig.packages.json` 与 `openspec validate plugin-system --strict`
+- [ ] 10.10 `.github/workflows/release.yml`（用户已同意放开 `.github/**`，只新增这一个文件）：`v*` 标签触发；权限 `contents: read`、`id-token: write`、`attestations: write`；`npm ci` → `npm run build:pages`（2026-11-22 因 `site-setup` 决定 F 改；该步骤的 env 给 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`ONLINE_GAL_PAGES_PROJECT`，用于判断阶段；它向 `GITHUB_OUTPUT` 写 `phase`，只有 `phase == 'site'` 时才做下面的来源证明）→ 对 `dist/site/registry/p/*/*/mf-manifest.json` 逐个 `actions/attest-build-provenance`，把 bundle（`bundle-path` 输出，据我所知是 JSONL，单 subject 一行）写成同目录 `plugin.bundle.json` → `wrangler pages deploy dist/site`（连同 `functions/`）；第三方 action 固定到提交 SHA；`v*` 标签保护规则与该文件的 CODEOWNERS 是官方发布的安全边界（design.md K17 (8)）；需要用户配置 Pages 项目与仓库 secrets（7.7）
+
+## 11. 登记规则补充（2026-11-22，因变更 `site-setup`；设计见 design.md K19）
+
+- [x] 11.1 实现“只有 Function 的登记前缀，内核放行”。**已由 11.3 撤销。**
+  - 改动：`packages/plugin-system/src/kernel.ts` 的 `routeRequest` 对 `/__setup` 与 `/__setup/**` 的任何方法返回 `null`；只改路由实现，不改保留路径或 `RESERVED`。
+  - 测试：新增 `test/plugin-system-route.test.mjs`（portable tests），覆盖 GET/POST/DELETE、前缀根路径、相似路径边界；5/5 通过。仓库的 `.test/` 工作台在当前克隆中不存在。
+  - 验证：`tsc -b tsconfig.packages.json` 通过；`openspec validate plugin-system --strict` 通过。全 portable suite 604 项中 574 通过、30 失败；失败未在本次处理中调查。
+- [ ] 11.2（与 10.8 一起做，不要提前做）把 K18 微型 CA 的私钥和"允许的平台身份 → `anon_id`"映射，登记为站点初始化项，不另做配置入口。
+  - 用户决定（2026-11-22）：凡是需要初始化的，都在站点初始化时完成。
+  - 登记方式：在 `apps/setup/src/lib/setup-items.ts` 末尾加条目，`owner: 'plugin-system'`。规则见变更 `site-setup` 的 design.md S7。
+  - 如果需要新的生成或校验方式（例如在浏览器里生成 ES256 密钥、显示公钥指纹和 `_trust.<域名>` 的 TXT 记录），先回报 OpenSpec 管理对话，由它写入 `site-setup` 的设计，再由管理系统的对话实现。
+  - `functions/__ca/` 读不到这些 secret 时，必须给出明确错误，不能静默失败。
+- [x] 11.3（2026-11-22，因 `site-setup` 用户决定 F：初始化代码不进站点构建）撤销 11.1：删除 `packages/plugin-system/src/kernel.ts` 里对 `/__setup` 的放行，删除 `test/plugin-system-route.test.mjs` 里对应的用例（文件只剩这些用例时整个删除）。`format.ts`、`build-site.mjs` 里的 `__setup` 由 `site-setup` 3.2 删除。完成后 `dist/site/` 里搜不到 `__setup`。

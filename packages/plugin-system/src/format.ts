@@ -16,9 +16,17 @@ import { KernelError } from './errors.js';
  * Every file is listed with its size and hash. The kernel refuses anything it
  * cannot verify, so a half-uploaded release or a tampered mirror never gets
  * served as if it were the plugin.
+ *
+ * Format 2 (preferred) splits this into a slim `plugin.json` that only points
+ * at `mf-manifest.json` (and optionally `plugin.bundle.json`), so the pointer
+ * and the content can change independently. Format 1 (inline, GitHub only)
+ * keeps everything in `plugin.json` with no attestation.
  */
 export const PACKAGE_FORMAT = 1;
 export const PACKAGE_FILE = 'plugin.json';
+export const ENVELOPE_FORMAT = 2;
+export const MANIFEST_FILE = 'mf-manifest.json';
+export const BUNDLE_FILE = 'plugin.bundle.json';
 
 export const PACKAGE_LIMITS = Object.freeze({
   files: 5000,
@@ -41,6 +49,10 @@ export interface PackageFile {
   readonly lazy?: boolean;
 }
 
+/**
+ * The content manifest body: the manifest plus the verified file list. In
+ * format 2 this is `mf-manifest.json`; in format 1 it is `plugin.json` itself.
+ */
 export interface PluginPackage {
   readonly format: typeof PACKAGE_FORMAT;
   readonly manifest: PluginManifest;
@@ -69,7 +81,7 @@ export function safeRelativePath(path: string): string | null {
   return path;
 }
 
-/** Validates an untrusted `plugin.json` value. */
+/** Validates an untrusted content-manifest body (`mf-manifest.json` in format 2, `plugin.json` in format 1). */
 export function parsePackage(input: unknown): PluginPackage {
   if (!isRecord(input)) throw bad(`${PACKAGE_FILE} must be an object`);
   const unknown = Object.keys(input).filter((key) => !['format', 'manifest', 'files'].includes(key));
@@ -125,7 +137,7 @@ export function parsePackage(input: unknown): PluginPackage {
     // These URLs are answered by the kernel or the server before the manager
     // is consulted; a manager shipping them would be shadowed silently.
     const shadowed = files.find(({ path }) =>
-      path === 'sw.js' || /^(?:__kernel|__plugins|__cf|registry)\//.test(path),
+      path === 'sw.js' || /^(?:__kernel|__plugins|__ca|__cf|registry)\//.test(path),
     );
     if (shadowed !== undefined) {
       throw bad(`manager file "${shadowed.path}" collides with a URL the kernel reserves`);
@@ -133,6 +145,71 @@ export function parsePackage(input: unknown): PluginPackage {
   }
 
   return Object.freeze({ format: PACKAGE_FORMAT, manifest, files: Object.freeze(files) });
+}
+
+// ---------------------------------------------------------------- format 2 envelope
+
+/**
+ * The slim `plugin.json` (format 2): only pointers, no content.
+ *
+ * ```json
+ * { "format": 2, "manifest": "mf-manifest.json", "bundle": "plugin.bundle.json" }
+ * ```
+ *
+ * `manifest` and `bundle` are relative paths in the same directory or a
+ * subdirectory. Changing plugin.json (the pointers) does not change
+ * mf-manifest.json, and vice versa: the two are independent. The attestation
+ * bundle signs the mf-manifest digest, so tampering with plugin.json only
+ * breaks the pointer, not the proof.
+ */
+export interface PluginEnvelope {
+  readonly format: typeof ENVELOPE_FORMAT;
+  /** Path to the content manifest (mf-manifest.json), same-dir or subdir. */
+  readonly manifest: string;
+  /** Path to the attestation bundle (plugin.bundle.json), if present. */
+  readonly bundle?: string;
+}
+
+const ENVELOPE_KEYS = new Set(['format', 'manifest', 'bundle']);
+
+/** Validates an untrusted `plugin.json` (format 2) value. */
+export function parseEnvelope(input: unknown): PluginEnvelope {
+  if (!isRecord(input)) throw bad(`${PACKAGE_FILE} must be an object`);
+  const unknown = Object.keys(input).filter((key) => !ENVELOPE_KEYS.has(key));
+  if (unknown.length > 0) throw bad(`${PACKAGE_FILE} has unknown field(s): ${unknown.join(', ')}`);
+  if (input.format !== ENVELOPE_FORMAT) {
+    throw bad(`${PACKAGE_FILE} format ${String(input.format)} is not supported (expected ${ENVELOPE_FORMAT})`);
+  }
+  const manifest = input.manifest;
+  if (typeof manifest !== 'string' || safeRelativePath(manifest) === null) {
+    throw bad(`${PACKAGE_FILE} field "manifest" must be a safe relative path`);
+  }
+  const bundle = input.bundle;
+  if (bundle !== undefined && (typeof bundle !== 'string' || safeRelativePath(bundle) === null)) {
+    throw bad(`${PACKAGE_FILE} field "bundle" must be a safe relative path`);
+  }
+  return Object.freeze({ format: ENVELOPE_FORMAT, manifest, ...(bundle === undefined ? {} : { bundle }) });
+}
+
+/** Result of parsing the top-level `plugin.json`: a format 2 envelope or a format 1 inline package. */
+export type ParsedPluginJson =
+  | { readonly kind: 'envelope'; readonly envelope: PluginEnvelope }
+  | { readonly kind: 'inline'; readonly pkg: PluginPackage };
+
+/**
+ * Parses the top-level `plugin.json` and detects whether it is a format 2
+ * envelope (pointing at mf-manifest.json) or a format 1 inline package
+ * (containing the manifest and files directly, GitHub only).
+ */
+export function parsePluginJson(input: unknown): ParsedPluginJson {
+  if (!isRecord(input)) throw bad(`${PACKAGE_FILE} must be an object`);
+  if (input.format === ENVELOPE_FORMAT) {
+    return { kind: 'envelope', envelope: parseEnvelope(input) };
+  }
+  if (input.format === PACKAGE_FORMAT) {
+    return { kind: 'inline', pkg: parsePackage(input) };
+  }
+  throw bad(`${PACKAGE_FILE} format ${String(input.format)} is not supported (expected ${ENVELOPE_FORMAT} or ${PACKAGE_FORMAT})`);
 }
 
 /** Encodes a validated relative path for use inside a URL. */

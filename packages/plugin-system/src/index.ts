@@ -15,5 +15,7 @@ export * from './errors.js';
 export * from './format.js';
 export * from './sources.js';
 export * from './kernel.js';
+export * from './attest.js';
+export * from './trust-dns.js';
 export * from './account/vault.js';
 export * from './account/cloudflare.js';

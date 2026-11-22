@@ -8,7 +8,7 @@
 
 ### Requirement: The kernel answers same-origin requests locally
 
-内核 MUST 拦截本源的请求并从已安装插件的本地副本应答；除下列路径外，MUST NOT 把本源请求转发给服务器：`/sw.js`（内核自身，用于更新）与 `/registry/**`（官方注册表，用于安装与更新）MUST 直接到达服务器；跨源请求 MUST 不被拦截。路由 MUST 为：`/__kernel/api/<name>` → 内核 API；`/__kernel/` → 内核自带页面；`/__plugins/<id>/<path>` → 该插件的文件；其余 GET/HEAD → 当前管理器的文件。非 GET/HEAD 且不是内核 API 的请求 MUST 不被拦截。内核应答的每个响应 MUST 带 `Cross-Origin-Opener-Policy: same-origin`、`Cross-Origin-Embedder-Policy: credentialless` 与 `X-Content-Type-Options: nosniff`，因为引擎需要跨源隔离。
+内核 MUST 拦截本源的请求并从已安装插件的本地副本应答；除下列路径外，MUST NOT 把本源请求转发给服务器：`/sw.js`（内核更新）、`/registry/**`（官方注册表）与 `/__ca/**`（匿名微型 CA）MUST 直接到达服务器；跨源请求 MUST 不被拦截。路由 MUST 为：`/__kernel/api/<name>` → 内核 API；`/__kernel/` → 内核自带页面；已登记的扩展前缀（任何方法）→ 该扩展的内核模块；`/__plugins/<id>/<path>` → 该插件的文件；其余 GET/HEAD → 当前管理器的文件。非 GET/HEAD 且不是内核 API 或已登记前缀的请求 MUST 不被拦截。内核的每个响应 MUST 带 `Cross-Origin-Opener-Policy: same-origin`、`Cross-Origin-Embedder-Policy: credentialless` 与 `X-Content-Type-Options: nosniff`（引擎需要跨源隔离）。
 
 #### Scenario: A reload is served without the server
 
@@ -23,8 +23,19 @@
 
 #### Scenario: Kernel script and registry bypass the kernel
 
-- **WHEN** 页面请求 `/sw.js` 或 `/registry/index.json`
+- **WHEN** 页面请求 `/sw.js`、`/registry/index.json` 或 `/__ca/` 下的路径
 - **THEN** 内核不应答，请求原样到达服务器
+
+
+### Requirement: Other changes extend the kernel by registration
+
+插件系统之外的变更 MUST 通过登记扩展内核，MUST NOT 另改本 capability 的条款。一项登记包括一个顶层前缀 `/__<name>`（MUST NOT 是 `__kernel`、`__plugins` 或 `__ca`），以及以下可选部分：接管该前缀下任何方法请求的内核模块、内核 API 名字空间 `/__kernel/api/<name>/**`、服务器 Function `functions/__<name>/`。登记的前缀 MUST 成为管理器包的保留路径与站点构建的保留名；有 Function 时，`_routes.json` 的 `include` MUST 含 `/__<name>/*`。内核模块 MUST 自行核对调用方。当前的登记是 `/__cf`（变更 `cf-account-admin`）。
+
+#### Scenario: Registered and unregistered prefixes
+
+- **WHEN** 页面以 `DELETE` 请求已登记前缀下的 `/__cf/api/zones/z1`，又以 `POST` 请求未登记的 `/__x/y`
+- **THEN** 前者交给该扩展的内核模块应答；后者不被内核拦截，原样到达服务器
+
 
 ### Requirement: Static-host path resolution inside the file list
 
@@ -43,7 +54,22 @@
 
 ### Requirement: Verified plugin packages
 
-插件 MUST 以 `plugin.json`（format 1）发布：`{ format, manifest, files: [{ path, size, sha256 }] }`，与插件文件放在同一目录下。内核 MUST 以 `package-invalid` 拒绝未知字段、不支持的 format、空文件清单、重复路径、非安全相对路径、非法大小与非法哈希；manifest 问题 MUST 沿用 `plugin-host` 的 `manifest-invalid` 与 `api-version-mismatch`。超过上限（5000 个文件、单文件 256 MiB、合计 1 GiB）MUST 以 `too-large` 拒绝。`role: "manager"` 的包 MUST NOT 含 `sw.js`、`__kernel/**`、`__plugins/**` 或 `registry/**`。
+插件 MUST 以三个文件发布，放在同一目录下：`plugin.json`（format 2，只含指向 `{ format, manifest, bundle? }`，两个路径都是同目录或子目录的相对路径，且 MUST NOT 含摘要、文件清单或 manifest）、`mf-manifest.json`（`{ format: 1, manifest, files: [{ path, size, sha256 }] }`）与官方包必需的 `plugin.bundle.json`（来源证明）。内核 MUST 继续接受 format 1 的 `plugin.json`（内嵌 manifest 与 files，无证明），但只用于 GitHub 来源。
+
+#### Scenario: The envelope only points at the manifest
+
+- **WHEN** 内核读取 format 2 的 `plugin.json`
+- **THEN** 它只得到 `manifest` 与可选 `bundle` 两个路径，文件清单与摘要只来自 `mf-manifest.json`
+- **AND** 改动 `plugin.json` 的指向不改变 `mf-manifest.json` 的字节，反之亦然
+
+#### Scenario: A format 1 package from the official source
+
+- **WHEN** 官方来源的 `plugin.json` 是 format 1（内嵌 manifest 与 files）
+- **THEN** 安装以 `package-invalid` 失败
+
+### Requirement: Package contents are validated
+
+内核 MUST 以 `package-invalid` 拒绝未知字段、不支持的 format、空文件清单、重复路径、非安全相对路径、非法大小与非法哈希；manifest 问题 MUST 沿用 `plugin-host` 的 `manifest-invalid` 与 `api-version-mismatch`。超过上限（5000 个文件、单文件 256 MiB、合计 1 GiB）MUST 以 `too-large` 拒绝。`role: "manager"` 的包 MUST NOT 含 `sw.js`、`__kernel/**`、`__plugins/**`、`__ca/**`、`registry/**` 或已登记前缀下的路径。
 
 #### Scenario: A path could escape the file list
 
@@ -66,7 +92,7 @@
 
 #### Scenario: A file does not match its hash
 
-- **WHEN** 安装过程中某个文件的字节与 `plugin.json` 记录的哈希不符
+- **WHEN** 安装过程中某个文件的字节与 `mf-manifest.json` 记录的哈希不符
 - **THEN** 安装以 `integrity-failed` 失败
 - **AND** 已安装的状态与文件保持原样，本次下载的半成品被删除
 
@@ -82,7 +108,7 @@
 
 #### Scenario: A lazy file fails verification
 
-- **WHEN** 服务器返回的字节与 `plugin.json` 记录的哈希不符
+- **WHEN** 服务器返回的字节与 `mf-manifest.json` 记录的哈希不符
 - **THEN** 该请求得到 503，缓存中没有写入这个文件
 - **AND** 服务器修正后，下一次请求会重新下载并成功
 
@@ -108,7 +134,7 @@
 
 ### Requirement: Trust is decided by source
 
-信任 MUST 由来源决定，不由 manifest 自称。官方来源的包 MUST 声明 `provenance: "official"`，id 与版本 MUST 与注册表条目一致，`plugin.json` 的 SHA-256 MUST 等于注册表记录的 `digest`。GitHub 来源的包 MUST 声明 `provenance: "third-party"`，且 id MUST NOT 以 `online-gal.` 开头。
+信任 MUST 由来源决定，不由 manifest 自称。官方来源的包 MUST 声明 `provenance: "official"`，id 与版本 MUST 与注册表条目一致，`mf-manifest.json` 的 SHA-256 MUST 等于注册表记录的 `digest`。GitHub 来源的包 MUST 声明 `provenance: "third-party"`，且 id MUST NOT 以 `online-gal.` 开头。
 
 #### Scenario: A GitHub plugin claims to be official
 
@@ -117,12 +143,12 @@
 
 #### Scenario: The registry digest does not match
 
-- **WHEN** 官方注册表记录的 `digest` 与下载到的 `plugin.json` 不符
+- **WHEN** 官方注册表记录的 `digest` 与下载到的 `mf-manifest.json` 不符
 - **THEN** 安装以 `integrity-failed` 失败，不下载任何插件文件
 
 ### Requirement: Atomic install, update and uninstall
 
-安装与更新 MUST 原子化：新版本在全部文件下载并校验完成、状态写入成功之前，旧版本 MUST 继续应答；任何一步失败 MUST 让已安装状态与文件完全保持原样。同一个包（`plugin.json` 摘要相同且本地文件完好）再次安装 MUST NOT 重新下载。更新后，上一代文件 MUST 在仍有页面打开时保留，供更新前加载的页面继续取用它引用的旧文件；没有页面打开时 MUST 被清理，且同一时间最多保留一代旧文件。无状态引用的插件缓存（例如被中断的安装）MUST 在一小时后被清理。卸载当前管理器 MUST 以 `manager-in-use` 拒绝。修改状态的操作 MUST 逐个执行。
+安装与更新 MUST 原子化：新版本在全部文件下载并校验完成、状态写入成功之前，旧版本 MUST 继续应答；任何一步失败 MUST 让已安装状态与文件完全保持原样。同一个包（内容清单 `mf-manifest.json`，format 1 为 `plugin.json`，摘要相同且本地文件完好）再次安装 MUST NOT 重新下载。更新后，上一代文件 MUST 在仍有页面打开时保留，供更新前加载的页面继续取用它引用的旧文件；没有页面打开时 MUST 被清理，且同一时间最多保留一代旧文件。无状态引用的插件缓存（例如被中断的安装）MUST 在一小时后被清理。卸载当前管理器 MUST 以 `manager-in-use` 拒绝。修改状态的操作 MUST 逐个执行。
 
 #### Scenario: An update fails halfway
 
@@ -182,7 +208,7 @@
 
 ### Requirement: Site output layout
 
-构建 MUST 产出可直接部署到 Cloudflare Pages 的目录：站点根的官方管理器静态页（每个 `.html` 带一段 `load` 之后注册 `/sw.js` 的脚本，其余文件字节不变）、`sw.js`、`_headers` 与官方注册表 `registry/`。注册表里的插件包 MUST NOT 含这段脚本，使包的摘要与内核校验的字节一致。站点 MUST NOT 含顶层 `404.html`，使服务器对任何未知路径都返回根 `index.html`。`sw.js` MUST 是 classic script。
+构建 MUST 产出可直接部署到 Cloudflare Pages 的目录：站点根的官方管理器静态页（每个 `.html` 带一段 `load` 之后注册 `/sw.js` 的脚本，其余文件字节不变）、`sw.js`、`_headers`、`_routes.json`（只让 `/__ca/*` 与已登记 Function 的前缀调用 Function）与官方注册表 `registry/`；微型 CA 的 Function 在仓库的 `functions/__ca/`，已登记的 Function 在 `functions/__<name>/`，都与该目录一起部署。注册表里的插件包 MUST NOT 含这段脚本，使包的摘要与内核校验的字节一致。站点 MUST NOT 含顶层 `404.html`，使服务器对任何未知路径都返回根 `index.html`。`sw.js` MUST 是 classic script。
 
 #### Scenario: Only the site root registers the worker
 
@@ -196,13 +222,19 @@
 
 ### Requirement: Site headers and caching
 
-`_headers` MUST 给全站加上与内核应答相同的跨源隔离响应头。`/sw.js` 与 `/registry/index.json` MUST 以 `Cache-Control: no-cache` 发布；`/registry/p/**` 的路径 MUST 含内容哈希，并以 `immutable` 长缓存发布。
+`_headers` MUST 给全站加上与内核应答相同的跨源隔离响应头。`/registry/index.json` MUST 以 `Cache-Control: no-cache` 发布；`/sw.js` 不要求 `no-cache`，内核的更新检查 MUST 靠注册时的 `updateViaCache: 'none'`（浏览器检查更新时绕过 HTTP 缓存），因此 CDN 或 zone 层对 `/sw.js` 的缓存不影响内核更新；`/registry/p/**` 的路径 MUST 含内容哈希，并以 `immutable` 长缓存发布。
 
 #### Scenario: The headers file matches what the kernel serves
 
 - **WHEN** 构建站点
 - **THEN** `_headers` 的 `/*` 规则含与内核应答相同的 COOP、COEP 与 `nosniff`
-- **AND** `/sw.js` 与 `/registry/index.json` 为 `no-cache`，`/registry/p/*` 为 `immutable`
+- **AND** `/registry/index.json` 为 `no-cache`，`/registry/p/*` 为 `immutable`
+
+#### Scenario: The worker script is checked past the HTTP cache
+
+- **WHEN** 站点页面注册 `/sw.js`
+- **THEN** 注册选项带 `updateViaCache: 'none'`
+- **AND** 不要求 `/sw.js` 的响应带 `no-cache`
 
 ### Requirement: Plugin packing
 
@@ -217,3 +249,98 @@
 
 - **WHEN** 用 `pack-plugin.mjs` 打包一个目录并成功
 - **THEN** 产物已经通过内核使用的同一份 `parsePackage` 校验，内核安装它不会因格式被拒绝
+
+### Requirement: The microca channel is verified in a fixed order
+
+`channel` 为 `microca` 的 `plugin.bundle.json` MUST 依次确认：DNS TXT 白名单（经至少一个报告 AD=true 的 DoH 解析器取得，多个解析器作答时内容一致）；`cred` 的 ES256 签名（用 bundle 内联的 CA 公钥）与不超过 600 秒的有效期；`SHA-256("microca|" + ca_fingerprint + "|" + anon_id + "|" + salt)` 在白名单内且满足该项的时间窗；Rekor 条目与摘要、签名、临时公钥一致，SET 与 inclusion proof 有效，`integratedTime` 落在凭证有效期内；`sig` 是临时公钥对 mf-manifest.json 摘要的签名。
+
+#### Scenario: The manifest is changed after signing
+
+- **WHEN** mf-manifest.json 的字节与签名时不同，即使 plugin.json 被同步改过
+- **THEN** 安装以 `attestation-invalid` 失败，不下载任何插件文件
+
+#### Scenario: The signer is not on the allowlist
+
+- **WHEN** 哈希不在 TXT 白名单，或 `integratedTime` 在该项时间窗之外
+- **THEN** 安装以 `attestation-invalid` 失败
+
+### Requirement: Official packages carry a verified attestation
+
+官方来源的包 MUST 带 `plugin.bundle.json` 并通过其所属通道的验证，否则 MUST 以 `attestation-invalid` 拒绝，且 MUST NOT 降级为第三方或替换已安装的版本。DNS 不可达时的行为由受限模式一条规定。
+
+#### Scenario: DNS cannot be reached
+
+- **WHEN** 所有 DoH 解析器都不可达，用户安装官方管理器
+- **THEN** 安装成功，状态为 `unverified`，不验证 bundle
+- **AND** 已安装的版本继续应答
+
+#### Scenario: An official package has no bundle
+
+- **WHEN** 官方来源的包没有 `plugin.bundle.json`
+- **THEN** 安装以 `attestation-invalid` 失败
+
+### Requirement: DNS unreachable puts the kernel in restricted mode
+
+取不到 DNS 信任记录（所有 DoH 解析器都不可达且没有未过期的缓存）时，内核 MUST 进入受限模式：只安装官方来源的插件，不验证 bundle，状态标 `unverified`；`github:` 来源 MUST 以可重试的 `attestation-unavailable` 拒绝。DoH 恢复后的后台检查 MUST 补验 `unverified` 的官方插件：通过标 `verified`，失败标 `revoked`。
+
+#### Scenario: A GitHub source is refused in restricted mode
+
+- **WHEN** 所有 DoH 解析器都不可达，用户安装 `github:alice/m@v1`
+- **THEN** 安装以 `attestation-unavailable` 失败，不下载任何插件文件
+
+#### Scenario: DNS comes back
+
+- **WHEN** DoH 恢复后，后台检查验证一个 `unverified` 的官方插件
+- **THEN** bundle 有效则状态改为 `verified`，无效或缺失则改为 `revoked`
+
+### Requirement: GitHub bundles are optional and never raise trust
+
+GitHub 来源的 `plugin.bundle.json` 可选；存在但无效 MUST 以 `attestation-invalid` 拒绝，有效也 MUST NOT 改变 `provenance` 与保留 id 规则。
+
+#### Scenario: A GitHub bundle that fails verification
+
+- **WHEN** 从 GitHub 标签安装的包带 `plugin.bundle.json`，但验证失败
+- **THEN** 安装以 `attestation-invalid` 失败，而不是当作没有 bundle 继续
+
+#### Scenario: A valid bundle does not make a GitHub plugin official
+
+- **WHEN** 从 `github:alice/m@v1` 安装的包带有效的 bundle，并声明 `provenance: "official"` 或使用 `online-gal.manager` 作为 id
+- **THEN** 安装分别以 `provenance-mismatch` 与 `reserved-id` 失败
+
+### Requirement: The attestation channel selects the verification branch
+
+`plugin.bundle.json` MUST 带 `channel`，取值 `github`（内联 GitHub 生成的 Sigstore bundle）或 `microca`；未知值 MUST 以 `attestation-invalid` 拒绝。两条通道 MUST 共用同一条 DNS TXT（`v=1; salt=<b64url>; hashes=<项>,<项>`），各自算出带通道前缀的承诺哈希，命中白名单才算官方。
+
+#### Scenario: An unknown channel
+
+- **WHEN** 官方包的 `plugin.bundle.json` 带 `channel: "other"` 或没有 `channel`
+- **THEN** 安装以 `attestation-invalid` 失败，不下载任何插件文件
+
+#### Scenario: One channel's hash cannot stand in for the other
+
+- **WHEN** 白名单只含某个 `microca` 承诺哈希，而包走 `github` 通道
+- **THEN** `github` 通道算出的哈希因前缀不同而不命中，安装以 `attestation-invalid` 失败
+
+### Requirement: The github channel is verified against the Sigstore public root
+
+`github` 通道 MUST 验证内联的 Sigstore bundle：证书链到内置的 Sigstore 公共信任根，Rekor 的 `integratedTime` 落在证书有效期内，签名有效，subject 摘要等于 mf-manifest.json 的 SHA-256。`issuer` MUST 是 `https://token.actions.githubusercontent.com`，ref MUST 是 `refs/tags/*`。承诺哈希 MUST 为 `SHA-256("github|" + issuer + "|" + workflowUri + "|" + salt)`，`workflowUri` MUST 去掉 `@<ref>` 后缀。
+
+#### Scenario: A new tag keeps the same commitment
+
+- **WHEN** 同一工作流分别在 `refs/tags/v1` 与 `refs/tags/v2` 下签出官方包
+- **THEN** 两者的 `workflowUri` 相同，承诺哈希相同，DNS 白名单无需改动
+
+#### Scenario: A branch build is rejected
+
+- **WHEN** attestation 来自 `refs/heads/main` 的工作流运行
+- **THEN** 安装以 `attestation-invalid` 失败
+
+### Requirement: Attestation stays off the request path
+
+证明与 DNS 的检查 MUST 只在安装与后台更新时进行，结果写入状态；请求应答 MUST NOT 做任何证明或 DNS 工作。后台检查 MUST 重新取 DNS，已安装官方插件的哈希不再有效时 MUST 标记为 `revoked`，在 `state` API 中可见，并拒绝再安装该 bundle。
+
+#### Scenario: A hash is removed from DNS
+
+- **WHEN** 后台检查发现已安装官方管理器的哈希已不在白名单
+- **THEN** 该插件在状态中标记为 `revoked`，导航仍照常应答
+- **AND** 再次安装同一 bundle 以 `attestation-invalid` 失败

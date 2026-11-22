@@ -5,10 +5,10 @@
  *
  *   dist/site/
  *     index.html                      the default manager as static pages + /sw.js registration script
- *     sw.js                            the plugin system (Service Worker kernel)
+ *     sw.js                           the plugin system (Service Worker kernel)
  *     _headers                        Cloudflare Pages cache rules
  *     registry/index.json             official plugin registry
- *     registry/p/<id>/<hash>/         plugin.json + the plugin's files
+ *     registry/p/<id>/<hash>/         plugin.json + mf-manifest.json + the plugin's files
  *
  * There is deliberately no top-level 404.html: Cloudflare Pages then serves
  * index.html for every unknown path, so a deep link opened before the worker
@@ -82,6 +82,7 @@ async function bundleKernel(version, githubRaw) {
       __KERNEL_VERSION__: JSON.stringify(version),
       __DEFAULT_MANAGER__: JSON.stringify(DEFAULT_MANAGER),
       __GITHUB_RAW__: JSON.stringify(githubRaw),
+      // Compared instead of localhost by the site-admin check (openspec cf-account-admin design.md A6).
       __SITE_HOST__: JSON.stringify(process.env.SITE_HOST || 'onlinegal.cc.cd'),
     },
     logLevel: 'warning',
@@ -104,7 +105,7 @@ async function packOfficial(entry, args, out) {
   const probe = await packDirectory({ dir, manifest: { ...base, version }, lazy: entry.lazy });
   const hash = contentHash(probe.files);
   const manifest = { ...base, version: `${version}+${hash.slice(0, 12)}` };
-  const { bytes, digest, files } = await packDirectory({ dir, manifest, lazy: entry.lazy });
+  const { bytes, envelope, digest, files } = await packDirectory({ dir, manifest, lazy: entry.lazy });
 
   const path = `p/${manifest.id}/${hash.slice(0, 16)}/`;
   const target = join(out, 'registry', path);
@@ -113,7 +114,9 @@ async function packOfficial(entry, args, out) {
     await mkdir(dirname(dest), { recursive: true });
     await copyFile(file.abs, dest);
   }
-  await writeFile(join(target, 'plugin.json'), bytes);
+  // Format 2: plugin.json only points at mf-manifest.json; the registry digest is mf-manifest.json's SHA-256.
+  await writeFile(join(target, 'mf-manifest.json'), bytes);
+  await writeFile(join(target, 'plugin.json'), envelope);
   const total = files.reduce((sum, file) => sum + file.size, 0);
   const lazyFiles = files.filter((file) => file.lazy);
   const eager = total - lazyFiles.reduce((sum, file) => sum + file.size, 0);
@@ -161,7 +164,7 @@ const REGISTER_SCRIPT = `<script>(() => {
 })();</script>`;
 
 /** Names the site root keeps for itself; the manager build must not use them. */
-const RESERVED = new Set(['registry', '__cf', 'sw.js', 'sw.js.map', '_headers', '_routes.json']);
+const RESERVED = new Set(['registry', '__ca', '__cf', 'sw.js', 'sw.js.map', '_headers', '_routes.json']);
 
 /** Copies the default manager to the site root as plain static pages that register the worker. */
 async function copyManagerToRoot(dir, out) {
@@ -228,7 +231,8 @@ async function main() {
   if (root === undefined || (await readJson(root.manifest)).id !== DEFAULT_MANAGER) throw new Error(`the site root must serve ${DEFAULT_MANAGER}`);
   await copyManagerToRoot(root.dir(args), out);
   await writeFile(join(out, '_headers'), HEADERS);
-  await writeFile(join(out, '_routes.json'), `${JSON.stringify({ version: 1, include: ['/__cf/*'], exclude: [] }, null, 1)}\n`);
+  // Send only the registered Function prefixes to Pages Functions, not static assets.
+  await writeFile(join(out, '_routes.json'), `${JSON.stringify({ version: 1, include: ['/__ca/*', '/__cf/*'], exclude: [] }, null, 1)}\n`);
 }
 
 main().catch((error) => {

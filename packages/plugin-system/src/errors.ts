@@ -22,6 +22,8 @@ export type KernelErrorCode =
   | 'manager-in-use'
   | 'request-invalid'
   | 'storage-missing'
+  | 'attestation-invalid'
+  | 'attestation-unavailable'
   // Accounts (openspec cf-account-admin): not the official manager calling, not signed in,
   // no vault in this kernel, Cloudflare refused or answered something unusable.
   | 'account-forbidden'

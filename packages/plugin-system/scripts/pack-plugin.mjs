@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
  * Turns a directory into a plugin package: lists every file with its size and
- * SHA-256 and writes `plugin.json` (see `src/format.ts`).
+ * SHA-256 and writes `mf-manifest.json` (the content manifest) and a slim
+ * `plugin.json` that only points at it (see `src/format.ts`, format 2).
  *
- *   node pack-plugin.mjs <dir> --manifest <manifest.json> [--version <semver>] [--lazy <glob>]... [--out <file>]
+ *   node pack-plugin.mjs <dir> --manifest <manifest.json> [--version <semver>] [--lazy <glob>]... [--bundle <path>] [--out <dir>]
  *
  * `--lazy` marks files the kernel fetches on first request instead of at install
  * time, for example `engines/**` (`**` crosses directories, `*` stays inside one).
@@ -11,7 +12,7 @@
  * At least one file must stay eager.
  *
  * Third-party authors run it at the root of their repository, commit the
- * resulting `plugin.json`, and push a tag; users install
+ * resulting `plugin.json` and `mf-manifest.json`, and push a tag; users install
  * `github:<owner>/<repo>@<tag>`. The official site build uses `packDirectory`
  * directly (see `build-site.mjs`).
  *
@@ -20,16 +21,26 @@
  * package the kernel accepts.
  */
 import { createHash } from 'node:crypto';
-import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { PACKAGE_FILE, PACKAGE_FORMAT, parsePackage, safeRelativePath } from '../dist/index.js';
+import {
+  BUNDLE_FILE,
+  ENVELOPE_FORMAT,
+  MANIFEST_FILE,
+  PACKAGE_FILE,
+  PACKAGE_FORMAT,
+  parseEnvelope,
+  parsePackage,
+  safeRelativePath,
+} from '../dist/index.js';
 
 /** Never part of a package: VCS and editor clutter, dependencies, the package file itself. */
 function skipped(rel) {
   const first = rel.split('/')[0];
-  return rel === PACKAGE_FILE || first === 'node_modules' || rel.split('/').some((part) => part.startsWith('.'));
+  const generated = rel === PACKAGE_FILE || rel === MANIFEST_FILE || rel === BUNDLE_FILE;
+  return generated || first === 'node_modules' || rel.split('/').some((part) => part.startsWith('.'));
 }
 
 async function walk(root, dir = root, out = []) {
@@ -63,10 +74,10 @@ function globToRegExp(glob) {
 }
 
 /**
- * @param {{ dir: string, manifest: object, lazy?: string[] }} input `lazy` lists globs of files fetched on first request
- * @returns {Promise<{ pkg: object, bytes: Buffer, digest: string, files: Array<{ path: string, abs: string, size: number, sha256: string, lazy?: true }> }>}
+ * @param {{ dir: string, manifest: object, lazy?: string[], bundle?: string }} input `lazy` lists globs of files fetched on first request
+ * @returns {Promise<{ pkg: object, bytes: Buffer, envelope: Buffer, digest: string, files: Array<{ path: string, abs: string, size: number, sha256: string, lazy?: true }> }>}
  */
-export async function packDirectory({ dir, manifest, lazy = [] }) {
+export async function packDirectory({ dir, manifest, lazy = [], bundle }) {
   // A `!glob` entry keeps matching files eager; any other entry makes them lazy.
   const lazyPatterns = lazy.filter((glob) => !glob.startsWith('!')).map(globToRegExp);
   const eagerPatterns = lazy.filter((glob) => glob.startsWith('!')).map((glob) => globToRegExp(glob.slice(1)));
@@ -89,7 +100,10 @@ export async function packDirectory({ dir, manifest, lazy = [] }) {
   };
   parsePackage(pkg);
   const bytes = Buffer.from(`${JSON.stringify(pkg, null, 1)}\n`);
-  return { pkg, bytes, digest: createHash('sha256').update(bytes).digest('hex'), files };
+  // `bytes` is mf-manifest.json and `digest` is its SHA-256, the value the official registry records.
+  const envelope = Buffer.from(`${JSON.stringify({ format: ENVELOPE_FORMAT, manifest: MANIFEST_FILE, ...(bundle === undefined ? {} : { bundle }) }, null, 1)}\n`);
+  parseEnvelope(JSON.parse(envelope.toString('utf8')));
+  return { pkg, bytes, envelope, digest: createHash('sha256').update(bytes).digest('hex'), files };
 }
 
 /** SHA-256 over the file list: changes exactly when some file's bytes, name or lazy flag change. */
@@ -109,14 +123,17 @@ async function main(argv) {
   }
   const dir = args._[0];
   if (dir === undefined || args.manifest === undefined) {
-    console.error('usage: pack-plugin.mjs <dir> --manifest <manifest.json> [--version <semver>] [--lazy <glob>]... [--out <file>]');
+    console.error('usage: pack-plugin.mjs <dir> --manifest <manifest.json> [--version <semver>] [--lazy <glob>]... [--bundle <path>] [--out <dir>]');
     process.exit(2);
   }
   const manifest = JSON.parse(await readFile(args.manifest, 'utf8'));
   if (args.version !== undefined) manifest.version = args.version;
-  const { bytes, digest, files } = await packDirectory({ dir, manifest, lazy: args.lazy });
-  const out = args.out ?? join(dir, PACKAGE_FILE);
+  const { bytes, envelope, digest, files } = await packDirectory({ dir, manifest, lazy: args.lazy, bundle: args.bundle });
+  const outDir = resolve(args.out ?? dir);
+  await mkdir(outDir, { recursive: true });
+  const out = join(outDir, MANIFEST_FILE);
   await writeFile(out, bytes);
+  await writeFile(join(outDir, PACKAGE_FILE), envelope);
   const total = files.reduce((sum, file) => sum + file.size, 0);
   const lazyCount = files.filter((file) => file.lazy).length;
   console.log(`${manifest.id} ${manifest.version}: ${files.length} files${lazyCount > 0 ? ` (${lazyCount} lazy)` : ''}, ${total} bytes → ${out} (sha256 ${digest})`);
