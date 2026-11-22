@@ -389,8 +389,13 @@ export class IndexedDbStore implements WritableStore {
     const db = await this.open();
     return new Promise<T>((resolve, reject) => {
       const tx = db.transaction(this.storeName, mode);
+      let result: T;
+      tx.oncomplete = () => resolve(result);
+      tx.onerror = () => reject(tx.error ?? new Error('IndexedDB transaction failed'));
+      tx.onabort = () => reject(tx.error ?? new DOMException('IndexedDB transaction aborted', 'AbortError'));
       const request = action(tx.objectStore(this.storeName));
-      request.onsuccess = () => resolve(request.result as T);
+      // Request success precedes commit; a later transaction abort must still reject.
+      request.onsuccess = () => { result = request.result as T; };
       request.onerror = () => reject(request.error);
     });
   }
