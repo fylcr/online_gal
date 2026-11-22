@@ -14,6 +14,10 @@
       "types": "./src/index.ts",
       "development": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./account": {
+      "types": "./src/account/index.ts",
+      "default": "./src/account/index.ts"
     }
   },
   "dependencies": {

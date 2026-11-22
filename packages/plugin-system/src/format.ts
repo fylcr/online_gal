@@ -125,7 +125,7 @@ export function parsePackage(input: unknown): PluginPackage {
     // These URLs are answered by the kernel or the server before the manager
     // is consulted; a manager shipping them would be shadowed silently.
     const shadowed = files.find(({ path }) =>
-      path === 'sw.js' || /^(?:__kernel|__plugins|registry)\//.test(path),
+      path === 'sw.js' || /^(?:__kernel|__plugins|__cf|registry)\//.test(path),
     );
     if (shadowed !== undefined) {
       throw bad(`manager file "${shadowed.path}" collides with a URL the kernel reserves`);

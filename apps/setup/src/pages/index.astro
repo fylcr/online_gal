@@ -1,0 +1,27 @@
+---
+import '../styles/global.css';
+import SetupFlow from '../components/SetupFlow.svelte';
+import type { SetupConfig } from '../lib/setup';
+
+const config: SetupConfig = JSON.parse(import.meta.env.PUBLIC_ONLINE_GAL_SETUP ?? JSON.stringify({
+  siteHost: 'onlinegal.cc.cd', rebuild: { kind: 'manual' }, builtAt: new Date().toISOString(),
+}));
+---
+
+<!doctype html>
+<html lang="zh-CN" data-theme="swiss">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>站点初始化 · online_gal</title>
+  </head>
+  <body class="min-h-screen bg-base-100 font-sans text-base-content antialiased">
+    <main class="mx-auto w-full max-w-2xl px-6 py-12">
+      <header class="mb-6 grid gap-2">
+        <h1 class="text-3xl font-bold tracking-tight">站点初始化</h1>
+        <p class="text-sm text-base-content/70">所有者完成初始化后，访客即可直接使用站点。</p>
+      </header>
+      <SetupFlow {config} client:load />
+    </main>
+  </body>
+</html>

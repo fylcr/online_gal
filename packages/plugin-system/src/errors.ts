@@ -21,7 +21,13 @@ export type KernelErrorCode =
   | 'not-a-manager'
   | 'manager-in-use'
   | 'request-invalid'
-  | 'storage-missing';
+  | 'storage-missing'
+  // Accounts (openspec cf-account-admin): not the official manager calling, not signed in,
+  // no vault in this kernel, Cloudflare refused or answered something unusable.
+  | 'account-forbidden'
+  | 'account-signed-out'
+  | 'account-unavailable'
+  | 'account-failed';
 
 export class KernelError extends Error {
   override readonly name = 'KernelError';

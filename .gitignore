@@ -9,6 +9,7 @@ packages/*/dist/
 
 # Astro
 apps/app/.astro/
+apps/setup/.astro/
 
 # Local scratch (kept on disk; never part of the source upload)
 buildlog.txt

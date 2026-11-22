@@ -1,5 +1,7 @@
 import type { PluginManifest } from '@online-gal/plugin-host';
 
+import { CloudflareAccount, CLOUDFLARE } from './account/cloudflare.js';
+import { Vault, type VaultStore } from './account/vault.js';
 import { KernelError } from './errors.js';
 import { PACKAGE_FILE, contentTypeOf, encodePath, parsePackage, safeRelativePath, type PluginPackage } from './format.js';
 import {
@@ -46,6 +48,15 @@ export interface KernelOptions {
   readonly pagesOpen?: () => Promise<boolean>;
   /** Tells open pages about changes (installed, updated, removed). */
   readonly notify?: (message: KernelNotice) => void;
+  /**
+   * Where account credentials are sealed (openspec cf-account-admin design.md A4). Without it the
+   * account API answers `account-unavailable`.
+   */
+  readonly vault?: VaultStore;
+  /** The URL of a fetch event's client, used to tell who is asking for the account (design.md A3). */
+  readonly clientUrl?: (clientId: string) => Promise<string | undefined>;
+  /** The site's public host, compared instead of `localhost` by the site-admin check (design.md A6). */
+  readonly siteHost?: string;
   readonly log?: (message: string, error?: unknown) => void;
 }
 
@@ -174,6 +185,8 @@ export type Route =
   | { readonly kind: 'plugin'; readonly id: string; readonly path: string }
   | { readonly kind: 'kernel-page' }
   | { readonly kind: 'api'; readonly name: string }
+  /** `/__cf/**`, any method: relayed with the account's token for the official manager only. */
+  | { readonly kind: 'cloudflare'; readonly path: string }
   | { readonly kind: 'not-found' };
 
 /**
@@ -188,6 +201,8 @@ export function routeRequest(url: URL, method: string, origin: string): Route | 
   // that is how the kernel and the plugins get updated.
   if (path === '/sw.js' || path.startsWith('/registry/')) return null;
   if (path.startsWith('/__kernel/api/')) return { kind: 'api', name: path.slice('/__kernel/api/'.length) };
+  // The Cloudflare relay (openspec cf-account-admin design.md A3): the kernel adds the token.
+  if (path === '/__cf' || path.startsWith('/__cf/')) return { kind: 'cloudflare', path: `${path}${url.search}` };
   if (method !== 'GET' && method !== 'HEAD') return null;
   if (path === '/__kernel' || path === '/__kernel/') return { kind: 'kernel-page' };
   if (path.startsWith('/__kernel/')) return { kind: 'not-found' };
@@ -274,6 +289,10 @@ const STATUS_BY_CODE: Readonly<Record<string, number>> = {
   'fetch-failed': 502,
   'integrity-failed': 502,
   'storage-missing': 503,
+  'account-forbidden': 403,
+  'account-signed-out': 401,
+  'account-unavailable': 503,
+  'account-failed': 502,
 };
 
 function json(status: number, body: unknown): Response {
@@ -334,6 +353,7 @@ export class Kernel {
   private readonly lazyInflight = new Map<string, Promise<void>>();
   private readonly openCaches = new Map<string, Promise<Cache>>();
   private autoUpdate: Promise<void> | null = null;
+  private cloudflareAccount: CloudflareAccount | undefined;
 
   constructor(private readonly options: KernelOptions) {
     this.origin = options.origin.replace(/\/$/, '');
@@ -878,11 +898,14 @@ export class Kernel {
     return routeRequest(new URL(request.url), request.method, this.origin);
   }
 
-  async respond(request: KernelRequest, route: Route): Promise<Response> {
+  /** `clientId` is the fetch event's; only account requests read it. */
+  async respond(request: KernelRequest, route: Route, clientId = ''): Promise<Response> {
     try {
       switch (route.kind) {
         case 'api':
-          return await this.api(request, route.name);
+          return await this.api(request, route.name, clientId);
+        case 'cloudflare':
+          return await this.relayCloudflare(request, route.path, clientId);
         case 'kernel-page':
           return html(200, kernelPage(this.options.kernelVersion));
         case 'not-found':
@@ -1041,13 +1064,14 @@ export class Kernel {
 
   // ---------------------------------------------------------------- API
 
-  private async api(request: KernelRequest, name: string): Promise<Response> {
+  private async api(request: KernelRequest, name: string, clientId: string): Promise<Response> {
     try {
       // A cross-site form can POST here as a top-level navigation; same-origin
       // `fetch` from a plugin page never has this mode.
       if (request.mode === 'navigate') {
         throw new KernelError('request-invalid', 'the kernel API is not reachable by navigation');
       }
+      if (name.startsWith('account/')) return await this.accountApi(request, name.slice('account/'.length), clientId);
       if (request.method === 'GET') {
         if (name === 'state') return json(200, { ok: true, ...(await this.status()) });
         if (name === 'registry') return json(200, { ok: true, registry: await this.registry() });
@@ -1096,6 +1120,95 @@ export class Kernel {
       }
     } catch (error) {
       return errorResponse(error);
+    }
+  }
+
+  // ---------------------------------------------------------------- account (openspec cf-account-admin)
+
+  private account(): CloudflareAccount {
+    if (this.options.vault === undefined) {
+      throw new KernelError('account-unavailable', 'this kernel has no credential vault');
+    }
+    this.cloudflareAccount ??= new CloudflareAccount({
+      origin: this.origin,
+      siteHost: this.options.siteHost ?? new URL(this.origin).hostname,
+      fetch: this.options.fetch,
+      vault: new Vault(this.options.vault),
+      now: this.now,
+    });
+    return this.cloudflareAccount;
+  }
+
+  /**
+   * Only the official manager's own pages and workers may use the account (design.md A3): the
+   * active manager must come from `official:`, and the asking client must be one of its pages,
+   * not a plugin page or the kernel page. A request whose client is unknown is refused.
+   */
+  private async assertAccountCaller(clientId: string): Promise<void> {
+    const state = await this.state();
+    const manager = state.activeManager === null ? undefined : state.plugins[state.activeManager];
+    if (manager === undefined || parseSource(manager.source).kind !== 'official') {
+      throw new KernelError('account-forbidden', 'the account is only available to the official manager');
+    }
+    const url = clientId === '' || this.options.clientUrl === undefined ? undefined : await this.options.clientUrl(clientId);
+    if (url === undefined) throw new KernelError('account-forbidden', 'the page asking for the account cannot be identified');
+    const caller = new URL(url);
+    const path = caller.pathname;
+    const inside = (prefix: string): boolean => path === prefix || path.startsWith(`${prefix}/`);
+    if (caller.origin !== this.origin || inside('/__plugins') || inside('/__kernel')) {
+      throw new KernelError('account-forbidden', 'the account is only available to the official manager');
+    }
+  }
+
+  private async accountApi(request: KernelRequest, rest: string, clientId: string): Promise<Response> {
+    const slash = rest.indexOf('/');
+    const provider = slash < 0 ? rest : rest.slice(0, slash);
+    const action = slash < 0 ? '' : rest.slice(slash + 1);
+    if (provider !== CLOUDFLARE) throw new KernelError('request-invalid', `unknown account provider "${provider}"`);
+    await this.assertAccountCaller(clientId);
+    const account = this.account();
+    if (request.method === 'GET' && action === 'status') {
+      return json(200, { ok: true, status: await account.status() });
+    }
+    if (request.method !== 'POST') {
+      throw new KernelError('request-invalid', `the account API does not accept ${request.method} ${action}`);
+    }
+    switch (action) {
+      case 'login':
+        return json(200, { ok: true, login: await account.login() });
+      case 'poll':
+        return json(200, { ok: true, poll: await account.poll() });
+      case 'logout':
+        await account.logout();
+        return json(200, { ok: true, status: await account.status() });
+      default:
+        throw new KernelError('request-invalid', `unknown account API "${action}"`);
+    }
+  }
+
+  /**
+   * A page's `/__cf/**` request. Only `/__cf/api/**` is relayed, with the token added; the
+   * OAuth endpoints are the kernel's own business. Failures use Cloudflare's error envelope so
+   * the browser cf reports them like any API error.
+   */
+  private async relayCloudflare(request: KernelRequest, pathAndQuery: string, clientId: string): Promise<Response> {
+    try {
+      await this.assertAccountCaller(clientId);
+      if (!pathAndQuery.startsWith('/__cf/api/')) {
+        throw new KernelError('account-forbidden', 'only /__cf/api/** is relayed for pages');
+      }
+      return await this.account().forward(request as Request, pathAndQuery);
+    } catch (error) {
+      const code = errorCode(error);
+      const message = errorMessage(error);
+      return json(STATUS_BY_CODE[code] ?? 500, {
+        success: false,
+        errors: [{ code, message }],
+        messages: [],
+        result: null,
+        ok: false,
+        error: { code, message },
+      });
     }
   }
 }

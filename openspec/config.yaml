@@ -4,16 +4,29 @@ schema: spec-driven
 # 开工前先读本文件，再读 openspec/changes/ 下与任务相关的 change（proposal → design → specs → tasks）。
 context: |
   项目：online_gal，浏览器端多引擎视觉小说（galgame）模拟器。把真实引擎编译成 WebAssembly 在浏览器里运行。
-  许可 GPL-3.0-or-later，仓库 private，包均为 private、不发布 npm。部署在 Cloudflare Pages：https://onlinegal.pages.dev/
+  许可 GPL-3.0-or-later，仓库 private，包均为 private、不发布 npm。部署在 Cloudflare Pages：https://onlinegal.cc.cd/（自定义域名；Pages 默认地址为 onlinegal.pages.dev）
   当前范围：只维护 ONScripter（ONS）与 KiriKiri 两个引擎；Artemis、Siglus、Tyrano、web 代码保留但暂停适配，不要改动。
   主线 change：first-public-beta-ons-kirikiri（首个公开测试版）、redesign-frontend（前端重构）。
+  其他进行中的 change：
+  - plugin-system：插件系统（Service Worker 内核、插件包格式与来源证明、插件规则层）。其他 change 只能通过它的登记规则（design.md K19）扩展内核。
+  - cf-account-admin：管理系统（Cloudflare 账号、/__cf 代理、浏览器版 cf、/admin），由单独的对话负责，在 plugin-system 里登记了 /__cf。
+  - site-setup：站点初始化，两阶段构建。npm run build:pages（scripts/build-pages.mjs）检查 Pages 项目有没有 ONLINE_GAL_SITE：
+    没有就只构建 apps/setup 的初始化页（不含插件系统、管理器、引擎）；所有者用 Cloudflare 登录，填写并校验初始化项
+    （CLOUDFLARE_ACCOUNT_ID、CLOUDFLARE_API_TOKEN、GITHUB_TOKEN），写成生产环境的 Pages secret 并写入 ONLINE_GAL_SITE，再触发一次构建；
+    有就调用 npm run build:site，产物不含任何初始化代码。不提供重置。服务器功能需要的密钥一律登记为初始化项
+    （apps/setup/src/lib/setup-items.ts，见 site-setup design.md S7），不另做配置入口。属于管理系统，由 cf-account-admin 的对话负责。
+    apps/app、functions/、站点构建里不得出现初始化代码。
   目录：
   - apps/app：前端，Astro 7 + Svelte 5（计划接入 Tailwind v4）。技术栈固定，不加其他框架、组件库或状态库。
   - packages/engine/core/onscripter-yuri、packages/engine/core/kirikiroid2-web：WASM 引擎。
   - packages/engine/interpreter/onscripter、packages/engine/interpreter/kirikiri-kag3：解释器回退。
   - packages/core、packages/engines、packages/vfs 等：平台包。ports/：上游移植与构建。docs/：文档。
+  - packages/plugin-system（内核 sw.js、打包与建站脚本）、packages/plugin-host（插件规则层）：change plugin-system。
+  - packages/cf-browser（浏览器版 cf）：change cf-account-admin。functions/：随站点部署的 Pages Functions，__ca 属于 plugin-system，__cf 属于 cf-account-admin。apps/setup、scripts/build-pages.mjs：change site-setup。
   命令（Git Bash，bash 语法；Node >= 22.12，pnpm 9.14.2）：npm run build:packages、npm run build、npm run check、
-  npm run check:sources、npm test。前端单独：cd apps/app && npx astro check / npx astro build。
+  npm run check:sources、npm test、npm run build:site（构建可部署的站点 dist/site，含插件系统；build 已包含 build:cf）、
+  npm run build:pages（部署用：自动选择初始化构建或站点构建）、npm run build:setup（只构建初始化页）。
+  前端单独：cd apps/app && npx astro check / npx astro build。
   硬约定：
   - 布局：产品代码只放 packages/、apps/、ports/ 并入库；测试、真实游戏、一次性脚本、截图放 .test/，参考检出与官方 SDK 放 .ref/（均 gitignored）。
     产品代码不得引用 .test/。任何 archive 解包前须断言落点在 .test/<dir>/、.ref/<dir>/ 或已校验的 ports/<port>/out/<dir>/ 下，绝不解到仓库根。

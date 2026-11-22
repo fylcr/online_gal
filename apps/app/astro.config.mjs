@@ -165,10 +165,31 @@ export default defineConfig({
     define: { __ARTEMIS_ASSETS_AVAILABLE__: JSON.stringify(ARTEMIS.available) },
     build: {
       target: 'es2022',
-      sourcemap: true,
+      // No sourcemaps in production output: the cf command groups alone made ~27 MiB of maps.
+      sourcemap: false,
     },
     worker: {
       format: 'es',
+    },
+    environments: {
+      client: {
+        build: {
+          rolldownOptions: {
+            output: {
+              // Astro's own client naming (`_astro/<name>.<hash>.js`, unsafe characters as `_`), except
+              // that chunks made only of the browser cf CLI go to `_astro/cf/`. The cf command groups
+              // are ~7.5 MiB and only load when the admin console runs a command, so the official
+              // manager package marks `_astro/cf/**` lazy (packages/plugin-system/scripts/build-site.mjs);
+              // without a directory of their own every install would download all of them.
+              chunkFileNames(chunk) {
+                const ids = chunk.moduleIds.map((id) => id.replaceAll('\\', '/'));
+                const cf = ids.length > 0 && ids.every((id) => id.includes('/packages/cf-browser/dist/'));
+                return `_astro/${cf ? 'cf/' : ''}${chunk.name.replace(/[^\w.\-/]/g, '_')}.[hash].js`;
+              },
+            },
+          },
+        },
+      },
     },
     plugins: [tailwindcss(), kirikiriBuild(), artemisAssetPlugin(ARTEMIS)],
   },
