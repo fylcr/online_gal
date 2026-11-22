@@ -51,6 +51,27 @@ if(ARTC_BUILD_WEB)
     list(REMOVE_ITEM ARTC_CORE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/audio/audio.cpp")
     list(APPEND ARTC_CORE_SOURCES "${ARTC_AUDIO_WEB_DIR}/audio/audio_web.cpp")
 
+    # The pinned compositor is excluded, not linked alongside the new owner.
+    set(ARTC_RENDER_WEB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/overlay/render")
+    foreach(source compositor.cpp compositor.h tween_scheduler.cpp tween_scheduler.h)
+        if(NOT EXISTS "${ARTC_RENDER_WEB_DIR}/${source}")
+            message(FATAL_ERROR "render replacement missing: ${ARTC_RENDER_WEB_DIR}/${source}")
+        endif()
+    endforeach()
+    list(REMOVE_ITEM ARTC_CORE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/render/compositor.cpp")
+    list(APPEND ARTC_CORE_SOURCES
+        "${ARTC_RENDER_WEB_DIR}/compositor.cpp"
+        "${ARTC_RENDER_WEB_DIR}/tween_scheduler.cpp")
+    # artemis_core was declared by the pin before this appended block. Replace
+    # its source too, so building that library cannot revive the old core.
+    get_target_property(ARTC_LIBRARY_SOURCES artemis_core SOURCES)
+    list(REMOVE_ITEM ARTC_LIBRARY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/render/compositor.cpp")
+    list(APPEND ARTC_LIBRARY_SOURCES
+        "${ARTC_RENDER_WEB_DIR}/compositor.cpp"
+        "${ARTC_RENDER_WEB_DIR}/tween_scheduler.cpp")
+    set_property(TARGET artemis_core PROPERTY SOURCES "${ARTC_LIBRARY_SOURCES}")
+    target_include_directories(artemis_core BEFORE PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/overlay")
+
     add_executable(artemis-compat
         ${ARTC_CORE_SOURCES}
         ${CMAKE_CURRENT_SOURCE_DIR}/src/host/web_main.cpp)

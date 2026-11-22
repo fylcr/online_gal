@@ -194,6 +194,20 @@ for name in "${PATCHES[@]}"; do
   patch --dry-run --forward --binary -d "$BUILD" -p1 --batch <"$p" >>"$LOG" 2>&1
   patch --forward --binary -d "$BUILD" -p1 --batch <"$p" >>"$LOG" 2>&1
 done
+# Replace the entire compositor/tween owner after platform patches. The old
+# tween hunks (0003/0006) remain recorded inputs, not executable fallback code.
+cp -a "$HERE/overlay/render" "$BUILD/overlay/render"
+cp "$HERE/overlay/render/compositor.h" "$BUILD/src/render/compositor.h"
+say "tween-core=overlay/render/tween_scheduler.cpp (full replacement)"
+for source in "$HERE"/overlay/render/*; do
+  say "render-overlay $(basename "$source") sha256=$(sha256sum "$source" | cut -d' ' -f1)"
+done
+# Whole Lua files carry the minimal tween-aware wait contract; the VM outside
+# that seam remains pinned. Replace after patches, never patch an out tree.
+for source in "$HERE"/overlay/script/*; do
+  cp "$source" "$BUILD/src/script/$(basename "$source")"
+  say "script-overlay $(basename "$source") sha256=$(sha256sum "$source" | cut -d' ' -f1)"
+done
 cat "$HERE/overlay/cmake/web.cmake" >>"$BUILD/CMakeLists.txt"
 say "web.cmake sha256=$(sha256sum "$HERE/overlay/cmake/web.cmake" | cut -d' ' -f1)"
 say "web_main.cpp sha256=$(sha256sum "$HERE/overlay/host/web_main.cpp" | cut -d' ' -f1)"

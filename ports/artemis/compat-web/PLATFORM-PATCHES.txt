@@ -25,3 +25,6 @@
 #       PendingTextMs, causing incorrect animation timing on the first frame and
 #       leading to title replays, missing fade transitions, and broken CG animations.
 0005-compositor-update-first-frame.patch
+# Trial: apply the first explicit tween from-value when armed, not on next Update.
+# Keeps the user-confirmed scene-commit overlay; title replay acceptance is pending.
+0006-tween-arm-initial-value-trial.patch

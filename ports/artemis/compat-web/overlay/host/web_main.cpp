@@ -1,23 +1,3 @@
-//---------------------------------------------------------------------------
-// Web (Emscripten) host for artemis-compat.
-//
-// Modelled directly on `src/host/mac_main.mm`. The boot sequence, the queued-input model and the
-// per-frame order are the same, deliberately: reset/exit gate -> boot -> drain input -> EnterFrame ->
-// drain queued tags -> Step -> compositor update -> gated Present -> EndFrame. Keeping the order
-// identical means a bug found on one host is a bug on the other, rather than a difference in hosts.
-//
-// Only the platform surface differs:
-//
-//   Cocoa window + legacy OpenGL 2.1   ->  a canvas + a WebGL2 context through Emscripten's GLES2
-//   NSTimer at the display refresh     ->  the host calls artc_web_frame (this module has no rAF)
-//   NSEvent                            ->  browser events, via the exported C entry points below
-//
-// The redraw gate is kept as-is. It matters more here than on the desktop: a browser compositor
-// charges for every presented frame, and an ADV scene is static most of the time, so skipping
-// clear+draw when the layer revision has not moved and nothing is animating is the difference
-// between a warm laptop and a hot one.
-//---------------------------------------------------------------------------
-
 #include <emscripten.h>
 #include <emscripten/html5.h>
 // `emscripten_get_heap_size` is declared here and was only reachable transitively
@@ -77,6 +57,20 @@ EM_JS(char *, artc_js_dialog, (const char *title, const char *message, int kind)
 });
 
 using namespace artc;
+
+namespace artc {
+struct WebFrameState {
+    bool paused_ = false;
+    bool presentation_pending_ = true;
+    unsigned long long committed_revision_ = ~0ull;
+    unsigned long long presented_ = 0;
+
+    void Invalidate() {
+        committed_revision_ = ~0ull;
+        presentation_pending_ = true;
+    }
+};
+} // namespace artc
 
 namespace {
 
@@ -237,7 +231,7 @@ public:
     unsigned long long Revision() const {
         return (ctx && ctx->Started()) ? ctx->compositor().Revision() : 0ull;
     }
-    unsigned long long Presented() const { return presented; }
+    unsigned long long Presented() const { return frame_.presented_; }
     const char *LastError() const { return last_error.c_str(); }
 
     /**
@@ -251,15 +245,16 @@ public:
 
     // PauseClock/PauseAudio are idempotent. Tick bails before any of them while paused.
     bool Pause(bool on) {
-        if (!ctx || !ctx->Started()) return false;
+        if (!Started()) return false;
+        LuaEngine &lua = ctx->lua();
         if (on) {
-            ctx->lua().PauseClock();
-            ctx->lua().PauseAudio();
+            lua.PauseClock();
+            lua.PauseAudio();
         } else {
-            ctx->lua().ResumeClock();
-            ctx->lua().ResumeAudio();
+            lua.ResumeClock();
+            lua.ResumeAudio();
         }
-        paused = on;
+        frame_.paused_ = on;
         return true;
     }
 
@@ -284,68 +279,59 @@ public:
     }
 
     void Dispose() {
-        paused = false;
+        frame_.paused_ = false;
+        frame_.Invalidate();
         if (ctx) ctx->Shutdown();
         ctx.reset();
         booted = false;
         exit_requested = false;
     }
 
-    /**
-     * One frame. Mirrors `mac_main.mm`'s `Tick` step for step.
-     *
-     * The backing-store size is read every frame rather than cached: a browser resizes a canvas by
-     * changing its attributes, and a stale viewport shows up as a stretched or cropped picture rather
-     * than as an error.
-     */
+    // Advance activity before dispatching events or polling script waits.
+    // A staged script batch may span calls, but never commits a partial scene.
     void Tick() {
-        int fb_w = stage_w, fb_h = stage_h;
-        emscripten_get_canvas_element_size(kCanvasTarget, &fb_w, &fb_h);
-        if (fb_w <= 0 || fb_h <= 0) {
-            fb_w = stage_w;
-            fb_h = stage_h;
-        }
-        // Host owns the clock. A paused tick does not boot, step, or present.
-        if (paused) return;
-
-        if (ctx && ctx->Started() && ctx->lua().ConsumeResetRequest()) {
-            Log(kLogInfo, "web host: reset requested; re-running the boot chain");
-            ctx->ResetSession();
-            booted = false;
-            drawn_rev = ~0ull;
-        }
-        if (ctx && ctx->Started() && ctx->lua().ConsumeExitRequest()) {
-            Log(kLogInfo, "web host: exit requested");
-            exit_requested = true;
-            return;
-        }
-        if (!booted && !Boot()) {
-            last_error = "boot failed";
-            exit_requested = true;
-            return;
-        }
-
-        DrainInput();
-        if (ctx && ctx->Started()) {
-            ctx->lua().RunEnterFrame();
-            DrainQueued();
-        }
-        Step();
-        if (ctx && ctx->Started()) {
-            // CRITICAL FIX: Call NowMs() only ONCE to ensure consistent timestamp
-            // across Update() and animation checks. Multiple calls can return different
-            // values in WASM, causing animation skips and frame stuttering.
-            const double now = ctx->lua().NowMs();
-            ctx->compositor().Update(now);
-            const bool animating = ctx->compositor().PendingAnimationMs(now) > 0 ||
-                                   ctx->compositor().TransitionActive() ||
-                                   ctx->compositor().PendingTextMs(now) > 0;
-            if (drawn_rev != ctx->compositor().Revision() || animating) {
-                Present((float)fb_w, (float)fb_h);
-                drawn_rev = ctx->compositor().Revision();
+        if (frame_.paused_) return;
+        if (Started()) {
+            if (ctx->lua().ConsumeResetRequest()) {
+                Log(kLogInfo, "web host: reset requested; re-running the boot chain");
+                ctx->ResetSession();
+                booted = false;
+                frame_.Invalidate();
             }
-            ctx->lua().EndFrame();
+            if (Started() && ctx->lua().ConsumeExitRequest()) {
+                Log(kLogInfo, "web host: exit requested");
+                exit_requested = true;
+                return;
+            }
         }
+        if (!booted) {
+            if (!Boot()) {
+                last_error = "boot failed";
+                exit_requested = true;
+                return;
+            }
+            frame_.Invalidate();
+        }
+        if (!Started()) return;
+
+        LuaEngine &lua = ctx->lua();
+        Compositor &compositor = ctx->compositor();
+        const double now_ms = lua.NowMs();
+        frame_.presentation_pending_ = compositor.Update(now_ms) ||
+                                       frame_.presentation_pending_;
+        DrainInput();
+        lua.RunEnterFrame();
+        const bool scene_ready = Step();
+
+        // Revision retains the final setter even after the activity owner empties.
+        // Keep the pending commit across a budget yield; Draw owns explicit flips.
+        const bool active = compositor.TweensActive() ||
+                            compositor.PendingAnimationMs(now_ms) > 0 ||
+                            compositor.TransitionActive() || compositor.PendingTextMs(now_ms) > 0;
+        frame_.presentation_pending_ = frame_.presentation_pending_ || active ||
+            frame_.committed_revision_ != compositor.Revision();
+        if (scene_ready && frame_.presentation_pending_) Present();
+        lua.EndFrame();
     }
 
 private:
@@ -400,61 +386,72 @@ private:
         if (tapped) lua->ClickAt(tap_x, tap_y);
     }
 
-    void DrainQueued() {
-        if (!ctx || !ctx->Started()) return;
+    // Queue dispatch and runner execution share the transaction's finite allowance.
+    // A wait is a boundary, not permission to dispatch the remaining queue.
+    bool DrainQueued(int &remaining) {
         LuaEngine &lua = ctx->lua();
-        AsbRunner &runner = ctx->runner();
         while (!lua.IsWaiting() && lua.HasQueuedTag()) {
-            std::string name;
+            if (remaining == 0) return false;
+            std::string tag;
             std::vector<std::pair<std::string, std::string>> attrs;
-            if (!lua.PopQueuedTag(&name, &attrs)) break;
-            if (name == "jump" || name == "call") {
-                std::string file, label;
-                for (const auto &kv : attrs) {
-                    if (kv.first == "file") file = kv.second;
-                    else if (kv.first == "label") label = kv.second;
-                }
-                if (name == "call") runner.Call(file, label);
-                else runner.Jump(file, label);
-            } else {
-                lua.DispatchTag(name, attrs, false);
+            if (!lua.PopQueuedTag(&tag, &attrs)) return true;
+            --remaining;
+            if (tag != "jump" && tag != "call") {
+                lua.DispatchTag(tag, attrs, false);
+                continue;
             }
+            std::string file, label;
+            for (const auto &attr : attrs) {
+                if (attr.first == "file") file = attr.second;
+                if (attr.first == "label") label = attr.second;
+            }
+            if (tag == "call") ctx->runner().Call(file, label);
+            else ctx->runner().Jump(file, label);
         }
+        return true;
     }
 
-    void Step() {
-        if (!ctx || !ctx->Started()) return;
+    bool Step() {
         LuaEngine &lua = ctx->lua();
         AsbRunner &runner = ctx->runner();
-        if (runner.Loaded() && !runner.Halted() && !lua.IsWaiting()) {
-            for (int i = 0; i < 4 && runner.Loaded() && !runner.Halted(); ++i) {
-                runner.ExecuteLine(lua);
-                DrainQueued();
-                if (lua.IsWaiting()) break;
-            }
-        } else if (!lua.IsWaiting() && lua.HasQueuedTag()) {
-            DrainQueued();
+        // This is a host responsiveness limit, not an engine timing or frame-rate rule.
+        int remaining = 4096;
+        for (;;) {
+            if (!DrainQueued(remaining)) return false;
+            if (lua.IsWaiting() || !runner.Loaded() || runner.Halted()) return true;
+            if (remaining == 0) return false;
+            --remaining;
+            runner.ExecuteLine(lua);
         }
     }
 
-    void Present(float fb_w, float fb_h) {
+    // Only an eligible scene reaches the default framebuffer. The compositor
+    // retains ownership of scene capture, transition rendering and explicit flip.
+    void Present() {
+        int width = stage_w, height = stage_h;
+        emscripten_get_canvas_element_size(kCanvasTarget, &width, &height);
+        if (width <= 0 || height <= 0) {
+            width = stage_w;
+            height = stage_h;
+        }
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glDisable(GL_SCISSOR_TEST);
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_CULL_FACE);
-        glViewport(0, 0, (GLsizei)fb_w, (GLsizei)fb_h);
+        glViewport(0, 0, width, height);
         glClearColor(0.f, 0.f, 0.f, 1.f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // Letterbox: fit the stage into the canvas and centre it. The stage never stretches, which is
-        // what keeps circles round when the window's aspect ratio differs.
-        const float s = std::min(fb_w / (float)stage_w, fb_h / (float)stage_h);
-        const int vw = (int)((float)stage_w * s), vh = (int)((float)stage_h * s);
-        const int vx = ((int)fb_w - vw) / 2, vy = ((int)fb_h - vh) / 2;
-        glViewport(vx, vy, vw, vh);
-
+        const float scale = std::min(static_cast<float>(width) / stage_w,
+                                     static_cast<float>(height) / stage_h);
+        const int view_width = static_cast<int>(stage_w * scale);
+        const int view_height = static_cast<int>(stage_h * scale);
+        glViewport((width - view_width) / 2, (height - view_height) / 2,
+                   view_width, view_height);
         ctx->compositor().Draw();
-        presented += 1;
+        frame_.committed_revision_ = ctx->compositor().Revision();
+        frame_.presentation_pending_ = false;
+        ++frame_.presented_;
     }
 
     std::unique_ptr<EngineContext> ctx;
@@ -462,9 +459,7 @@ private:
     int css_w = 1280, css_h = 720;
     bool booted = false;
     bool exit_requested = false;
-    bool paused = false;
-    unsigned long long drawn_rev = ~0ull;
-    unsigned long long presented = 0;
+    WebFrameState frame_;
     std::string last_error;
     std::deque<RawInput> events;
 };

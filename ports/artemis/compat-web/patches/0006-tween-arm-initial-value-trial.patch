@@ -1,0 +1,14 @@
+--- a/src/render/compositor.cpp
++++ b/src/render/compositor.cpp
+@@ -579,6 +579,11 @@
+     bool found = false;
+     for (auto &l : layers_) if (l.id == tw.id) { found = true; break; }
+     if (!found) { Layer g; g.id = tw.id; layers_.push_back(g); }
++    // Official f3656 writes the first traversal's explicit from via its
++    // property setter when armed (outside collection), not at the next tick.
++    // Subsequent tween-set segments must not overwrite the first start value.
++    if (replace && !tw.from_current)
++        for (auto &l : layers_) if (l.id == tw.id) { ApplyParam(l, tw.param, tw.from); break; }
+     // Even zero-duration segments enter the queue, so a later segment can
+     // resolve its implicit start from the preceding segment's final value.
+     tweens_.push_back(tw);
