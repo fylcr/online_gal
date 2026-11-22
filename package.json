@@ -13,6 +13,7 @@
     "build:cf": "pnpm --filter @online-gal/cf-browser run fetch-upstream && pnpm --filter @online-gal/cf-browser run build",
     "build": "npm run build:packages && npm run build:cf && pnpm --filter @online-gal/app build",
     "build:pages": "node scripts/build-pages.mjs",
+    "configure:pages": "node scripts/configure-pages.mjs",
     "build:setup": "node scripts/build-pages.mjs --phase=setup",
     "build:site": "npm run build && node packages/plugin-system/scripts/build-site.mjs",
     "dev": "npm run build:packages && npm run build:cf && pnpm --filter @online-gal/app dev",
