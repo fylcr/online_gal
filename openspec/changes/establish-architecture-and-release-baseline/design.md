@@ -131,7 +131,7 @@
 阶段划分、每阶段的前置条件/编辑域/影响半径/验收命令/环境需求/回滚/数据迁移风险/人工 go-no-go 见 `docs/architecture/migration-plan.md`。要点：
 
 - **Phase 0（DONE）**：只读审计。产出 `docs/**` 新文档与 OpenSpec 规划产物。回滚 = 删除新增文件。
-- **Phase 1（需批准）**：修 `check:layout` 的 4 处 HEAD 违规（把 tracked 测试文件里的 `.test/` 工作台路径移出跟踪范围或改成运行期注入），使 `npm run check` 的第一步可过。**这一步不改任何产品行为。**
+- **Phase 1（需分别批准）**：已按用户要求在 `1ba0a94` 将两份 Artemis 测试的本地临时路径从 `check:layout` 排除，除此之外仍检查所有产品代码和其他受管文件。独立发布工作树的 `npm run check` 通过；GitHub 的 Artemis 构建和 portable 测试在该推送和父基线均失败，豁免不关闭这些任务。其他 Phase 1 工作不因此视为完成。
 - **Phase 2（需批准）**：数据契约。修 `SaveStore.fileStore` 的硬编码 DB 名、`GameLibrary.remove/moveStoredFiles` 的双前缀、`remove` 不回收 overlay，以及两套 path normalizer。**先加不运行引擎的键空间测试，再改实现，再考虑是否需要迁移已有数据。**
 - **Phase 3（需批准）**：组合根与 SDK 边界收敛、catalog/manifest 形式化。
 - **Phase 4（需批准）**：发布治理（SHA pin、发布门禁统一、CODEOWNERS、备份与恢复记录）。

@@ -6,7 +6,7 @@
 
 ## What Changes
 
-- 技术栈固定为 **Astro + Svelte 5 + Tailwind CSS v4**（经 `@tailwindcss/vite` 接入）。不引入其他 UI 框架、组件库或状态库。
+- 技术栈固定为 **Astro + Svelte 5 + Tailwind CSS v4**（经 `@tailwindcss/vite` 接入）**+ daisyUI 5**（Tailwind 插件，用户 2026-10-29 批准）。不引入其他 UI 框架、组件库或状态库。
 - 页面结构：外壳、导航、说明类页面改为纯 `.astro`（零 JS）；只有需要交互的部分（游戏库、播放器、设置表单）保留 Svelte 岛。
 - 重新设计游戏库、播放器、设置、引擎/支持说明页的布局与交互，并新增“已知限制”说明。
 - `apps/app/src/lib/platform.ts` 仍是唯一客户端组合根；组件只通过它访问 `@online-gal/core`。本 change 不修改 `packages/` 下任何包的行为。
@@ -15,11 +15,11 @@
 
 ## 待用户决定
 
-- (a) 视觉方向：参考站点/应用（Steam 库、Playnite 等），或先出 2–3 套风格对比页再选。
+- (a) ~~视觉方向~~ 已定：瑞士主义（国际主义平面设计风格），见 `design.md` Decision 7。
 - (b) 是否支持手机/平板（触屏、竖屏），还是首版只保证桌面浏览器。
 - (c) 是否保留只有深色主题，还是加浅色/跟随系统。
 - (d) 界面语言：只中文，还是预留多语言。
-- (e) 路由是否变动（现为 `/`、`/play?id=`、`/settings`、`/engines`）；如改动，旧地址是否需要重定向。
+- (e) ~~路由是否变动~~ 已定（2026-10-30）：`/`、`/play?id=`、`/settings` 不变；`/engines` 并入设置并重定向到 `/settings/engines`；设置子页为 `/settings/<id>`，见 `design.md` Decision 9。
 - (f) 现有用户反馈的具体问题（哪些操作难用），用于排序任务优先级。
 
 ## Capabilities

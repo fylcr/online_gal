@@ -192,6 +192,10 @@
    - 凭据丢失后的提示。
 9. **审计**：是否记录哪个页面或插件在何时用哪个账号调用了什么接口，并在账号设置里展示。
 
+## Verification record
+
+- `8656bfb` 将 `cf-account-admin` 随 `site-setup` 推送到 GitHub `main`；Cloudflare Pages 同一提交部署成功。真实账号登录和 Admin 操作仍由用户按任务 6.2 验收。
+
 ## Migration Plan
 
 全部是新增功能，没有数据迁移。保管库数据库首次使用时创建。回滚时删除这些新文件和路由，再去掉 `_routes.json` 里的 `/__cf/*` 即可；已有的保管库数据库会成为无人读取的数据，下次使用时不受影响。

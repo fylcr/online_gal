@@ -11,8 +11,8 @@
 
 ## 2. 基础设施
 
-- [ ] 2.1 在 `apps/app` 安装 `tailwindcss` 与 `@tailwindcss/vite`，在 `astro.config.mjs` 的 `vite.plugins` 中加入插件，不改动其中的隔离头与挂载逻辑。验证：`pnpm --filter @online-gal/app build` exit 0；`git diff apps/app/astro.config.mjs` 只多出插件相关行。
-- [ ] 2.2 改写 `apps/app/src/styles/global.css`：`@import "tailwindcss";` 加 `@theme` 令牌（按 1.2 的视觉方向）。旧 CSS 变量暂时保留。验证：构建通过，现有页面外观不崩。
+- [x] 2.1 在 `apps/app` 安装 `tailwindcss` 4.3.3、`@tailwindcss/vite` 4.3.3 与 `daisyui` 5.7.50（2026-10-29 完成，`astro build` exit 0）。原文：安装 `tailwindcss` 与 `@tailwindcss/vite`，在 `astro.config.mjs` 的 `vite.plugins` 中加入插件，不改动其中的隔离头与挂载逻辑。验证：`pnpm --filter @online-gal/app build` exit 0；`git diff apps/app/astro.config.mjs` 只多出插件相关行。
+- [ ] 2.2 改写 `apps/app/src/styles/global.css`：`@import "tailwindcss";` 加 `@theme` 令牌（按 1.2 的视觉方向）。进展：已加入 daisyUI 插件与 `swiss` 主题，构建通过；待在浏览器确认 Tailwind preflight 未破坏旧页面外观。旧 CSS 变量暂时保留。验证：构建通过，现有页面外观不崩。
 - [ ] 2.3 新建 `src/lib/*.svelte.ts` 共享状态模块（游戏库列表、设置），只经 `src/lib/platform.ts` 访问 core。验证：`astro check` 0 error。
 
 ## 3. 外壳与说明页

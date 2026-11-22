@@ -12,9 +12,14 @@
 
 #### Scenario: A committed source file references the local workbench
 
-- **WHEN** `packages/`、`apps/` 或 `ports/` 下任一被 git 跟踪的文件出现对 `.test/` 的路径引用
+- **WHEN** `packages/`、`apps/` 或 `ports/` 下被 git 跟踪且未豁免的文件出现对 `.test/` 的路径引用
 - **THEN** 布局检查以非零退出码失败，并逐条列出违规的 `路径:行号`
 - **AND** 失败信息说明修复方向是把被引用的代码移回 `packages/`、`apps/` 或 `ports/`
+
+#### Scenario: The two existing Artemis tests write to local scratch
+
+- **WHEN** `ports/artemis/compat-web/tests/artemis-compat-first-transition.test.mjs` 或 `ports/artemis/compat-web/tests/artemis-compat-tween.test.mjs` 使用 `.test/` 来存放它们生成的解包文件和日志
+- **THEN** 布局检查 MUST 跳过这两个文件；豁免 MUST NOT 扩展到其他测试或产品代码
 
 #### Scenario: Archive or toolchain is unpacked
 

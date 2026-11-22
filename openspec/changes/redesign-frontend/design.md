@@ -2,7 +2,7 @@
 
 ## Context
 
-- `apps/app` 现状：Astro 7.3、`@astrojs/svelte` 9、Svelte 5.43，静态输出，部署在 Cloudflare Pages（`https://onlinegal.pages.dev/`）。
+- `apps/app` 现状：Astro 7.3、`@astrojs/svelte` 9、Svelte 5.43，静态输出，部署在 Cloudflare Pages（`https://onlinegal.cc.cd/`，2026-11-22 起为官方地址；默认地址 `onlinegal.pages.dev`）。
 - 页面：`src/pages/index.astro` → `Library.svelte`（`client:load`）；`play.astro` → `Player.svelte`（`client:only="svelte"`，`bare` 布局，读 `?id=`）；`settings.astro` → `Settings.svelte`；`engines.astro` → `Engines.svelte`。`src/layouts/Layout.astro` 含头部导航与页脚。
 - `src/lib/platform.ts` 是唯一组合根：`getPlatform()`、`browserSupport()`、`defaultSettings`、`formatPlayTime/formatDate/relativeTime`，并按编译期常量配置 KiriKiri 与 Artemis 引擎。
 - 组件实际调用的 API：`platform.importDirectory/importFileList/importDataTransfer`、`library.list/get/patch/remove/redetect/openSource`、`saves.list/get/put/remove/exportAll/importAll/fileStore`、`settings.save/patch`、`loadSettings`、`registry.list`、`probeFailures`；`Session` 的 `start/stop/pause/resume/isPaused/save/restore/captureThumbnail/applySettings`；`@online-gal/core` 的 `runtimeLabel`、`unsupportedReason`、`isPlayable`。
@@ -19,7 +19,7 @@
 **Non-Goals**
 - 不改 `packages/` 的 API 或行为；需要新 API 时另开 change。
 - 不改引擎加载、隔离头、产物挂载（属于 `first-public-beta-ons-kirikiri`）。
-- 不引入 React/Vue、组件库（daisyUI 等）、全局状态库、CSS-in-JS。
+- 不引入 React/Vue、daisyUI 以外的组件库、全局状态库、CSS-in-JS。
 
 ## Decisions
 
@@ -28,7 +28,19 @@
 3. **Astro 与 Svelte 分工**：布局、导航、页脚、引擎/限制说明、空状态等静态内容用 `.astro`。交互岛：游戏库（导入、列表、详情）、播放器、设置表单。每个岛拆成多个小组件，放 `src/components/<area>/`，单文件建议不超过约 300 行。
 4. **状态与数据流**：仍经 `src/lib/platform.ts`；组件间共享状态用 Svelte 5 runes 的 `.svelte.ts` 模块（如 `src/lib/library.svelte.ts`），不用外部状态库。
 5. **可运行状态来自 platform**：卡片的“开始/不支持/未识别”只由 `isPlayable`、`unsupportedReason`、`registry.list()` 的可用性决定，界面不维护引擎名单。beta 裁剪后的原因文本由 platform 提供，界面原样显示。
-6. **迁移方式**：按页面逐个重写，每完成一页即可构建、可用；旧组件在对应新页面完成后删除，避免两套并存过久。
+6. **daisyUI 5 作为唯一组件库**（用户批准）：`global.css` 中 `@plugin "daisyui" { themes: false; }` 关闭内置主题，只用自定义主题 `swiss`（`@plugin "daisyui/theme"`）。组件优先用 daisyUI 类，不够时补 Tailwind 工具类；语义色用 daisyUI 色名（`base-*`、`primary` 等），不写 `dark:`。
+7. **视觉方向：瑞士主义 / 国际主义平面设计风格**（回答 (a)）：白底黑字、单一信号红 `#e30613` 作为 `primary`；圆角 0、无阴影（`--depth: 0`）、1px 细线分隔；无衬线字体（Helvetica Neue/Helvetica/Arial，中文回落 Noto Sans SC/微软雅黑）；靠网格、对齐、字号对比和留白建立层级，不用装饰性渐变、插画或卡片阴影；文字左对齐、不两端对齐。
+8. **迁移方式**：按页面逐个重写，每完成一页即可构建、可用；旧组件在对应新页面完成后删除，避免两套并存过久。
+   - 2026-10-30 用户改为整体重写：旧 `components/`、`layouts/`、`pages/` 与旧 CSS 变量已一次删除，保留 `src/lib/platform.ts`、`astro.config.mjs`。
+9. **路由**（回答 (e)）：`/`、`/play?id=`、`/settings` 不变。2026-10-30 用户把引擎页并入设置：`/engines` 改为静态重定向到 `/settings/engines`（`astro.config.mjs` 的 `redirects`），`info-pages` 的“Engine support page reflects the build”由设置页的“引擎”一栏承担。
+13. **桌面网格**（用户 2026-10-30，取代 Decision 11 的 `px-3`）：外边距 24px；第 1 栏 48px 放 logo 与 dock（左缘对齐）；栏间距 48px；第 2 栏从 120px 起，页面标题、内容、页脚左缘对齐。头部高 96px，logo 48px，标题 `text-3xl`。
+    **页面标题在头部**（用户 2026-10-30）：页面名从内容区移到头部 logo 右侧（`#page-title`），作为 swup 第二个 container 随访问替换并一起淡入淡出。
+14. **设置页为层级菜单**（用户 2026-10-30，取代折叠方案）：`/settings` 是大项列表，每项进入独立子页 `/settings/<id>`（`src/pages/settings/[section].astro`，大项定义在 `src/lib/settings-sections.ts`）。现有大项：播放、音频、引擎、数据、高级，内容待填。设置内容居中，`max-w-2xl`。
+16. **游戏库卡片**（用户 2026-10-30）：版式参考 KunGal（`KunMoe/kun-galgame-forum` 的 `components/galgame/card/`）：竖版 5:7 封面、左上引擎标签、封面右下角游玩时长（底部渐变遮罩，未玩过显示“未玩过”）、标题固定两行高、卡片左下角厂商（每张卡片等高）；**厂商字段 `GameRecord` 目前没有**，真实显示需另开 change 改 `packages/core`；网格按容器宽度分 2–7 列（container query）。该项目是 **AGPL-3.0**，与本仓库 GPL-3.0-or-later 不同，故只参考版式、自行实现，**不复制其代码或素材**。不可启动的卡片封面变灰并覆盖“本测试版不支持/未识别”标记，不是链接。组件 `src/components/library/GameCard.astro`，数据暂为 `src/lib/mock-games.ts`（临时）。
+15. **面包屑**（用户 2026-10-30）：页面标题 `<h1 id="page-title">` 留在导航栏 logo 右侧，设置及其子页一律显示“设置”。面包屑只在设置子页出现（`/settings` 列表页没有），在导航栏下方，左缘对齐第 2 栏（`lg:pl-30`），`text-sm`；路径式：根用 `>` 表示设置首页（链接到 `/settings`），每一级前加 `/`，符号与文字间留空（如 `> / 音频`、`> / 音频 / 子项`），末级为当前页。`#breadcrumbs` 容器每页都渲染（swup 要求两侧都有 container），无面包屑时为空。两者都是 swup container。标题不变的访问（如 `/settings` ↔ `/settings/<id>`）标题不做淡入淡出：`swup.ts` 在 `visit:start` 比较当前标题与目标 dock 项名称，相同则给 `<html>` 加 `data-static-title`，`global.css` 据此关闭 `#page-title` 的过渡，`visit:end` 移除。`/engines` 重定向改到 `/settings/engines`。dock 高亮对子页按前缀匹配（`/settings/*` 高亮“设置”）。
+10. **页面切换用 swup 4**（用户 2026-10-30 指定）：`swup` 4.10.0 + `@swup/a11y-plugin`、`@swup/head-plugin`、`@swup/scripts-plugin`（只重跑 body 脚本，让新内容里的 Astro 岛水合）。只替换 `Layout.astro` 的 `#swup`，头部导航与页脚常驻；淡入淡出 180ms，尊重 `prefers-reduced-motion`。`/play` 不走 swup（`ignoreVisit`），进出播放器都是整页加载，保证引擎实例随文档销毁。初始化在 `src/lib/swup.ts`。swup 是导航库，不是 UI 框架/组件库/状态库，不违反技术栈约束。
+11. **导航栏与 logo**（用户 2026-10-30）：无边框，左侧 logo、右侧按钮组，中间留白；两侧内边距 `px-3`，主内容不限宽。logo 是用户用 AI 生成的 `D:\atri\logo1.webp`，存为 `src/assets/logo.webp`，经 `astro:assets` + `sharp` 缩成 40px@1x/2x。**许可 CC BY-NC 4.0，不属于 GPL**，记录于 `src/assets/LICENSE.md` 与根 `THIRD_PARTY_NOTICES.md`。用户计划开 donations，认为与 NC 不冲突。
+12. **桌面端竖向 dock**（用户 2026-10-30）：`src/components/Dock.astro`，固定在左侧垂直居中，`#swup` 之外常驻，零 JS；图标内联 SVG，hover 显示 daisyUI tooltip。圆角（dock `rounded-2xl`、按钮 `rounded-xl`），是对 Decision 7“圆角 0”的局部例外；当前页用加深底色（`base-content/12`）而不是换色，hover 为 `base-content/5`。加深底色是 dock 内唯一一块高亮元素，靠 `--dock-i` 平移到当前项（300ms，`prefers-reduced-motion` 下关闭）；`swup.ts` 在 `visit:start` 就移动，与内容淡出同时进行。`lg`（≥1024px）以下暂隐藏，移动端方案待 (b)。
 
 ## Risks / Trade-offs
 

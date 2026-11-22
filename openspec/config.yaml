@@ -38,3 +38,16 @@ context: |
   - 实测：同一时刻只跑一个引擎实例；结束时关掉自己开的浏览器窗口、服务器和后台进程。按 PID 结束进程，不得按进程名批量杀 node.exe。
   - 不改 docs/fetch-engine-artifacts.md 里的历史 hash。
   - 进度与决定写回对应 change 的 tasks.md / design.md，不另建交接文档。
+  团队（pi-teammate，频道 onlinegal，成员都在 D:\online_gal 下运行）：
+  - leader：总负责与用户沟通的入口。把用户指令写成 openspec 里的目标与计划，汇总各成员状态向用户汇报，
+    裁定范围与归属，整理需要用户决定的问题。只改 openspec/，不做具体实现和杂活。
+  - admin-system：cf-account-admin 与 site-setup。plugin-system：plugin-system。
+  - file-system：范围待用户确认。
+  - small-task-operator：杂活与一次性操作（Cloudflare / GitHub 操作、部署、核对、跑命令），由 leader 派单。
+  - redesign-frontend、first-public-beta-ons-kirikiri、establish-architecture-and-release-baseline 暂无专人，需要时由 leader 派给现有成员。
+  - 实现者只勾选、备注自己 change 的 tasks.md；proposal/design/specs 的改动和新任务发给 leader 写。
+  - 改别人范围的文件时把需求发给负责人，不自己改。范围以各 change 的归属一节为准（plugin-system K20、cf-account-admin A11）。
+  - apps/app 的页面、组件、布局、样式归 redesign-frontend 的负责人（账号与 admin 文件除外）。first-public-beta 任务里的界面部分
+    （2.4、4.2、5.1、6.2、6.3）在重写后的组件里实现；已知限制页只做一份。
+    apps/app/astro.config.mjs 与 apps/app/src/lib/platform.ts 归 first-public-beta 的负责人。
+  - 全仓构建和检查（npm run build、build:site、build:pages、check、test）会写共享产物：开始前在频道广播，结束后再广播，同一时刻只跑一个。

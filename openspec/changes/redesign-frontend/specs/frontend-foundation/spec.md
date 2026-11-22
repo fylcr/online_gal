@@ -7,15 +7,15 @@
 ## ADDED Requirements
 
 ### Requirement: Fixed frontend stack
-前端 MUST 只使用 Astro、Svelte 5 与 Tailwind CSS v4（经 `@tailwindcss/vite`）。MUST NOT 引入其他 UI 框架、组件库、全局状态库或 CSS-in-JS。站点 MUST 保持静态输出。
+前端 MUST 只使用 Astro、Svelte 5、Tailwind CSS v4（经 `@tailwindcss/vite`）与 daisyUI 5。MUST NOT 引入其他 UI 框架、组件库、全局状态库或 CSS-in-JS。站点 MUST 保持静态输出。
 
 #### Scenario: Dependency audit
 - **WHEN** 检查 `apps/app/package.json` 的 dependencies 与 devDependencies
-- **THEN** 新增的前端依赖只有 `tailwindcss` 与 `@tailwindcss/vite`
+- **THEN** 新增的前端依赖只有 `tailwindcss`、`@tailwindcss/vite` 与 `daisyui`
 - **AND** `astro build` 的输出是静态文件
 
 ### Requirement: Single design token source
-颜色、圆角、阴影、字体等设计令牌 MUST 定义在 `src/styles/global.css` 的 Tailwind `@theme` 中。组件 SHALL 只用 Tailwind 类表达样式；组件内 `<style>` 只允许用于 Tailwind 无法表达的情况，且 MUST 附注释说明原因。
+颜色、圆角、阴影、字体等设计令牌 MUST 定义在 `src/styles/global.css` 中：颜色、圆角、边框与深度放 daisyUI 自定义主题 `swiss`（`@plugin "daisyui/theme"`），字体等其余令牌放 Tailwind `@theme`。组件 SHALL 只用 Tailwind 类表达样式；组件内 `<style>` 只允许用于 Tailwind 无法表达的情况，且 MUST 附注释说明原因。
 
 #### Scenario: No stray component styles
 - **WHEN** 在 `apps/app/src` 中搜索 `<style`
