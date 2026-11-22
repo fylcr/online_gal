@@ -8,21 +8,22 @@ export interface SetupItem {
   owner: string;
 }
 
-/** Required Pages secrets, in the order shown on the setup form. */
+/**
+ * Required Pages secrets, in the order shown on the setup page.
+ *
+ * Decision G (`site-setup`): the owner signs in with Cloudflare OAuth, so the first batch is the
+ * account id alone, taken from the confirmed Pages project owner. `CLOUDFLARE_API_TOKEN` and
+ * `GITHUB_TOKEN` were removed — an OAuth access token expires within the hour and a refresh token
+ * is rotated on every renewal, so neither can live on as a Pages secret.
+ *
+ * `source: 'input'` and `verify` stay in the type for a later change that registers an item and
+ * decides for itself where the long-lived value comes from. No current item uses them; the page
+ * refuses to write while one does.
+ */
 export const SETUP_ITEMS: readonly SetupItem[] = [
   {
     name: 'CLOUDFLARE_ACCOUNT_ID', label: 'Cloudflare 账号 ID', source: 'account', owner: 'site-setup',
     help: '取自已确认的 Pages 项目所有者。',
-  },
-  {
-    name: 'CLOUDFLARE_API_TOKEN', label: 'Cloudflare API Token', source: 'input', verify: 'cloudflare', owner: 'site-setup',
-    help: '按后续将使用的 Cloudflare 功能授予权限。',
-    helpUrl: 'https://dash.cloudflare.com/profile/api-tokens',
-  },
-  {
-    name: 'GITHUB_TOKEN', label: 'GitHub Token', source: 'input', verify: 'github', owner: 'site-setup',
-    help: '按后续将使用的 GitHub 功能授予权限。',
-    helpUrl: 'https://github.com/settings/personal-access-tokens',
   },
 ];
 

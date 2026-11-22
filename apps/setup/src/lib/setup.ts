@@ -4,9 +4,7 @@ import { SETUP_ITEMS, type SetupItem } from './setup-items.ts';
 export type Rebuild = { kind: 'pages-git' | 'manual' } | { kind: 'github-rerun'; repo: string; runId: string };
 export interface SetupConfig { siteHost: string; rebuild: Rebuild; builtAt: string }
 export type SetupStatus = { phase: 'setup'; initialized: boolean; v?: 1; warning?: string };
-export type SetupVerification =
-  | { ok: true; status?: string; expiresOn?: string; login?: string; expiresAt?: string | null }
-  | { ok: false; reason?: 'invalid' | 'upstream' };
+
 interface Deployment { id: string; created_on?: string; latest_stage?: { name?: string; status?: string } }
 interface Project {
   production_branch?: string;
@@ -14,9 +12,18 @@ interface Project {
 }
 interface PollOptions { intervalMs?: number; timeoutMs?: number }
 type BuildResult = 'success' | 'failure' | 'canceled';
-type GitHubRerun = { started: true } | { started: false; httpStatus?: number };
 
-const githubHeaders = { accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' };
+/** The Pages permissions the write and the rebuild need (decision G, design.md S5 step 2). */
+export const PAGES_SCOPES = ['pages:read', 'pages:write'] as const;
+
+/**
+ * Scopes missing from the token response. An empty list means the response carried no `scope` at
+ * all, which is not a refusal: let the Pages requests decide instead of blocking a valid grant.
+ */
+export function missingScopes(scopes: readonly string[]): string[] {
+  if (scopes.length === 0) return [];
+  return PAGES_SCOPES.filter((scope) => !scopes.includes(scope));
+}
 function buildResult(deployment: Deployment): BuildResult | undefined {
   const stage = deployment.latest_stage;
   if (stage?.status === 'failure' || stage?.status === 'canceled') return stage.status;
@@ -45,9 +52,31 @@ export function buildSiteRecord(owner: SiteAdmin, user: CloudflareUser | null): 
   return JSON.stringify({ v: 1, account: owner.accountId, project: owner.projectName, by: user?.id ?? '', at: new Date().toISOString() });
 }
 
-export function buildEnvPatch(record: string, values: Readonly<Record<string, string>>) {
+/**
+ * Items the setup page cannot write: their value would have to be typed in, and decision G removed
+ * the form. A change that registers one must decide how its value is obtained before the site is
+ * initialized (design.md S7).
+ */
+export function unsupportedItems(items: readonly SetupItem[] = SETUP_ITEMS): SetupItem[] {
+  return items.filter(({ source }) => source !== 'account');
+}
+
+/** Values for the `account` items: they all come from the confirmed Pages project owner. */
+export function accountValues(accountId: string, items: readonly SetupItem[] = SETUP_ITEMS): Record<string, string> {
+  return Object.fromEntries(items.filter(({ source }) => source === 'account').map(({ name }) => [name, accountId]));
+}
+
+/**
+ * The single PATCH body. Secret keys follow SETUP_ITEMS, so only the items plus the site record can
+ * appear: never an OAuth access or refresh token, never a GitHub token.
+ */
+export function buildEnvPatch(record: string, values: Readonly<Record<string, string>>, items: readonly SetupItem[] = SETUP_ITEMS) {
+  const unsupported = unsupportedItems(items);
+  if (unsupported.length > 0) {
+    throw new Error(`该项需手动填写，初始化页暂不支持：${unsupported.map(({ name }) => name).join(', ')}`);
+  }
   const marker = { type: 'plain_text', value: record };
-  const secrets = Object.fromEntries(SETUP_ITEMS.map(({ name }) => {
+  const secrets = Object.fromEntries(items.map(({ name }) => {
     const value = values[name];
     if (!value?.trim()) throw new Error(`缺少初始化项 ${name}。`);
     return [name, { type: 'secret_text', value }];
@@ -152,18 +181,6 @@ export class SetupClient {
     return { phase: 'setup', initialized: result.initialized, v: result.v, warning: result.warning };
   }
 
-  async verifyItem(item: SetupItem, value: string, accountId: string, signal?: AbortSignal): Promise<SetupVerification> {
-    if (!item.verify) return { ok: value.trim() !== '' };
-    const response = await this.fetcher(new URL('/__setup/verify', this.origin), {
-      method: 'POST', cache: 'no-store', redirect: 'error',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ kind: item.verify, token: value, ...(item.verify === 'cloudflare' ? { accountId } : {}) }),
-      signal: requestSignal(signal, 25_000),
-    });
-    if (!response.ok) return { ok: false, reason: response.status === 400 ? 'invalid' : 'upstream' };
-    return await response.json() as SetupVerification;
-  }
-
   private async api<T>(path: string, signal?: AbortSignal, init?: RequestInit): Promise<T> {
     const request = new Request(new URL(path, this.origin), { ...init, signal: requestSignal(signal, 30_000) });
     const response = await this.account.forward(request, path);
@@ -216,20 +233,6 @@ export class SetupClient {
     if (!result.id) throw new Error('Cloudflare 没有返回新部署 ID。');
     saveDeployment(owner, result.id);
     return result.id;
-  }
-
-  async rerunGitHub(target: Extract<Rebuild, { kind: 'github-rerun' }>, token: string, signal?: AbortSignal): Promise<GitHubRerun> {
-    if (isLocalHost(new URL(this.origin).hostname)) return { started: false };
-    if (!token || !/^[\w.-]+\/[\w.-]+$/.test(target.repo) || !/^\d+$/.test(target.runId)) return { started: false };
-    try {
-      const response = await this.fetcher(`https://api.github.com/repos/${target.repo}/actions/runs/${target.runId}/rerun`, {
-        method: 'POST', headers: { ...githubHeaders, authorization: `Bearer ${token}` }, redirect: 'error', signal: requestSignal(signal),
-      });
-      return response.status === 201 ? { started: true } : { started: false, httpStatus: response.status };
-    } catch {
-      signal?.throwIfAborted();
-      return { started: false };
-    }
   }
 
   async waitForDeployment(owner: SiteAdmin, id: string, signal?: AbortSignal, options?: PollOptions): Promise<void> {

@@ -3,10 +3,10 @@
   import { CloudflareAccount, Vault, type CloudflareStatus, type SiteAdmin } from '@online-gal/plugin-system/account';
   import DeviceLogin from './DeviceLogin.svelte';
   import { MemoryVaultStore } from '../lib/memory-vault';
-  import { SETUP_ITEMS, type SetupItem } from '../lib/setup-items';
+  import { SETUP_ITEMS } from '../lib/setup-items';
   import {
-    buildEnvPatch, buildSiteRecord, clearSession, clearSetupSession, isLocalHost, RELOAD_KEY,
-    readSession, safeNext, savedDeployment, SetupClient, type SetupConfig, type SetupVerification,
+    accountValues, buildEnvPatch, buildSiteRecord, clearSession, clearSetupSession, isLocalHost, missingScopes,
+    RELOAD_KEY, readSession, safeNext, savedDeployment, SetupClient, unsupportedItems, type SetupConfig,
     writeSession, WRITTEN_KEY,
   } from '../lib/setup';
 
@@ -14,7 +14,7 @@
   type SignedIn = Extract<CloudflareStatus, { signedIn: true }>;
   type Step = 'status' | 'status-error' | 'stale' | 'login' | 'building' | 'build-error' | 'confirming'
     | 'confirmation-error' | 'local-preview' | 'complete';
-  type ProjectState = 'idle' | 'checking' | 'form' | 'writing' | 'error';
+  type ProjectState = 'idle' | 'checking' | 'confirm' | 'writing' | 'error';
   let step = $state<Step>('status');
   let project = $state<ProjectState>('idle');
   let account = $state.raw<CloudflareAccount>();
@@ -25,27 +25,26 @@
   let errorMessage = $state('');
   let initialized = $state(false);
   let manualBuild = $state(false);
-  let githubRerunError = $state('');
   let admin = $state.raw<SiteAdmin | null>(null);
   let productionBranch = '';
   let projectWrittenAt: string | undefined;
-  let values = $state<Record<string, string>>({});
-  let verification = $state<Record<string, SetupVerification | 'pending' | undefined>>({});
-  let allValid = $derived(SETUP_ITEMS.every((item) => item.source === 'account'
-    ? /^[0-9a-f]{32}$/.test(admin?.accountId ?? '')
-    : values[item.name]?.trim() && verification[item.name] !== 'pending' && verification[item.name]?.ok));
+  let scopesMissing = $state<string[]>([]);
+  /**
+   * Items whose value would have to be typed in. Decision G removed the form, so the page stops
+   * here instead of writing a partial configuration; no current item is one.
+   */
+  const blocked = unsupportedItems(SETUP_ITEMS);
+  /** The write needs the Pages scopes and a configuration the page can produce by itself. */
+  let allWritable = $derived(scopesMissing.length === 0 && blocked.length === 0);
   let inspection = 0;
   let redirectTimer: ReturnType<typeof setTimeout> | undefined;
-  const verificationRuns: Record<string, number> = {};
 
-  function clearInputs(): void {
-    values = {};
-    verification = {};
-    for (const key of Object.keys(verificationRuns)) verificationRuns[key] = (verificationRuns[key] ?? 0) + 1;
+  /** The account id is the owner's own; the page only has to be recognisable, not legible. */
+  function maskId(id: string): string {
+    return id.length <= 8 ? '•'.repeat(id.length) : `${id.slice(0, 4)}…${id.slice(-4)}`;
   }
 
   function complete(): void {
-    clearInputs();
     account = undefined;
     clearSetupSession();
     step = 'complete';
@@ -85,16 +84,14 @@
     }
   }
 
-  async function rebuild(owner: SiteAdmin, githubToken = '', restart = false): Promise<void> {
+  async function rebuild(owner: SiteAdmin, restart = false): Promise<void> {
     if (isLocalHost(host)) {
-      clearInputs();
       step = 'local-preview';
       return;
     }
     step = 'building';
     errorMessage = '';
     manualBuild = false;
-    githubRerunError = '';
     const mode = config.rebuild;
     try {
       let id = restart ? null : savedDeployment(owner);
@@ -103,17 +100,8 @@
         if (!id) throw new Error('未能开始构建。');
         await client.waitForDeployment(owner, id, lifetime.signal);
       } else {
+        // Decision G: there is no GitHub token, so `github-rerun` only shows the manual entry.
         manualBuild = true;
-        if (mode.kind === 'github-rerun' && githubToken) {
-          const result = await client.rerunGitHub(mode, githubToken, lifetime.signal);
-          manualBuild = !result.started;
-          if (!result.started) {
-            githubRerunError = result.httpStatus
-              ? `GitHub 未接受重跑请求（HTTP ${result.httpStatus}）。`
-              : '无法连接 GitHub 重跑工作流。';
-          }
-        }
-        githubToken = '';
         await client.waitForNewProduction(owner, projectWrittenAt ?? readSession(WRITTEN_KEY) ?? undefined, lifetime.signal);
       }
       await checkSwitch();
@@ -121,17 +109,16 @@
       if (lifetime.signal.aborted) return;
       errorMessage = error instanceof Error ? error.message : '构建请求失败，请重试。';
       step = 'build-error';
-    } finally {
-      githubToken = '';
     }
   }
 
   async function inspectOwner(status: CloudflareStatus): Promise<void> {
     const run = ++inspection;
-    clearInputs();
     project = 'idle';
+    const missing = status.signedIn ? missingScopes(status.scopes) : [];
+    scopesMissing = missing;
     admin = status.signedIn ? status.siteAdmin : null;
-    if (!admin || step !== 'login') return;
+    if (!admin || step !== 'login' || missing.length > 0) return;
     const owner = admin;
     project = 'checking';
     errorMessage = '';
@@ -144,7 +131,7 @@
         if (state.missing.length) throw new Error('项目缺少初始化配置，请在 Cloudflare 控制台检查。');
         await rebuild(owner);
       } else {
-        project = 'form';
+        project = 'confirm';
       }
     } catch (error) {
       if (lifetime.signal.aborted || run !== inspection) return;
@@ -153,51 +140,21 @@
     }
   }
 
-  function changeValue(item: SetupItem, value: string): void {
-    values[item.name] = value;
-    verification[item.name] = undefined;
-    verificationRuns[item.name] = (verificationRuns[item.name] ?? 0) + 1;
-  }
-
-  async function checkItem(item: SetupItem): Promise<void> {
-    const value = values[item.name];
-    if (!admin || project !== 'form' || !value?.trim() || verification[item.name] !== undefined) return;
-    const run = (verificationRuns[item.name] ?? 0) + 1;
-    verificationRuns[item.name] = run;
-    verification[item.name] = 'pending';
-    let result: SetupVerification;
-    try {
-      result = await client.verifyItem(item, value, admin.accountId, lifetime.signal);
-    } catch {
-      result = { ok: false, reason: 'upstream' };
-    }
-    if (!lifetime.signal.aborted && verificationRuns[item.name] === run) verification[item.name] = result;
-  }
-
-  function recheckItem(item: SetupItem): void {
-    verification[item.name] = undefined;
-    void checkItem(item);
-  }
-
   async function submit(status: SignedIn): Promise<void> {
-    if (!admin || !allValid || project !== 'form') return;
+    if (!admin || !allWritable || project !== 'confirm') return;
     const owner = admin;
     project = 'writing';
     errorMessage = '';
     try {
-      const result = await client.write(owner, buildEnvPatch(buildSiteRecord(owner, status.user), {
-        ...values, CLOUDFLARE_ACCOUNT_ID: owner.accountId,
-      }), lifetime.signal);
+      const result = await client.write(owner, buildEnvPatch(buildSiteRecord(owner, status.user), accountValues(owner.accountId)), lifetime.signal);
       if (lifetime.signal.aborted) return;
-      const githubToken = result === 'written' && config.rebuild.kind === 'github-rerun' ? values.GITHUB_TOKEN : undefined;
-      clearInputs();
       if (result === 'switched') complete();
       else if (result === 'already-written') await inspectOwner(status);
-      else void rebuild(owner, githubToken);
+      else void rebuild(owner);
     } catch (error) {
       if (lifetime.signal.aborted) return;
       errorMessage = error instanceof Error ? error.message : '请重试。';
-      project = 'form';
+      project = 'confirm';
     }
   }
 
@@ -211,7 +168,6 @@
     void checkStatus();
     return () => {
       lifetime.abort();
-      clearInputs();
       account = undefined;
       clearTimeout(redirectTimer);
     };
@@ -226,7 +182,12 @@
   <DeviceLogin {account} onStatus={(status) => void inspectOwner(status)}>
     {#snippet signedIn(status, refresh, logout, busy)}
       <div class="rounded-2xl bg-base-200 px-6 py-5">
-        {#if status.siteAdmin}
+        {#if scopesMissing.length > 0}
+          <p class="font-bold">缺少 Cloudflare 权限</p>
+          <p class="mt-2 text-sm text-base-content/70">
+            这次授权没有包含 <span class="font-mono">{scopesMissing.join('、')}</span>。请退出，用同一个账号重新授权，并在授权页同意全部权限。
+          </p>
+        {:else if status.siteAdmin}
           <p class="font-bold">已确认站点所有者</p>
           <p class="mt-2 text-sm text-base-content/70">{status.siteAdmin.accountName} · <span class="font-mono">{status.siteAdmin.projectName}</span></p>
           {#if project === 'checking'}
@@ -234,41 +195,30 @@
           {:else if project === 'error'}
             <p class="mt-4 text-sm text-error" role="alert">{errorMessage}</p>
             <button class="btn btn-sm mt-4" type="button" onclick={() => void inspectOwner(status)}>重试</button>
-          {:else if project === 'form' || project === 'writing'}
-            <form class="mt-4 grid gap-4" autocomplete="off" onsubmit={(event) => { event.preventDefault(); void submit(status); }}>
-              {#each SETUP_ITEMS as item (item.name)}
-                <div class="grid gap-1 text-sm">
-                  <label for={'setup-' + item.name}>{item.label}</label>
-                  {#if item.source === 'account'}
-                    <input id={'setup-' + item.name} class="input w-full font-mono" value={status.siteAdmin.accountId} readonly />
-                  {:else}
-                    {@const result = verification[item.name]}
-                    <div class="flex gap-2">
-                      <input
-                        id={'setup-' + item.name} type="password" class="input min-w-0 flex-1"
-                        value={values[item.name] ?? ''} autocomplete="off" autocapitalize="off" spellcheck={false}
-                        disabled={project === 'writing' || busy} maxlength={512} required
-                        aria-invalid={typeof result === 'object' && !result.ok}
-                        oninput={(event) => changeValue(item, event.currentTarget.value)}
-                        onblur={() => void checkItem(item)}
-                      />
-                      <button class="btn" type="button" disabled={project === 'writing' || busy || !values[item.name]?.trim() || result === 'pending'} onclick={() => recheckItem(item)}>校验</button>
-                    </div>
-                    <div aria-live="polite">
-                      {#if result === 'pending'}<p>正在校验</p>
-                      {:else if result?.ok}
-                        <p class="text-success">校验通过{result.login ? ` · ${result.login}` : ''}{result.status ? ` · ${result.status}` : ''}{result.expiresAt || result.expiresOn ? ` · 到期 ${result.expiresAt ?? result.expiresOn}` : ''}</p>
-                      {:else if result}
-                        <p class="text-error">{result.reason === 'upstream' ? '暂时无法校验，请重试。' : '凭据无效，请检查后重试。'}</p>
-                      {/if}
-                    </div>
-                  {/if}
-                  <p class="text-base-content/70">{item.help} {#if item.verify === 'github' && config.rebuild.kind === 'github-rerun'}自动重新构建需要对 {config.rebuild.repo} 的 Actions 写权限。{/if} {#if item.helpUrl}<a class="link" href={item.helpUrl} target="_blank" rel="noopener noreferrer">创建 Token</a>{/if}</p>
-                </div>
-              {/each}
-              {#if errorMessage}<p role="alert" class="text-sm text-error">{errorMessage}</p>{/if}
-              <button class="btn btn-primary justify-self-start" disabled={!allValid || busy || project === 'writing'} type="submit">{project === 'writing' ? '正在写入' : '写入并构建'}</button>
-            </form>
+          {:else if project === 'confirm' || project === 'writing'}
+            {#if blocked.length > 0}
+              <p class="mt-4 text-sm text-error" role="alert">
+                该项需手动填写，初始化页暂不支持：<span class="font-mono">{blocked.map(({ name }) => name).join('、')}</span>。请在 Cloudflare 控制台添加后重新加载。
+              </p>
+            {:else}
+              <p class="mt-4 text-sm">将一次写入下列配置。页面没有任何 token 输入框，登录凭据只留在当前页面的内存里。</p>
+              <ul class="mt-3 space-y-1.5 text-sm">
+                {#each SETUP_ITEMS as item (item.name)}
+                  <li class="flex flex-wrap items-baseline justify-between gap-2">
+                    <span>{item.label}</span>
+                    <span class="font-mono text-xs break-all text-base-content/70">{maskId(status.siteAdmin.accountId)} · {item.name} · secret_text · production</span>
+                  </li>
+                {/each}
+                <li class="flex flex-wrap items-baseline justify-between gap-2">
+                  <span>站点初始化记录</span>
+                  <span class="font-mono text-xs break-all text-base-content/70">ONLINE_GAL_SITE · plain_text · production, preview</span>
+                </li>
+              </ul>
+              {#if errorMessage}<p role="alert" class="mt-3 text-sm text-error">{errorMessage}</p>{/if}
+              <button class="btn btn-primary mt-4" type="button" disabled={busy || project === 'writing'} onclick={() => void submit(status)}>
+                {project === 'writing' ? '正在写入' : '写入并构建'}
+              </button>
+            {/if}
           {/if}
         {:else}
           <p class="font-bold">无法确认站点所有者</p>
@@ -293,7 +243,7 @@
       <p class="font-bold">{step === 'building' ? '等待正式站点构建' : '构建尚未完成'}</p>
       {#if step === 'build-error'}<p class="mt-2 text-sm text-error">{errorMessage}</p>{/if}
       {#if config.rebuild.kind === 'github-rerun' && (manualBuild || step === 'build-error')}
-        <p class="mt-2 text-sm">{githubRerunError}请在 GitHub 重跑发布工作流，或发布新的版本标签。</p>
+        <p class="mt-2 text-sm">请在 GitHub 重跑发布工作流，或推一个新的 <code>v*</code> 标签。</p>
         <a class="btn btn-sm mt-4" href={'https://github.com/' + config.rebuild.repo + '/actions/runs/' + config.rebuild.runId} target="_blank" rel="noopener noreferrer">打开发布工作流</a>
       {:else if manualBuild}
         <p class="mt-2 text-sm">设置 Pages 项目查询所需的环境变量后，可运行 <code>npm run build:pages</code> 检查构建产物。</p>
@@ -305,7 +255,7 @@
         {@const owner = admin}
         <button type="button" class="btn btn-sm mt-4" onclick={() => void rebuild(owner)}>继续检查</button>
         {#if config.rebuild.kind === 'pages-git'}
-          <button type="button" class="btn btn-sm mt-4" onclick={() => void rebuild(owner, '', true)}>重新构建</button>
+          <button type="button" class="btn btn-sm mt-4" onclick={() => void rebuild(owner, true)}>重新构建</button>
           <p class="mt-2 text-sm">也可以在 Cloudflare Pages 中重新部署生产分支{productionBranch ? ` ${productionBranch}` : ''}。</p>
         {/if}
       {/if}

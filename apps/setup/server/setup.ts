@@ -42,6 +42,14 @@ async function readVerifyBody(request: Request): Promise<Record<string, unknown>
   }
 }
 
+/**
+ * Validates a hand-entered Cloudflare or GitHub token.
+ *
+ * Currently unused (site-setup decision G): the page signs in with Cloudflare OAuth and writes
+ * without a token to verify, so nothing calls this. It stays because design.md S4 still specifies
+ * the endpoint and a later change may register a `source: 'input'` item (S7). The route keeps
+ * yielding 404 once `ONLINE_GAL_SITE` is written, see `onRequest`.
+ */
 async function verifyToken(request: Request, url: URL, headers: Headers, fetchUpstream: typeof fetch): Promise<Response> {
   const invalid = { ok: false, reason: 'invalid' };
   const unavailable = { ok: false, reason: 'upstream' };
@@ -126,6 +134,7 @@ export function onRequest(
   };
 
   if (url.pathname === '/__setup/verify') {
+    // No caller in the current page (decision G); see `verifyToken`.
     if (env.ONLINE_GAL_SITE) return notFound();
     return request.method === 'POST' ? verifyToken(request, url, headers, fetchUpstream) : methodNotAllowed('POST');
   }
