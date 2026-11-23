@@ -74,7 +74,7 @@
 
 ### A6 — 站点管理员判定
 
-下文的账号及项目枚举用于初始化时发现本站项目。初始化后的后台身份核验改由 A12 的指定项目探针完成。
+下文的账号及项目枚举用于初始化时发现本站项目。所有者绑定按 S14 执行。初始化后的后台通过 A12 核验同一 Cloudflare 用户与指定项目。
 
 - 内核列出账号（`GET /accounts`，分页），对每个账号列出 Pages 项目（`GET /accounts/{id}/pages/projects`，分页），把当前主机名（小写）与项目的 `subdomain` 和 `domains[]` 比对。命中的第一个为 `{ accountId, accountName, projectName }`，否则为 `null`。
 - 在 `localhost`、`127.0.0.1`、`[::1]` 上比对构建时的站点主机名 `SITE_HOST`（`build-site.mjs` 写入内核，默认 `onlinegal.de5.net`，即站点的自定义域名；2026-11-23 前为 `onlinegal.cc.cd`），方便本地调试 admin。
@@ -154,7 +154,7 @@
 
 1. **派生入口。** 初始化确认所有者、目标 Pages 项目和正式主机名后，生成 32 字节随机 Pages secret `ONLINE_GAL_CF_ROUTE_KEY`。使用 HMAC-SHA-256 对有版本的 UTF-8 编码元组 `["online-gal/cf-route/v1", accountId, projectName, canonicalHost]` 派生无填充 base64url 路径段。网络入口为 `/__cf/<路由段>/*`，只接受 `GET .../site-admin`、A1 的 OAuth POST 和 `.../api/**`。元组用 JSON 数组编码，主机及账户 ID 使用校验后的规范值。生产构建和 Function 使用同一配置。密钥独立于 Cloudflare OAuth、CA 和构建密钥。有效路由只出现在服务器端路由配置和所有者保存的入口。
 2. **入口交接。** 初始化向所有者提供一次可保存的 `/admin#cf-entry=<路由段>` 链接。导入官方管理器后用 `replaceState` 清除片段，内核关联到本站凭据保管库，之后可直接访问 `/admin`。新浏览器需导入入口一次，随后仍走原 cf OAuth 设备码登录。站点首页、公开设置和公开构建产物无入口索引。摘除所有应用日志、错误、遥测中的完整路由和认证材料。Cloudflare 若记录路径，记录的访问权限和保留期纳入 7.0 核对。所有者可用已认证的本地 `cf` 流程更换路由密钥并获得新入口，应对遗失或泄露。
-3. **快速核验。** 内核通过私有入口发送当前登录者的 OAuth access token。Function 将只读探针固定映射到绑定账户和项目的 Cloudflare `GET /accounts/{accountId}/pages/projects/{projectName}`。仅接受 Cloudflare 的有效成功结果，校验项目与正式主机的绑定后返回最少的站点管理员字段。一个未缓存探针最多发一次上游项目请求。对无权访问、登录过期、入口失效和网络或限流暂不可用分别反馈。缓存沿用 A5/A6 的刷新与清理规则，缓存期最多 10 分钟，临时失败可重试。Cloudflare 继续按当前用户 token 执行每个操作的授权。
+3. **快速核验。** 所有者是完成 S11 初始化并按 S14 绑定的 Cloudflare 用户。`ONLINE_GAL_CF_OWNER_ID` 是生产 Pages `secret_text`，供 Function 校验。缺失或无效时按缺少私有配置处理。管理器发出一次 `GET .../site-admin`，Function 用当前 OAuth access token 调固定 `GET /user`，校验 Cloudflare 成功结果的 `result.id` 与所有者绑定。不匹配时返回 `403 not-admin`，结束探针。匹配后用同一 token 调 `GET /accounts/{accountId}/pages/projects/{projectName}`，核对项目与正式主机，两个检查通过后才签发证明。冷探针各最多调用一次，避免枚举账号或项目。对无权访问、登录过期、入口失效和暂不可用分别反馈。缓存沿用 A5/A6，最多 10 分钟，临时失败可重试。实际操作继续由 Cloudflare 按当前 token 授权。
 4. **限制转发。** 私有入口下保留 A1 的三个 OAuth POST 端点用于登录、刷新和吊销。通用 API 代理要求通过探针后签发的短期证明。证明最多有效 10 分钟，绑定当前入口、主机和 OAuth token 的摘要，仅存在内核或本次初始化会话内。可从路由密钥按独立用途派生签名材料。Function 在向上游发请求前检查证明，拒绝缺失、已过期、换 token 或跨入口的证明。内核仍执行 A3 的调用方检查，浏览器 cf 继续使用逻辑 `/__cf/api/**`。认证和验证材料均经 HTTPS 传递。
 5. **防刷与验收。** `_routes.json` 精确接入该账户派生的子树，老的固定公网路径和未知路由段交由静态层处理。预览、其他主机和公开产物均不得暴露生产入口。Function 同时校验预期主机和完整路由。隔离部署中通过可观测的调用量核对旧路径和随机路径没有触发 Function。当前自定义域名支持时，对 CF 中转路径启用 WAF 限流并核对拦截发生于 Function 执行前，阈值容纳设备码轮询和正常后台操作。单独排查项目默认域、分支别名和历史部署专属地址。仍能运行旧公开代理的历史部署须在生产验收前关闭公开入口。任何别名保护须验证签名部署专属地址的验签读取仍可用。
 

@@ -97,11 +97,11 @@ access token、refresh token 与设备码 MUST 只存在于内核的内存与保
 
 ### Requirement: Site admin is decided by owning this site's Pages project
 
-初始化时，项目发现 MUST 在登录账号能列出的 Pages 项目中查找 `subdomain` 或 `domains[]` 等于当前主机名的项目；在 `localhost`、`127.0.0.1`、`[::1]` 上 MUST 改用构建时的站点主机名比对。命中时返回 `{ accountId, accountName, projectName }`，否则返回 `null`。结果 MUST 缓存不超过 10 分钟，登录、刷新与退出时 MUST 清空缓存；查询失败的结果 MUST NOT 缓存。站点构建 MUST 使用下文的私有项目探针取得相同的身份结果，保留上述缓存上限与清理规则。该判定 MUST NOT 授予任何 Cloudflare API 权限。
+初始化发现项目时 MUST 在登录账号可见的项目中查找 `subdomain` 或 `domains[]` 等于当前主机名的项目。本地调试 MUST 使用构建时的站点主机名。初始化授权须符合 `site-setup` 的所有者绑定要求。站点 MUST 通过私有探针取得管理员结果，格式为 `{ accountId, accountName, projectName }` 或 `null`。响应最多缓存 10 分钟。失败结果 MUST NOT 缓存。登录、刷新与退出 MUST 清空缓存。
 
 #### Scenario: The owner sees the admin entry
 
-- **WHEN** 用户在 `onlinegal.de5.net` 上打开账号分区，登录账号拥有 `domains[]` 含 `onlinegal.de5.net` 的 Pages 项目
+- **WHEN** 已绑定的所有者在 `onlinegal.de5.net` 登录，私有探针确认其仍能访问绑定本站的 Pages 项目
 - **THEN** 页面显示"进入站点管理"，`/admin` 列出项目、部署、域名、控制台四个分区，每个分区是 `/admin/<id>`
 
 #### Scenario: A destructive admin action asks first
@@ -130,12 +130,17 @@ access token、refresh token 与设备码 MUST 只存在于内核的内存与保
 
 ### Requirement: The private function verifies the administrator against the configured project
 
-私有 Function MUST 用当前登录者的凭据查询已绑定的一个 Pages 项目，核对返回的项目和正式主机。一次未缓存的状态探针 MUST 至多发起一次上游项目查询，MUST NOT 分页列账户或项目。打开 `/admin` 或任一子页前，内核 MUST 取得有效成功结果或仍有效的缓存。通用 API 转发 MUST 在 Function 验证短期证明后进行，证明 MUST 绑定入口、主机和当前凭据，刷新或退出时 MUST 从内核清除。实际操作仍由 Cloudflare 按请求携带的 OAuth 凭据授权。
+私有 Function MUST 用当前 OAuth 凭据查询 Cloudflare `GET /user` 并匹配生产 `ONLINE_GAL_CF_OWNER_ID`。匹配后 MUST 用同一凭据查询绑定项目并核对正式主机。冷探针最多各请求一次。`/admin` 及其子页 MUST 要求有效探针结果。通用 API 转发 MUST 验证合法的短期证明，该证明 MUST 绑定入口、主机和当前凭据，刷新、轮换入口或退出时 MUST 从内核清除。Cloudflare 按当前凭据执行操作授权。
 
 #### Scenario: The caller can reach the route but cannot read the configured project
 
 - **WHEN** 调用者掌握私有路径，但缺少有效的本站项目访问权限，或 Cloudflare 返回的是不同项目
 - **THEN** Function MUST 拒绝授予管理员状态或通用 API 转发证明
+
+#### Scenario: A collaborator can read the project
+
+- **WHEN** 调用者登录后可以读取绑定项目，但其 Cloudflare 用户 ID 与已绑定的所有者不同
+- **THEN** 私有 Function MUST 返回 `403 not-admin`，MUST NOT 查询项目或签发转发证明
 
 #### Scenario: Rate limiting interrupts a check
 

@@ -163,18 +163,18 @@
 
 ### Requirement: Setup hands off the private Cloudflare route before switching deployments
 
-初始化 MUST 在验证所有者、项目和正式主机后生成 `ONLINE_GAL_CF_ROUTE_KEY`，与初始化记录一起写为生产 Pages secret。预览 MUST NOT 取得生产路由密钥。初始化 MUST 在首次站点部署前提供仅供所有者保存的入口。两次站点部署 MUST 使用相同的入口。
+初始化 MUST 用完成 S11 的同一 OAuth 会话向 Cloudflare `GET /user` 验证用户身份。确认目标项目和正式主机后，将该用户 ID 与派生入口使用的随机密钥分别写为生产 Pages secret `ONLINE_GAL_CF_OWNER_ID` 和 `ONLINE_GAL_CF_ROUTE_KEY`。预览 MUST NOT 继承两项配置。初始化 MUST 在首次站点部署前把入口提供给所有者保存。两次部署 MUST 使用相同的所有者绑定与入口。
 
 #### Scenario: Setup continues after the first site deployment replaces the setup page
 
 - **WHEN** 首次站点部署接管正式主机，初始化页仍在当前标签页打开
-- **THEN** 初始化页 MUST 用现有 OAuth 会话完成私有 Function 的项目核验，随后经该入口继续本轮部署及 DNS 流程
+- **THEN** 初始化页 MUST 用现有 OAuth 会话完成私有 Function 的所有者和项目核验，随后经该入口继续本轮部署及 DNS 流程
 - **AND** 新站点部署 MUST 停止在固定 `/__cf` 网络路径触发 Function
 
 #### Scenario: An existing site upgrades the relay
 
-- **WHEN** 旧项目已有初始化记录但缺少私有路由密钥
-- **THEN** 站点构建 MUST 关闭公开中转，静态站点继续服务。所有者 MUST 能用本地 `cf` 补写路由配置和部署，保留其余初始化配置
+- **WHEN** 旧项目已有初始化记录但缺少私有路由密钥或所有者绑定
+- **THEN** 站点构建 MUST 关闭公开中转，静态站点继续服务。所有者 MUST 能用已认证的本地 `cf` 补写所有者绑定、路由配置并部署，保留其余初始化配置
 
 ### Requirement: Other changes add setup items through the list
 
