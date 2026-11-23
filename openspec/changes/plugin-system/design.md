@@ -163,6 +163,8 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
 - `plugin.json`：只做指向，`{ "format": 2, "manifest": "mf-manifest.json", "bundle": "plugin.bundle.json" }`，`bundle` 可省略。不含摘要、文件清单与 manifest，所以改它（换路径、换 CDN）不动 mf-manifest.json，改 mf-manifest.json 也不必动它。指向只能是同目录或子目录的相对路径。
 - `plugin.bundle.json`：来源证明（K15）。完整性与来源的证据在被指向的文件里，不在 plugin.json 里：篡改 plugin.json 只能让指向落空或指向别的文件，而证明签的是 mf-manifest.json 的摘要，对不上就被拒绝。
 - 官方注册表条目的 `digest` 改为 mf-manifest.json 的 SHA-256。校验顺序：plugin.json → mf-manifest.json（核对 digest）→ bundle（K16）→ 逐文件哈希；任一步失败整包拒绝。
+- 官方包的目录哈希（`p/<id>/<hash>/`）MUST 覆盖整个目录的内容，不只是文件清单。`plugin.json` 与 `mf-manifest.json` 的字节 MUST 进入这个哈希：同一个 URL 永远只对应一份内容。只改 `plugin.json`（例如 format 1 升到 format 2、补上 `bundle` 指针）也 MUST 换一个新目录，不能覆盖旧 URL。
+- 内核取官方包的 `plugin.json`、`mf-manifest.json` 与 bundle 时 MUST 带 `cache: 'no-store'`，不能用浏览器的 HTTP 缓存副本。这是对上一条的兜底：旧部署已经把 format 1 的 `plugin.json` 发布在带 `Cache-Control: public, max-age=31536000, immutable` 的 URL 上，那些浏览器会一年内都拿到旧文件。
 - 兼容：仍接受 format 1 的 plugin.json（内嵌，无证明），只用于 GitHub 来源；官方来源必须 format 2。
 
 ### K15 — 发布端：两条签发通道，发布者都不保管长期私钥

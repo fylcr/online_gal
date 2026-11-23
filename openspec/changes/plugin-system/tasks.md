@@ -82,6 +82,11 @@
 - [ ] 9.7 lazy 文件的预取策略（例如空闲时预取引擎）与离线提示：现在没取过的引擎文件离线时会返回 503
 - [ ] 9.8 站点根的注册脚本在 Service Worker 已激活却没有接管时 `reload` 一次（10 秒内最多一次）：这条硬刷新路径没有测试覆盖；用户切到第三方管理器后硬刷新会先看到官方管理器
 - [ ] 9.9 Service Worker 接管前后对未知路径的行为不一致：接管前 Cloudflare 回退到根 `index.html`，接管后内核对没有 `404.html` 的管理器返回纯文本 404；管理器在站点上存两份（根目录与 `registry/p/`）
+- [x] 9.10（管理器打不开的原因，2026-11-23 核实）官方包目录哈希覆盖整个目录，并让内核取包时绕过 HTTP 缓存。详情见 design.md K14 末两条。
+  - 现象：线上 `https://onlinegal.cc.cd/registry/index.json` 已是 format 2（条目 `path` 为 `p/online-gal.manager/e4b8b5aa31bd842d/`），该目录的 `plugin.json` 也已是 `{ "format": 2, "manifest": "mf-manifest.json" }`。但这个 URL 之前发布过 format 1 的 `plugin.json`，响应头是 `Cache-Control: public, max-age=31536000, immutable`。拿到过旧文件的浏览器会一年内都用旧副本，新内核就报 `package-invalid: official packages must use format 2`，管理器打不开。
+  - 改动：`scripts/pack-plugin.mjs` 的 `contentHash()` 纳入 `plugin.json` 与 `mf-manifest.json` 的实际字节，后者通过文件清单覆盖包内资源；`scripts/build-site.mjs` 保留原版本后缀算法，写定版本后再算目录哈希；`src/kernel.ts` 取 `plugin.json`、`mf-manifest.json` 与 bundle 都传 `{ cache: 'no-store' }`。
+  - 验证：`.test/plugin-system-package-cache.test.ts` 3 项通过，覆盖只改封套字节、发布目录匹配实际包内容、三次包元数据请求绕过 HTTP 缓存；`npx tsc -b tsconfig.packages.json` 和 `npx openspec validate plugin-system --strict` 通过。
+  - 这只修新构建。线上那个旧 URL 已经被污染，修复之后还要重新构建并部署一次，让注册表指向新目录。部署之前，拿到过旧文件的浏览器靠 `cache: 'no-store'` 恢复。
 
 ## 10. 包拆分与来源证明（format 2；设计见 design.md K14–K17）
 

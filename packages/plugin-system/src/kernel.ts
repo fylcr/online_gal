@@ -554,7 +554,7 @@ export class Kernel {
     // Fetch and parse the entry point (plugin.json). Format 2 splits the
     // package: plugin.json only points at mf-manifest.json (and optionally a
     // bundle). Format 1 inlines everything (GitHub only).
-    const envelopeBytes = await this.fetchBytes(`${base}${PACKAGE_FILE}`);
+    const envelopeBytes = await this.fetchBytes(`${base}${PACKAGE_FILE}`, { cache: 'no-store' });
     let raw: unknown;
     try {
       raw = JSON.parse(new TextDecoder().decode(envelopeBytes));
@@ -567,7 +567,7 @@ export class Kernel {
     let digest: string;
     let bundlePath: string | undefined;
     if (parsed.kind === 'envelope') {
-      const manifestBytes = await this.fetchBytes(`${base}${encodePath(parsed.envelope.manifest)}`);
+      const manifestBytes = await this.fetchBytes(`${base}${encodePath(parsed.envelope.manifest)}`, { cache: 'no-store' });
       digest = await sha256(manifestBytes);
       if (expected !== null && digest !== expected.digest) {
         throw new KernelError(
@@ -715,7 +715,7 @@ export class Kernel {
     if (bundlePath === undefined) {
       throw new KernelError('attestation-invalid', `"${pluginId}" is an official package but carries no attestation bundle`, pluginId);
     }
-    const bytes = await this.fetchBytes(`${base}${encodePath(bundlePath)}`);
+    const bytes = await this.fetchBytes(`${base}${encodePath(bundlePath)}`, { cache: 'no-store' });
     let raw: unknown;
     try {
       raw = JSON.parse(new TextDecoder().decode(bytes));

@@ -106,11 +106,24 @@ export async function packDirectory({ dir, manifest, lazy = [], bundle }) {
   return { pkg, bytes, envelope, digest: createHash('sha256').update(bytes).digest('hex'), files };
 }
 
-/** SHA-256 over the file list: changes exactly when some file's bytes, name or lazy flag change. */
-export function contentHash(files) {
+/** Hashes the payload file list for the version suffix. */
+export function fileListHash(files) {
   const hash = createHash('sha256');
   for (const file of files) hash.update(`${file.path}\0${file.sha256}${file.lazy ? '\0lazy' : ''}\n`);
   return hash.digest('hex');
+}
+
+/**
+ * Hashes the generated package files in a fixed order using fixed-length digests.
+ * mf-manifest.json includes each payload file's path and SHA-256, so its bytes
+ * also commit to the payload, including files marked lazy.
+ * @param {{ bytes: Buffer, envelope: Buffer }} pkg
+ */
+export function contentHash({ bytes, envelope }) {
+  return createHash('sha256')
+    .update(createHash('sha256').update(envelope).digest())
+    .update(createHash('sha256').update(bytes).digest())
+    .digest('hex');
 }
 
 async function main(argv) {

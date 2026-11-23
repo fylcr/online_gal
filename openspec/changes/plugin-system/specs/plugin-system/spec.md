@@ -222,13 +222,18 @@
 
 ### Requirement: Site headers and caching
 
-`_headers` MUST 给全站加上与内核应答相同的跨源隔离响应头。`/registry/index.json` MUST 以 `Cache-Control: no-cache` 发布；`/sw.js` 不要求 `no-cache`，内核的更新检查 MUST 靠注册时的 `updateViaCache: 'none'`（浏览器检查更新时绕过 HTTP 缓存），因此 CDN 或 zone 层对 `/sw.js` 的缓存不影响内核更新；`/registry/p/**` 的路径 MUST 含内容哈希，并以 `immutable` 长缓存发布。
+`_headers` MUST 给全站加上与内核应答相同的跨源隔离响应头。`/registry/index.json` MUST 以 `Cache-Control: no-cache` 发布；`/sw.js` 不要求 `no-cache`，内核的更新检查 MUST 靠注册时的 `updateViaCache: 'none'`（浏览器检查更新时绕过 HTTP 缓存），因此 CDN 或 zone 层对 `/sw.js` 的缓存不影响内核更新；`/registry/p/**` 的路径 MUST 含覆盖整个目录（含 `plugin.json` 与 `mf-manifest.json`）的内容哈希，并以 `immutable` 长缓存发布。同一个这样的 URL MUST 永远只对应一份内容：只改 `plugin.json`（format 1 升到 format 2、补上 `bundle` 指针）也 MUST 换一个新目录，MUST NOT 覆盖旧 URL。
 
 #### Scenario: The headers file matches what the kernel serves
 
 - **WHEN** 构建站点
 - **THEN** `_headers` 的 `/*` 规则含与内核应答相同的 COOP、COEP 与 `nosniff`
 - **AND** `/registry/index.json` 为 `no-cache`，`/registry/p/*` 为 `immutable`
+
+#### Scenario: A plugin.json-only change gets a new directory
+
+- **WHEN** 两次构建同一个官方包，文件清单不变、只有 `plugin.json` 的字节不同
+- **THEN** 两次的目录哈希不同，注册表指向两个不同的路径
 
 #### Scenario: The worker script is checked past the HTTP cache
 

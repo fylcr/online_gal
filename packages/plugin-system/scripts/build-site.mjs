@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 
 import { build } from 'esbuild';
 
-import { contentHash, packDirectory } from './pack-plugin.mjs';
+import { contentHash, fileListHash, packDirectory } from './pack-plugin.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, '..');
@@ -100,14 +100,14 @@ async function packOfficial(entry, args, out) {
   }
   const base = await readJson(entry.manifest);
   const { version } = await readJson(entry.packageJson);
-  // Pack once to learn the content hash, then stamp it into the version so
-  // every distinct build has a distinct version.
+  // Keep the file-list hash in the version, then hash the final package for
+  // the immutable URL, including the version actually published.
   const probe = await packDirectory({ dir, manifest: { ...base, version }, lazy: entry.lazy });
-  const hash = contentHash(probe.files);
-  const manifest = { ...base, version: `${version}+${hash.slice(0, 12)}` };
-  const { bytes, envelope, digest, files } = await packDirectory({ dir, manifest, lazy: entry.lazy });
+  const manifest = { ...base, version: `${version}+${fileListHash(probe.files).slice(0, 12)}` };
+  const pkg = await packDirectory({ dir, manifest, lazy: entry.lazy });
+  const { bytes, envelope, digest, files } = pkg;
 
-  const path = `p/${manifest.id}/${hash.slice(0, 16)}/`;
+  const path = `p/${manifest.id}/${contentHash(pkg).slice(0, 16)}/`;
   const target = join(out, 'registry', path);
   for (const file of files) {
     const dest = join(target, file.path);
