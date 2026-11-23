@@ -3,7 +3,7 @@ export interface SetupItem {
   label: string;
   help: string;
   helpUrl?: string;
-  source: 'account' | 'input';
+  source: 'account' | 'input' | 'generated';
   verify?: 'cloudflare' | 'github';
   owner: string;
 }
@@ -11,19 +11,22 @@ export interface SetupItem {
 /**
  * Required Pages secrets, in the order shown on the setup page.
  *
- * Decision G (`site-setup`): the owner signs in with Cloudflare OAuth, so the first batch is the
- * account id alone, taken from the confirmed Pages project owner. `CLOUDFLARE_API_TOKEN` and
- * `GITHUB_TOKEN` were removed — an OAuth access token expires within the hour and a refresh token
- * is rotated on every renewal, so neither can live on as a Pages secret.
- *
- * `source: 'input'` and `verify` stay in the type for a later change that registers an item and
- * decides for itself where the long-lived value comes from. No current item uses them; the page
- * refuses to write while one does.
+ * Decision G (`site-setup`) removed the manual token inputs. Decision H adds two generated
+ * credentials; the OAuth session itself never becomes a Pages secret.
+ * A future `input` item still blocks initialization until its value source is supported.
  */
 export const SETUP_ITEMS: readonly SetupItem[] = [
   {
     name: 'CLOUDFLARE_ACCOUNT_ID', label: 'Cloudflare 账号 ID', source: 'account', owner: 'site-setup',
     help: '取自已确认的 Pages 项目所有者。',
+  },
+  {
+    name: 'CLOUDFLARE_ACCOUNT_TOKEN', label: 'Cloudflare 账户令牌', source: 'generated', owner: 'site-setup',
+    help: '用 Cloudflare OAuth 申请，只能管理本站所属账户的 API 令牌。',
+  },
+  {
+    name: 'ONLINE_GAL_CA_PRIVATE_JWK', label: '微型 CA 私钥', source: 'generated', owner: 'plugin-system',
+    help: '由浏览器生成，用于签发官方插件的来源证明。',
   },
 ];
 

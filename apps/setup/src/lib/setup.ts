@@ -1,4 +1,5 @@
 import type { CloudflareAccount, CloudflareUser, SiteAdmin } from '@online-gal/plugin-system/account';
+import { microCaFingerprint } from '@online-gal/plugin-system/attest';
 import { SETUP_ITEMS, type SetupItem } from './setup-items.ts';
 
 export type Rebuild = { kind: 'pages-git' | 'manual' } | { kind: 'github-rerun'; repo: string; runId: string };
@@ -13,8 +14,12 @@ interface Project {
 interface PollOptions { intervalMs?: number; timeoutMs?: number }
 type BuildResult = 'success' | 'failure' | 'canceled';
 
-/** The Pages permissions the write and the rebuild need (decision G, design.md S5 step 2). */
-export const PAGES_SCOPES = ['pages:read', 'pages:write'] as const;
+const TOKEN_GROUP = 'Account API Tokens Write';
+const TOKEN_SCOPE = 'account_api_tokens:create';
+const GENERATED_ITEMS = new Set(['CLOUDFLARE_ACCOUNT_TOKEN', 'ONLINE_GAL_CA_PRIVATE_JWK']);
+const P256_FIELD = /^[A-Za-z0-9_-]{43}$/;
+
+const WRITE_SCOPES = ['pages:read', 'pages:write', TOKEN_SCOPE] as const;
 
 /**
  * Scopes missing from the token response. An empty list means the response carried no `scope` at
@@ -22,7 +27,7 @@ export const PAGES_SCOPES = ['pages:read', 'pages:write'] as const;
  */
 export function missingScopes(scopes: readonly string[]): string[] {
   if (scopes.length === 0) return [];
-  return PAGES_SCOPES.filter((scope) => !scopes.includes(scope));
+  return WRITE_SCOPES.filter((scope) => !scopes.includes(scope));
 }
 function buildResult(deployment: Deployment): BuildResult | undefined {
   const stage = deployment.latest_stage;
@@ -35,7 +40,8 @@ function reportBuildFailure(result: BuildResult): void {
   if (result === 'canceled') throw new Error('部署已取消。');
 }
 
-const projectPath = (owner: SiteAdmin) => `/__cf/api/accounts/${encodeURIComponent(owner.accountId)}/pages/projects/${encodeURIComponent(owner.projectName)}`;
+const accountPath = (owner: SiteAdmin) => `/__cf/api/accounts/${encodeURIComponent(owner.accountId)}`;
+const projectPath = (owner: SiteAdmin) => `${accountPath(owner)}/pages/projects/${encodeURIComponent(owner.projectName)}`;
 const requestSignal = (signal?: AbortSignal, ms = 15_000) => signal
   ? AbortSignal.any([signal, AbortSignal.timeout(ms)])
   : AbortSignal.timeout(ms);
@@ -58,7 +64,7 @@ export function buildSiteRecord(owner: SiteAdmin, user: CloudflareUser | null): 
  * initialized (design.md S7).
  */
 export function unsupportedItems(items: readonly SetupItem[] = SETUP_ITEMS): SetupItem[] {
-  return items.filter(({ source }) => source !== 'account');
+  return items.filter(({ name, source }) => source === 'input' || (source === 'generated' && !GENERATED_ITEMS.has(name)));
 }
 
 /** Values for the `account` items: they all come from the confirmed Pages project owner. */
@@ -87,6 +93,17 @@ export function buildEnvPatch(record: string, values: Readonly<Record<string, st
   } };
 }
 
+async function generateCaKey() {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const keys = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const { kty, crv, x, y, d } = await crypto.subtle.exportKey('jwk', keys.privateKey);
+    if (kty === 'EC' && crv === 'P-256' && x && y && d && [x, y, d].every((part) => P256_FIELD.test(part))) {
+      return { privateJwk: JSON.stringify({ kty, crv, x, y, d }), fingerprint: await microCaFingerprint({ kty, crv, x, y }) };
+    }
+  }
+  throw new Error('未能生成有效的微型 CA 私钥。');
+}
+
 function projectState(project: Project) {
   const env = project.deployment_configs?.production?.env_vars ?? {};
   const marker = env.ONLINE_GAL_SITE;
@@ -102,7 +119,7 @@ function projectState(project: Project) {
     written: marker != null && record !== '',
     record,
     writtenAt,
-    missing: SETUP_ITEMS.filter(({ name }) => !Object.hasOwn(env, name)).map(({ name }) => name),
+    missing: SETUP_ITEMS.filter(({ name }) => env[name] == null).map(({ name }) => name),
     branch: project.production_branch,
   };
 }
@@ -130,6 +147,7 @@ async function poll<T>(read: () => Promise<T | undefined>, timeout: number, sign
 
 export const RELOAD_KEY = 'online-gal:setup-reloaded';
 export const WRITTEN_KEY = 'online-gal:setup-written-at';
+const FINGERPRINT_KEY = 'online-gal:setup-ca-fingerprint';
 const DEPLOYMENT_KEY = 'online-gal:setup-deployment';
 
 export function readSession(key: string): string | null {
@@ -149,6 +167,17 @@ export function savedDeployment(owner: SiteAdmin): string | null {
 
 export function saveDeployment(owner: SiteAdmin, id: string): void {
   writeSession(DEPLOYMENT_KEY, JSON.stringify({ project: projectPath(owner), id }));
+}
+
+export function readCaFingerprint(owner: SiteAdmin, writtenAt: string | undefined): string | undefined {
+  if (!writtenAt) return;
+  try {
+    const data = JSON.parse(readSession(FINGERPRINT_KEY) ?? 'null');
+    if (data?.project === projectPath(owner) && data.at === writtenAt &&
+        typeof data.fingerprint === 'string' && /^[a-f0-9]{64}$/.test(data.fingerprint)) {
+      return data.fingerprint;
+    }
+  } catch { /* Storage is optional. */ }
 }
 
 export function clearSession(...keys: string[]): void {
@@ -195,20 +224,62 @@ export class SetupClient {
     return projectState(await this.api<Project>(projectPath(owner), signal));
   }
 
-  async write(owner: SiteAdmin, patch: ReturnType<typeof buildEnvPatch>, signal?: AbortSignal): Promise<'local' | 'switched' | 'already-written' | 'written'> {
-    if (isLocalHost(new URL(this.origin).hostname)) return 'local';
-    const locks = globalThis.navigator?.locks;
-    if (locks) {
-      return locks.request('online-gal:setup:' + projectPath(owner), { signal }, () => this.writeAndCheck(owner, patch, signal));
+  private async createAccountToken(owner: SiteAdmin, signal?: AbortSignal): Promise<string> {
+    const path = `${accountPath(owner)}/tokens`;
+    let groupId: string | undefined;
+    try {
+      const groups = await this.api<{ name?: string; id?: string }[]>(`${path}/permission_groups`, signal);
+      groupId = groups.find(({ name }) => name === TOKEN_GROUP)?.id;
+    } catch {
+      signal?.throwIfAborted();
+      throw new Error('无法读取 Cloudflare 账户令牌权限组。请检查当前账号权限后重试。');
     }
-    return this.writeAndCheck(owner, patch, signal);
+    if (!groupId) throw new Error('找不到 Cloudflare 权限组 Account API Tokens Write。');
+    try {
+      const token = await this.api<{ value?: string }>(path, signal, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: 'online-gal-setup',
+          policies: [{
+            effect: 'allow',
+            permission_groups: [{ id: groupId }],
+            resources: { [`com.cloudflare.api.account.${owner.accountId}`]: '*' },
+          }],
+        }),
+      });
+      if (typeof token.value !== 'string' || !token.value.trim()) throw new Error();
+      return token.value;
+    } catch {
+      signal?.throwIfAborted();
+      throw new Error('无法创建 Cloudflare 账户令牌。请检查账户的 API 令牌管理权限后重试。');
+    }
   }
 
-  private async writeAndCheck(owner: SiteAdmin, patch: ReturnType<typeof buildEnvPatch>, signal?: AbortSignal): Promise<'switched' | 'already-written' | 'written'> {
+  async write(owner: SiteAdmin, user: CloudflareUser | null, scopes: readonly string[], signal?: AbortSignal) {
+    const missing = missingScopes(scopes);
+    if (missing.length) throw new Error(`这次 Cloudflare 授权缺少 ${missing.join('、')}。请重新授权。`);
+    if (unsupportedItems().length) throw new Error('清单中有初始化页暂不支持的项目。');
+    if (isLocalHost(new URL(this.origin).hostname)) return 'local';
+    const write = () => this.writeAndCheck(owner, user, signal);
+    const locks = globalThis.navigator?.locks;
+    if (locks) return locks.request('online-gal:setup:' + projectPath(owner), { signal }, write);
+    return write();
+  }
+
+  private async writeAndCheck(owner: SiteAdmin, user: CloudflareUser | null, signal?: AbortSignal): Promise<'switched' | 'already-written' | { fingerprint: string }> {
     const status = await this.readStatus(signal);
     if (!status) return 'switched';
     const project = await this.readProject(owner, signal);
     if (status.initialized || project.written) return 'already-written';
+    const ca = await generateCaKey();
+    signal?.throwIfAborted();
+    const accountToken = await this.createAccountToken(owner, signal);
+    const record = buildSiteRecord(owner, user);
+    const patch = buildEnvPatch(record, {
+      ...accountValues(owner.accountId),
+      CLOUDFLARE_ACCOUNT_TOKEN: accountToken,
+      ONLINE_GAL_CA_PRIVATE_JWK: ca.privateJwk,
+    });
     try {
       await this.api(projectPath(owner), signal, {
         method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch),
@@ -219,9 +290,12 @@ export class SetupClient {
     }
     const saved = await this.readProject(owner, signal);
     if (!saved.written || saved.missing.length) throw new Error('写入后未能核对全部初始化项，请检查 Pages 项目。');
-    if (saved.record !== patch.deployment_configs.production.env_vars.ONLINE_GAL_SITE.value) return 'already-written';
-    writeSession(WRITTEN_KEY, saved.writtenAt ?? new Date().toISOString());
-    return 'written';
+    if (saved.record !== record) return 'already-written';
+    const at = saved.writtenAt ?? new Date().toISOString();
+    clearSession(DEPLOYMENT_KEY);
+    writeSession(WRITTEN_KEY, at);
+    writeSession(FINGERPRINT_KEY, JSON.stringify({ project: projectPath(owner), at, fingerprint: ca.fingerprint }));
+    return { fingerprint: ca.fingerprint };
   }
 
   async startPagesBuild(owner: SiteAdmin, branch: string, signal?: AbortSignal): Promise<string | null> {

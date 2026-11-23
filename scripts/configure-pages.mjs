@@ -44,10 +44,10 @@ export function configurePages(projectName, { dryRun, deploy, profile } = {}, ru
   return { changed, deploymentId, settings: { ...SETTINGS } };
 }
 
-function invokeCf(args) {
+export function invokeCf(args) {
   const npmArgs = ['exec', '--yes', `--package=${CF_PACKAGE}`, '--', 'cf', ...args];
   const npmCli = process.env.npm_execpath;
-  if (!npmCli && process.platform === 'win32') throw new Error(USAGE);
+  if (!npmCli && process.platform === 'win32') throw new Error('On Windows, run this command through npm run.');
   const result = npmCli
     ? spawnSync(process.execPath, [npmCli, ...npmArgs], { encoding: 'utf8' })
     : spawnSync('npm', npmArgs, { encoding: 'utf8' });

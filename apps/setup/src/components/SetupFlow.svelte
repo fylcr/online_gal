@@ -5,9 +5,8 @@
   import { MemoryVaultStore } from '../lib/memory-vault';
   import { SETUP_ITEMS } from '../lib/setup-items';
   import {
-    accountValues, buildEnvPatch, buildSiteRecord, clearSession, clearSetupSession, isLocalHost, missingScopes,
-    RELOAD_KEY, readSession, safeNext, savedDeployment, SetupClient, unsupportedItems, type SetupConfig,
-    writeSession, WRITTEN_KEY,
+    clearSession, clearSetupSession, isLocalHost, missingScopes, readCaFingerprint, RELOAD_KEY,
+    readSession, safeNext, savedDeployment, SetupClient, unsupportedItems, type SetupConfig, WRITTEN_KEY,
   } from '../lib/setup';
 
   let { config }: { config: SetupConfig } = $props();
@@ -28,6 +27,7 @@
   let admin = $state.raw<SiteAdmin | null>(null);
   let productionBranch = '';
   let projectWrittenAt: string | undefined;
+  let caFingerprint = $state<string>();
   let scopesMissing = $state<string[]>([]);
   /**
    * Items whose value would have to be typed in. Decision G removed the form, so the page stops
@@ -118,6 +118,7 @@
     const missing = status.signedIn ? missingScopes(status.scopes) : [];
     scopesMissing = missing;
     admin = status.signedIn ? status.siteAdmin : null;
+    if (!status.signedIn) caFingerprint = undefined;
     if (!admin || step !== 'login' || missing.length > 0) return;
     const owner = admin;
     project = 'checking';
@@ -129,6 +130,7 @@
       projectWrittenAt = state.writtenAt;
       if (state.written || initialized) {
         if (state.missing.length) throw new Error('项目缺少初始化配置，请在 Cloudflare 控制台检查。');
+        caFingerprint = readCaFingerprint(owner, state.writtenAt);
         await rebuild(owner);
       } else {
         project = 'confirm';
@@ -146,11 +148,14 @@
     project = 'writing';
     errorMessage = '';
     try {
-      const result = await client.write(owner, buildEnvPatch(buildSiteRecord(owner, status.user), accountValues(owner.accountId)), lifetime.signal);
+      const result = await client.write(owner, status.user, status.scopes, lifetime.signal);
       if (lifetime.signal.aborted) return;
       if (result === 'switched') complete();
       else if (result === 'already-written') await inspectOwner(status);
-      else void rebuild(owner);
+      else {
+        if (typeof result === 'object') caFingerprint = result.fingerprint;
+        void rebuild(owner);
+      }
     } catch (error) {
       if (lifetime.signal.aborted) return;
       errorMessage = error instanceof Error ? error.message : '请重试。';
@@ -174,6 +179,9 @@
   });
 </script>
 
+{#if caFingerprint}
+  <p class="mb-4 text-sm" role="status">微型 CA 公钥指纹：<code class="block select-all break-all font-mono">{caFingerprint}</code></p>
+{/if}
 {#if initialized && step === 'login'}
   <p class="mb-4 text-sm text-base-content/70">初始化已写入。请登录后继续构建正式站点。</p>
 {/if}
@@ -206,7 +214,7 @@
                 {#each SETUP_ITEMS as item (item.name)}
                   <li class="flex flex-wrap items-baseline justify-between gap-2">
                     <span>{item.label}</span>
-                    <span class="font-mono text-xs break-all text-base-content/70">{maskId(status.siteAdmin.accountId)} · {item.name} · secret_text · production</span>
+                    <span class="font-mono text-xs break-all text-base-content/70">{item.source === 'account' ? maskId(status.siteAdmin.accountId) : '保存时生成'} · {item.name} · secret_text · production</span>
                   </li>
                 {/each}
                 <li class="flex flex-wrap items-baseline justify-between gap-2">
