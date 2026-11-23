@@ -62,7 +62,7 @@
 - [x] 7.4 `_headers`：全站 COOP/COEP/nosniff；注册表索引 `no-cache`（`/sw.js` 不要求，更新检查靠 `updateViaCache: 'none'`）；`/registry/p/*` `immutable`
 - [x] 7.5 根 `package.json` 新增 `build:site`；`build`/`dev`/`test` 不变
 - [x] 7.6 构建脚本给官方管理器的 lazy 配置是 `engines/**` 与 `**/*.map`：24 个文件共 3.1 MiB，安装时下载 14 个、约 0.1 MiB（10 个 lazy）。曾试过除入口页外全部 lazy，站点根提供静态页之后没有收益，已改回
-- [ ] 7.7（2026-11-23 用户决定改写，原"关闭 Git 集成、改直接上传"作废）官方站点继续用 Cloudflare Pages 的 Git 集成构建，不关闭、不直接上传。需要用户做的只剩生产环境 secret `ONLINE_GAL_CA_BUILD_TOKEN`（随机 32 字节 b64url，设计见 design.md K15 开头）：`/__ca` 上线并验证之后再配置，配置后的下一次生产构建开始给官方包签名。预览环境不配置。
+- [ ] 7.7（2026-11-23 用户决定改写，原"关闭 Git 集成、改直接上传"作废）官方站点继续用 Cloudflare Pages 的 Git 集成构建，不关闭、不直接上传。需要用户做的只剩生产环境 secret `ONLINE_GAL_CA_BUILD_TOKEN`（随机 32 字节 b64url，设计见 design.md K15 开头）：`/__ca` 上线并验证之后再配置，配置后的下一次生产构建开始给官方包签名。预览环境不配置。加 DNS 白名单记录还要等 10.3（`verifyBundle` 真正验签，2026-11-23 仍是 stub）与 10.4（DoH 查询）完成并实测通过，否则“签名产物能通过验证”无从确认。
 - [ ] 7.8（2026-11-23 用户决定，等仓库公开之后做，现在不做）给 `main` 开分支保护：禁止强制推送、禁止删除分支，不要求 PR、不要求状态检查。现在开不了：仓库是私有的，免费账号对私有仓库的分支保护与规则集都返回 403（`Upgrade to GitHub Pro or make this repository public`）。公开是 `github` 通道的前提（K15），公开时一并做。
 
 ## 8. 测试与验证
