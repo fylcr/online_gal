@@ -238,9 +238,10 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
 - 一项登记是一个顶层前缀 `/__<name>`，可选带三样东西：内核模块（接管该前缀下任何方法的请求）、内核 API 名字空间 `/__kernel/api/<name>/**`、服务器 Function `functions/__<name>/`。登记的前缀同时成为管理器包的保留路径（理由同 K5）和站点构建的保留名；有 Function 时进入 `_routes.json`。
 - 与放行不同：`/sw.js`、`/registry/**`、`/__ca/**` 是插件系统自己的放行路径，内核不应答；登记前缀由内核模块应答，调用方由模块自己核对。内核响应的 COOP、COEP、nosniff 头对模块同样适用。
 - ~~只有 Function、没有内核模块的登记~~（2026-11-22 加入，同日撤回）：`site-setup` 改为两阶段构建，`/__setup` 只存在于不含插件系统的初始化构建，站点构建里不再有它。撤销见 tasks.md 11.3。
-- 现在没有单独的登记表：`__cf` 直接写在 `packages/plugin-system/src/format.ts` 的保留路径正则、`packages/plugin-system/src/kernel.ts` 的 `routeRequest`、`packages/plugin-system/scripts/build-site.mjs` 的 `RESERVED` 与 `_routes.json` 里。只有一项登记时这样最简单，登记多起来再收拢成一处。
+- 登记通过 `packages/plugin-system/src/format.ts` 的保留路径、`packages/plugin-system/src/kernel.ts` 的 `routeRequest`、`packages/plugin-system/scripts/build-site.mjs` 的 `RESERVED` 接入。只有包含服务器 Function 的登记需要更新 `_routes.json` 的服务器路由。
 - 当前登记：
   - `/__cf` → 变更 `cf-account-admin`（capability `cloudflare-account`），内核模块加 Function。内核保留逻辑前缀，生产 `_routes.json` 仅启用账户派生子树，见该变更 A12。它在共用文件里占用的代码块见该变更 design.md A11。
+  - `/__openlist` → 变更 `integrate-openlist-worker`（capability `openlist-remote-source`，待实现），通过现有浏览器 `/sw.js` 的内核模块分发。
   - 插件系统的改动不要顺手改这些块。
 
 ### K20 — 归属与代码边界

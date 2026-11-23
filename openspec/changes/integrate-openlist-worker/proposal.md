@@ -2,19 +2,19 @@
 
 ## Why
 
-文件系统需要通过 OpenList-Worker 读取其挂载的远程游戏文件。上游的目录、元数据和下载接口可能独立变化，项目需要每日检查上游并运行接口测试，提前发现现网兼容性问题。
+文件系统需要借助 OpenList-Worker 读取远程游戏文件。浏览器 Service Worker 可以在站点内运行这部分 TypeScript。上游的文件接口和驱动会更新，需要每日实测候选与线上版本，先发现变化，再发布更新。
 
 ## What Changes
 
-- 接入 [OpenListTeam/OpenList-Worker](https://github.com/OpenListTeam/OpenList-Worker)，通过上游的自托管 Node.js 入口提供远程游戏目录，作为 VFS 只读来源。存档和游戏运行期间的写入继续进入本地覆层。
-- 每日解析官方仓库默认分支的当前提交，验证隔离候选和生产 OpenList 服务的实际接口。即使上游提交未变也执行接口检查。
-- 兼容性检查决定候选版本能否发布。通过的候选进入正常更新流程，失败时告警并保留最近通过验收的生产版本，修复后继续更新。提交 SHA 用于追溯测试和发布，依赖选择始终跟踪官方上游。
+- 将 [OpenListTeam/OpenList-Worker](https://github.com/OpenListTeam/OpenList-Worker) 的只读文件逻辑编译进站点现有的浏览器 Service Worker，通过它为 VFS 提供远程游戏目录。游戏运行期间的写入继续走本地覆层。
+- 每个 UTC 日解析官方仓库当前默认分支的 HEAD，用真实浏览器检查候选和线上 Service Worker 的列表、元数据、下载和 Range。上游提交未变时也执行两组检查。
+- 候选通过后才进入站点发布流程。失败时报告受影响的接口，保留或恢复最近通过生产验收的版本。SHA 用于追溯当次构建和验收，每日检查重新解析上游。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `openlist-remote-source` 提供 OpenList-Worker 只读远程挂载、已使用接口的契约测试和滚动更新保障。
+- `openlist-remote-source` 提供浏览器 Service Worker 内的 OpenList 只读挂载、接口契约检查和滚动更新。
 
 ### Modified Capabilities
 
@@ -22,5 +22,5 @@
 
 ## Impact
 
-- `packages/vfs` 新增远程 `GameSource`，`packages/core` 将其接入现有来源打开路径。
-- 配置与运维涵盖独立 Node.js 服务、受限的测试存储、每日 GitHub Actions 检查和部署记录。文件系统会话负责改动与验收，共享接入点由现有负责人协调。
+- `packages/vfs` 负责浏览器运行时适配和远程 `GameSource`，`packages/core` 接入现有来源打开路径。现有 `/sw.js` 通过 K19 登记增加 `/__openlist` 路由，由文件系统会话和插件系统负责人协调。
+- 候选和生产都使用 Pages 静态站点。选定的远程存储需支持实际的浏览器读取链路。GitHub Actions 负责日检，站点发布沿用现有流程。

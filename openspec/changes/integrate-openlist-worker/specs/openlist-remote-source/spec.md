@@ -2,82 +2,92 @@
 
 ## Purpose
 
-让 Online Gal 的虚拟文件系统可读取 OpenList-Worker 提供的远程游戏目录，并持续用真实浏览器和独立部署验证列表、元数据、下载与按字节读取的兼容性。
+在站点的浏览器 Service Worker 内运行 OpenList-Worker 的只读文件逻辑，为 VFS 提供远程游戏目录，并每天实测候选与线上接口。
 
 ## ADDED Requirements
 
-### Requirement: OpenList runs outside Cloudflare Workers
+### Requirement: OpenList runs in the site Service Worker
 
-OpenList-Worker 的开发、候选验收和生产运行 MUST 使用 Cloudflare Workers 运行时之外的服务。浏览器 MUST 通过配置的 OpenList HTTPS 服务访问文件接口。
+站点构建 MUST 将当次候选的 OpenList-Worker TypeScript 读取逻辑编译进现有的浏览器 `/sw.js`。来自受控页面的 `/__openlist` 文件请求 MUST 由这个 Service Worker 处理。Pages MUST 以静态文件分发制品，`/__openlist` MUST NOT 加入 Pages Functions 路由。实际分发的制品 MUST 按适用许可提供对应源码及许可信息。
 
-#### Scenario: Deploy and test an OpenList candidate
+#### Scenario: OpenList is ready in a controlled browser
 
-- **WHEN** 验收一个上游候选或发布到生产
-- **THEN** 部署记录显示 OpenList 服务的运行时、制品与 HTTPS 地址，接口调用由该服务处理
-- **AND** 部署流程和文件读取链路均在 Cloudflare Workers 与 Pages Functions 之外运行
+- **WHEN** Chromium 测试页被当次构建的站点 Service Worker 接管并通过现有的 VFS 入口打开挂载
+- **THEN** 浏览器 Service Worker 使用编译入包的 OpenList 逻辑处理列表、元数据和字节读取
+- **AND** 验收记录可将结果关联到当前控制页面的 Service Worker 版本和上游提交
+
+#### Scenario: The page is awaiting Service Worker control
+
+- **WHEN** 页面发起远程读取，但尚未受站点 Service Worker 控制
+- **THEN** VFS 报告等待接管或暂不可用，并允许接管后重试
+- **AND** 直达静态站点的 `/__openlist` 请求无法执行文件接口
 
 ### Requirement: Read-only remote game source
 
-平台 MUST 能打开已配置的 OpenList-Worker 游戏根目录，列出子目录和文件，查询类型和大小并读取文件。引擎产生的写入 MUST 继续进入现有可写覆层。未配置远程源时，本地来源的打开流程 MUST 保持可用。
+VFS MUST 能打开已配置的 OpenList 游戏根目录，列出直接子项，查询类型与大小并读取文件。Service Worker MUST 按已配置的挂载来源和路径边界读取。引擎写入 MUST 进入现有可写覆层，本地来源 MUST 保持可用。
 
 #### Scenario: Browse and open a configured game directory
 
-- **WHEN** 调用方打开一个含多页列表、嵌套目录和 Unicode 文件名的已配置游戏目录
+- **WHEN** 调用方打开含多页列表、嵌套目录和 Unicode 文件名的游戏目录
 - **THEN** 返回完整的直接子项、正确的类型和大小，并可读取指定文件的原始字节
-- **AND** 同一路径上的运行时写入和再读取遵循现有可写覆层规则，OpenList-Worker 上的文件字节保持原样
+- **AND** 对同一路径写入后，游戏按现有覆层规则读到新内容，远程文件保持原样
 
-#### Scenario: A remote path or request fails
+#### Scenario: A path, permission or request fails
 
-- **WHEN** 路径试图越出配置的游戏根，或者 OpenList 服务返回鉴权、限流、网络或接口错误
-- **THEN** 路径被拒绝或错误被明确报告
-- **AND** 只有明确的文件不存在结果才可作为不存在处理
+- **WHEN** 路径超出游戏根、下载目标超出配置，或请求遇到鉴权、限流、网络或接口错误
+- **THEN** 对应的 VFS 操作报告可区分的失败原因
+- **AND** 只有明确的文件不存在结果才作为不存在处理
+
+#### Scenario: The browser stops an idle Service Worker
+
+- **WHEN** 浏览器终止空闲 Service Worker，受控页面随后再次列出或读取已配置的挂载
+- **THEN** Service Worker 重新加载挂载所需的配置并恢复读取
 
 ### Requirement: Verified browser download and byte ranges
 
-远程来源 MUST 通过站点的真实浏览器访问验证下载链。声明支持随机访问时，每次非空范围读取 MUST 返回所请求的字节，并校验范围响应和实际长度。范围不可用时 MUST 明确报告能力或读取错误，并约束浏览器内存使用。
+启用的远程存储驱动 MUST 通过真实浏览器验证鉴权、跨域和实际下载链。声明支持随机访问时，每次非空范围读取 MUST 校验 HTTP `206`、`Content-Range` 和实际长度。范围不可用时 MUST 报告能力或读取错误。整文件和允许的降级读取 MUST 遵守字节预算。
 
-#### Scenario: Read the interior of a remote file
+#### Scenario: Read a range against known bytes
 
-- **WHEN** 浏览器请求一个已知文件中间的一段字节
-- **THEN** 浏览器可读取 `206`、`Content-Range` 及响应体，适配器校验偏移、长度和字节内容
+- **WHEN** VFS 请求已知文件中间的一段字节
+- **THEN** Service Worker 可读取实际的范围响应头，校验偏移及长度，契约套件对照夹具校验返回字节
 
-#### Scenario: A storage driver ignores the range request
+#### Scenario: The storage driver returns invalid ranges or too much data
 
-- **WHEN** 存储驱动对范围请求返回整文件 `200` 或返回不一致的范围
-- **THEN** 适配器明确报告随机访问不可用或该次读取失败
-- **AND** 响应体超过已配置读取预算时取消读取
+- **WHEN** 存储驱动忽略 Range、返回不一致的范围或发送超过预算的字节
+- **THEN** 适配器报告能力或读取错误，超过预算时取消数据流
 
 ### Requirement: Daily upstream and production contract checks
 
-项目 MUST 每个 UTC 日解析官方 `OpenListTeam/OpenList-Worker` 当前默认分支的提交。每天 MUST 实测生产 OpenList 服务的接口并验证上游候选的接口，即使提交未变化也执行。项目 MUST 记录运行时间、候选提交、生产部署标识和各契约判定，并对检查失败或缺跑发出可见告警。
+项目 MUST 每个 UTC 日解析官方 `OpenListTeam/OpenList-Worker` 当前默认分支的提交，并在真实浏览器分别实测候选与生产 Service Worker 的契约。每次记录 MUST 包含 UTC 时间、默认分支、候选 SHA、制品摘要、浏览器实际使用的 Service Worker 版本和各契约判定。上游选择 MUST 持续跟踪官方默认分支，SHA 用于标识当次验收制品。任务失败或缺跑 MUST 有可见告警。
 
-#### Scenario: The upstream default branch advances or moves
+#### Scenario: The upstream default branch advances or changes
 
-- **WHEN** 官方默认分支的 HEAD 推进，或上游更改默认分支
-- **THEN** 后续巡检自动解析当前分支和 HEAD，并用对应制品在隔离环境运行浏览器契约测试
-- **AND** 每次运行记录的提交只标识当次候选和部署来源，下一次巡检重新解析上游
+- **WHEN** 官方默认分支推进或上游切换默认分支
+- **THEN** 后续巡检重新解析分支与 HEAD，并用对应的静态制品在隔离的浏览器 Service Worker 中验证契约
 
-#### Scenario: The revision stays the same
+#### Scenario: The upstream revision stays the same
 
-- **WHEN** 上游 HEAD 与前一天相同
-- **THEN** 当天照常向候选和生产 OpenList 服务发起实际接口请求，并记录结果
+- **WHEN** 上游 HEAD 与前次相同
+- **THEN** 当天仍通过 VFS 对实际接管页面的候选与生产 Service Worker 各执行一轮文件读取契约检查
 
-#### Scenario: A daily check is missed
+#### Scenario: Upstream lookup fails or a daily check is missed
 
-- **WHEN** 一个 UTC 日的巡检缺少完成记录
-- **THEN** 监控产生独立于该缺跑任务的告警，并允许手动补跑
+- **WHEN** 解析上游失败，或一个 UTC 日缺少巡检完成记录
+- **THEN** 解析失败时仍运行生产检查，分别记录上游错误和生产结果
+- **AND** 缺跑由独立检查告警，两种情况均可手动补跑
 
 ### Requirement: Promotion gated by compatible interfaces
 
-生产更新 MUST 使用通过候选验收的制品，并在发布后复测生产接口。候选不兼容时 MUST 保留最近一次通过验收的生产部署并发出告警。生产复测失败时 MUST 能回滚并重新验证，随后继续跟踪上游。
+正式发布 MUST 通过候选浏览器验收并核对发布制品摘要。发布后 MUST 验证新客户端和已有 Service Worker 的客户端实际运行的版本及读取契约。候选不兼容时 MUST 保留最近通过验收的生产制品并告警。生产复测失败时 MUST 能恢复上次通过的制品并复测。
 
-#### Scenario: An upstream contract changes incompatibly
+#### Scenario: A candidate breaks an interface
 
-- **WHEN** 上游改动导致列表分页、元数据、下载、Range、CORS 或配置的读取权限契约失败
-- **THEN** 候选无法进入生产，报告指出提交和失败操作，现有通过验收的部署继续服务
-- **AND** 修复适配器或上游后，用重新解析的候选重复验收和发布流程
+- **WHEN** 候选的列表、元数据、读取权限、跨域、下载或 Range 契约失败
+- **THEN** 发布门禁拦下候选，报告对应的上游提交和失败操作，生产继续用通过验收的版本
+- **AND** 修复后重新解析上游，再次运行候选验收
 
-#### Scenario: Production smoke tests fail after promotion
+#### Scenario: A release fails its production checks
 
-- **WHEN** 候选通过隔离验收，但发布后生产接口复测失败
-- **THEN** 恢复最近一次通过生产验收的部署，并记录恢复后的契约检查结果
+- **WHEN** 发布制品通过隔离验收，但线上 Service Worker 的读取契约或更新测试失败
+- **THEN** 恢复最近通过生产验收的静态制品，并记录浏览器接管恢复版本后的契约结果
