@@ -20,8 +20,10 @@ const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-22
 const deploymentOrigin = id => `https://${id.slice(0, 8)}.${owner.projectName}.pages.dev`;
 const envelope = result => Response.json({ success: true, result });
 
-function fixture({ patchLost = false, actualUser = user, authorize = true } = {}) {
+function fixture({ patchLost = false, commitAndSwitch = false, delaySwitch = false, changeBeforeClear = false,
+  changeAfterClear = false, buildResponseLost = false, history = [], actualUser = user, authorize = true } = {}) {
   let deployment = 0;
+  let switched = false;
   let privateTransport = false;
   let envs = { production: { env_vars: {} }, preview: { env_vars: {} } };
   let tokenCalls = 0;
@@ -42,7 +44,12 @@ function fixture({ patchLost = false, actualUser = user, authorize = true } = {}
       return { signedIn: true, user, siteAdmin: authorize ? owner : null };
     },
     async forward(request, logicalPath) {
-      if (deployment > 0) assert.ok(privateTransport, 'fixed transport must stop after first deploy');
+      if (delaySwitch && deployment === 1 && !switched && logicalPath.endsWith(ids[0])) {
+        switched = true;
+        events.push('fixed-read-lost');
+        return new Response('<!DOCTYPE html>');
+      }
+      if (switched) assert.ok(privateTransport, 'fixed transport must stop after first deploy');
       if (logicalPath === '/__cf/api/user') return envelope(actualUser);
       if (logicalPath === `${tokens}/permission_groups`) return envelope([{ name: 'Account API Tokens Write', id: 'fixture-group' }]);
       if (logicalPath === tokens) {
@@ -54,20 +61,34 @@ function fixture({ patchLost = false, actualUser = user, authorize = true } = {}
           const body = await request.json();
           if (privateTransport) {
             assert.deepEqual(body, { deployment_configs: { production: { env_vars: { ONLINE_GAL_CA_BOOTSTRAP: null } } } });
-            assert.deepEqual(events, ['set-entry', 'owner-proof']);
+            assert.ok(events.includes('owner-proof'));
             events.push('clear-bootstrap');
             delete envs.production.env_vars.ONLINE_GAL_CA_BOOTSTRAP;
+            if (changeAfterClear) {
+              envs.preview.env_vars.ONLINE_GAL_SITE.value += ' ';
+              return Response.json({ success: false }, { status: 503 });
+            }
           } else {
             attempts.push(body);
             if (patchLost && attempts.length === 1) return Response.json({ success: false }, { status: 503 });
             envs = structuredClone(body.deployment_configs);
+            if (commitAndSwitch) {
+              switched = true;
+              deployment = 1;
+              return Response.json({ success: false }, { status: 503 });
+            }
           }
         }
         return envelope({ name: owner.projectName, domains: [host], production_branch: 'main', deployment_configs: envs });
       }
-      if (logicalPath.endsWith('?env=production')) return envelope([]);
+      if (logicalPath.startsWith(`${path}/deployments?env=production`)) return envelope(history);
       if (logicalPath === `${path}/deployments` && request.method === 'POST') {
+        if (buildResponseLost) {
+          events.push('build-post');
+          return Response.json({ success: false }, { status: 503 });
+        }
         if (deployment === 1) events.push('create-signing-deployment');
+        if (!delaySwitch) switched = true;
         return envelope({ id: ids[deployment++] });
       }
       const id = logicalPath.split('/').at(-1);
@@ -78,10 +99,13 @@ function fixture({ patchLost = false, actualUser = user, authorize = true } = {}
   const fetcher = async input => {
     const url = new URL(input);
     if (url.pathname === '/__setup/status') {
-      if (deployment > 0) return new Response('<!DOCTYPE html>', { headers: { 'content-type': 'text/html' } });
+      if (switched) return new Response('<!DOCTYPE html>', { headers: { 'content-type': 'text/html' } });
       return Response.json({ phase: 'setup', initialized: attempts.length > (patchLost ? 1 : 0) });
     }
-    if (url.pathname === '/__ca/issue') return Response.json({ error: 'unauthorized' }, { status: 401, headers: { 'cache-control': 'no-store' } });
+    if (url.pathname === '/__ca/issue') {
+      if (changeBeforeClear) envs.preview.env_vars.ONLINE_GAL_SITE.value += ' ';
+      return Response.json({ error: 'unauthorized' }, { status: 401, headers: { 'cache-control': 'no-store' } });
+    }
     assert.equal(url.pathname, '/.well-known/online-gal-deployment.json');
     return Response.json({ url: deploymentOrigin(ids[deployment - 1]), branch: 'main' }, { headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
   };
@@ -156,4 +180,74 @@ test('setup preserves the bootstrap marker and skips signing deployment when the
   const written = await client.write(owner, user, scopes);
   await assert.rejects(client.advanceRelease(owner, written.trust, undefined, { intervalMs: 1, timeoutMs: 100 }, false, true), /无法通过私有入口核对/);
   assert.deepEqual(f.events, ['set-entry', 'owner-proof']);
+});
+
+test('a committed initialization with a lost acknowledgment recovers the same entry after cutover', async () => {
+  const f = fixture({ commitAndSwitch: true });
+  const client = new SetupClient(origin, f.account, f.fetcher, f.verify);
+  await assert.rejects(client.write(owner, user, scopes), /无法确认 Pages 配置写入结果/);
+  const written = await client.write(owner, user, scopes);
+  assert.ok(written.requiresEntry);
+  assert.match(client.entryLink(owner), /^\/admin#cf-entry=[A-Za-z0-9_-]{43}$/);
+  assert.equal(f.attempts.length, 1);
+  assert.equal(f.tokenCalls(), 1);
+  assert.deepEqual(f.events, ['set-entry', 'owner-proof']);
+});
+
+test('an unprovable write after cutover requires cf recovery instead of completion', async () => {
+  const f = fixture({ commitAndSwitch: true, authorize: false });
+  const client = new SetupClient(origin, f.account, f.fetcher, f.verify);
+  await assert.rejects(client.write(owner, user, scopes), /无法确认 Pages 配置写入结果/);
+  await assert.rejects(client.write(owner, user, scopes), /cf 命令行恢复/);
+  assert.equal(client.entryLink(owner), undefined);
+  assert.equal(f.attempts.length, 1);
+});
+
+test('bootstrap reads can recover from a cutover between status and a fixed-relay API read', async (t) => {
+  fakeSession(t);
+  const f = fixture({ delaySwitch: true });
+  const client = new SetupClient(origin, f.account, f.fetcher, f.verify);
+  const written = await client.write(owner, user, scopes);
+  const result = await client.advanceRelease(owner, written.trust, undefined, { intervalMs: 1, timeoutMs: 100 }, false, true);
+  assert.equal(result.stage, 'awaiting-dns');
+  assert.deepEqual(f.events, ['fixed-read-lost', 'set-entry', 'owner-proof', 'clear-bootstrap', 'create-signing-deployment', 'verify']);
+});
+
+test('a changed setup record blocks bootstrap removal', async (t) => {
+  fakeSession(t);
+  const f = fixture({ changeBeforeClear: true });
+  const client = new SetupClient(origin, f.account, f.fetcher, f.verify);
+  const written = await client.write(owner, user, scopes);
+  await assert.rejects(client.advanceRelease(owner, written.trust, undefined, undefined, false, true), /cf 命令行恢复/);
+  assert.deepEqual(f.events, ['set-entry', 'owner-proof']);
+});
+
+test('retry after an unconfirmed clear compares with the original records before creating a signing build', async (t) => {
+  fakeSession(t);
+  const f = fixture({ changeAfterClear: true });
+  const client = new SetupClient(origin, f.account, f.fetcher, f.verify);
+  const written = await client.write(owner, user, scopes);
+  await assert.rejects(client.advanceRelease(owner, written.trust, undefined, undefined, false, true), /HTTP 503/);
+  await assert.rejects(client.advanceRelease(owner, written.trust, undefined, undefined, false, true), /cf 命令行恢复/);
+  assert.deepEqual(f.events, ['set-entry', 'owner-proof', 'clear-bootstrap']);
+});
+
+test('a deployment POST with unknown outcome is not replayed while history is empty', async (t) => {
+  fakeSession(t);
+  const f = fixture({ buildResponseLost: true });
+  const client = new SetupClient(origin, f.account, f.fetcher, f.verify);
+  const written = await client.write(owner, user, scopes);
+  await assert.rejects(client.advanceRelease(owner, written.trust, undefined, undefined, false, true), /HTTP 503/);
+  await assert.rejects(client.advanceRelease(owner, written.trust, undefined, undefined, true, true), /cf 命令行恢复/);
+  assert.deepEqual(f.events, ['build-post']);
+});
+
+test('two plausible bootstrap builds require explicit recovery', async (t) => {
+  fakeSession(t);
+  const f = fixture({ history: ids.map((id, offset) => ({ id, created_on: new Date(Date.now() + (offset + 1) * 1000).toISOString(),
+    deployment_trigger: { metadata: { branch: 'main' } }, latest_stage: { status: 'active' } })) });
+  const client = new SetupClient(origin, f.account, f.fetcher, f.verify);
+  const written = await client.write(owner, user, scopes);
+  await assert.rejects(client.advanceRelease(owner, written.trust, undefined, undefined, false, true), /cf 命令行恢复/);
+  assert.deepEqual(f.events, []);
 });

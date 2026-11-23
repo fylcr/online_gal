@@ -6,13 +6,13 @@
   import { setupItems } from '../lib/setup-items';
   import {
     clearSession, clearSetupSession, isLocalHost, missingScopes, readCaFingerprint, RELOAD_KEY,
-    readSession, safeNext, savedDeployment, SetupClient, unsupportedItems, type SetupConfig, type ReleaseTrust, type ReleaseRunResult, WRITTEN_KEY, writeSession,
+    readSession, safeNext, savedDeployment, SetupClient, SetupRecoveryRequired, unsupportedItems, type SetupConfig, type ReleaseTrust, type ReleaseRunResult, WRITTEN_KEY, writeSession,
   } from '../lib/setup';
 
   let { config }: { config: SetupConfig } = $props();
   type SignedIn = Extract<CloudflareStatus, { signedIn: true }>;
   type Step = 'status' | 'status-error' | 'stale' | 'login' | 'building' | 'build-error' | 'confirming'
-    | 'confirmation-error' | 'local-preview' | 'save-entry' | 'release-running' | 'release-error' | 'awaiting-dns' | 'complete';
+    | 'confirmation-error' | 'local-preview' | 'save-entry' | 'release-running' | 'release-error' | 'recovery' | 'awaiting-dns' | 'complete';
   type ProjectState = 'idle' | 'checking' | 'confirm' | 'writing' | 'error';
   let step = $state<Step>('status');
   let project = $state<ProjectState>('idle');
@@ -100,7 +100,7 @@
     } catch (error) {
       if (lifetime.signal.aborted) return;
       errorMessage = error instanceof Error ? error.message : '发布验签失败，请重试。';
-      step = 'release-error';
+      step = error instanceof SetupRecoveryRequired ? 'recovery' : 'release-error';
     }
   }
 
@@ -205,7 +205,8 @@
     } catch (error) {
       if (lifetime.signal.aborted) return;
       errorMessage = error instanceof Error ? error.message : '请重试。';
-      project = 'confirm';
+      if (error instanceof SetupRecoveryRequired) step = 'recovery';
+      else project = 'confirm';
     }
   }
 
@@ -334,6 +335,9 @@
         <button type="button" class="btn btn-sm mt-4" onclick={() => void advanceRelease(admin!, releaseTrust!)}>继续检查</button>
         <button type="button" class="btn btn-sm mt-4" onclick={() => void advanceRelease(admin!, releaseTrust!, true)}>重新触发当前构建</button>
       {/if}
+    {:else if step === 'recovery'}
+      <p class="font-bold">请使用 cf 继续发布</p>
+      <p class="mt-2 text-sm" role="alert">{errorMessage}</p>
     {:else if step === 'awaiting-dns'}
       <p class="font-bold text-success">签名已验证，等待 DNS 验收</p>
       <p class="mt-2 text-sm">TXT 尚未创建。9.0 DNS 权限与启用 DNSSEC 的隔离 zone 验收完成前，本页面不会读写真实 DNS。</p>

@@ -26,7 +26,9 @@ interface SetupWrite {
   values: Record<string, string>;
   trust?: ReleaseTrust;
   segment?: string;
+  branch?: string;
 }
+type SetupEntry = { project: string; segment: string; ownerId: string };
 type WriteResult = 'switched' | 'already-written' | { fingerprint: string; trust?: ReleaseTrust; requiresEntry: boolean };
 export interface ReleaseRunResult { stage: 'awaiting-dns'; bootstrapDeploymentId: string; signingDeploymentId: string; dnsName: string; candidateTxt: string; packages: readonly VerifiedOfficialPackage[] }
 interface ProjectEnvVar { value?: string; type?: string }
@@ -46,6 +48,9 @@ const TOKEN_GROUP = 'Account API Tokens Write';
 const TOKEN_SCOPE = 'account_api_tokens:create';
 const GENERATED_ITEMS = new Set(['CLOUDFLARE_ACCOUNT_TOKEN', 'ONLINE_GAL_CA_PRIVATE_JWK', 'ONLINE_GAL_CA_BUILD_TOKEN', 'ONLINE_GAL_CF_ROUTE_KEY']);
 const RECOVER_RELEASE = '请使用已登录的 cf 命令行恢复发布。站点已切换时，初始化页需要本次生成的私有入口才能继续。';
+export class SetupRecoveryRequired extends Error {
+  constructor() { super(RECOVER_RELEASE); }
+}
 const P256_FIELD = /^[A-Za-z0-9_-]{43}$/;
 
 const WRITE_SCOPES = ['pages:read', 'pages:write', TOKEN_SCOPE] as const;
@@ -231,6 +236,21 @@ function projectState(project: Project) {
   };
 }
 
+type ProjectState = ReturnType<typeof projectState>;
+type ReleaseBaseline = Pick<ProjectState, 'record' | 'previewRecord' | 'productionBranch' | 'branch'>;
+
+function checkReleaseProject(state: ProjectState, baseline: ReleaseBaseline): void {
+  if (!state.written || state.record !== baseline.record || state.previewRecord !== baseline.previewRecord ||
+      state.branch !== baseline.branch || state.productionBranch !== baseline.productionBranch ||
+      state.markerType !== 'plain_text' || state.previewMarkerType !== 'plain_text' || !state.previewRecord ||
+      state.invalidRoute || state.missing.length || state.invalidSecretTypes.length || state.previewHasRouteSecrets) {
+    throw new SetupRecoveryRequired();
+  }
+  if (state.bootstrapPresent && (!state.bootstrap || state.bootstrapType !== 'plain_text')) {
+    throw new Error('Pages 的 CA 引导标记无效，拒绝开始部署验收。');
+  }
+}
+
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     signal?.throwIfAborted();
@@ -323,8 +343,11 @@ export class SetupClient {
   private readonly fetcher: typeof fetch;
   private readonly verifyRelease: (candidate: ReleaseTrust, origin: string) => Promise<VerifiedOfficialPackage[]>;
   private pendingWrite?: SetupWrite;
-  private entry?: { project: string; segment: string; ownerId: string };
+  private entry?: SetupEntry;
   private privateTransport = false;
+  private releaseBaseline?: ReleaseBaseline;
+  private releaseProgress?: ReleaseProgress;
+  private pendingBuild?: 'bootstrap' | 'signing';
 
   constructor(
     origin: string,
@@ -402,10 +425,12 @@ export class SetupClient {
     const items = setupItems(releaseFlow);
     if (unsupportedItems(items).length) throw new Error('清单中有初始化页暂不支持的项目。');
     if (isLocalHost(new URL(this.origin).hostname)) return 'local';
-    const write = () => this.writeAndCheck(owner, user, signal, releaseFlow);
+    return this.withProjectLock(owner, signal, () => this.writeAndCheck(owner, user, signal, releaseFlow));
+  }
+
+  private async withProjectLock<T>(owner: SiteAdmin, signal: AbortSignal | undefined, run: () => Promise<T>): Promise<T> {
     const locks = globalThis.navigator?.locks;
-    if (locks) return locks.request('online-gal:setup:' + projectPath(owner), { signal }, write);
-    return write();
+    return locks ? locks.request('online-gal:setup:' + projectPath(owner), { signal }, run) : run();
   }
 
   entryLink(owner: SiteAdmin): string | undefined {
@@ -415,12 +440,43 @@ export class SetupClient {
   clearEntry(): void {
     this.pendingWrite = undefined;
     this.entry = undefined;
+    this.releaseBaseline = undefined;
+    this.releaseProgress = undefined;
+    this.pendingBuild = undefined;
+  }
+
+  private async reconcileSwitchedWrite(owner: SiteAdmin, user: CloudflareUser | null, signal?: AbortSignal): Promise<WriteResult> {
+    const pending = this.pendingWrite;
+    if (!pending) return 'switched';
+    if (pending.project !== projectPath(owner) || pending.ownerId !== user?.id || !pending.segment) {
+      this.clearEntry();
+      throw new SetupRecoveryRequired();
+    }
+    try {
+      await this.activatePrivateTransport(owner, signal, { project: pending.project, segment: pending.segment, ownerId: pending.ownerId });
+      const saved = await this.readProject(owner, signal);
+      if (saved.written && saved.record !== pending.record) this.clearEntry();
+      if (saved.record !== pending.record) throw new SetupRecoveryRequired();
+      return this.finishWrite(owner, pending, saved, true);
+    } catch {
+      signal?.throwIfAborted();
+      throw new SetupRecoveryRequired();
+    }
   }
 
   private async writeAndCheck(owner: SiteAdmin, user: CloudflareUser | null, signal?: AbortSignal, releaseFlow = true): Promise<WriteResult> {
     const status = await this.readStatus(signal);
-    if (!status) return 'switched';
-    const project = await this.readProject(owner, signal);
+    if (!status) {
+      if (releaseFlow && !this.pendingWrite) throw new SetupRecoveryRequired();
+      return this.reconcileSwitchedWrite(owner, user, signal);
+    }
+    let project: ProjectState;
+    try {
+      project = await this.readProject(owner, signal);
+    } catch (error) {
+      if (this.pendingWrite && await this.siteHasSwitched(signal)) return this.reconcileSwitchedWrite(owner, user, signal);
+      throw error;
+    }
     const host = releaseFlow ? normalizeCfRouteHost(new URL(this.origin).hostname) : undefined;
     if (releaseFlow && !project.branch) throw new Error('Pages 项目缺少生产分支，无法启用签名构建。');
     if (host && !project.domains.some((domain) => {
@@ -428,7 +484,10 @@ export class SetupClient {
     })) {
       throw new Error('当前站点域名不属于该 Pages 项目的自定义域名。');
     }
-    if ((status.initialized || project.written) && this.pendingWrite?.record !== project.record) return 'already-written';
+    if ((status.initialized || project.written) && this.pendingWrite?.record !== project.record) {
+      if (project.written && this.pendingWrite) this.clearEntry();
+      return 'already-written';
+    }
     const ownerId = host ? await this.verifySetupUser(user, signal) : user?.id ?? '';
     const path = projectPath(owner);
     if (this.pendingWrite?.project !== path || this.pendingWrite.ownerId !== ownerId) this.clearEntry();
@@ -468,7 +527,7 @@ export class SetupClient {
     const accountToken = await this.createAccountToken(owner, signal);
     const at = new Date().toISOString();
     return {
-      project: projectPath(owner), ownerId, trust, segment: route?.segment,
+      project: projectPath(owner), ownerId, trust, branch, segment: route?.segment,
       fingerprint: ca.fingerprint,
       record: buildSiteRecord(owner, user, { at, productionBranch: branch, trust, cfRoute }),
       previewRecord: buildSiteRecord(owner, host ? null : user, { at }),
@@ -482,18 +541,21 @@ export class SetupClient {
     };
   }
 
-  private finishWrite(owner: SiteAdmin, pending: SetupWrite, saved: ReturnType<typeof projectState>): WriteResult {
+  private finishWrite(owner: SiteAdmin, pending: SetupWrite, saved: ProjectState, switched = false): WriteResult {
     if (saved.written && saved.record !== pending.record) {
       this.clearEntry();
       return 'already-written';
     }
     if (!saved.written || saved.missing.length || saved.invalidSecretTypes.length || saved.markerType !== 'plain_text' ||
         saved.previewMarkerType !== 'plain_text' || saved.previewRecord !== pending.previewRecord || saved.previewHasRouteSecrets ||
-        (pending.trust && (!saved.bootstrapPresent || !saved.bootstrap || saved.bootstrapType !== 'plain_text'))) {
+        (pending.trust && (saved.branch !== pending.branch || saved.productionBranch !== pending.branch ||
+          (!switched && !saved.bootstrapPresent) || (saved.bootstrapPresent && (!saved.bootstrap || saved.bootstrapType !== 'plain_text'))))) {
       throw new Error('写入后未能核对全部初始化项，请检查 Pages 项目。');
     }
     const { fingerprint, trust, segment } = pending;
     this.entry = segment ? { project: pending.project, segment, ownerId: pending.ownerId } : undefined;
+    if (trust) this.releaseBaseline = { record: saved.record, previewRecord: saved.previewRecord,
+      branch: saved.branch, productionBranch: saved.productionBranch };
     this.pendingWrite = undefined;
     const at = saved.writtenAt ?? new Date().toISOString();
     clearSession(DEPLOYMENT_KEY, RELEASE_PROGRESS_KEY);
@@ -502,8 +564,23 @@ export class SetupClient {
     return { fingerprint, trust, requiresEntry: Boolean(segment) };
   }
 
+  private async siteHasSwitched(signal?: AbortSignal): Promise<boolean> {
+    try { return (await this.readStatus(signal)) === null; }
+    catch { signal?.throwIfAborted(); return false; }
+  }
+
+  private async releaseRead<T>(owner: SiteAdmin, signal: AbortSignal | undefined, read: () => Promise<T>): Promise<T> {
+    try { return await read(); }
+    catch (error) {
+      signal?.throwIfAborted();
+      if (this.privateTransport || this.entry?.project !== projectPath(owner) || !(await this.siteHasSwitched(signal))) throw error;
+      await this.activatePrivateTransport(owner, signal);
+      return read();
+    }
+  }
+
   private async deployment(owner: SiteAdmin, id: string, signal?: AbortSignal): Promise<Deployment> {
-    return this.api<Deployment>(`${projectPath(owner)}/deployments/${encodeURIComponent(id)}`, signal);
+    return this.releaseRead(owner, signal, () => this.api<Deployment>(`${projectPath(owner)}/deployments/${encodeURIComponent(id)}`, signal));
   }
 
   private async deploymentProof(url: string, signal?: AbortSignal): Promise<DeploymentIdentity> {
@@ -524,7 +601,8 @@ export class SetupClient {
 
   private async checkDeploymentIdentity(owner: SiteAdmin, id: string, trust: ReleaseTrust, branch: string, signal?: AbortSignal): Promise<string> {
     const deployment = await this.deployment(owner, id, signal);
-    if (deployment.id !== id || !deployment.url) throw new Error('Cloudflare 部署身份与请求不匹配。');
+    if (deployment.id !== id || !deployment.url || (deployment.deployment_trigger?.metadata?.branch &&
+        deployment.deployment_trigger.metadata.branch !== branch)) throw new Error('Cloudflare 部署身份与请求不匹配。');
     const url = new URL(deployment.url);
     const expectedHost = `${id.slice(0, 8)}.${owner.projectName}.pages.dev`;
     if (url.protocol !== 'https:' || url.hostname !== expectedHost || url.pathname !== '/' || url.search || url.hash) {
@@ -535,6 +613,7 @@ export class SetupClient {
       this.deploymentProof(`https://${trust.host}`, signal),
     ]);
     const commit = deployment.deployment_trigger?.metadata?.commit_hash;
+    if (deploymentIdentity.commit !== productionIdentity.commit) throw new Error('部署专属地址与生产主机的提交不一致。');
     for (const identity of [deploymentIdentity, productionIdentity]) {
       if (identity.url !== url.origin || identity.branch !== branch || (commit && identity.commit !== commit)) {
         throw new Error('生产主机未提供与该 Pages 部署一致的身份凭据。');
@@ -555,10 +634,9 @@ export class SetupClient {
     }
   }
 
-  private async activatePrivateTransport(owner: SiteAdmin, signal?: AbortSignal): Promise<void> {
+  private async activatePrivateTransport(owner: SiteAdmin, signal?: AbortSignal, entry = this.entry): Promise<void> {
     if (this.privateTransport) return;
-    const entry = this.entry;
-    if (entry?.project !== projectPath(owner) || !this.account.setEntry || !this.account.status) throw new Error(RECOVER_RELEASE);
+    if (entry?.project !== projectPath(owner) || !this.account.setEntry || !this.account.status) throw new SetupRecoveryRequired();
     signal?.throwIfAborted();
     try {
       await this.account.setEntry(entry.segment);
@@ -573,83 +651,113 @@ export class SetupClient {
     this.privateTransport = true;
   }
 
-  private async clearBootstrap(owner: SiteAdmin, signal?: AbortSignal): Promise<void> {
+  private async clearBootstrap(owner: SiteAdmin, baseline: ReleaseBaseline, signal?: AbortSignal): Promise<void> {
     const before = await this.readProject(owner, signal);
-    if (!before.bootstrap || before.bootstrapType !== 'plain_text') throw new Error('无法确认 Pages 的 CA 引导标记状态，拒绝继续删除。');
-    const response = await this.api<unknown>(projectPath(owner), signal, {
+    checkReleaseProject(before, baseline);
+    if (!before.bootstrapPresent) return;
+    await this.api<unknown>(projectPath(owner), signal, {
       method: 'PATCH', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ deployment_configs: { production: { env_vars: { ONLINE_GAL_CA_BOOTSTRAP: null } } } }),
     });
-    const state = await this.readProject(owner, signal);
-    if (state.bootstrapPresent || state.record !== before.record || state.previewRecord !== before.previewRecord ||
-        state.missing.length || state.invalidSecretTypes.length || state.previewHasRouteSecrets || state.markerType !== 'plain_text' ||
-        state.previewMarkerType !== 'plain_text' || !state.previewRecord) {
-      throw new Error('无法确认已清除 Pages 的 CA 引导标记并保留有效初始化配置。');
-    }
-    void response;
+    const after = await this.readProject(owner, signal);
+    checkReleaseProject(after, baseline);
+    if (after.bootstrapPresent) throw new Error('无法确认已清除 Pages 的 CA 引导标记。');
   }
 
   private async releaseDeployments(owner: SiteAdmin, state: ReturnType<typeof projectState>, branch: string, signal?: AbortSignal): Promise<Deployment[]> {
     const after = Date.parse(state.writtenAt ?? '');
     if (!Number.isFinite(after)) throw new Error('初始化记录缺少有效时间，无法从 Pages 部署历史恢复验收。');
-    const deployments = await this.api<Deployment[]>(`${projectPath(owner)}/deployments?env=production`, signal);
+    const deployments = await this.releaseRead(owner, signal,
+      () => this.api<Deployment[]>(`${projectPath(owner)}/deployments?env=production&per_page=25`, signal));
+    if (!Array.isArray(deployments) || deployments.length >= 25) throw new SetupRecoveryRequired();
     return deployments.filter(({ id, created_on, deployment_trigger }) =>
       typeof id === 'string' && Date.parse(created_on ?? '') > after && deployment_trigger?.metadata?.branch === branch)
       .sort((a, b) => Date.parse(a.created_on ?? '') - Date.parse(b.created_on ?? ''));
   }
 
+  private findSigningDeployment(history: Deployment[], bootstrapId: string): string | undefined {
+    const candidates = history.filter(({ id, latest_stage }) => id !== bootstrapId &&
+      latest_stage?.status !== 'failure' && latest_stage?.status !== 'canceled');
+    if (!candidates.length) return;
+    const bootstrapAt = Date.parse(history.find(({ id }) => id === bootstrapId)?.created_on ?? '');
+    if (!Number.isFinite(bootstrapAt)) throw new SetupRecoveryRequired();
+    const later = candidates.filter(({ created_on }) => Date.parse(created_on ?? '') > bootstrapAt);
+    if (later.length > 1) throw new SetupRecoveryRequired();
+    return later[0]?.id;
+  }
+
   /** Run/resume the two production builds, verify identity and signed packages, then stop before DNS. */
   async advanceRelease(owner: SiteAdmin, trust: ReleaseTrust, signal?: AbortSignal, options?: PollOptions, restartBuild = false, requiresEntry = false): Promise<ReleaseRunResult> {
+    return this.withProjectLock(owner, signal, () => this.advanceReleaseLocked(owner, trust, signal, options, restartBuild, requiresEntry));
+  }
+
+  private async advanceReleaseLocked(owner: SiteAdmin, trust: ReleaseTrust, signal: AbortSignal | undefined,
+    options: PollOptions | undefined, restartBuild: boolean, requiresEntry: boolean): Promise<ReleaseRunResult> {
     if (isLocalHost(new URL(this.origin).hostname)) throw new Error('本地开发模式不支持 Pages 发布验收。');
     if (new URL(this.origin).hostname !== trust.host) throw new Error('待验收 CA 域名与当前管理页不一致。');
-    if (requiresEntry) {
-      if (this.entry?.project !== projectPath(owner)) throw new Error(RECOVER_RELEASE);
-      if (!this.privateTransport && !(await this.readStatus(signal))) await this.activatePrivateTransport(owner, signal);
-    }
-    const state = await this.readProject(owner, signal);
-    if (Boolean(state.routeHost) !== requiresEntry || state.invalidRoute || state.previewHasRouteSecrets || state.missing.length || state.invalidSecretTypes.length) {
-      throw new Error('Pages 私有入口配置与当前初始化会话不一致，请使用已登录的 cf 命令行恢复发布。');
-    }
+    if (!requiresEntry || this.entry?.project !== projectPath(owner)) throw new SetupRecoveryRequired();
+    if (!this.privateTransport && await this.siteHasSwitched(signal)) await this.activatePrivateTransport(owner, signal);
+    const state = await this.releaseRead(owner, signal, () => this.readProject(owner, signal));
+    if (Boolean(state.routeHost) !== requiresEntry) throw new SetupRecoveryRequired();
     if (!state.written || !state.trust || state.trust.host !== trust.host || state.trust.salt !== trust.salt || state.trust.hash !== trust.hash) {
       throw new Error('Pages 项目中的初始化记录与待验收 CA 不一致。');
     }
-    if (state.bootstrapPresent && (!state.bootstrap || state.bootstrapType !== 'plain_text')) {
-      throw new Error('Pages 的 CA 引导标记无效，拒绝开始部署验收。');
-    }
+    const baseline = this.releaseBaseline ?? { record: state.record, previewRecord: state.previewRecord,
+      branch: state.branch, productionBranch: state.productionBranch };
+    checkReleaseProject(state, baseline);
+    this.releaseBaseline = baseline;
     const branch = state.productionBranch;
     if (!branch || branch !== state.branch) throw new Error('初始化记录的生产分支与 Pages 项目不一致。');
     if (!state.writtenAt) throw new Error('初始化记录缺少有效时间，无法恢复发布验签。');
-    const progress = readReleaseProgress(owner, state.writtenAt) ?? { project: projectPath(owner), writtenAt: state.writtenAt };
-    let bootstrapDeploymentId = progress.bootstrapDeploymentId;
-    let signingDeploymentId = progress.signingDeploymentId;
+    const writtenAt = state.writtenAt;
+    const progress = this.releaseProgress ?? readReleaseProgress(owner, writtenAt);
+    const remember = (bootstrapDeploymentId: string, signingDeploymentId?: string) => {
+      const ids = { bootstrapDeploymentId, ...(signingDeploymentId ? { signingDeploymentId } : {}) };
+      this.releaseProgress = { project: projectPath(owner), writtenAt, ...ids };
+      saveReleaseProgress(owner, writtenAt, ids);
+    };
+    let bootstrapDeploymentId = progress?.bootstrapDeploymentId;
+    let signingDeploymentId = progress?.signingDeploymentId;
     if (!bootstrapDeploymentId || (state.bootstrapPresent === false && !signingDeploymentId)) {
       const history = await this.releaseDeployments(owner, state, branch, signal);
       const usable = history.filter(({ latest_stage }) => latest_stage?.status !== 'failure' && latest_stage?.status !== 'canceled');
-      bootstrapDeploymentId ??= usable[0]?.id;
-      if (state.bootstrapPresent === false && !signingDeploymentId && bootstrapDeploymentId) {
-        const bootstrap = history.find(({ id }) => id === bootstrapDeploymentId);
-        const bootstrapAt = Date.parse(bootstrap?.created_on ?? '');
-        signingDeploymentId = usable.filter(({ id, created_on }) => id !== bootstrapDeploymentId &&
-          Number.isFinite(bootstrapAt) && Date.parse(created_on ?? '') > bootstrapAt).at(-1)?.id;
+      if (state.bootstrapPresent && !bootstrapDeploymentId && usable.length > 1) throw new SetupRecoveryRequired();
+      const [earliest, next] = usable;
+      if (!state.bootstrapPresent && !bootstrapDeploymentId && (usable.length > 2 ||
+          (earliest && next && Date.parse(earliest.created_on ?? '') === Date.parse(next.created_on ?? '')))) {
+        throw new SetupRecoveryRequired();
       }
+      bootstrapDeploymentId ??= earliest?.id;
+      if (!state.bootstrapPresent && !signingDeploymentId && bootstrapDeploymentId) {
+        signingDeploymentId = this.findSigningDeployment(history, bootstrapDeploymentId);
+      }
+    }
+    if (this.pendingBuild) {
+      const recovered = this.pendingBuild === 'bootstrap' ? bootstrapDeploymentId : signingDeploymentId;
+      if (!recovered) throw new SetupRecoveryRequired();
+      this.pendingBuild = undefined;
     }
     if (restartBuild) {
-      signingDeploymentId = undefined;
-      if (state.bootstrapPresent !== false) bootstrapDeploymentId = undefined;
-      saveReleaseProgress(owner, state.writtenAt, { ...(bootstrapDeploymentId ? { bootstrapDeploymentId } : {}) });
-    } else if (bootstrapDeploymentId) {
-      saveReleaseProgress(owner, state.writtenAt, { bootstrapDeploymentId, ...(signingDeploymentId ? { signingDeploymentId } : {}) });
-    }
-    if (state.bootstrapPresent !== false) {
-      if (!bootstrapDeploymentId) {
-        bootstrapDeploymentId = await this.startPagesBuild(owner, branch, signal) ?? undefined;
-        if (!bootstrapDeploymentId) throw new Error('Cloudflare 未返回 CA 引导部署 ID。');
-        saveReleaseProgress(owner, state.writtenAt, { bootstrapDeploymentId });
+      const activeId = state.bootstrapPresent ? bootstrapDeploymentId : signingDeploymentId;
+      if (activeId) {
+        const terminal = buildResult(await this.deployment(owner, activeId, signal));
+        if (terminal === 'failure' || terminal === 'canceled') {
+          signingDeploymentId = undefined;
+          if (state.bootstrapPresent) bootstrapDeploymentId = undefined;
+        }
       }
-      const handleSwitch = requiresEntry ? async () => {
-        if (!this.privateTransport && !(await this.readStatus(signal))) await this.activatePrivateTransport(owner, signal);
-      } : undefined;
-      await this.waitForDeployment(owner, bootstrapDeploymentId, signal, options, handleSwitch);
+    }
+    if (bootstrapDeploymentId) remember(bootstrapDeploymentId, signingDeploymentId);
+    if (state.bootstrapPresent) {
+      if (!bootstrapDeploymentId) {
+        // A lost response does not prove the POST failed. Reconcile by history before sending again.
+        this.pendingBuild = 'bootstrap';
+        bootstrapDeploymentId = await this.startPagesBuild(owner, branch, signal) ?? undefined;
+        if (!bootstrapDeploymentId) throw new SetupRecoveryRequired();
+        remember(bootstrapDeploymentId);
+        this.pendingBuild = undefined;
+      }
+      await this.waitForDeployment(owner, bootstrapDeploymentId, signal, options);
       await this.checkDeploymentIdentity(owner, bootstrapDeploymentId, trust, branch, signal);
       await this.checkBootstrapReady(trust, signal);
       if (requiresEntry && !this.privateTransport) {
@@ -657,16 +765,25 @@ export class SetupClient {
         await this.activatePrivateTransport(owner, signal);
       }
       await this.checkDeploymentIdentity(owner, bootstrapDeploymentId, trust, branch, signal);
-      await this.clearBootstrap(owner, signal);
+      await this.clearBootstrap(owner, baseline, signal);
+      const history = await this.releaseDeployments(owner, state, branch, signal);
+      signingDeploymentId = this.findSigningDeployment(history, bootstrapDeploymentId);
+      remember(bootstrapDeploymentId, signingDeploymentId);
     } else if (!bootstrapDeploymentId) {
       throw new Error('缺少 CA 引导部署 ID；请先完成第一次 Pages 部署。');
     }
     if (!bootstrapDeploymentId) throw new Error('未能恢复 CA 引导部署 ID。');
-    if (requiresEntry && !this.privateTransport) throw new Error(RECOVER_RELEASE);
+    if (requiresEntry && !this.privateTransport) throw new SetupRecoveryRequired();
     if (!signingDeploymentId) {
+      const signingState = await this.readProject(owner, signal);
+      checkReleaseProject(signingState, baseline);
+      if (signingState.bootstrapPresent) throw new SetupRecoveryRequired();
+      if (state.bootstrapPresent === false) await this.checkDeploymentIdentity(owner, bootstrapDeploymentId, trust, branch, signal);
+      this.pendingBuild = 'signing';
       signingDeploymentId = await this.startPagesBuild(owner, branch, signal) ?? undefined;
-      if (!signingDeploymentId) throw new Error('Cloudflare 未返回签名部署 ID。');
-      saveReleaseProgress(owner, state.writtenAt, { bootstrapDeploymentId, signingDeploymentId });
+      if (!signingDeploymentId) throw new SetupRecoveryRequired();
+      remember(bootstrapDeploymentId, signingDeploymentId);
+      this.pendingBuild = undefined;
     }
     await this.waitForDeployment(owner, signingDeploymentId, signal, options);
     const signingOrigin = await this.checkDeploymentIdentity(owner, signingDeploymentId, trust, branch, signal);
@@ -686,12 +803,8 @@ export class SetupClient {
     return result.id;
   }
 
-  async waitForDeployment(owner: SiteAdmin, id: string, signal?: AbortSignal, options?: PollOptions, beforePoll?: () => Promise<void>): Promise<void> {
-    const terminal = await poll(async () => {
-      await beforePoll?.();
-      const result = await this.api<Deployment>(`${projectPath(owner)}/deployments/${encodeURIComponent(id)}`, signal);
-      return buildResult(result);
-    }, 30 * 60_000, signal, options);
+  async waitForDeployment(owner: SiteAdmin, id: string, signal?: AbortSignal, options?: PollOptions): Promise<void> {
+    const terminal = await poll(async () => buildResult(await this.deployment(owner, id, signal)), 30 * 60_000, signal, options);
     if (!terminal) throw new Error('等待部署超时，请到 Cloudflare 控制台查看。');
     reportBuildFailure(terminal);
   }
@@ -699,19 +812,15 @@ export class SetupClient {
   async waitForNewProduction(owner: SiteAdmin, after: string | undefined, signal?: AbortSignal, options?: PollOptions): Promise<void> {
     const since = Date.parse(after ?? '');
     const result = await poll(async (): Promise<BuildResult | undefined> => {
-      // Without a trustworthy write time, only the live route can confirm a switch.
-      if (!Number.isFinite(since)) {
-        if (!(await this.readStatus(signal).catch(() => ({ phase: 'setup' })))) return 'success';
-        return;
-      }
-      const deployments = await this.api<Deployment[]>(`${projectPath(owner)}/deployments?env=production`, signal);
+      if (await this.siteHasSwitched(signal)) return 'success';
+      if (!Number.isFinite(since)) return;
+      let deployments: Deployment[];
+      try { deployments = await this.api<Deployment[]>(`${projectPath(owner)}/deployments?env=production`, signal); }
+      catch (error) { if (await this.siteHasSwitched(signal)) return 'success'; throw error; }
       const latest = deployments
         .filter(({ created_on }) => Date.parse(created_on ?? '') > since)
         .sort((a, b) => Date.parse(b.created_on ?? '') - Date.parse(a.created_on ?? ''))[0];
-      const state = latest && buildResult(latest);
-      if (state) return state;
-      // A deployment may already be serving when a tab resumes.
-      if (!(await this.readStatus(signal).catch(() => ({ phase: 'setup' })))) return 'success';
+      return latest && buildResult(latest);
     }, 30 * 60_000, signal, options);
     if (!result) throw new Error('等待生产部署超时，请到 Cloudflare 控制台查看。');
     reportBuildFailure(result);
