@@ -458,6 +458,8 @@ Pages 的构建命令由项目设置决定，所以读取仓库源码的构建�
 
 本流程用于官方站点 Git 集成的生产部署。其他构建方式沿用 S5。两次站点构建均遵循 S6。
 
+**实施顺序**。9.1 的初始化数据与 PATCH 清单、9.3 的部署状态和失败续跑可先用本地夹具实现，并接上 9.2 的验签入口。9.0 可以在隔离 Pages 项目先验证部署切换和同源 `/__cf`，DNS 写入与撤销验证在具备隔离 DNSSEC zone 后进行。待 9.0 确认部署身份和 DNS 授权，再接通真实写入并执行 9.5。生产重新初始化仍在 9.5 实测通过后进行。
+
 1. **准备并写入。** 用已确认的项目与自定义域名定位同一账户内的 `onlinegal.de5.net` zone，读取 `_trust.onlinegal.de5.net` 的现有记录。若已有与候选内容不同的记录或有多条记录，停下并保留原记录。复用 S11 的 CA 公钥指纹。用 `crypto.getRandomValues` 分别生成 32 字节构建令牌和独立的随机 salt，编码成无填充 base64url。用 `microCaCommitment(fingerprint, 'cf-pages', salt)` 得到候选 TXT `v=1; salt=<salt>; hashes=<hash>`。在 S5 的项目 PATCH 中同时写入生产 `secret_text` `ONLINE_GAL_CA_BUILD_TOKEN`、生产 `plain_text` `ONLINE_GAL_CA_BOOTSTRAP=1`。生产 `ONLINE_GAL_SITE` 仍为 `v: 1`，另存 `productionBranch` 与可选公开数据 `trust: { host, salt, hash }`，用于构建判定、恢复与验收。预览只接收原有的初始化记录。构建令牌与 CA 私钥明文只在页面内存和发往该项目的 PATCH 请求里出现。
 2. **第一次站点构建。** `CF_PAGES=1`、`CF_PAGES_BRANCH` 匹配生产记录的 `productionBranch`、记录包含 `trust`、构建令牌存在且 `ONLINE_GAL_CA_BOOTSTRAP=1` 时，构建跳过官方包签名并部署 `/__ca/*` 和 `/__cf/*`。页面按部署 ID 等待成功，并用 9.0 确认的部署身份检查核对该部署在生产主机已生效，并用无凭据 POST 检查 `/__ca/issue` 返回 `401 unauthorized` 和 `no-store`。该检查确认 CA 路由与令牌绑定可用，由第二次构建验证签发。确认前保持引导标记。
 3. **第二次站点构建。** 当前初始化页保持打开并复用同源 `/__cf`。PATCH 只清除生产的 `ONLINE_GAL_CA_BOOTSTRAP`，读回确认后自动触发生产构建。包含 `trust` 的生产构建须持有有效格式的构建令牌，从线上 CA 领取凭证，按 K15 签名。缺少令牌、签发失败、Rekor 或自验失败时构建退出。构建脚本通过签发接口用 CA，无需读取私钥。同一不可变包路径不得承载不同的 bundle 字节。预览沿用 K15。
