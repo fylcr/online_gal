@@ -16,7 +16,7 @@ const sha256 = (data) => createHash('sha256').update(data).digest();
 const token = randomBytes(32).toString('base64url');
 const ca = p256();
 const env = { ONLINE_GAL_CA_BUILD_TOKEN: token, ONLINE_GAL_CA_PRIVATE_JWK: JSON.stringify(ca.privateKey.export({ format: 'jwk' })) };
-const siteUrl = 'https://onlinegal.cc.cd/__ca/issue';
+const siteUrl = 'https://onlinegal.de5.net/__ca/issue';
 const issue = (eph_pk, bearer = token, bindings = env) => onRequest({
   env: bindings,
   request: new Request(siteUrl, {

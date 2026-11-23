@@ -30,7 +30,7 @@ export function setupConfig(env) {
     }
     rebuild = { kind: 'github-rerun', repo: env.GITHUB_REPOSITORY, runId: env.GITHUB_RUN_ID };
   }
-  return { siteHost: env.SITE_HOST || 'onlinegal.cc.cd', rebuild, builtAt: new Date().toISOString() };
+  return { siteHost: env.SITE_HOST || 'onlinegal.de5.net', rebuild, builtAt: new Date().toISOString() };
 }
 
 export async function buildSetup(out) {

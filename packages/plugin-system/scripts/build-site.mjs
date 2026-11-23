@@ -85,7 +85,7 @@ async function bundleKernel(version, githubRaw) {
       __DEFAULT_MANAGER__: JSON.stringify(DEFAULT_MANAGER),
       __GITHUB_RAW__: JSON.stringify(githubRaw),
       // Compared instead of localhost by the site-admin check (openspec cf-account-admin design.md A6).
-      __SITE_HOST__: JSON.stringify(process.env.SITE_HOST || 'onlinegal.cc.cd'),
+      __SITE_HOST__: JSON.stringify(process.env.SITE_HOST || 'onlinegal.de5.net'),
     },
     logLevel: 'warning',
   });

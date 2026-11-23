@@ -26,7 +26,7 @@ async function post(url, body, fetcher, token) {
   }
 }
 
-export async function signPlugin(manifestBytes, { token, siteHost = 'onlinegal.cc.cd', fetcher = fetch }) {
+export async function signPlugin(manifestBytes, { token, siteHost = 'onlinegal.de5.net', fetcher = fetch }) {
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('ONLINE_GAL_CA_BUILD_TOKEN must be a base64url-encoded 32-byte token');
   if (!/^[a-z0-9.-]+$/i.test(siteHost)) throw new Error('SITE_HOST must be a hostname');
   const { eph_pk, publicPem, der, raw } = (() => {
