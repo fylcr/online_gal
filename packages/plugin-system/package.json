@@ -18,6 +18,10 @@
     "./account": {
       "types": "./src/account/index.ts",
       "default": "./src/account/index.ts"
+    },
+    "./attest": {
+      "types": "./src/attest.ts",
+      "default": "./src/attest.ts"
     }
   },
   "dependencies": {
