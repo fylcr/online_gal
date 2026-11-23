@@ -4,8 +4,8 @@
 
 - **负责**：管理系统的对话（`cf-account-admin` 的对话）。
 - **配合**：`plugin-system` tasks.md 11.3（撤销内核对 `/__setup` 的放行）与 10.10（发布工作流用 `npm run build:pages`），由插件系统的对话完成。
-- **未决事项**：无。proposal 的 (f)、(g) 已由用户决定 G（2026-11-23）结案。
-- **当前要做**：无。第 6 节（决定 G）已于 2026-11-23 完成并部署（`d6c39cf`，部署 `42d9a7f6`，日志 `setup (规则 3)`），等用户做 4.3 第 4 步：在 `https://onlinegal.cc.cd/` 上点“登录 Cloudflare”。
+- **未决事项**：无。proposal 的 (f)、(g) 已由用户决定 G（2026-11-23）结案；决定 H（重新初始化并申请账户令牌）见第 7 节。
+- **当前要做**：第 7 节，由管理系统的对话实现。
 - **完成标准**：初始化构建只有初始化页；写入后自动（或按提示手动）再构建一次，得到与原设计一致、不含任何初始化代码的站点构建。
 
 ## 历史：上一版已完成的工作（v2，按用户决定 F 部分作废）
@@ -84,3 +84,21 @@
 - [x] 6.7 提交并推送到 `main`，等 Cloudflare 的 Git 构建在 `online-gal` 项目上部署新的初始化构建（仍应是 `setup (规则 3)`），在 `https://onlinegal.cc.cd/` 确认页面只有“登录 Cloudflare”一个按钮。之后通知用户做 4.3 第 4 步。
   - 2026-11-23 实测：提交 `d6c39cf` 推到 `main`，Pages 的 Git 集成自动构建生产部署 `42d9a7f6-988a-483a-b7bf-c69ea2104cee`（`github:push`，`latest_stage` 为 `deploy`/`success`），构建日志 `Executing user command: npm run build:pages` → `[build:pages] setup (规则 3)`，上传 6 个文件。`https://42d9a7f6.online-gal.pages.dev/` 与 `https://onlinegal.cc.cd/` 的 `index.html` 字节一致（sha256 `1a6f6780…`，与本地 `dist/site` 一致），`/__setup/status` 返回 `{"phase":"setup","initialized":false}`。headless Edge 打开 `https://onlinegal.cc.cd/settings/account/?resume=true`：只有“登录 Cloudflare”一个按钮，`input[type=password]` 0 个、`input` 0 个，无 console 报错，无 Service Worker。
   - 之后再推 `main`（例如只改本文档的 `8fae3f1`）会重建同一份初始化构建：部署 `5c3771aa`，日志同样是 `[build:pages] setup (规则 3)`；两个部署的 `index.html` 只差 Astro 生成的 `<astro-island uid>`（同一组件产物 `_astro/SetupFlow.BYwmvpK9.js`），`onlinegal.cc.cd` 逐次跟随最新部署。
+
+
+## 7. 决定 H：重新初始化并申请账户令牌
+
+负责：管理系统的对话。依据 design.md S11 与 S7，spec 的 "Reinitialization clears only the setup record"、"Setup creates an account-owned token, never a user token" 两条，以及改写后的 "Written body carries no token"。不改 `packages/plugin-system/src/account/cloudflare.ts` 的登录代码：`CF_DEFAULT_SCOPES` 已含 `account_api_tokens:create`。
+
+- [ ] 7.1 `apps/setup/src/lib/setup-items.ts`：`SetupItem.source` 增加 `'generated'`；清单末尾加两项，都是 `source: 'generated'`：`CLOUDFLARE_ACCOUNT_TOKEN`（`owner: 'site-setup'`，初始化时申请的账户令牌，权限只有「Account API Tokens Edit」）和 `ONLINE_GAL_CA_PRIVATE_JWK`（`owner: 'plugin-system'`，浏览器里生成的 ECDSA P-256 私钥 JWK，K18 微型 CA 的长期私钥）。
+- [ ] 7.2 `apps/setup/src/lib/setup.ts`（S5 第 6 步，发 PATCH 之前）：
+  1. 登录凭据的 `scopes` 含 `account_api_tokens:create` 才继续；缺少时停在第 2 步说明，不写入。`scopes` 为空数组时不拦截。
+  2. `GET /accounts/{accountId}/tokens/permission_groups`，按 `name` 精确匹配 `Account API Tokens Write`，取它的 `id`。匹配不到或请求失败时停下说明，不写入。id 不得写死在代码里。
+  3. `POST /accounts/{accountId}/tokens`，请求体 `name` 为 `online-gal-setup`，`policies` 一条 `allow`，`permission_groups` 只有上面取到的那一项，`resources` 为 `{ "com.cloudflare.api.account.<accountId>": "*" }`。MUST NOT 向 `/user/tokens` 发任何请求。
+  4. 响应的 `value` 不显示、不进浏览器存储、URL 或日志，只放进随后 PATCH 的 `CLOUDFLARE_ACCOUNT_TOKEN`（生产环境 `secret_text`）。
+  5. 用 `crypto.subtle.generateKey`（ECDSA P-256，`extractable: true`）生成密钥对，导出私钥 JWK，只留 `kty`、`crv`、`x`、`y`、`d`（三者都是 43 字符 base64url，否则重试生成），`JSON.stringify` 后放进 PATCH 的 `ONLINE_GAL_CA_PRIVATE_JWK`（生产环境 `secret_text`）。公钥不写入变量。用 `packages/plugin-system/src/attest.ts` 的 `microCaFingerprint` 算指纹，显示在页面上并写入 `sessionStorage`。私钥与 `d` 不显示、不进存储、URL 或日志，也不发到除这次 PATCH 以外的任何地址。
+  6. 令牌或密钥已生成但 PATCH 失败时，丢弃两者，重试时重新申请、重新生成，不重用。
+- [ ] 7.3 `scripts/reinit-pages.mjs`（`npm run reinit:pages -- <project>`）：用已认证的 `cf` CLI 读项目，确认有 Git 来源；PATCH 把生产与预览环境的 `ONLINE_GAL_SITE` 设为 `null`，其他变量不动；读回确认已删除后，用 `cf pages deployments create <project> --branch <production_branch>` 触发生产构建并打印部署 id。支持 `--dry-run`（不写入、不部署）。MUST NOT 打印任何 secret 的值，不接受 token 参数。
+- [ ] 7.4 测试：PATCH 请求体的生产环境含 `CLOUDFLARE_ACCOUNT_TOKEN` 与 `ONLINE_GAL_CA_PRIVATE_JWK`，且不含任何 OAuth token；缺 `account_api_tokens:create` 时不发创建请求也不发 PATCH；创建请求只发往 `/accounts/{id}/tokens`，`permission_groups` 只有一项且其 id 来自权限组查询；不向 `/user/tokens` 发请求；生成的私钥 JWK 只有五个字段且 `x`、`y`、`d` 都是 43 字符，页面只出现公钥指纹；`reinit:pages --dry-run` 不写入、不部署，正式运行只把 `ONLINE_GAL_SITE` 设为 `null`。
+- [ ] 7.5 验收：`npm run check`、`npm run build:setup`、上一条的测试、`npx openspec validate site-setup --strict` 通过。提交并推送到 `main`。
+- [ ] 7.6【用户】在本机对 `online-gal` 运行 `npm run reinit:pages -- online-gal`，等初始化构建生效后到 `https://onlinegal.cc.cd/` 重新登录并完成初始化。完成后 `curl https://onlinegal.cc.cd/__setup/status` 应返回站点构建的 HTML，不再是 `phase: "setup"` 的 JSON。

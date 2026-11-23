@@ -303,7 +303,7 @@ export interface SetupItem {
   label: string;                 // 中文名称
   help: string;                  // 一两句说明：用途、去哪创建
   helpUrl?: string;              // 创建入口
-  source: 'account' | 'input';   // account：取 siteAdmin.accountId，只读
+  source: 'account' | 'input' | 'generated';   // account：取 siteAdmin.accountId，只读；generated：页面在写入前生成
   verify?: 'cloudflare' | 'github'; // 对应 POST /__setup/verify 的 kind
   owner: string;                 // 登记它的变更名
 }
@@ -315,9 +315,13 @@ export const SETUP_ITEMS: readonly SetupItem[];
 | `name` | `source` | `verify` | `helpUrl` |
 |---|---|---|---|
 | `CLOUDFLARE_ACCOUNT_ID` | `account` | — | — |
+| `CLOUDFLARE_ACCOUNT_TOKEN` | `generated` | — | — |
 
-- 决定 G 删除了 `CLOUDFLARE_API_TOKEN` 与 `GITHUB_TOKEN` 两项。OAuth token 会过期，不能当长期 secret。以后有服务器功能需要长期调用 Cloudflare API，由那个变更在清单里新增一项并决定 token 来源（用户自建长期 token，或服务端用 refresh token 续期）。
-- `source: 'input'` 与 `verify` 字段保留在类型里，当前没有条目使用。
+- 决定 G 删除了 `CLOUDFLARE_API_TOKEN` 与 `GITHUB_TOKEN` 两项。OAuth token 会过期，不能当长期 secret。
+- 决定 H 新增两项，都是 `source: 'generated'`，生成方式见 S11，不手填、不校验：
+  - `CLOUDFLARE_ACCOUNT_TOKEN`（`owner: 'site-setup'`）：初始化页用 OAuth 凭据申请的账户令牌，权限只有「Account API Tokens Edit」，资源限于已确认的账户。
+  - `ONLINE_GAL_CA_PRIVATE_JWK`（`owner: 'plugin-system'`）：浏览器里生成的 ECDSA P-256 私钥 JWK，K18 微型 CA 的长期私钥。这是 `plugin-system` tasks.md 11.2 的登记。
+- `source: 'input'` 与 `verify` 字段保留在类型里，当前没有条目使用。`source: 'generated'` 是决定 H 新增的，表示值由页面在写入前生成，不取自账号、不由用户填写。
 
 **扩展规则**
 
@@ -377,7 +381,8 @@ Pages 的构建命令由项目设置决定，所以读取仓库源码的构建�
 - **OAuth token 在页面内存里**：初始化构建没有内核，只能这样（A3 的例外）。页面只有一个，没有第三方代码，`X-Frame-Options: DENY` 防止被嵌入。
 - **OAuth token 经过本站的 `/__cf` 中转**：都不记录。部署代码的人本来就能读取 secret，没有扩大信任范围。
 - **申请 477 项权限**：登录页会列出很长的授权清单，所有者要看清楚再同意。token 只在内存里，用完即弃，不写入项目。
-- **没有长期 Cloudflare token**（决定 G）：站点里需要长期调 Cloudflare API 的功能，以后要另行登记初始化项或到控制台手动添加。
+- **没有长期 Cloudflare token**（决定 G）：站点里需要长期调 Cloudflare API 的功能，以后要另行登记初始化项或到控制台手动添加。决定 H 补上一个例外：初始化时申请一个只带「Account API Tokens Edit」的账户令牌，它不直接调用 API，只用来以后再申请令牌。
+- **账户令牌的明文只出现一次**：Cloudflare 只在创建响应里返回令牌值。写入失败时页面丢弃明文并重新申请，不重试同一个值。
 - **`github-rerun` 只能手动重跑**：GitHub 只允许在一定期限内重跑一次运行，超过期限要推新标签。
 - **判断依赖 API**：发布工作流里查询项目失败时构建直接失败，不会误产出站点构建或初始化构建。
 - **部署配置文件会覆盖变量**：见 S1 的约束。
@@ -390,3 +395,41 @@ Pages 的构建命令由项目设置决定，所以读取仓库源码的构建�
 4. 用户在 `https://onlinegal.cc.cd/` 完成初始化；页面触发第二次构建，产出站点构建。
 
 **回滚**：删除 `apps/setup/` 和 `scripts/build-pages.mjs`，构建命令改回 `npm run build:site`。项目里的 `ONLINE_GAL_SITE` 和 secret 留着没有影响，也可以在控制台删除。
+
+### S11 — 重新初始化并申请账户令牌（用户决定 H，2026-11-23）
+
+决定 D 仍然有效：不做通用的重置功能，页面不出现「重置」按钮。本节只给已经初始化的站点开一次重新初始化，用来写入新的初始化项。
+
+**重新初始化命令** `npm run reinit:pages -- <project>`（`scripts/reinit-pages.mjs`）
+
+- 只用已认证的 `cf` CLI，不另读 token。先 `cf pages project get <project> --json` 读出项目，确认有 Git 来源和 `production_branch`。
+- PATCH 项目，把生产与预览环境的 `ONLINE_GAL_SITE` 设为 `null`，其他变量一律不动（Cloudflare 的 PATCH 合并 `env_vars`，删除要显式设 `null`，见 S1）。
+- 再读一次项目，确认两处 `ONLINE_GAL_SITE` 都已不存在，才继续。读回仍在时以非零状态退出，不触发构建。
+- 触发一次生产构建：`cf pages deployments create <project> --branch <production_branch>`，打印新部署 id。构建环境里没有 `ONLINE_GAL_SITE`，脚本按 S2 规则 3 产出初始化构建。
+- 支持 `--dry-run`：只显示将要删除的键和将要触发的构建，不写入、不部署。
+- MUST NOT 删除或打印任何 secret 的值。命令不接受 token 参数。
+
+**CA 私钥**（初始化页 S5 第 6 步，写入 PATCH 之前，与账户令牌一起生成）
+
+- 在浏览器里生成一对 ECDSA P-256 密钥（`crypto.subtle.generateKey`，`extractable: true`），导出私钥 JWK，只取 `kty`、`crv`、`x`、`y`、`d` 五个字段，`JSON.stringify` 后写入生产环境 secret `ONLINE_GAL_CA_PRIVATE_JWK`（`secret_text`）。`x`、`y`、`d` 必须都是 43 个字符的 base64url，否则 `functions/__ca/issue.ts` 会拒绝。
+- 公钥不写入任何变量。页面用 `packages/plugin-system/src/attest.ts` 的 `microCaFingerprint`（RFC 7638，对规范化公钥 JWK 取 SHA-256，小写十六进制）算出指纹，显示给所有者并写入 `sessionStorage`，供以后核对 DNS 记录。私钥 JWK 与 `d` 不得显示、不得进浏览器存储、URL 或日志。
+- 私钥只在浏览器里生成，不经过服务器。MUST NOT 把私钥发到除随后那一次 PATCH 以外的任何地址。
+- 这一对密钥决定 K18 的信任根。换密钥会改变指纹，必须同步改 DNS（K15 的限制 1）。重新初始化会生成新的一对，旧的签名产物全部失效。
+
+**账户令牌**（初始化页 S5 第 6 步，写入 PATCH 之前）
+
+- 用刚登录的 OAuth access token 调 `POST /accounts/{accountId}/tokens`，申请一个**账户所有**的 API 令牌。MUST NOT 调 `POST /user/tokens`（那是用户令牌，决定 H 明确排除）。
+- 请求体：
+  - `name`：`online-gal-setup`。
+  - `policies`：一条 `effect: "allow"`，`permission_groups` 只有一项，`resources` 为 `{ "com.cloudflare.api.account.<accountId>": "*" }`，只限已确认的这一个账户。
+  - 权限组 id 不写死。先 `GET /accounts/{accountId}/tokens/permission_groups`，按返回项的 `name` 精确匹配 `Account API Tokens Write`，取它的 `id`。匹配不到时停下说明，不写入。
+- 登录凭据的 `scopes` 缺少 `account_api_tokens:create` 时，停在第 2 步说明缺少的权限，不写入。`scopes` 为空数组时不拦截，靠这一步的报错。
+- 响应里的 `value` 只在创建时返回一次。页面不显示它，不写入任何浏览器存储、URL 或日志，只放进随后 PATCH 的 `CLOUDFLARE_ACCOUNT_TOKEN`（生产环境 `secret_text`）。
+- 创建成功但 PATCH 失败：丢弃账户令牌的明文和刚生成的私钥，重试时重新申请令牌、重新生成密钥，不重用旧值。留下的旧令牌由所有者到 Cloudflare 控制台的「Manage account → Account API tokens」删除；没写进项目的私钥本来就只在内存里，丢弃即消失。
+- 该令牌不直接调用 Cloudflare API。它只带「Account API Tokens Edit」，以后新的初始化项需要令牌时用它再申请，不必再重新初始化。
+
+**依据**（2026-11-23 核对 Cloudflare 文档）
+
+- 创建账户令牌的接口是 `POST /accounts/{account_id}/tokens`，要求的权限是 `Account API Tokens Write`（控制台名称「Account → Account API Tokens → Edit」）。见 `https://developers.cloudflare.com/api/resources/accounts/subresources/tokens/methods/create/`。
+- 账户令牌归账户所有，不随创建它的用户离开而失效；用户令牌代表个人。见 `https://developers.cloudflare.com/fundamentals/api/get-started/account-owned-tokens/`。
+- `cf` CLI 的登录自 `@cloudflare/workers-auth` 0.10.0 起申请 `account_api_tokens:create`，本仓库的 `CF_DEFAULT_SCOPES` 已含该项，登录代码不用改。见 `https://github.com/cloudflare/workers-sdk/releases/tag/%40cloudflare/workers-auth%400.10.0`。

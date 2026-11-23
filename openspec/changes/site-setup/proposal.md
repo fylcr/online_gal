@@ -24,6 +24,7 @@
 - E："现有的地址改为onlinegal.cc.cd，之后我进行一次初始化，把cf token、accout id等等写进pages secret里"
 - F："构建的时候直接用脚本 / 当检测到初次构建的时候只构建出初始页，其他所有的系统都不加载 / 初始化完成后再进行一次构建，与初始化有关的都不被构建，其他的系统才正常加载，与之前设计的一样"
 - G（2026-11-23，原话）："初始化应该通过cf oauth拿权限，不需要手动再填填cf token了，然后github token暂时不需要，反正就是初始页只用cf oauth就能完成了，oauth的时候尽可能获取所有权限，避免后续的时候权限不够"
+- H（2026-11-23，原话）："重新初始化，然后初始化的时候申请一个可以申请cf apitoken的token，账户token不是用户token"。只对已初始化的站点开一次重新初始化，不恢复通用的重置功能（决定 D 仍然有效）。初始化时用刚登录的 OAuth 凭据申请一个**账户所有**的 API 令牌（account-owned token，`POST /accounts/{account_id}/tokens`），不申请用户令牌（user token，`POST /user/tokens`），并写成生产环境 secret。该令牌自带「Account API Tokens Edit」权限，以后新的初始化项可以用它再申请令牌，不必再重新初始化。
 
 据此，流程如下：
 
@@ -43,6 +44,7 @@
 - **构建脚本** `scripts/build-pages.mjs`（`npm run build:pages`）：自动判断阶段，产出初始化构建或站点构建，并检查站点构建里没有初始化代码。
 - **新 workspace** `apps/setup`：初始化页（唯一页面）、服务器接口 `/__setup/status` 与 `/__setup/verify`、`_worker.js` 入口、初始化项清单、初始化构建脚本。
 - **初始化项清单** `apps/setup/src/lib/setup-items.ts`：第一批只有 `CLOUDFLARE_ACCOUNT_ID`（`source: 'account'`，登录后自动填入，不手填）。删除 `CLOUDFLARE_API_TOKEN` 与 `GITHUB_TOKEN` 两项（决定 G）。以后有服务器功能需要长期调用 Cloudflare API 时，再由那个变更新增一项，那时另行决定 token 来源。
+- **决定 H**：第 7 节。已初始化的站点重新初始化一次；初始化时申请一个账户所有的 API 令牌，权限为「Account API Tokens Edit」，写成生产环境 secret `CLOUDFLARE_ACCOUNT_TOKEN`。
 - **重新构建**：Cloudflare Git 构建的项目用 create deployment；发布工作流构建的项目只显示手动入口（重跑链接 `https://github.com/<repo>/actions/runs/<runId>`，或推一个新的 `v*` 标签），不再用 GitHub token 自动重跑；其他情况给出手动命令。
 - **删除上一版的实现**：`apps/app` 里的 `/setup` 页、门槛脚本和组件、`functions/__setup/`，以及共用文件里的 `__setup` 登记。
 - **官方站点地址**：`https://onlinegal.cc.cd/`，作为 Pages 项目的自定义域名。用户上线后在该地址上亲自完成一次初始化。
@@ -51,6 +53,13 @@
 
 - (f) **token 的用途与权限**：不再手建 API token。登录申请 `CF_DEFAULT_SCOPES`（cf CLI 默认的全部 477 项）加 `offline_access`，这是 cf 官方客户端会申请的最大集合，不另造 scope。实际授予以 token 响应的 `scope` 为准。写入前必须有 `pages:write`，否则停下来说明，不写入。
 - (g) **GitHub**：暂不初始化 GitHub token，也不写仓库的 Actions secrets。官方站是 Git 集成 Pages，重新构建走 `pages-git`，不用 GitHub token。
+
+## 已决定（决定 H，2026-11-23）
+
+- **重新初始化只开一次**：已初始化的站点要跑一次初始化构建，写入新的初始化项后再回到站点构建。不做通用的重置功能（决定 D 不变），不给页面加「重置」按钮。方式是一个只在本机跐的命令，用已认证的 `cf` CLI 清掉生产与预览环境的 `ONLINE_GAL_SITE`，不动其他变量，再触发一次生产构建。
+- **账户令牌，不是用户令牌**：初始化页用刚登录的 OAuth access token 调 `POST /accounts/{account_id}/tokens`，申请一个账户所有的 API 令牌，写成生产环境 secret `CLOUDFLARE_ACCOUNT_TOKEN`。MUST NOT 调 `POST /user/tokens`，MUST NOT 把 OAuth access token 或 refresh token 写进任何变量。
+- **权限只要一项**：该令牌的权限组是「Account API Tokens Edit」（API 权限名 `Account API Tokens Write`），资源限于已确认的这一个账户。它不直接调用 Cloudflare API，只用来以后再申请令牌；新的初始化项需要令牌时用它申请，不必再重新初始化。
+- **不手填**：令牌由页面申请后直接写入，不显示输入框，不把明文留在页面上。登录的 `scope` 缺少 `account_api_tokens:create` 时停下说明，不写入。
 
 ## Capabilities
 

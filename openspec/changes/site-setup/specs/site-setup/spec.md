@@ -93,7 +93,39 @@
 #### Scenario: Written body carries no token
 
 - **WHEN** 所有者点击"写入并构建"
-- **THEN** PATCH 请求体的生产环境只有 `ONLINE_GAL_SITE` 与 `CLOUDFLARE_ACCOUNT_ID`，预览环境只有 `ONLINE_GAL_SITE`，不含 OAuth access token、refresh token 或 GitHub token
+- **THEN** PATCH 请求体的生产环境有 `ONLINE_GAL_SITE`、`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_ACCOUNT_TOKEN` 与 `ONLINE_GAL_CA_PRIVATE_JWK`，预览环境只有 `ONLINE_GAL_SITE`，不含 OAuth access token、refresh token 或 GitHub token
+
+### Requirement: Reinitialization clears only the setup record
+
+`npm run reinit:pages -- <project>` MUST 用已认证的 `cf` CLI 把指定项目生产与预览环境的 `ONLINE_GAL_SITE` 设为 `null`，MUST NOT 改动其他变量，也 MUST NOT 打印任何 secret 的值。读回确认记录已删除后，MUST 用项目已有的生产分支触发一次生产构建。`--dry-run` MUST NOT 写入或部署。
+
+#### Scenario: Dry run changes nothing
+
+- **WHEN** 操作者对一个已初始化的项目使用 `--dry-run`
+- **THEN** 命令只显示将要删除的键，不写入、不触发构建
+
+### Requirement: Setup creates an account-owned token, never a user token
+
+初始化页 MUST 用刚登录的 OAuth access token 调 `POST /accounts/{account_id}/tokens` 申请一个账户所有的 API 令牌，MUST NOT 调 `POST /user/tokens`。令牌的权限组 MUST 只有 `Account API Tokens Write` 一项，资源 MUST 限于已确认的这一个账户。权限组 id MUST 在运行时从 `GET /accounts/{account_id}/tokens/permission_groups` 按名称取得，MUST NOT 写死在代码里。令牌值 MUST 只写入生产环境 secret `CLOUDFLARE_ACCOUNT_TOKEN`，MUST NOT 显示在页面上，也 MUST NOT 进入浏览器存储、URL 或日志。登录的 `scope` 缺少 `account_api_tokens:create` 时，页面 MUST 停下说明，不写入。
+
+#### Scenario: Granted scope cannot create account tokens
+
+- **WHEN** 登录成功，但 token 响应的 `scope` 里没有 `account_api_tokens:create`
+- **THEN** 页面说明缺少该权限，不发出创建令牌的请求，也不发出 PATCH
+
+#### Scenario: The created token is account-owned
+
+- **WHEN** 所有者点击"写入并构建"
+- **THEN** 页面只向 `/accounts/{account_id}/tokens` 发送创建请求，请求体的 `permission_groups` 只有 `Account API Tokens Write` 一项，不向 `/user/tokens` 发送任何请求
+
+### Requirement: Setup generates the CA private key in the browser
+
+初始化页 MUST 在浏览器里用 `crypto.subtle.generateKey` 生成一对 ECDSA P-256 密钥，把私钥 JWK（只含 `kty`、`crv`、`x`、`y`、`d`，且 `x`、`y`、`d` 都是 43 个字符的 base64url）写入生产环境 secret `ONLINE_GAL_CA_PRIVATE_JWK`。公钥 MUST NOT 写入任何变量。页面 MUST 显示公钥指纹（RFC 7638，对规范化公钥 JWK 取 SHA-256 的小写十六进制）并写入 `sessionStorage`，MUST NOT 显示私钥或 `d`，也 MUST NOT 把私钥发到除随后那一次 PATCH 以外的任何地址。创建令牌或生成密钥成功但 PATCH 失败时，MUST 丢弃两者并在重试时重新申请、重新生成。
+
+#### Scenario: The private key never leaves the write request
+
+- **WHEN** 所有者点击"写入并构建"
+- **THEN** 私钥 JWK 只出现在发往 Cloudflare Pages 项目的那一次 PATCH 里，不出现在页面文本、浏览器存储、URL 或其他请求中，页面只显示公钥指纹
 
 ### Requirement: Writing triggers a new build and the page hands over
 
