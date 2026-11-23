@@ -44,13 +44,20 @@ export function configurePages(projectName, { dryRun, deploy, profile } = {}, ru
   return { changed, deploymentId, settings: { ...SETTINGS } };
 }
 
-export function invokeCf(args) {
+export function invokeCf(args, { accountId, oauthOnly = false } = {}) {
   const npmArgs = ['exec', '--yes', `--package=${CF_PACKAGE}`, '--', 'cf', ...args];
   const npmCli = process.env.npm_execpath;
   if (!npmCli && process.platform === 'win32') throw new Error('On Windows, run this command through npm run.');
+  const env = { ...process.env };
+  if (accountId) env.CLOUDFLARE_ACCOUNT_ID = accountId;
+  if (oauthOnly) {
+    delete env.CLOUDFLARE_API_TOKEN;
+    delete env.CLOUDFLARE_API_KEY;
+    delete env.CLOUDFLARE_EMAIL;
+  }
   const result = npmCli
-    ? spawnSync(process.execPath, [npmCli, ...npmArgs], { encoding: 'utf8' })
-    : spawnSync('npm', npmArgs, { encoding: 'utf8' });
+    ? spawnSync(process.execPath, [npmCli, ...npmArgs], { encoding: 'utf8', env })
+    : spawnSync('npm', npmArgs, { encoding: 'utf8', env });
   if (result.error || result.status !== 0) {
     throw new Error(`cf ${args.slice(0, 2).join(' ')} failed. Verify the project, CLI login and account (or run cf directly for details).`);
   }

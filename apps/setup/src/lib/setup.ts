@@ -1,7 +1,7 @@
 import type { CloudflareAccount, CloudflareUser, SiteAdmin } from '@online-gal/plugin-system/account';
 import { microCaCommitment, microCaFingerprint } from '@online-gal/plugin-system/attest';
 import { verifyOfficialReleaseAt, type VerifiedOfficialPackage } from '@online-gal/plugin-system/release-check';
-import { deriveCfRouteConfig, normalizeCfRouteHost, validCfOwnerId } from '../../../../functions/__cf/route-config.mjs';
+import { cfRouteOwnerBinding, deriveCfRouteConfig, normalizeCfRouteHost, validCfOwnerId } from '../../../../functions/__cf/route-config.mjs';
 import { SETUP_ITEMS, setupItems, type SetupItem } from './setup-items.ts';
 
 export type Rebuild = { kind: 'pages-git' | 'manual' } | { kind: 'github-rerun'; repo: string; runId: string };
@@ -94,13 +94,13 @@ export function classifyDnsRecords(records: readonly string[], candidate: string
   if (records.length === 1 && records[0] === candidate) return 'reuse';
   return 'conflict';
 }
-export interface SiteRecordOptions { productionBranch?: string; trust?: ReleaseTrust; at?: string; cfHost?: string }
+export interface SiteRecordOptions { productionBranch?: string; trust?: ReleaseTrust; at?: string; cfRoute?: { v: 1; host: string; ownerBinding: string } }
 
 export function buildSiteRecord(owner: SiteAdmin, user: CloudflareUser | null, options?: SiteRecordOptions): string {
-  const { productionBranch, trust, at, cfHost } = options ?? {};
-  return JSON.stringify({ v: 1, account: owner.accountId, project: owner.projectName, by: cfHost ? '' : user?.id ?? '', at: at ?? new Date().toISOString(),
+  const { productionBranch, trust, at, cfRoute } = options ?? {};
+  return JSON.stringify({ v: 1, account: owner.accountId, project: owner.projectName, by: cfRoute ? '' : user?.id ?? '', at: at ?? new Date().toISOString(),
     ...(productionBranch && trust ? { productionBranch, trust } : {}),
-    ...(cfHost ? { cfRoute: { v: 1, host: cfHost } } : {}) });
+    ...(cfRoute ? { cfRoute } : {}) });
 }
 
 /**
@@ -462,13 +462,15 @@ export class SetupClient {
     const buildToken = host ? await generateBuildSecret() : undefined;
     const routeKey = host ? await generateBuildSecret() : undefined;
     const route = host && routeKey ? await deriveCfRouteConfig({ accountId: owner.accountId, projectName: owner.projectName, host, routeKey }) : undefined;
+    const cfRoute = route ? { v: 1 as const, host: route.host,
+      ownerBinding: await cfRouteOwnerBinding(route.accountId, route.projectName, ownerId) } : undefined;
     signal?.throwIfAborted();
     const accountToken = await this.createAccountToken(owner, signal);
     const at = new Date().toISOString();
     return {
       project: projectPath(owner), ownerId, trust, segment: route?.segment,
       fingerprint: ca.fingerprint,
-      record: buildSiteRecord(owner, user, { at, productionBranch: branch, trust, cfHost: host }),
+      record: buildSiteRecord(owner, user, { at, productionBranch: branch, trust, cfRoute }),
       previewRecord: buildSiteRecord(owner, host ? null : user, { at }),
       values: {
         ...accountValues(owner.accountId),

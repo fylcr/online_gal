@@ -6,7 +6,7 @@
   import { setupItems } from '../lib/setup-items';
   import {
     clearSession, clearSetupSession, isLocalHost, missingScopes, readCaFingerprint, RELOAD_KEY,
-    readSession, safeNext, savedDeployment, SetupClient, unsupportedItems, type SetupConfig, type ReleaseTrust, type ReleaseRunResult, WRITTEN_KEY,
+    readSession, safeNext, savedDeployment, SetupClient, unsupportedItems, type SetupConfig, type ReleaseTrust, type ReleaseRunResult, WRITTEN_KEY, writeSession,
   } from '../lib/setup';
 
   let { config }: { config: SetupConfig } = $props();

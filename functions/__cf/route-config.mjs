@@ -27,6 +27,12 @@ export function validCfOwnerId(value) {
   return typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
 }
 
+export async function cfRouteOwnerBinding(accountId, projectName, ownerId) {
+  if (!validCfOwnerId(ownerId)) throw invalidConfig();
+  const input = encoder.encode(JSON.stringify(['online-gal/cf-route-owner/v1', accountId, projectName, ownerId]));
+  return encodeBase64Url(new Uint8Array(await crypto.subtle.digest('SHA-256', input)));
+}
+
 function invalidConfig() {
   return new Error('Invalid Cloudflare Pages route configuration');
 }
@@ -60,6 +66,8 @@ async function configuredRoute(env, record) {
       (record.trust?.host !== undefined && record.trust.host !== record.cfRoute.host)) throw invalidConfig();
   const route = await deriveCfRouteConfig({ accountId: record.account, projectName: record.project,
     host: record.cfRoute.host, routeKey: env[ROUTE_KEY] });
+  if (record.cfRoute.ownerBinding !== undefined &&
+      record.cfRoute.ownerBinding !== await cfRouteOwnerBinding(route.accountId, route.projectName, env.ONLINE_GAL_CF_OWNER_ID)) throw invalidConfig();
   return { ...route, ownerUserId: env.ONLINE_GAL_CF_OWNER_ID };
 }
 

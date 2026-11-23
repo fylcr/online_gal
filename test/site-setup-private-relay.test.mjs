@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
-import { deriveCfRouteConfig } from '../functions/__cf/route-config.mjs';
+import { cfRouteOwnerBinding, deriveCfRouteConfig } from '../functions/__cf/route-config.mjs';
 
 const require = createRequire(new URL('../packages/plugin-system/package.json', import.meta.url));
 const { build } = require('esbuild');
@@ -130,7 +130,8 @@ test('setup retries reuse one owner binding and route key and switch transport b
   const { segment } = await deriveCfRouteConfig({ accountId: owner.accountId, projectName: owner.projectName, host, routeKey: key.value });
   assert.ok(client.entryLink(owner) === `/admin#cf-entry=${segment}`);
   const record = JSON.parse(production.env_vars.ONLINE_GAL_SITE.value);
-  assert.deepEqual(record.cfRoute, { v: 1, host });
+  const ownerBinding = await cfRouteOwnerBinding(owner.accountId, owner.projectName, user.id);
+  assert.deepEqual(record.cfRoute, { v: 1, host, ownerBinding });
   const publicData = JSON.stringify([record, preview, written, [...data.values()]]);
   for (const secret of [key.value, segment, user.id]) assert.ok(!publicData.includes(secret));
   const result = await client.advanceRelease(owner, written.trust, undefined, { intervalMs: 1, timeoutMs: 100 }, false, true);
