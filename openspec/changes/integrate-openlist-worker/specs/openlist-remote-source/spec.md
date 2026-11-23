@@ -6,6 +6,16 @@
 
 ## ADDED Requirements
 
+### Requirement: OpenList runs outside Cloudflare Workers
+
+OpenList-Worker 的开发、候选验收和生产运行 MUST 使用 Cloudflare Workers 运行时之外的服务。浏览器 MUST 通过配置的 OpenList HTTPS 服务访问文件接口。
+
+#### Scenario: Deploy and test an OpenList candidate
+
+- **WHEN** 验收一个上游候选或发布到生产
+- **THEN** 部署记录显示 OpenList 服务的运行时、制品与 HTTPS 地址，接口调用由该服务处理
+- **AND** 部署流程和文件读取链路均在 Cloudflare Workers 与 Pages Functions 之外运行
+
 ### Requirement: Read-only remote game source
 
 平台 MUST 能打开已配置的 OpenList-Worker 游戏根目录，列出子目录和文件，查询类型和大小并读取文件。引擎产生的写入 MUST 继续进入现有可写覆层。未配置远程源时，本地来源的打开流程 MUST 保持可用。
@@ -18,7 +28,7 @@
 
 #### Scenario: A remote path or request fails
 
-- **WHEN** 路径试图越出配置的游戏根，或者 Worker 返回鉴权、限流、网络或接口错误
+- **WHEN** 路径试图越出配置的游戏根，或者 OpenList 服务返回鉴权、限流、网络或接口错误
 - **THEN** 路径被拒绝或错误被明确报告
 - **AND** 只有明确的文件不存在结果才可作为不存在处理
 
@@ -39,7 +49,7 @@
 
 ### Requirement: Daily upstream and production contract checks
 
-项目 MUST 每个 UTC 日解析官方 `OpenListTeam/OpenList-Worker` 当前默认分支的提交。每天 MUST 实测生产 Worker 的接口并验证上游候选的接口，即使提交未变化也执行。项目 MUST 记录运行时间、候选提交、生产部署标识和各契约判定，并对检查失败或缺跑发出可见告警。
+项目 MUST 每个 UTC 日解析官方 `OpenListTeam/OpenList-Worker` 当前默认分支的提交。每天 MUST 实测生产 OpenList 服务的接口并验证上游候选的接口，即使提交未变化也执行。项目 MUST 记录运行时间、候选提交、生产部署标识和各契约判定，并对检查失败或缺跑发出可见告警。
 
 #### Scenario: The upstream default branch advances or moves
 
@@ -50,7 +60,7 @@
 #### Scenario: The revision stays the same
 
 - **WHEN** 上游 HEAD 与前一天相同
-- **THEN** 当天照常向候选和生产 Worker 发起实际接口请求，并记录结果
+- **THEN** 当天照常向候选和生产 OpenList 服务发起实际接口请求，并记录结果
 
 #### Scenario: A daily check is missed
 

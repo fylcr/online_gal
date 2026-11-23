@@ -1,8 +1,8 @@
 # Tasks
 
-## 1. 验证隔离 Worker 与文件接口
+## 1. 验证自托管 OpenList 和文件接口
 
-- [ ] 1.1 从官方 `OpenListTeam/OpenList-Worker` 当前默认分支解析一个候选提交，在隔离 Cloudflare Worker 上用生产拟用的存储驱动部署。用 `cf` CLI 验证候选制品上传、部署标识查询和回退能力，记录命令、制品来源、存储驱动及对应源码提供方式。
+- [ ] 1.1 从官方 `OpenListTeam/OpenList-Worker` 当前默认分支解析候选提交，用上游自托管入口部署到隔离 Node.js 主机或容器。配置 HTTPS 和生产拟用的存储驱动。验证服务启动、重启时配置持久化、制品部署和回退。记录运行环境、命令、制品摘要、存储配置和对应源码提供方式。
 - [ ] 1.2 挂载包含多页目录、嵌套目录、Unicode 文件名和已知字节文件的只读夹具。从站点的隔离测试来源用 Chromium 验证 `POST /api/fs/list`、`POST /api/fs/get`、`raw_url` 实际下载链和 `206`/`Content-Range` 可读性，记录请求与响应的脱敏结果。用服务端权限确认该读取身份无法修改夹具。
 
 ## 2. 接入文件系统
@@ -19,5 +19,5 @@
 
 ## 4. 联调验收
 
-- [ ] 4.1 执行首次生产发布并记录 Worker 部署标识、制品摘要及 Chromium 契约复测结果。取得下一次日检对候选和生产都发出实际请求的记录。在 `tasks.md` 追加运行链接和验收结果。
+- [ ] 4.1 执行首次生产发布并记录生产 OpenList 的 Node.js 运行环境、部署标识、制品摘要及 Chromium 契约复测结果，并核对文件请求全程由 OpenList 服务及允许的下载来源处理。取得下一次日检对候选和生产都发出实际请求的记录。在 `tasks.md` 追加运行链接和验收结果。
 - [ ] 4.2 按团队约定协调共享产物，运行本变更相关测试、`npm run check` 和 `openspec validate integrate-openlist-worker --strict`，记录结果并将本变更的实现提交按仓库流程交付。

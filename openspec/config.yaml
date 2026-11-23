@@ -37,6 +37,8 @@ context: |
   - 许可：自有代码 GPL-3.0-or-later；官方 Artemis SDK 及其转译体是专有的，不得提交。发布二进制须提供对应源码。
   - 实测：同一时刻只跑一个引擎实例；结束时关掉自己开的浏览器窗口、服务器和后台进程。按 PID 结束进程，不得按进程名批量杀 node.exe。
   - 不改 docs/fetch-engine-artifacts.md 里的历史 hash。
+  - Cloudflare Workers 运行时（含 Pages Functions）仅用于 Cloudflare OAuth 转发和 micro CA（`/__ca`），适用于开发、验收和生产部署。其他后端能力在 Workers 运行时之外部署。
+    `cf-account-admin` 现有 `/__cf/api/**` 通用 REST API 转发是待核对的存量用途。变更该链路时一并核对初始化和管理页的调用方。
   - Cloudflare 的命令行只用 `cf` CLI（v1.0.0-beta.5，已登录），不用 `wrangler`。查部署、读构建日志、上传站点都走 `cf pages`。
   - 进度与决定写回对应 change 的 tasks.md / design.md，不另建交接文档。
   团队（pi-teammate，频道 onlinegal，成员都在 D:\online_gal 下运行）：
