@@ -22,6 +22,10 @@
     "./attest": {
       "types": "./src/attest.ts",
       "default": "./src/attest.ts"
+    },
+    "./release-check": {
+      "types": "./src/release-check.ts",
+      "default": "./src/release-check.ts"
     }
   },
   "dependencies": {

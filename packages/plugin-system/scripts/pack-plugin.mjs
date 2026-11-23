@@ -113,19 +113,6 @@ export function fileListHash(files) {
   return hash.digest('hex');
 }
 
-/**
- * Hashes the generated package files in a fixed order using fixed-length digests.
- * mf-manifest.json includes each payload file's path and SHA-256, so its bytes
- * also commit to the payload, including files marked lazy.
- * @param {{ bytes: Buffer, envelope: Buffer }} pkg
- */
-export function contentHash({ bytes, envelope }) {
-  return createHash('sha256')
-    .update(createHash('sha256').update(envelope).digest())
-    .update(createHash('sha256').update(bytes).digest())
-    .digest('hex');
-}
-
 async function main(argv) {
   const args = { _: [] };
   for (let i = 0; i < argv.length; i++) {

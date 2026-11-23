@@ -7,6 +7,7 @@
  */
 import { IndexedDbVaultStore } from './account/vault.js';
 import { Kernel, type KernelNotice } from './kernel.js';
+import { VERIFY_RELEASE_MESSAGE, checkReleaseFromWorker } from './release-check.js';
 
 declare const __KERNEL_VERSION__: string;
 declare const __DEFAULT_MANAGER__: string;
@@ -26,6 +27,11 @@ interface FetchEvent extends ExtendableEvent {
   readonly clientId: string;
   respondWith(response: Promise<Response>): void;
 }
+interface WorkerMessageEvent extends ExtendableEvent {
+  readonly data: unknown;
+  readonly origin: string;
+  readonly ports: readonly MessagePort[];
+}
 interface Client {
   readonly url: string;
   postMessage(message: unknown): void;
@@ -43,6 +49,7 @@ interface WorkerScope {
   fetch(input: string, init?: RequestInit): Promise<Response>;
   addEventListener(type: 'install' | 'activate', listener: (event: ExtendableEvent) => void): void;
   addEventListener(type: 'fetch', listener: (event: FetchEvent) => void): void;
+  addEventListener(type: 'message', listener: (event: WorkerMessageEvent) => void): void;
 }
 declare const self: WorkerScope;
 
@@ -84,6 +91,16 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener('message', (event) => {
+  const { data, origin, ports } = event;
+  const reply = ports[0];
+  if (origin !== self.location.origin || reply === undefined || typeof data !== 'object' || data === null ||
+      !('type' in data) || data.type !== VERIFY_RELEASE_MESSAGE || !('trust' in data)) return;
+  event.waitUntil(checkReleaseFromWorker(data.trust, origin, (url, init) => self.fetch(url, init))
+    .then((result) => reply.postMessage(result))
+    .finally(() => reply.close()));
 });
 
 self.addEventListener('fetch', (event) => {
