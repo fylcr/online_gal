@@ -1,22 +1,37 @@
 import type { CloudflareAccount, CloudflareUser, SiteAdmin } from '@online-gal/plugin-system/account';
-import { microCaFingerprint } from '@online-gal/plugin-system/attest';
+import { microCaCommitment, microCaFingerprint } from '@online-gal/plugin-system/attest';
+import { verifyOfficialReleaseAt, type VerifiedOfficialPackage } from '@online-gal/plugin-system/release-check';
 import { SETUP_ITEMS, type SetupItem } from './setup-items.ts';
 
 export type Rebuild = { kind: 'pages-git' | 'manual' } | { kind: 'github-rerun'; repo: string; runId: string };
 export interface SetupConfig { siteHost: string; rebuild: Rebuild; builtAt: string }
 export type SetupStatus = { phase: 'setup'; initialized: boolean; v?: 1; warning?: string };
 
-interface Deployment { id: string; created_on?: string; latest_stage?: { name?: string; status?: string } }
+interface Deployment {
+  id: string;
+  url?: string;
+  created_on?: string;
+  latest_stage?: { name?: string; status?: string };
+  deployment_trigger?: { metadata?: { branch?: string; commit_hash?: string } };
+}
+interface DeploymentIdentity { url: string; branch: string; commit?: string }
+interface ReleaseProgress { project: string; writtenAt: string; bootstrapDeploymentId?: string; signingDeploymentId?: string }
+export interface ReleaseRunResult { stage: 'awaiting-dns'; bootstrapDeploymentId: string; signingDeploymentId: string; dnsName: string; candidateTxt: string; packages: readonly VerifiedOfficialPackage[] }
+interface ProjectEnvVar { value?: string; type?: string }
 interface Project {
+  domains?: string[];
   production_branch?: string;
-  deployment_configs?: { production?: { env_vars?: Record<string, { value?: string } | null> | null } };
+  deployment_configs?: {
+    production?: { env_vars?: Record<string, ProjectEnvVar | null> | null };
+    preview?: { env_vars?: Record<string, ProjectEnvVar | null> | null };
+  };
 }
 interface PollOptions { intervalMs?: number; timeoutMs?: number }
 type BuildResult = 'success' | 'failure' | 'canceled';
 
 const TOKEN_GROUP = 'Account API Tokens Write';
 const TOKEN_SCOPE = 'account_api_tokens:create';
-const GENERATED_ITEMS = new Set(['CLOUDFLARE_ACCOUNT_TOKEN', 'ONLINE_GAL_CA_PRIVATE_JWK']);
+const GENERATED_ITEMS = new Set(['CLOUDFLARE_ACCOUNT_TOKEN', 'ONLINE_GAL_CA_PRIVATE_JWK', 'ONLINE_GAL_CA_BUILD_TOKEN']);
 const P256_FIELD = /^[A-Za-z0-9_-]{43}$/;
 
 const WRITE_SCOPES = ['pages:read', 'pages:write', TOKEN_SCOPE] as const;
@@ -54,8 +69,23 @@ export function isLocalHost(host: string): boolean {
   return ['localhost', '127.0.0.1', '[::1]', '::1'].includes(host);
 }
 
-export function buildSiteRecord(owner: SiteAdmin, user: CloudflareUser | null): string {
-  return JSON.stringify({ v: 1, account: owner.accountId, project: owner.projectName, by: user?.id ?? '', at: new Date().toISOString() });
+export interface ReleaseTrust { host: string; salt: string; hash: string }
+export type DnsCandidateState = 'create' | 'reuse' | 'conflict';
+export function candidateTxt(trust: ReleaseTrust): string {
+  return `v=1; salt=${trust.salt}; hashes=${trust.hash}`;
+}
+export function candidateDnsName(trust: ReleaseTrust): string { return `_trust.${trust.host}`; }
+export function classifyDnsRecords(records: readonly string[], candidate: string): DnsCandidateState {
+  if (records.length === 0) return 'create';
+  if (records.length === 1 && records[0] === candidate) return 'reuse';
+  return 'conflict';
+}
+export interface SiteRecordOptions { productionBranch?: string; trust?: ReleaseTrust; at?: string }
+
+export function buildSiteRecord(owner: SiteAdmin, user: CloudflareUser | null, options?: SiteRecordOptions): string {
+  const { productionBranch, trust, at } = options ?? {};
+  return JSON.stringify({ v: 1, account: owner.accountId, project: owner.projectName, by: user?.id ?? '', at: at ?? new Date().toISOString(),
+    ...(productionBranch && trust ? { productionBranch, trust } : {}) });
 }
 
 /**
@@ -76,7 +106,9 @@ export function accountValues(accountId: string, items: readonly SetupItem[] = S
  * The single PATCH body. Secret keys follow SETUP_ITEMS, so only the items plus the site record can
  * appear: never an OAuth access or refresh token, never a GitHub token.
  */
-export function buildEnvPatch(record: string, values: Readonly<Record<string, string>>, items: readonly SetupItem[] = SETUP_ITEMS) {
+export interface EnvPatchOptions { bootstrap?: boolean; previewRecord?: string }
+
+export function buildEnvPatch(record: string, values: Readonly<Record<string, string>>, items: readonly SetupItem[] = SETUP_ITEMS, options: EnvPatchOptions = {}) {
   const unsupported = unsupportedItems(items);
   if (unsupported.length > 0) {
     throw new Error(`该项需手动填写，初始化页暂不支持：${unsupported.map(({ name }) => name).join(', ')}`);
@@ -87,9 +119,11 @@ export function buildEnvPatch(record: string, values: Readonly<Record<string, st
     if (!value?.trim()) throw new Error(`缺少初始化项 ${name}。`);
     return [name, { type: 'secret_text', value }];
   }));
+  const production: Record<string, { type: string; value: string }> = { ...secrets, ONLINE_GAL_SITE: marker };
+  if (options.bootstrap) production.ONLINE_GAL_CA_BOOTSTRAP = { type: 'plain_text', value: '1' };
   return { deployment_configs: {
-    production: { env_vars: { ...secrets, ONLINE_GAL_SITE: marker } },
-    preview: { env_vars: { ONLINE_GAL_SITE: marker } },
+    production: { env_vars: production },
+    preview: { env_vars: { ONLINE_GAL_SITE: { type: 'plain_text', value: options.previewRecord ?? record } } },
   } };
 }
 
@@ -104,22 +138,67 @@ async function generateCaKey() {
   throw new Error('未能生成有效的微型 CA 私钥。');
 }
 
+async function generateBuildSecret(): Promise<string> {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function validReleaseTrust(value: unknown): value is ReleaseTrust {
+  if (!value || typeof value !== 'object') return false;
+  const trust = value as Partial<ReleaseTrust>;
+  const labels = typeof trust.host === 'string' ? trust.host.split('.') : [];
+  return typeof trust.host === 'string' && trust.host.length <= 253 && labels.length >= 2 &&
+    !trust.host.endsWith('.pages.dev') && labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)) &&
+    typeof trust.salt === 'string' && P256_FIELD.test(trust.salt) &&
+    typeof trust.hash === 'string' && /^[a-f0-9]{64}$/.test(trust.hash);
+}
+
+async function generateReleaseTrust(host: string, fingerprint: string): Promise<ReleaseTrust> {
+  const labels = host.split('.');
+  if (host.length > 253 || labels.length < 2 || labels.some((label) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)) ||
+      host.endsWith('.pages.dev') || !/[a-z]/.test(labels.at(-1) ?? '') || new URL(`https://${host}`).hostname !== host) {
+    throw new Error('初始化域名无效，不能发布 DNS 信任记录。');
+  }
+  const salt = await generateBuildSecret();
+  return { host, salt, hash: await microCaCommitment(fingerprint, 'cf-pages', salt) };
+}
+
 function projectState(project: Project) {
   const env = project.deployment_configs?.production?.env_vars ?? {};
+  const preview = project.deployment_configs?.preview?.env_vars ?? {};
   const marker = env.ONLINE_GAL_SITE;
+  const previewMarker = preview.ONLINE_GAL_SITE;
   const record = marker?.value;
   let writtenAt: string | undefined;
+  let trust: ReleaseTrust | undefined;
+  let bootstrap = false;
   if (record) {
     try {
-      const value = JSON.parse(record)?.at;
-      if (typeof value === 'string' && Number.isFinite(Date.parse(value))) writtenAt = value;
+      const value = JSON.parse(record);
+      const at = value?.at;
+      if (typeof at === 'string' && Number.isFinite(Date.parse(at))) writtenAt = at;
+      if (typeof value?.productionBranch === 'string' && value.productionBranch && validReleaseTrust(value?.trust)) {
+        trust = value.trust;
+      }
     } catch { /* Keep malformed nonempty records initialized. */ }
   }
+  bootstrap = env.ONLINE_GAL_CA_BOOTSTRAP?.value === '1';
   return {
     written: marker != null && record !== '',
     record,
     writtenAt,
-    missing: SETUP_ITEMS.filter(({ name }) => env[name] == null).map(({ name }) => name),
+    trust,
+    bootstrap,
+    bootstrapPresent: env.ONLINE_GAL_CA_BOOTSTRAP != null,
+    bootstrapType: env.ONLINE_GAL_CA_BOOTSTRAP?.type,
+    markerType: marker?.type,
+    previewRecord: previewMarker?.value,
+    previewMarkerType: previewMarker?.type,
+    invalidSecretTypes: SETUP_ITEMS.filter(({ name }) => env[name] != null &&
+      (name === 'ONLINE_GAL_SITE' ? env[name]?.type !== 'plain_text' : env[name]?.type !== 'secret_text')).map(({ name }) => name),
+    domains: project.domains ?? [],
+    productionBranch: (() => { try { const value = record ? JSON.parse(record)?.productionBranch : undefined; return typeof value === 'string' ? value : undefined; } catch { return undefined; } })(),
+    missing: SETUP_ITEMS.filter(({ name }) => name !== 'ONLINE_GAL_CA_BUILD_TOKEN' || trust).filter(({ name }) => env[name] == null).map(({ name }) => name),
     branch: project.production_branch,
   };
 }
@@ -149,6 +228,7 @@ export const RELOAD_KEY = 'online-gal:setup-reloaded';
 export const WRITTEN_KEY = 'online-gal:setup-written-at';
 const FINGERPRINT_KEY = 'online-gal:setup-ca-fingerprint';
 const DEPLOYMENT_KEY = 'online-gal:setup-deployment';
+const RELEASE_PROGRESS_KEY = 'online-gal:setup-release-progress';
 
 export function readSession(key: string): string | null {
   try { return sessionStorage.getItem(key); } catch { return null; }
@@ -184,19 +264,43 @@ export function clearSession(...keys: string[]): void {
   try { for (const key of keys) sessionStorage.removeItem(key); } catch { /* Storage is optional. */ }
 }
 
+export function saveReleaseProgress(owner: SiteAdmin, writtenAt: string, progress: Omit<ReleaseProgress, 'project' | 'writtenAt'>): void {
+  writeSession(RELEASE_PROGRESS_KEY, JSON.stringify({ project: projectPath(owner), writtenAt, ...progress }));
+}
+
+export function readReleaseProgress(owner: SiteAdmin, writtenAt: string): ReleaseProgress | undefined {
+  try {
+    const data = JSON.parse(readSession(RELEASE_PROGRESS_KEY) ?? 'null');
+    if (data?.project !== projectPath(owner) || data?.writtenAt !== writtenAt) return;
+    return {
+      project: data.project,
+      writtenAt: data.writtenAt,
+      ...(typeof data.bootstrapDeploymentId === 'string' ? { bootstrapDeploymentId: data.bootstrapDeploymentId } : {}),
+      ...(typeof data.signingDeploymentId === 'string' ? { signingDeploymentId: data.signingDeploymentId } : {}),
+    };
+  } catch { return; }
+}
+
 export function clearSetupSession(): void {
-  clearSession(RELOAD_KEY, WRITTEN_KEY, DEPLOYMENT_KEY);
+  clearSession(RELOAD_KEY, WRITTEN_KEY, DEPLOYMENT_KEY, RELEASE_PROGRESS_KEY);
 }
 
 export class SetupClient {
   private readonly origin: string;
   private readonly account: Pick<CloudflareAccount, 'forward'>;
   private readonly fetcher: typeof fetch;
+  private readonly verifyRelease: (candidate: ReleaseTrust, origin: string) => Promise<VerifiedOfficialPackage[]>;
 
-  constructor(origin: string, account: Pick<CloudflareAccount, 'forward'>, fetcher: typeof fetch = globalThis.fetch.bind(globalThis)) {
+  constructor(
+    origin: string,
+    account: Pick<CloudflareAccount, 'forward'>,
+    fetcher: typeof fetch = globalThis.fetch.bind(globalThis),
+    verifyRelease: (candidate: ReleaseTrust, origin: string) => Promise<VerifiedOfficialPackage[]> = verifyOfficialReleaseAt,
+  ) {
     this.origin = origin;
     this.account = account;
     this.fetcher = fetcher;
+    this.verifyRelease = verifyRelease;
   }
 
   async readStatus(signal?: AbortSignal): Promise<SetupStatus | null> {
@@ -255,31 +359,42 @@ export class SetupClient {
     }
   }
 
-  async write(owner: SiteAdmin, user: CloudflareUser | null, scopes: readonly string[], signal?: AbortSignal) {
+  async write(owner: SiteAdmin, user: CloudflareUser | null, scopes: readonly string[], signal?: AbortSignal, releaseFlow = true) {
     const missing = missingScopes(scopes);
     if (missing.length) throw new Error(`这次 Cloudflare 授权缺少 ${missing.join('、')}。请重新授权。`);
-    if (unsupportedItems().length) throw new Error('清单中有初始化页暂不支持的项目。');
+    const items = releaseFlow ? SETUP_ITEMS : SETUP_ITEMS.filter(({ name }) => name !== 'ONLINE_GAL_CA_BUILD_TOKEN');
+    if (unsupportedItems(items).length) throw new Error('清单中有初始化页暂不支持的项目。');
     if (isLocalHost(new URL(this.origin).hostname)) return 'local';
-    const write = () => this.writeAndCheck(owner, user, signal);
+    const write = () => this.writeAndCheck(owner, user, signal, releaseFlow);
     const locks = globalThis.navigator?.locks;
     if (locks) return locks.request('online-gal:setup:' + projectPath(owner), { signal }, write);
     return write();
   }
 
-  private async writeAndCheck(owner: SiteAdmin, user: CloudflareUser | null, signal?: AbortSignal): Promise<'switched' | 'already-written' | { fingerprint: string }> {
+  private async writeAndCheck(owner: SiteAdmin, user: CloudflareUser | null, signal?: AbortSignal, releaseFlow = true): Promise<'switched' | 'already-written' | { fingerprint: string; trust?: ReleaseTrust }> {
     const status = await this.readStatus(signal);
     if (!status) return 'switched';
     const project = await this.readProject(owner, signal);
     if (status.initialized || project.written) return 'already-written';
+    if (releaseFlow && !project.branch) throw new Error('Pages 项目缺少生产分支，无法启用签名构建。');
+    if (releaseFlow && !project.domains?.some((domain) => domain.toLowerCase() === new URL(this.origin).hostname.toLowerCase())) {
+      throw new Error('当前站点域名不属于该 Pages 项目的自定义域名。');
+    }
     const ca = await generateCaKey();
+    const buildToken = releaseFlow ? await generateBuildSecret() : undefined;
+    const trust = releaseFlow ? await generateReleaseTrust(new URL(this.origin).hostname, ca.fingerprint) : undefined;
     signal?.throwIfAborted();
     const accountToken = await this.createAccountToken(owner, signal);
-    const record = buildSiteRecord(owner, user);
+    const recordTime = new Date().toISOString();
+    const record = buildSiteRecord(owner, user, releaseFlow && trust ? { at: recordTime, productionBranch: project.branch, trust } : { at: recordTime });
+    const previewRecord = buildSiteRecord(owner, user, { at: recordTime });
+    const items = releaseFlow ? SETUP_ITEMS : SETUP_ITEMS.filter(({ name }) => name !== 'ONLINE_GAL_CA_BUILD_TOKEN');
     const patch = buildEnvPatch(record, {
       ...accountValues(owner.accountId),
       CLOUDFLARE_ACCOUNT_TOKEN: accountToken,
       ONLINE_GAL_CA_PRIVATE_JWK: ca.privateJwk,
-    });
+      ...(buildToken ? { ONLINE_GAL_CA_BUILD_TOKEN: buildToken } : {}),
+    }, items, { bootstrap: releaseFlow, previewRecord });
     try {
       await this.api(projectPath(owner), signal, {
         method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch),
@@ -289,13 +404,156 @@ export class SetupClient {
       throw new Error('无法确认 Pages 配置写入结果。请重试，页面会先核对项目状态。');
     }
     const saved = await this.readProject(owner, signal);
-    if (!saved.written || saved.missing.length) throw new Error('写入后未能核对全部初始化项，请检查 Pages 项目。');
+    if (!saved.written || saved.missing.length || saved.invalidSecretTypes.length || saved.markerType !== 'plain_text' ||
+        saved.previewMarkerType !== 'plain_text' || saved.previewRecord !== previewRecord ||
+        (releaseFlow && (!saved.bootstrapPresent || !saved.bootstrap || saved.bootstrapType !== 'plain_text'))) {
+      throw new Error('写入后未能核对全部初始化项，请检查 Pages 项目。');
+    }
     if (saved.record !== record) return 'already-written';
     const at = saved.writtenAt ?? new Date().toISOString();
-    clearSession(DEPLOYMENT_KEY);
+    clearSession(DEPLOYMENT_KEY, RELEASE_PROGRESS_KEY);
     writeSession(WRITTEN_KEY, at);
     writeSession(FINGERPRINT_KEY, JSON.stringify({ project: projectPath(owner), at, fingerprint: ca.fingerprint }));
-    return { fingerprint: ca.fingerprint };
+    return { fingerprint: ca.fingerprint, ...(trust ? { trust } : {}) };
+  }
+
+  private async deployment(owner: SiteAdmin, id: string, signal?: AbortSignal): Promise<Deployment> {
+    return this.api<Deployment>(`${projectPath(owner)}/deployments/${encodeURIComponent(id)}`, signal);
+  }
+
+  private async deploymentProof(url: string, signal?: AbortSignal): Promise<DeploymentIdentity> {
+    const response = await this.fetcher(new URL('/.well-known/online-gal-deployment.json', url), {
+      cache: 'no-store', credentials: 'omit', redirect: 'error', signal: requestSignal(signal, 15_000),
+    });
+    const allowOrigin = response.headers.get('access-control-allow-origin');
+    if (new URL(url).origin !== this.origin && allowOrigin !== '*' && allowOrigin !== this.origin) {
+      throw new Error('部署身份端点未允许管理页跨域读取。');
+    }
+    if (!response.ok || response.headers.get('cache-control')?.toLowerCase().includes('no-store') !== true) {
+      throw new Error('部署身份端点未返回成功的 no-store 响应。');
+    }
+    const identity = await response.json() as Partial<DeploymentIdentity>;
+    if (typeof identity.url !== 'string' || typeof identity.branch !== 'string') throw new Error('部署身份响应无效。');
+    return identity as DeploymentIdentity;
+  }
+
+  private async checkDeploymentIdentity(owner: SiteAdmin, id: string, trust: ReleaseTrust, branch: string, signal?: AbortSignal): Promise<string> {
+    const deployment = await this.deployment(owner, id, signal);
+    if (deployment.id !== id || !deployment.url) throw new Error('Cloudflare 部署身份与请求不匹配。');
+    const url = new URL(deployment.url);
+    const expectedHost = `${id.slice(0, 8)}.${owner.projectName}.pages.dev`;
+    if (url.protocol !== 'https:' || url.hostname !== expectedHost || url.pathname !== '/' || url.search || url.hash) {
+      throw new Error('Cloudflare 返回了非预期的 Pages 部署 URL。');
+    }
+    const [deploymentIdentity, productionIdentity] = await Promise.all([
+      this.deploymentProof(url.origin, signal),
+      this.deploymentProof(`https://${trust.host}`, signal),
+    ]);
+    const commit = deployment.deployment_trigger?.metadata?.commit_hash;
+    for (const identity of [deploymentIdentity, productionIdentity]) {
+      if (identity.url !== url.origin || identity.branch !== branch || (commit && identity.commit !== commit)) {
+        throw new Error('生产主机未提供与该 Pages 部署一致的身份凭据。');
+      }
+    }
+    return url.origin;
+  }
+
+  private async checkBootstrapReady(trust: ReleaseTrust, signal?: AbortSignal): Promise<void> {
+    const response = await this.fetcher(`https://${trust.host}/__ca/issue`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      cache: 'no-store', credentials: 'omit', redirect: 'error', signal: requestSignal(signal, 15_000),
+    });
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    if (response.status !== 401 || body?.error !== 'unauthorized' ||
+        response.headers.get('cache-control')?.toLowerCase().includes('no-store') !== true) {
+      throw new Error('生产主机的 CA 引导路由未通过无凭据就绪检查。');
+    }
+  }
+
+  private async clearBootstrap(owner: SiteAdmin, signal?: AbortSignal): Promise<void> {
+    const before = await this.readProject(owner, signal);
+    if (!before.bootstrap || before.bootstrapType !== 'plain_text') throw new Error('无法确认 Pages 的 CA 引导标记状态，拒绝继续删除。');
+    const response = await this.api<unknown>(projectPath(owner), signal, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ deployment_configs: { production: { env_vars: { ONLINE_GAL_CA_BOOTSTRAP: null } } } }),
+    });
+    const state = await this.readProject(owner, signal);
+    if (state.bootstrapPresent || state.missing.length || state.invalidSecretTypes.length || state.markerType !== 'plain_text' ||
+        state.previewMarkerType !== 'plain_text' || !state.previewRecord) {
+      throw new Error('无法确认已清除 Pages 的 CA 引导标记并保留有效初始化配置。');
+    }
+    void response;
+  }
+
+  private async releaseDeployments(owner: SiteAdmin, state: ReturnType<typeof projectState>, branch: string, signal?: AbortSignal): Promise<Deployment[]> {
+    const after = Date.parse(state.writtenAt ?? '');
+    if (!Number.isFinite(after)) throw new Error('初始化记录缺少有效时间，无法从 Pages 部署历史恢复验收。');
+    const deployments = await this.api<Deployment[]>(`${projectPath(owner)}/deployments?env=production`, signal);
+    return deployments.filter(({ id, created_on, deployment_trigger }) =>
+      typeof id === 'string' && Date.parse(created_on ?? '') > after && deployment_trigger?.metadata?.branch === branch)
+      .sort((a, b) => Date.parse(a.created_on ?? '') - Date.parse(b.created_on ?? ''));
+  }
+
+  /** Run/resume the two production builds, verify identity and signed packages, then stop before DNS. */
+  async advanceRelease(owner: SiteAdmin, trust: ReleaseTrust, signal?: AbortSignal, options?: PollOptions, restartBuild = false): Promise<ReleaseRunResult> {
+    if (isLocalHost(new URL(this.origin).hostname)) throw new Error('本地开发模式不支持 Pages 发布验收。');
+    const state = await this.readProject(owner, signal);
+    if (new URL(this.origin).hostname !== trust.host) throw new Error('待验收 CA 域名与当前管理页不一致。');
+    if (!state.written || !state.trust || state.trust.host !== trust.host || state.trust.salt !== trust.salt || state.trust.hash !== trust.hash) {
+      throw new Error('Pages 项目中的初始化记录与待验收 CA 不一致。');
+    }
+    if (state.bootstrapPresent && (!state.bootstrap || state.bootstrapType !== 'plain_text')) {
+      throw new Error('Pages 的 CA 引导标记无效，拒绝开始部署验收。');
+    }
+    const branch = state.productionBranch;
+    if (!branch || branch !== state.branch) throw new Error('初始化记录的生产分支与 Pages 项目不一致。');
+    if (!state.writtenAt) throw new Error('初始化记录缺少有效时间，无法恢复发布验签。');
+    const progress = readReleaseProgress(owner, state.writtenAt) ?? { project: projectPath(owner), writtenAt: state.writtenAt };
+    let bootstrapDeploymentId = progress.bootstrapDeploymentId;
+    let signingDeploymentId = progress.signingDeploymentId;
+    if (!bootstrapDeploymentId || (state.bootstrapPresent === false && !signingDeploymentId)) {
+      const history = await this.releaseDeployments(owner, state, branch, signal);
+      const usable = history.filter(({ latest_stage }) => latest_stage?.status !== 'failure' && latest_stage?.status !== 'canceled');
+      bootstrapDeploymentId ??= usable[0]?.id;
+      if (state.bootstrapPresent === false && !signingDeploymentId && bootstrapDeploymentId) {
+        const bootstrap = history.find(({ id }) => id === bootstrapDeploymentId);
+        const bootstrapAt = Date.parse(bootstrap?.created_on ?? '');
+        signingDeploymentId = usable.filter(({ id, created_on }) => id !== bootstrapDeploymentId &&
+          Number.isFinite(bootstrapAt) && Date.parse(created_on ?? '') > bootstrapAt).at(-1)?.id;
+      }
+    }
+    if (restartBuild) {
+      signingDeploymentId = undefined;
+      if (state.bootstrapPresent !== false) bootstrapDeploymentId = undefined;
+      saveReleaseProgress(owner, state.writtenAt, { ...(bootstrapDeploymentId ? { bootstrapDeploymentId } : {}) });
+    } else if (bootstrapDeploymentId) {
+      saveReleaseProgress(owner, state.writtenAt, { bootstrapDeploymentId, ...(signingDeploymentId ? { signingDeploymentId } : {}) });
+    }
+    if (state.bootstrapPresent !== false) {
+      if (!bootstrapDeploymentId) {
+        bootstrapDeploymentId = await this.startPagesBuild(owner, branch, signal) ?? undefined;
+        if (!bootstrapDeploymentId) throw new Error('Cloudflare 未返回 CA 引导部署 ID。');
+        saveReleaseProgress(owner, state.writtenAt, { bootstrapDeploymentId });
+      }
+      await this.waitForDeployment(owner, bootstrapDeploymentId, signal, options);
+      await this.checkDeploymentIdentity(owner, bootstrapDeploymentId, trust, branch, signal);
+      await this.checkBootstrapReady(trust, signal);
+      await this.checkDeploymentIdentity(owner, bootstrapDeploymentId, trust, branch, signal);
+      await this.clearBootstrap(owner, signal);
+    } else if (!bootstrapDeploymentId) {
+      throw new Error('缺少 CA 引导部署 ID；请先完成第一次 Pages 部署。');
+    }
+    if (!bootstrapDeploymentId) throw new Error('未能恢复 CA 引导部署 ID。');
+    if (!signingDeploymentId) {
+      signingDeploymentId = await this.startPagesBuild(owner, branch, signal) ?? undefined;
+      if (!signingDeploymentId) throw new Error('Cloudflare 未返回签名部署 ID。');
+      saveReleaseProgress(owner, state.writtenAt, { bootstrapDeploymentId, signingDeploymentId });
+    }
+    await this.waitForDeployment(owner, signingDeploymentId, signal, options);
+    const signingOrigin = await this.checkDeploymentIdentity(owner, signingDeploymentId, trust, branch, signal);
+    const packages = await this.verifyRelease(trust, signingOrigin);
+    await this.checkDeploymentIdentity(owner, signingDeploymentId, trust, branch, signal);
+    return { stage: 'awaiting-dns', bootstrapDeploymentId, signingDeploymentId, dnsName: candidateDnsName(trust), candidateTxt: candidateTxt(trust), packages };
   }
 
   async startPagesBuild(owner: SiteAdmin, branch: string, signal?: AbortSignal): Promise<string | null> {
