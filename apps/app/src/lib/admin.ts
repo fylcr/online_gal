@@ -21,6 +21,35 @@ const UNUSABLE: Record<Unusable, { title: string; detail: string }> = {
   unavailable: { title: '此浏览器不能保管凭据', detail: '凭据加密后存放在 IndexedDB 中，当前浏览器环境不可用。' },
 };
 
+type RelayStatus = 'entry-required' | 'entry-invalid' | 'not-admin' | 'temporarily-unavailable';
+const RELAY_STATUS: Record<RelayStatus, { title: string; detail: string; retry: boolean }> = {
+  'entry-required': { title: '尚未导入管理入口', detail: '请在此浏览器打开初始化或轮换时保存的完整管理链接。', retry: false },
+  'entry-invalid': { title: '管理入口已失效', detail: '请重新打开当前有效的完整管理链接。', retry: false },
+  'not-admin': { title: '不是本站管理员', detail: '请切换到初始化绑定的 Cloudflare 所有者账号。', retry: false },
+  'temporarily-unavailable': { title: 'Cloudflare 管理功能暂不可用', detail: '请重试。如果问题持续，请核对当前站点部署是否配置了私有 Cloudflare 入口。', retry: true },
+};
+
+type Denial = Extract<AdminGate, { kind: 'denied' }>;
+
+export async function importAdminEntry(): Promise<Denial | undefined> {
+  const { hash, pathname, search } = location;
+  if (!hash.startsWith('#cf-entry')) return;
+  const segment = /^#cf-entry=([A-Za-z0-9_-]{43})$/.exec(hash)?.[1];
+  if (!segment) {
+    history.replaceState(history.state, '', pathname + search);
+    return { kind: 'denied', ...RELAY_STATUS['entry-invalid'] };
+  }
+  try {
+    await account.importEntry(segment);
+    if (location.hash === hash) history.replaceState(history.state, '', pathname + search);
+  } catch (error) {
+    if (error instanceof AccountError && error.unusable) {
+      return { kind: 'denied', ...UNUSABLE[error.unusable], retry: true };
+    }
+    return { kind: 'denied', title: '无法导入管理入口', detail: '请在此页重试导入。', retry: true };
+  }
+}
+
 /** Whether the signed-in account owns this site's Pages project, and why not when it does not. */
 export async function checkAdmin(): Promise<AdminGate> {
   try {
@@ -35,7 +64,10 @@ export async function checkAdmin(): Promise<AdminGate> {
     }
     if (status.siteAdmin) return { kind: 'admin', admin: status.siteAdmin, user: status.user };
     if (status.siteAdminError) {
-      return { kind: 'denied', title: '无法确认是否为本站管理员', detail: status.siteAdminError, retry: true };
+      const error = status.siteAdminError;
+      const code: RelayStatus = error === 'entry-required' || error === 'entry-invalid' || error === 'not-admin'
+        ? error : 'temporarily-unavailable';
+      return { kind: 'denied', ...RELAY_STATUS[code] };
     }
     const who = status.user?.email || status.user?.id || '当前账号';
     return {

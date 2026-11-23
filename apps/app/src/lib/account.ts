@@ -68,7 +68,7 @@ export function kernelControlsPage(): boolean {
   return typeof navigator !== 'undefined' && navigator.serviceWorker?.controller != null;
 }
 
-async function call<T>(action: 'status' | 'login' | 'poll' | 'logout'): Promise<T> {
+async function call<T>(action: 'status' | 'login' | 'poll' | 'logout' | 'import-entry', data: object = {}): Promise<T> {
   if (!kernelControlsPage()) {
     throw new AccountError('unready', '插件系统未就绪', 'unready');
   }
@@ -78,7 +78,7 @@ async function call<T>(action: 'status' | 'login' | 'poll' | 'logout'): Promise<
     response = await fetch(`${BASE}${action}`, {
       method: post ? 'POST' : 'GET',
       cache: 'no-store',
-      ...(post ? { headers: { 'content-type': 'application/json' }, body: '{}' } : {}),
+      ...(post ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) } : {}),
     });
   } catch (error) {
     throw new AccountError('fetch-failed', error instanceof Error ? error.message : String(error));
@@ -98,6 +98,12 @@ async function call<T>(action: 'status' | 'login' | 'poll' | 'logout'): Promise<
 }
 
 export const account = {
+  importEntry: async (segment: string): Promise<void> => {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(segment)) throw new AccountError('invalid-entry', 'Cloudflare 管理入口格式无效');
+    if ((await call<{ ok?: boolean }>('import-entry', { segment })).ok !== true) {
+      throw new AccountError('import-failed', '无法导入 Cloudflare 管理入口');
+    }
+  },
   status: async (): Promise<CloudflareStatus> => (await call<{ status: CloudflareStatus }>('status')).status,
   login: async (): Promise<PendingLogin> => (await call<{ login: PendingLogin }>('login')).login,
   poll: async (): Promise<PollResult> => (await call<{ poll: PollResult }>('poll')).poll,
