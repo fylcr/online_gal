@@ -108,11 +108,16 @@
 
 负责：管理系统的对话。依据 design.md S12。只用已认证的 `cf` CLI；`cf` 缺少某项操作的命令时停下回报。不触发重新初始化（7.6 由用户做）。
 
-- [ ] 8.1 代码默认值：把 S12 列出的五处 `onlinegal.cc.cd` 改为 `onlinegal.de5.net`；之后 `git grep -n onlinegal.cc.cd -- . ':!openspec' ':!docs'` 应无结果。跑 `test/plugin-system-microca.test.mjs`、`.test/site-setup.test.ts` 与 `npm run check`，提交并推送 `main`。这一步先于 8.3。
-- [ ] 8.2 新域名：确认 zone `onlinegal.de5.net` 属于 `online-gal` 项目所在的账户；把它加为该项目的自定义域名；等到域名状态 `active`，`curl -sI https://onlinegal.de5.net/` 返回 200。zone 的 DNSSEC 保持开启。
-- [ ] 8.3 旧域名跳转：列出 zone `onlinegal.cc.cd` 的全部 DNS 记录（类型、名称、内容、是否代理）写进回报；按 S12 建 Single Redirect；`curl -sI "https://onlinegal.cc.cd/a/b?x=1"` 返回 301，`Location: https://onlinegal.de5.net/a/b?x=1`。
-- [ ] 8.4 解绑与删解析：从 `online-gal` 项目删除自定义域名 `onlinegal.cc.cd`；删除顶点指向 `*.pages.dev` 的 CNAME，加占位代理记录 `A @ 192.0.2.1`。只删指向 Pages 的记录，其他记录不动。再验一次 8.3 的 301，并记下 `curl -sI http://onlinegal.cc.cd/` 的实测结果。
-- [ ] 8.5 在本节写验收记录：两个域名的状态、跳转规则 id、8.3 与 8.4 的响应头、8.1 的提交号与部署 id。
+- [x] 8.1 代码默认值：把 S12 列出的五处 `onlinegal.cc.cd` 改为 `onlinegal.de5.net`；之后 `git grep -n onlinegal.cc.cd -- . ':!openspec' ':!docs'` 应无结果。跑 `test/plugin-system-microca.test.mjs`、`.test/site-setup.test.ts` 与 `npm run check`，提交并推送 `main`。这一步先于 8.3。
+  - 2026-11-23：提交 `c0cb752` 已推送到 `main`；三项 CA/microca 测试通过，19 项 setup 测试通过，`npm run check` 通过。Pages 部署 `19d6ba0c-af52-45c5-b44c-6fe83597a493` 是 `deploy/success`，提交 SHA 为 `c0cb7523d16abf62d446a716c5d8edfd95d0aeb8`。未提交或改动其他工作区内容。
+- [x] 8.2 新域名：确认 zone `onlinegal.de5.net` 属于 `online-gal` 项目所在的账户；把它加为该项目的自定义域名；等到域名状态 `active`，`curl -sI https://onlinegal.de5.net/` 返回 200。zone 的 DNSSEC 保持开启。
+  - `onlinegal.de5.net` zone 与 Pages project 同属账户；Cloudflare DNSSEC 状态 `active`、父域 DS 存在。Apex CNAME `onlinegal.de5.net → online-gal.pages.dev` 为 proxied，Pages custom domain、DNS 验证和证书均 `active`。`curl -sSI https://onlinegal.de5.net/` 返回 `200 OK`。
+- [x] 8.3 旧域名跳转：列出 zone `onlinegal.cc.cd` 的全部 DNS 记录（类型、名称、内容、是否代理）写进回报；按 S12 建 Single Redirect；`curl -sI "https://onlinegal.cc.cd/a/b?x=1"` 返回 301，`Location: https://onlinegal.de5.net/a/b?x=1`。
+  - 操作前旧 zone 只有 `CNAME onlinegal.cc.cd → online-gal.pages.dev`（proxied，记录 ID `b7001bc58ce68cb6c50b39951664db7c`）。zone Single Redirect ruleset `b233ad59a76a42098d5dbcd36aa22100`，rule `2e556ab8ceea40f3b4adf95f7e1cd2fb`。HTTP 和 HTTPS `/a/b?x=1` 请求均为 `301 Moved Permanently`，Location 都保留路径与查询参数。
+- [x] 8.4 解绑与删解析：从 `online-gal` 项目删除自定义域名 `onlinegal.cc.cd`；删除顶点指向 `*.pages.dev` 的 CNAME，加占位代理记录 `A @ 192.0.2.1`。只删指向 Pages 的记录，其他记录不动。再验一次 8.3 的 301，并记下 `curl -sI http://onlinegal.cc.cd/` 的实测结果。
+  - Pages 现在只绑定 `onlinegal.de5.net`。旧 zone 中唯一的 Pages CNAME 已删除，添加了 proxied `A onlinegal.cc.cd → 192.0.2.1`（记录 ID `25d7940a97360b96d5cef1a2fc02abe0`），没有改动其他 DNS 记录。替换后 `curl -sSI http://onlinegal.cc.cd/` 返回 `301 Moved Permanently`，Location `https://onlinegal.de5.net/`；HTTP 与 HTTPS `/a/b?x=1` 仍 301 并保留路径和查询参数。
+- [x] 8.5 在本节写验收记录：两个域名的状态、跳转规则 id、8.3 与 8.4 的响应头、8.1 的提交号与部署 id。
+  - `onlinegal.de5.net` 为 Pages active custom domain，HTTPS 200，zone DNSSEC active；`onlinegal.cc.cd` 已解绑 Pages，现有 proxied placeholder A 为唯一记录。Redirect ruleset `b233ad59a76a42098d5dbcd36aa22100` / rule `2e556ab8ceea40f3b4adf95f7e1cd2fb` 返回 301 并保留 path/query。代码提交 `c0cb7523d16abf62d446a716c5d8edfd95d0aeb8`；Pages deploy `19d6ba0c-af52-45c5-b44c-6fe83597a493` (`deploy/success`)。旧区原 DNS 清单只有 proxied Pages CNAME `b7001bc58ce68cb6c50b39951664db7c`。
 
 ## 9. 决定 I：构建令牌与 DNS 白名单记录放进初始化（待定，现在不做）
 

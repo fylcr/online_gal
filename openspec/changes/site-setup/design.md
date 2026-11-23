@@ -390,10 +390,10 @@ Pages 的构建命令由项目设置决定，所以读取仓库源码的构建�
 ## Migration Plan
 
 1. 实现本变更；`plugin-system` 完成 11.3（撤销 `/__setup` 放行）和 10.10（发布工作流改用 `npm run build:pages`）。
-2. 用户把 `onlinegal.cc.cd` 绑定为 Pages 项目的自定义域名（4.3）。
-3. 发布一次：项目里没有 `ONLINE_GAL_SITE`，产出初始化构建。
-4. 用户在 `https://onlinegal.cc.cd/` 完成初始化；页面触发第二次构建，产出站点构建。
-5. 2026-11-23 决定 J：地址换成 `onlinegal.de5.net`，旧地址改为 301 跳转（S12），之后在新地址上重新初始化（S11、tasks 7.6）。
+2. 2026-11-23 决定 J 执行结果见 S12 与 tasks.md 8.5：代码默认值推送到 main，Pages 重新部署；先绑定 `onlinegal.de5.net`，再创建旧域名 301，最后解绑旧域名 Pages CNAME 并添加 proxied 占位 A。
+3. 站点保持当前初始化状态。决定 H 的真实重新初始化仍留给用户在两个域名切换后另行执行。
+
+**回滚**：删除 `apps/setup/` 和 `scripts/build-pages.mjs`，构建命令改回 `npm run build:site`。项目里的 `ONLINE_GAL_SITE` 和 secret 留着没有影响，也可以在控制台删除。
 
 **回滚**：删除 `apps/setup/` 和 `scripts/build-pages.mjs`，构建命令改回 `npm run build:site`。项目里的 `ONLINE_GAL_SITE` 和 secret 留着没有影响，也可以在控制台删除。
 
@@ -449,4 +449,4 @@ Pages 的构建命令由项目设置决定，所以读取仓库源码的构建�
 - 信任记录跟着站点源走：内核按当前源的主机名查 `_trust.<主机名>`（`packages/plugin-system/src/kernel.ts` 的 `siteHost` 缺省取 `new URL(origin).hostname`），新地址查 `_trust.onlinegal.de5.net`。
 - 浏览器里旧源的数据不迁移：`onlinegal.cc.cd` 上的 Service Worker、已安装插件与本地存储属于旧源，跳转后不再使用。决定 J 没有要求迁移。
 - 初始化：重新初始化（tasks 7.6）在新地址上做。初始化页的站点管理员判定（A6）比对项目的 `domains[]`，解绑旧域名后只认新地址。
-- 工具：只用已认证的 `cf` CLI（`openspec/config.yaml` 的规则）。`cf` 缺少某项操作（例如 Rulesets）的命令时停下回报，不改用 wrangler，也不手建 token。
+- 实测验收记录在 `tasks.md` 8.5：新 domain 和 HTTPS 已 active；旧域原先只有一条 Pages CNAME；301 Single Redirect 保留 path/query；解绑后只留下 proxied 占位 A。
