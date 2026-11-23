@@ -462,7 +462,7 @@ Pages 的构建命令由项目设置决定，所以读取仓库源码的构建�
 
 - 先实现 9.1 的所有者与项目校验、构建令牌和候选 TXT 生成、生产与预览 PATCH 清单。用本地夹具覆盖 DNS 现状读取及冲突分支。按 S13 第 1 步，在接入实际生产入口前验证真实记录读取和冲突处理。
 - 同步实现 9.3 的两次部署、部署身份与 CA 就绪检查、线上包验签和失败续跑。可在隔离 Pages 项目验证到第二次部署的线上包验签及生产部署身份复核通过。验签成功后显示「签名已验证，等待 DNS 验收」，保留部署 ID 和续跑状态。用针对性测试验证失败重试能复用部署，且该阶段的 DNS 写入请求数为零。
-- 取得启用 DNSSEC 的隔离 zone 后，按 9.0 验证 DNS 授权与令牌撤销，并在隔离自定义域名确认部署身份。完成这些验证后接通 S13 第 4、5 步的真实 TXT 写入和 Service Worker DoH，再进行 9.5 完整验收。7.6 的生产重新初始化在 9.5 通过后由用户执行。
+- 取得启用 DNSSEC 的隔离 zone 后，按 9.0 验证 DNS 授权与令牌撤销，并在隔离自定义域名确认部署身份。完成这些验证后接通 S13 第 4、5 步的真实 TXT 写入和 Service Worker DoH，再进行 9.5 完整验收。7.6 的生产重新初始化在 9.5 与 10.3 的隔离验收通过后由用户执行。
 
 1. **准备并写入。** 用已确认的项目与自定义域名定位同一账户内的 `onlinegal.de5.net` zone，读取 `_trust.onlinegal.de5.net` 的现有记录。若已有与候选内容不同的记录或有多条记录，停下并保留原记录。复用 S11 的 CA 公钥指纹。用 `crypto.getRandomValues` 分别生成 32 字节构建令牌和独立的随机 salt，编码成无填充 base64url。用 `microCaCommitment(fingerprint, 'cf-pages', salt)` 得到候选 TXT `v=1; salt=<salt>; hashes=<hash>`。在 S5 的项目 PATCH 中同时写入生产 `secret_text` `ONLINE_GAL_CA_BUILD_TOKEN`、生产 `plain_text` `ONLINE_GAL_CA_BOOTSTRAP=1`。生产 `ONLINE_GAL_SITE` 仍为 `v: 1`，另存 `productionBranch` 与可选公开数据 `trust: { host, salt, hash }`，用于构建判定、恢复与验收。预览只接收原有的初始化记录。构建令牌与 CA 私钥明文只在页面内存和发往该项目的 PATCH 请求里出现。
 2. **第一次站点构建。** `CF_PAGES=1`、`CF_PAGES_BRANCH` 匹配生产记录的 `productionBranch`、记录包含 `trust`、构建令牌存在且 `ONLINE_GAL_CA_BOOTSTRAP=1` 时，构建跳过官方包签名并部署 `/__ca/*` 与 S14 的私有 Cloudflare 中转子路径。页面按部署 ID 等待成功，并用 9.0 确认的部署身份检查核对该部署在生产主机已生效，并用无凭据 POST 检查 `/__ca/issue` 返回 `401 unauthorized` 和 `no-store`。该检查确认 CA 路由与令牌绑定可用，由第二次构建验证签发。确认前保持引导标记。

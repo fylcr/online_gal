@@ -4,7 +4,7 @@
 
 - **负责**：管理系统的对话（`cf-account-admin` 的对话）。
 - **配合**：`plugin-system` tasks.md 11.3（撤销内核对 `/__setup` 的放行）与 10.10（发布工作流用 `npm run build:pages`），由插件系统的对话完成。
-- **当前要做**：第 9 节（决定 I，方案 A）。第 8 节已完成。实现和隔离验收完成后，7.6 由用户执行，最后记录真实生产验收。
+- **当前要做**：第 9 节（决定 I，方案 A）与第 10 节（私有 Cloudflare 入口）。第 8 节已完成。9.5 与 10.3 隔离验收通过后，由用户执行 7.6，再记录 9.6 生产验收。
 - **完成标准**：初始化构建只包含初始化页及其接口。站点构建产物与初始化代码隔离。官方站点按 S13 完成引导部署、签名部署及 DoH 验收。
 
 ## 历史：上一版已完成的工作（v2，按用户决定 F 部分作废）
@@ -101,7 +101,7 @@
 - [x] 7.4 测试：PATCH 请求体的生产环境含 `CLOUDFLARE_ACCOUNT_TOKEN` 与 `ONLINE_GAL_CA_PRIVATE_JWK`，且不含任何 OAuth token；缺 `account_api_tokens:create` 时不发创建请求也不发 PATCH；创建请求只发往 `/accounts/{id}/tokens`，`permission_groups` 只有一项且其 id 来自权限组查询；不向 `/user/tokens` 发请求；生成的私钥 JWK 只有五个字段且 `x`、`y`、`d` 都是 43 字符，页面只出现公钥指纹；`reinit:pages --dry-run` 不写入、不部署，正式运行只把 `ONLINE_GAL_SITE` 设为 `null`。
 - [x] 7.5 验收：`npm run check`、`npm run build:setup`、上一条的测试、`npx openspec validate site-setup --strict` 通过。提交并推送到 `main`。
   - 28 项 Node 测试通过（站点初始化、`configure-pages`、`reinit-pages`），Chromium 使用假 OAuth/API 验证页面与会话存储只含公钥指纹，不含令牌或私钥；生产项目 `npm run reinit:pages -- online-gal --dry-run` 未写入或部署。
-- [ ] 7.6【用户】（第 8 节已完成，9.5 隔离验收及上线通过后执行，生产结果记入 9.6）在本机对 `online-gal` 运行 `npm run reinit:pages -- online-gal`，等初始化构建生效后到 `https://onlinegal.de5.net/` 重新登录并完成初始化。完成后 `curl https://onlinegal.de5.net/__setup/status` 应返回站点构建的 HTML，不再是 `phase: "setup"` 的 JSON。
+- [ ] 7.6【用户】（第 8 节已完成，9.5 与 10.3 隔离验收以及对应实现上线后执行，生产结果记入 9.6）在本机对 `online-gal` 运行 `npm run reinit:pages -- online-gal`，等初始化构建生效后到 `https://onlinegal.de5.net/` 重新登录并完成初始化。完成后 `curl https://onlinegal.de5.net/__setup/status` 应返回站点构建的 HTML，不再是 `phase: "setup"` 的 JSON。
 
 ## 8. 决定 J：官方地址换成 `onlinegal.de5.net`
 
@@ -122,7 +122,7 @@
 
 依据 design.md S13。管理系统负责初始化页、部署编排和隔离验收。插件系统负责站点构建、签名和真实 Service Worker 检查。两边按 S13 的变量和顺序对接。
 
-- [ ] 9.0【管理系统】在隔离 Git 集成 Pages 项目验证生产变量的构建与 Function 生效时机、生产域名上的部署身份及切换后同源 `/__cf` 的可用性。使用隔离 zone 和与 S11 相同的账户令牌申请权限，验证可以申请仅对单个 zone 有 DNS 写权限的临时账户令牌，创建并读回测试 TXT 后撤销。记录权限组名称、资源范围和撤销结果。能力不满足时回报具体错误，由 OpenSpec 管理对话决定是否调整授权路径。
+- [ ] 9.0【管理系统】在隔离 Git 集成 Pages 项目验证生产变量的构建与 Function 生效时机、生产域名上的部署身份，以及按 S14 切换后的同源私有中转入口可用性。历史试验中固定 `/__cf` 的结果仅作既有机制的证据。使用隔离 zone 和与 S11 相同的账户令牌申请权限，验证可以申请仅对单个 zone 有 DNS 写权限的临时账户令牌，创建并读回测试 TXT 后撤销。记录权限组名称、资源范围和撤销结果。能力不满足时回报具体错误，由 OpenSpec 管理对话决定是否调整授权路径。
   - 继续验收需要一个已启用 DNSSEC 的隔离 zone，其中的测试主机可绑定隔离 Pages 项目。用实际的所有者登录授权核对账户令牌权限组、仅限该 zone 的 DNS 写权限及测试 TXT 创建、读回、清理与令牌撤销。已记录的 `403 / 9109` 来自 CLI OAuth，初始化页所有者登录的实际权限仍待验证。
   - 2026-11-23 只读复核：当前权限来源是已登录的 `cf@1.0.0-rc.2` OAuth (`cf auth scopes`，不是 Pages 内 S11 secret)。`cf auth scopes --filter account_api_tokens` 返回 `No granted scopes match`；DNS scope 报告含 `dns_records read, edit`、`zone read, write`。`cf accounts tokens permission-groups list --scope com.cloudflare.api.account.zone` 的脱敏请求路径为 `GET /client/v4/accounts/<account-id>/tokens/permission_groups?scope=com.cloudflare.api.account.zone`，Cloudflare HTTP 403、错误码 `9109`、消息 `Unauthorized to access requested resource`。不带 scope 与按 `DNS Write` 名称筛选也返回相同 403。
   - 当前生产账号下 `cf zones list` 只有生产 zones `onlinegal.cc.cd` 与 `onlinegal.de5.net`，没有隔离 zone。本次用 `cf pages create` 新建隔离 Git 项目 `online-gal-task106-probe`（GitHub source 同官方仓库、生产分支 `main`、禁用自动/预览部署、无自定义域名），只部署于 `*.pages.dev`；未创建临时账户令牌、TXT 或写入 DNS。
@@ -144,6 +144,8 @@
 - [ ] 9.6【生产验收／7.6 后】记录 `onlinegal.de5.net` 的两次生产部署、签名检查、`_trust.onlinegal.de5.net` 与真实 Service Worker DoH 结果，核对初始化页已退出并清理引导标记。仅在结果通过后勾选本项和插件系统 7.7。
 
 ## 10. 初始化后交接私有 Cloudflare 入口
+
+管理系统 #151 与插件系统 #153 对照 `cf-account-admin` §7 实施。联调须保留第 9 节已有的部署身份、签名地址验证和关闭标签页后的续跑。
 
 - [ ] 10.1【管理系统】按 S14 登记并在生产 PATCH 写入路由密钥，提供所有者私有入口，验证预演与进度存储无泄露。复用 `cf-account-admin` A12 的派生与项目核验逻辑。
 - [ ] 10.2【管理系统主责／插件系统配合】联调初始化、首次站点部署、签名部署切换。用同一 OAuth 会话与入口继续，验证清引导标记前可用性。关闭唯一初始化标签页后复用 9.3a，从本地 `cf` 续跑。覆盖既有项目补写和入口轮换。
