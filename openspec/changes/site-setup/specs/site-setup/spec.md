@@ -153,8 +153,13 @@
 
 #### Scenario: Deployment, verification, or DNS propagation is interrupted
 
-- **WHEN** 首部署未就绪、签名构建失败、包验证失败、验签后复核的生产部署身份不匹配、DoH 仍未传播，或操作者关闭原初始化页
+- **WHEN** 首部署未就绪、签名构建失败、包验证失败、验签后复核的生产部署身份不匹配，或 DoH 仍未传播
 - **THEN** 流程 MUST 保留可恢复的进度并允许从失败步骤继续。只有线上包验签和生产部署身份复核均通过才可改动 TXT。若 TXT 已写入且匹配候选值，重试 MUST 复用该记录
+
+#### Scenario: The last setup tab is closed after bootstrap
+
+- **WHEN** 第一次站点部署已接管生产域名，且所有初始化标签页均已关闭
+- **THEN** 所有者 MUST 能用已认证的本地 `cf` 和仓库验签入口，从现有项目状态和部署历史继续。恢复 MUST 保留已写入的密钥、复用可恢复的部署，并执行相同的部署身份检查、专属地址验签与验签后复核
 
 ### Requirement: Other changes add setup items through the list
 
