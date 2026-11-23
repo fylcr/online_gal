@@ -97,7 +97,7 @@ access token、refresh token 与设备码 MUST 只存在于内核的内存与保
 
 #### Scenario: The owner sees the admin entry
 
-- **WHEN** 用户在 `onlinegal.cc.cd` 上打开账号分区，登录账号拥有 `domains[]` 含 `onlinegal.cc.cd` 的 Pages 项目
+- **WHEN** 用户在 `onlinegal.de5.net` 上打开账号分区，登录账号拥有 `domains[]` 含 `onlinegal.de5.net` 的 Pages 项目
 - **THEN** 页面显示"进入站点管理"，`/admin` 列出项目、部署、域名、控制台四个分区，每个分区是 `/admin/<id>`
 
 #### Scenario: A destructive admin action asks first

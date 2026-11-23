@@ -63,6 +63,7 @@
 - [x] 7.5 根 `package.json` 新增 `build:site`；`build`/`dev`/`test` 不变
 - [x] 7.6 构建脚本给官方管理器的 lazy 配置是 `engines/**` 与 `**/*.map`：24 个文件共 3.1 MiB，安装时下载 14 个、约 0.1 MiB（10 个 lazy）。曾试过除入口页外全部 lazy，站点根提供静态页之后没有收益，已改回
 - [ ] 7.7（2026-11-23 用户决定改写，原"关闭 Git 集成、改直接上传"作废）官方站点继续用 Cloudflare Pages 的 Git 集成构建，不关闭、不直接上传。需要用户做的只剩生产环境 secret `ONLINE_GAL_CA_BUILD_TOKEN`（随机 32 字节 b64url，设计见 design.md K15 开头）：`/__ca` 上线并验证之后再配置，配置后的下一次生产构建开始给官方包签名。预览环境不配置。CA 私钥不再手工配置，改由变更 `site-setup` 第 7 节在重新初始化时于浏览器里生成并写入 `ONLINE_GAL_CA_PRIVATE_JWK`（见 11.2）。加 DNS 白名单记录还要等 10.0 的 DoH 查询在真实 Service Worker 中接通并实测通过，否则“签名产物能通过验证”无从确认；记录用的公钥指纹在初始化完成时由页面显示。
+  - 2026-11-23 补充：用户决定 I 把构建令牌与 `_trust` TXT 也放进初始化（`site-setup` proposal「决定 I」，任务在其 tasks.md 第 9 节，待用户选定 (i1) 方案）。定下来之前本条保持未勾选，不手工配置。域名改为 `onlinegal.de5.net`（决定 J，`site-setup` design.md S12），TXT 在 `_trust.onlinegal.de5.net`。DoH 在本机的 curl 实测已通过（design.md「10.0 验证结果」），真实 Service Worker 中的验证仍未做。
 - [ ] 7.8（2026-11-23 用户决定，等仓库公开之后做，现在不做）给 `main` 开分支保护：禁止强制推送、禁止删除分支，不要求 PR、不要求状态检查。现在开不了：仓库是私有的，免费账号对私有仓库的分支保护与规则集都返回 403（`Upgrade to GitHub Pro or make this repository public`）。公开是 `github` 通道的前提（K15），公开时一并做。
 
 ## 8. 测试与验证
@@ -114,6 +115,6 @@
 - [ ] 11.2（2026-11-23 决定 H 改写）K18 微型 CA 的私钥登记为站点初始化项，不另做配置入口。
   - 登记已由变更 `site-setup` 第 7 节承接：`ONLINE_GAL_CA_PRIVATE_JWK`（`owner: 'plugin-system'`，`source: 'generated'`），初始化页在浏览器里生成 ECDSA P-256 密钥对，私钥 JWK 写入生产环境 secret，公钥指纹显示给所有者。设计见 `site-setup` 的 design.md S11 与 S7，由管理系统的对话实现，本变更不改 `apps/setup/`。
   - 「允许的平台身份 → `anon_id`」映射不再登记：Pages 构建的身份是固定的 `cf-pages`（10.8 已实现），没有需要初始化的映射表。GitHub 通道的 OIDC 主体绑定随该通道一起暂缓（10.0）。
-  - DNS 的 `_trust.<域名>` TXT 记录不在初始化时写入。公钥指纹在初始化完成时显示一次，记下来；等 10.0 的 DoH 实测通过后，再按 K16 手工加记录（7.7 的前提不变）。
+  - ~~DNS 的 `_trust.<域名>` TXT 记录不在初始化时写入。~~ 2026-11-23 被用户决定 I 推翻：TXT 也在初始化时写入，任务在 `site-setup` tasks.md 第 9 节（待定）。
   - `functions/__ca/issue.ts` 读不到 `ONLINE_GAL_CA_PRIVATE_JWK` 时返回 `ca-key-not-configured`，已实现，不静默失败。
 - [x] 11.3（2026-11-22，因 `site-setup` 用户决定 F：初始化代码不进站点构建）撤销 11.1：删除 `packages/plugin-system/src/kernel.ts` 里对 `/__setup` 的放行，删除 `test/plugin-system-route.test.mjs` 里对应的用例（文件只剩这些用例时整个删除）。`format.ts`、`build-site.mjs` 里的 `__setup` 由 `site-setup` 3.2 删除。完成后 `dist/site/` 里搜不到 `__setup`。

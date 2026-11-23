@@ -21,7 +21,7 @@
   - `packages/plugin-system/src/index.ts` 已导出 `account/vault.js` 和 `account/cloudflare.js`。
   - `account/cf-identity.generated.ts` 在版本库里，不需要运行 `build:cf` 生成。
 - `functions/__cf/[[path]].ts`：同源中转。`/__cf/api/<rest>` → `api.cloudflare.com/client/v4/<rest>`，`/__cf/oauth/**` → `dash.cloudflare.com/oauth2/**`；转发页面带来的 `authorization`、`content-type`、`accept`、`content-length`；只接受同源请求。导出 `onRequest(context: { request })`。
-- A6 站点管理员判定：比较当前主机名与项目的 `subdomain`、`domains[]`；在 localhost 上改用 `SITE_HOST`（默认 `onlinegal.cc.cd`）。
+- A6 站点管理员判定：比较当前主机名与项目的 `subdomain`、`domains[]`；在 localhost 上改用 `SITE_HOST`（默认 `onlinegal.de5.net`，2026-11-23 决定 J 前为 `onlinegal.cc.cd`）。
 
 本变更要遵守的约束：
 
@@ -148,9 +148,9 @@
   `no-store` 保证换成站点构建后浏览器不会拿到旧的初始化页。
 - **构建时写入页面的配置**：脚本把下面的 JSON 通过环境变量 `PUBLIC_ONLINE_GAL_SETUP` 交给 `astro build`，页面用 `import.meta.env.PUBLIC_ONLINE_GAL_SETUP` 读取。不得放入任何密钥。
   ```json
-  { "siteHost": "onlinegal.cc.cd", "rebuild": { "kind": "..." }, "builtAt": "<ISO 8601>" }
+  { "siteHost": "onlinegal.de5.net", "rebuild": { "kind": "..." }, "builtAt": "<ISO 8601>" }
   ```
-  - `siteHost` 取环境变量 `SITE_HOST`，默认 `onlinegal.cc.cd`（与 A6 相同）。
+  - `siteHost` 取环境变量 `SITE_HOST`，默认 `onlinegal.de5.net`（与 A6 相同）。
   - `rebuild` 决定 S5 第 7 步怎样触发新的构建：
 
   | 构建环境 | `rebuild` |
@@ -393,6 +393,7 @@ Pages 的构建命令由项目设置决定，所以读取仓库源码的构建�
 2. 用户把 `onlinegal.cc.cd` 绑定为 Pages 项目的自定义域名（4.3）。
 3. 发布一次：项目里没有 `ONLINE_GAL_SITE`，产出初始化构建。
 4. 用户在 `https://onlinegal.cc.cd/` 完成初始化；页面触发第二次构建，产出站点构建。
+5. 2026-11-23 决定 J：地址换成 `onlinegal.de5.net`，旧地址改为 301 跳转（S12），之后在新地址上重新初始化（S11、tasks 7.6）。
 
 **回滚**：删除 `apps/setup/` 和 `scripts/build-pages.mjs`，构建命令改回 `npm run build:site`。项目里的 `ONLINE_GAL_SITE` 和 secret 留着没有影响，也可以在控制台删除。
 
@@ -433,3 +434,19 @@ Pages 的构建命令由项目设置决定，所以读取仓库源码的构建�
 - 创建账户令牌的接口是 `POST /accounts/{account_id}/tokens`，要求的权限是 `Account API Tokens Write`（控制台名称「Account → Account API Tokens → Edit」）。见 `https://developers.cloudflare.com/api/resources/accounts/subresources/tokens/methods/create/`。
 - 账户令牌归账户所有，不随创建它的用户离开而失效；用户令牌代表个人。见 `https://developers.cloudflare.com/fundamentals/api/get-started/account-owned-tokens/`。
 - `cf` CLI 的登录自 `@cloudflare/workers-auth` 0.10.0 起申请 `account_api_tokens:create`，本仓库的 `CF_DEFAULT_SCOPES` 已含该项，登录代码不用改。见 `https://github.com/cloudflare/workers-sdk/releases/tag/%40cloudflare/workers-auth%400.10.0`。
+
+### S12 — 官方地址换成 `onlinegal.de5.net`（用户决定 J，2026-11-23）
+
+- 新地址 `https://onlinegal.de5.net/`，是 Pages 项目 `online-gal` 的自定义域名（zone 顶点）。zone `onlinegal.de5.net` 在 Cloudflare 上，NS 为 `fred.ns.cloudflare.com`、`magali.ns.cloudflare.com`，父域 `de5.net` 已有它的 DS。2026-11-23 实测 cloudflare-dns.com 与 dns.google 两家都返回 `AD: true`（`plugin-system` design.md「10.0 验证结果」）。
+- 换域名的原因：`cc.cd` 没有给 `onlinegal.cc.cd` 配 DNSSEC 委托（DS 查询无 Answer，`AD: false`），K16 要求的「至少一家 AD=true」在旧域名上永远满足不了。
+- 旧地址 `onlinegal.cc.cd`：从 Pages 项目解绑，删除 zone 里指向 Pages 的解析（顶点指向 `*.pages.dev` 的 CNAME）。301 跳转要求请求仍然到达 Cloudflare 边缘，所以顶点换成一条占位的代理记录 `A @ 192.0.2.1`（proxied；192.0.2.1 是文档保留地址，不会被回源访问），再在 zone 上建一条 Single Redirect：
+  - 表达式 `(http.host eq "onlinegal.cc.cd")`；
+  - 目标 `concat("https://onlinegal.de5.net", http.request.uri.path)`，保留查询串；
+  - 状态码 301。
+  - zone 里指向 Pages 之外的记录（如有）不动，先列出再回报。旧域名不放 `_trust` TXT。
+- 操作顺序（避免中断）：① 绑定新域名，等到域名状态 `active`、HTTPS 返回 200；② 在旧 zone 建跳转规则，确认 301；③ 从项目解绑旧域名；④ 删旧顶点 CNAME，加占位记录；⑤ 再确认 301。
+- 代码默认值：`SITE_HOST` 的默认值从 `onlinegal.cc.cd` 改为 `onlinegal.de5.net`，共五处：`apps/setup/scripts/build-setup.mjs`（`setupConfig`）、`apps/setup/src/pages/index.astro`、`packages/plugin-system/scripts/build-site.mjs`（`__SITE_HOST__`）、`packages/plugin-system/scripts/sign-plugin.mjs`（`signPlugin` 的 `siteHost` 默认值）、`test/plugin-system-microca.test.mjs`。这一步必须在旧域名开始 301 之前推送：`sign-plugin.mjs` 用 `redirect: 'error'` 请求 `https://<SITE_HOST>/__ca/issue`，旧默认值遇到 301 会让签名失败。
+- 信任记录跟着站点源走：内核按当前源的主机名查 `_trust.<主机名>`（`packages/plugin-system/src/kernel.ts` 的 `siteHost` 缺省取 `new URL(origin).hostname`），新地址查 `_trust.onlinegal.de5.net`。
+- 浏览器里旧源的数据不迁移：`onlinegal.cc.cd` 上的 Service Worker、已安装插件与本地存储属于旧源，跳转后不再使用。决定 J 没有要求迁移。
+- 初始化：重新初始化（tasks 7.6）在新地址上做。初始化页的站点管理员判定（A6）比对项目的 `domains[]`，解绑旧域名后只认新地址。
+- 工具：只用已认证的 `cf` CLI（`openspec/config.yaml` 的规则）。`cf` 缺少某项操作（例如 Rulesets）的命令时停下回报，不改用 wrangler，也不手建 token。

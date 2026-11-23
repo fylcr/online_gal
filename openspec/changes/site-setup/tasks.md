@@ -4,8 +4,8 @@
 
 - **负责**：管理系统的对话（`cf-account-admin` 的对话）。
 - **配合**：`plugin-system` tasks.md 11.3（撤销内核对 `/__setup` 的放行）与 10.10（发布工作流用 `npm run build:pages`），由插件系统的对话完成。
-- **未决事项**：无。proposal 的 (f)、(g) 已由用户决定 G（2026-11-23）结案；决定 H（重新初始化并申请账户令牌）见第 7 节。
-- **当前要做**：第 7 节，由管理系统的对话实现。
+- **未决事项**：(i1)，见 proposal「决定 I」。决定 I 的任务（第 9 节）等用户选定方案后再写，现在不做。
+- **当前要做**：第 8 节（决定 J：换域名），由管理系统的对话实现。第 7 节已完成，7.6 等第 8 节和第 9 节都做完后由用户做。
 - **完成标准**：初始化构建只有初始化页；写入后自动（或按提示手动）再构建一次，得到与原设计一致、不含任何初始化代码的站点构建。
 
 ## 历史：上一版已完成的工作（v2，按用户决定 F 部分作废）
@@ -102,4 +102,18 @@
 - [x] 7.4 测试：PATCH 请求体的生产环境含 `CLOUDFLARE_ACCOUNT_TOKEN` 与 `ONLINE_GAL_CA_PRIVATE_JWK`，且不含任何 OAuth token；缺 `account_api_tokens:create` 时不发创建请求也不发 PATCH；创建请求只发往 `/accounts/{id}/tokens`，`permission_groups` 只有一项且其 id 来自权限组查询；不向 `/user/tokens` 发请求；生成的私钥 JWK 只有五个字段且 `x`、`y`、`d` 都是 43 字符，页面只出现公钥指纹；`reinit:pages --dry-run` 不写入、不部署，正式运行只把 `ONLINE_GAL_SITE` 设为 `null`。
 - [x] 7.5 验收：`npm run check`、`npm run build:setup`、上一条的测试、`npx openspec validate site-setup --strict` 通过。提交并推送到 `main`。
   - 28 项 Node 测试通过（站点初始化、`configure-pages`、`reinit-pages`），Chromium 使用假 OAuth/API 验证页面与会话存储只含公钥指纹，不含令牌或私钥；生产项目 `npm run reinit:pages -- online-gal --dry-run` 未写入或部署。
-- [ ] 7.6【用户】在本机对 `online-gal` 运行 `npm run reinit:pages -- online-gal`，等初始化构建生效后到 `https://onlinegal.cc.cd/` 重新登录并完成初始化。完成后 `curl https://onlinegal.cc.cd/__setup/status` 应返回站点构建的 HTML，不再是 `phase: "setup"` 的 JSON。
+- [ ] 7.6【用户】（2026-11-23 改：等第 8 节换域名、第 9 节决定 I 都完成后再做，地址改为新域名）在本机对 `online-gal` 运行 `npm run reinit:pages -- online-gal`，等初始化构建生效后到 `https://onlinegal.de5.net/` 重新登录并完成初始化。完成后 `curl https://onlinegal.de5.net/__setup/status` 应返回站点构建的 HTML，不再是 `phase: "setup"` 的 JSON。
+
+## 8. 决定 J：官方地址换成 `onlinegal.de5.net`
+
+负责：管理系统的对话。依据 design.md S12。只用已认证的 `cf` CLI；`cf` 缺少某项操作的命令时停下回报。不触发重新初始化（7.6 由用户做）。
+
+- [ ] 8.1 代码默认值：把 S12 列出的五处 `onlinegal.cc.cd` 改为 `onlinegal.de5.net`；之后 `git grep -n onlinegal.cc.cd -- . ':!openspec' ':!docs'` 应无结果。跑 `test/plugin-system-microca.test.mjs`、`.test/site-setup.test.ts` 与 `npm run check`，提交并推送 `main`。这一步先于 8.3。
+- [ ] 8.2 新域名：确认 zone `onlinegal.de5.net` 属于 `online-gal` 项目所在的账户；把它加为该项目的自定义域名；等到域名状态 `active`，`curl -sI https://onlinegal.de5.net/` 返回 200。zone 的 DNSSEC 保持开启。
+- [ ] 8.3 旧域名跳转：列出 zone `onlinegal.cc.cd` 的全部 DNS 记录（类型、名称、内容、是否代理）写进回报；按 S12 建 Single Redirect；`curl -sI "https://onlinegal.cc.cd/a/b?x=1"` 返回 301，`Location: https://onlinegal.de5.net/a/b?x=1`。
+- [ ] 8.4 解绑与删解析：从 `online-gal` 项目删除自定义域名 `onlinegal.cc.cd`；删除顶点指向 `*.pages.dev` 的 CNAME，加占位代理记录 `A @ 192.0.2.1`。只删指向 Pages 的记录，其他记录不动。再验一次 8.3 的 301，并记下 `curl -sI http://onlinegal.cc.cd/` 的实测结果。
+- [ ] 8.5 在本节写验收记录：两个域名的状态、跳转规则 id、8.3 与 8.4 的响应头、8.1 的提交号与部署 id。
+
+## 9. 决定 I：构建令牌与 DNS 白名单记录放进初始化（待定，现在不做）
+
+等用户选定 proposal「决定 I」的 (i1) 方案后，由 OpenSpec 管理对话写本节任务。

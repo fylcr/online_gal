@@ -4,7 +4,7 @@ schema: spec-driven
 # 开工前先读本文件，再读 openspec/changes/ 下与任务相关的 change（proposal → design → specs → tasks）。
 context: |
   项目：online_gal，浏览器端多引擎视觉小说（galgame）模拟器。把真实引擎编译成 WebAssembly 在浏览器里运行。
-  许可 GPL-3.0-or-later，仓库 private，包均为 private、不发布 npm。部署在 Cloudflare Pages：https://onlinegal.cc.cd/（自定义域名；Pages 默认地址为 onlinegal.pages.dev）
+  许可 GPL-3.0-or-later，仓库 private，包均为 private、不发布 npm。部署在 Cloudflare Pages：https://onlinegal.de5.net/（自定义域名，2026-11-23 起；旧地址 onlinegal.cc.cd 只做 301 跳转到这里；Pages 默认地址为 onlinegal.pages.dev）
   当前范围：只维护 ONScripter（ONS）与 KiriKiri 两个引擎；Artemis、Siglus、Tyrano、web 代码保留但暂停适配，不要改动。
   主线 change：first-public-beta-ons-kirikiri（首个公开测试版）、redesign-frontend（前端重构）。
   其他进行中的 change：

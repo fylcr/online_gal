@@ -2,7 +2,7 @@
 
 ## Context
 
-插件系统（变更 `plugin-system`）把站点做成本地服务器：一个 Service Worker 内核从已安装的插件中应答本源请求，当前管理器就是站点本身。第三方管理器和官方管理器在**同一个源**下运行。官方站点部署在 Cloudflare Pages（`onlinegal.pages.dev`），`functions/` 下的 Pages Functions 随站点一起部署（K18 的 `/__ca` 也在这里）。
+插件系统（变更 `plugin-system`）把站点做成本地服务器：一个 Service Worker 内核从已安装的插件中应答本源请求，当前管理器就是站点本身。第三方管理器和官方管理器在**同一个源**下运行。官方站点部署在 Cloudflare Pages（自定义域名 `onlinegal.de5.net`，2026-11-23 起；默认地址 `onlinegal.pages.dev`），`functions/` 下的 Pages Functions 随站点一起部署（K18 的 `/__ca` 也在这里）。
 
 用户要：设置里有账号；用 cf 自己的身份登录 Cloudflare；登录账号拥有本站时能进 admin；admin 里有浏览器版 cf，直接管理 Cloudflare。用户的二轮决定见 proposal.md。
 
@@ -74,7 +74,7 @@
 ### A6 — 站点管理员判定
 
 - 内核列出账号（`GET /accounts`，分页），对每个账号列出 Pages 项目（`GET /accounts/{id}/pages/projects`，分页），把当前主机名（小写）与项目的 `subdomain` 和 `domains[]` 比对。命中的第一个为 `{ accountId, accountName, projectName }`，否则为 `null`。
-- 在 `localhost`、`127.0.0.1`、`[::1]` 上比对构建时的站点主机名 `SITE_HOST`（`build-site.mjs` 写入内核，默认 `onlinegal.cc.cd`，即站点的自定义域名），方便本地调试 admin。
+- 在 `localhost`、`127.0.0.1`、`[::1]` 上比对构建时的站点主机名 `SITE_HOST`（`build-site.mjs` 写入内核，默认 `onlinegal.de5.net`，即站点的自定义域名；2026-11-23 前为 `onlinegal.cc.cd`），方便本地调试 admin。
 - 结果在内核内存中缓存 10 分钟，A5 的事件会清空它。查询失败（网络或 403）时结果为 `null` 并附原因，不缓存。
 - 这只是界面上的门槛，不授予任何内核特权。真正的权限由 Cloudflare 按 token 校验；admin 能做的事，登录用户用 cf 本来也能做。
 
@@ -140,7 +140,7 @@
   - `packages/plugin-system/src/errors.ts` 的 `account-forbidden`、`account-signed-out`、`account-unavailable`、`account-failed` 及其 HTTP 状态。
   - `packages/plugin-system/src/index.ts` 对 `account/vault.js`、`account/cloudflare.js` 的导出；`packages/plugin-system/src/sw.ts` 的 `IndexedDbVaultStore` 与 `__SITE_HOST__`。
   - `packages/plugin-system/src/format.ts` 保留路径里的 `__cf`。
-  - `packages/plugin-system/scripts/build-site.mjs`：`__SITE_HOST__`（默认 `onlinegal.cc.cd`）、官方管理器 lazy 列表里的 `_astro/cf/**`、RESERVED 里的 `__cf`、`_routes.json` 的 `/__cf/*`。
+  - `packages/plugin-system/scripts/build-site.mjs`：`__SITE_HOST__`（默认 `onlinegal.de5.net`）、官方管理器 lazy 列表里的 `_astro/cf/**`、RESERVED 里的 `__cf`、`_routes.json` 的 `/__cf/*`。
 - 其他共用文件：
   - 根 `package.json` 的 `build:cf`，以及 `build`、`dev` 对它的调用；`pnpm-lock.yaml` 里 `packages/cf-browser` 的 importer。
   - `apps/app/package.json` 的 `@online-gal/cf-browser`；`apps/app/astro.config.mjs` 的 cf 分块规则（`chunkFileNames`）。

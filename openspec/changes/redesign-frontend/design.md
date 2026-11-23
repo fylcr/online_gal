@@ -2,7 +2,7 @@
 
 ## Context
 
-- `apps/app` 现状：Astro 7.3、`@astrojs/svelte` 9、Svelte 5.43，静态输出，部署在 Cloudflare Pages（`https://onlinegal.cc.cd/`，2026-11-22 起为官方地址；默认地址 `onlinegal.pages.dev`）。
+- `apps/app` 现状：Astro 7.3、`@astrojs/svelte` 9、Svelte 5.43，静态输出，部署在 Cloudflare Pages（`https://onlinegal.de5.net/`，2026-11-23 起为官方地址，旧地址 `onlinegal.cc.cd` 301 跳转；默认地址 `onlinegal.pages.dev`）。
 - 页面：`src/pages/index.astro` → `Library.svelte`（`client:load`）；`play.astro` → `Player.svelte`（`client:only="svelte"`，`bare` 布局，读 `?id=`）；`settings.astro` → `Settings.svelte`；`engines.astro` → `Engines.svelte`。`src/layouts/Layout.astro` 含头部导航与页脚。
 - `src/lib/platform.ts` 是唯一组合根：`getPlatform()`、`browserSupport()`、`defaultSettings`、`formatPlayTime/formatDate/relativeTime`，并按编译期常量配置 KiriKiri 与 Artemis 引擎。
 - 组件实际调用的 API：`platform.importDirectory/importFileList/importDataTransfer`、`library.list/get/patch/remove/redetect/openSource`、`saves.list/get/put/remove/exportAll/importAll/fileStore`、`settings.save/patch`、`loadSettings`、`registry.list`、`probeFailures`；`Session` 的 `start/stop/pause/resume/isPaused/save/restore/captureThumbnail/applySettings`；`@online-gal/core` 的 `runtimeLabel`、`unsupportedReason`、`isPlayable`。

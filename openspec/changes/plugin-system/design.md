@@ -218,13 +218,18 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
 - 内核对 `/__ca/**` 与 `/sw.js`、`/registry/**` 一样放行到服务器：发布端的本地登录会在浏览器里打开该路径，不放行就会被当前管理器的 404 接住。管理器包的保留路径同步加上 `__ca/**`，理由同 K5。
 - `_headers` 不作用于 Function 的响应，CA 的响应自己带需要的头；发布端是脚本与登录页，不需要跨源隔离头。
 - CA 私钥与「允许的平台身份 → `anon_id`」映射放在 Pages 项目的加密环境变量，不进仓库；公钥 JWK 由发布端写进 bundle。CA 只核验 GitHub Actions / Google / Microsoft 的 OIDC 令牌，或 Pages 构建令牌（`ONLINE_GAL_CA_BUILD_TOKEN`，常量时间比较，映射到 `anon_id` `cf-pages`），然后签发 K15 的 10 分钟 JWS，不保存令牌，也不在日志里记录平台身份。
-- 需要用户提供：域名（`_trust.<域名>` 的 TXT）、允许的 OIDC 主体、Cloudflare API token（写入 GitHub 仓库 secrets，只在启用 `github` 通道时需要）。
+- 域名为 `onlinegal.de5.net`（2026-11-23 用户决定 J，见 `site-setup` design.md S12），TXT 在 `_trust.onlinegal.de5.net`；旧域名 `onlinegal.cc.cd` 没有 DNSSEC，只做 301 跳转，不放 TXT。
+- 需要用户提供：允许的 OIDC 主体、Cloudflare API token（写入 GitHub 仓库 secrets，只在启用 `github` 通道时需要）。
 - 2026-11-22 补充：用户决定凡是需要初始化的都在站点初始化时完成。CA 私钥与 OIDC 映射的写入入口是变更 `site-setup` 的初始化项清单（其 design.md S7），不另做配置入口。见 tasks.md 11.2。
 
 #### 10.0 验证结果
 
 - **公共 Rekor v1：通过。** 向 `POST https://rekor.sigstore.dev/api/v1/log/entries` 发送 `hashedrekord` `0.0.1`，签名为 ECDSA P-256 DER，`publicKey.content` 为 base64 包裹的裸 SPKI PEM 公钥（不含证书）。实测 HTTP 201，返回 `verification.signedEntryTimestamp` 与 `verification.inclusionProof`（含 `checkpoint`、`hashes`、`logIndex`、`rootHash`、`treeSize`）。同一回执的顶层 `logIndex` 为 `4047830186`、proof `logIndex` 为 `3925925924`；前者用于 SET，后者用于该树的 Merkle 证明，不能混用。
-- **DoH 从 Service Worker 以 CORS 取 TXT + AD：未证实。** 当前探针网络到 `cloudflare-dns.com:443`、`dns.google:443` 均连接超时，未收到可观察的 HTTP/CORS 响应或 AD 位；不是 CORS 拒绝的证据，也不阻塞 Pages 签名端开发。仍需在可达网络从真实 Service Worker 复测。
+- **DoH 从浏览器以 CORS 取 TXT + AD：通过（2026-11-23 实测）。** 经本机代理实测（直连 `cloudflare-dns.com:443` 与 `dns.google:443` 15 秒超时，不是拒绝）：
+  - `https://cloudflare-dns.com/dns-query` 与 `https://dns.google/resolve`，请求带 `accept: application/dns-json` 与 `Origin: https://onlinegal.cc.cd`。两家都返回 HTTP 200，响应头 `Access-Control-Allow-Origin: *`，JSON 都带布尔 `AD` 位。从浏览器跨源取可用。
+  - `onlinegal.cc.cd` 取不到 AD：`_trust.onlinegal.cc.cd` 的 TXT 查询两家都是 `Status: 3`、`AD: false`；父域 `cc.cd` 的 NS 查询也是 `AD: false`；`onlinegal.cc.cd` 的 DS 查询 `Status: 0` 但没有 `Answer`。注册商没有给这个域配 DNSSEC 委托，K16 要求的「至少一家 AD=true」在这个域上永远满足不了。
+  - `onlinegal.de5.net` 有完整 DNSSEC：`de5.net` 的 NS 与 DS 查询、`onlinegal.de5.net` 的 NS 与 DS 查询，两家都返回 `AD: true` 且带 RRSIG。DS 为 `2371 13 2 97b89f63223f3831069cee79d59c3f111350311b949607fb0eb8aa62b17cbaec`。该域目前没有 A 记录（SOA 权威应答，`AD: true`）。
+  - 还没做的：从真实 Service Worker 里发同样的请求。CORS 头已证实放行任意来源，这一步只差浏览器内复测。
 - **GitHub 通道：暂缓（10.10 可选）。** 当前仓库不公开；浏览器验证器、体积及真实产物的证书扩展和输出格式不作为本轮 Pages 签名的验收项。
 
 ### K19 — 其他变更通过登记扩展内核

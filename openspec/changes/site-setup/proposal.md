@@ -47,7 +47,7 @@
 - **决定 H**：第 7 节。已初始化的站点重新初始化一次；初始化时申请一个账户所有的 API 令牌，权限为「Account API Tokens Edit」，写成生产环境 secret `CLOUDFLARE_ACCOUNT_TOKEN`。
 - **重新构建**：Cloudflare Git 构建的项目用 create deployment；发布工作流构建的项目只显示手动入口（重跑链接 `https://github.com/<repo>/actions/runs/<runId>`，或推一个新的 `v*` 标签），不再用 GitHub token 自动重跑；其他情况给出手动命令。
 - **删除上一版的实现**：`apps/app` 里的 `/setup` 页、门槛脚本和组件、`functions/__setup/`，以及共用文件里的 `__setup` 登记。
-- **官方站点地址**：`https://onlinegal.cc.cd/`，作为 Pages 项目的自定义域名。用户上线后在该地址上亲自完成一次初始化。
+- **官方站点地址**：`https://onlinegal.de5.net/`（2026-11-23 决定 J，原为 `onlinegal.cc.cd`），作为 Pages 项目的自定义域名。用户在该地址上亲自完成初始化。旧地址只做 301 跳转。
 
 ## 已决定（原 (f)、(g)，2026-11-23 决定 G）
 
@@ -60,6 +60,12 @@
 - **账户令牌，不是用户令牌**：初始化页用刚登录的 OAuth access token 调 `POST /accounts/{account_id}/tokens`，申请一个账户所有的 API 令牌，写成生产环境 secret `CLOUDFLARE_ACCOUNT_TOKEN`。MUST NOT 调 `POST /user/tokens`，MUST NOT 把 OAuth access token 或 refresh token 写进任何变量。
 - **权限只要一项**：该令牌的权限组是「Account API Tokens Edit」（API 权限名 `Account API Tokens Write`），资源限于已确认的这一个账户。它不直接调用 Cloudflare API，只用来以后再申请令牌；新的初始化项需要令牌时用它申请，不必再重新初始化。
 - **不手填**：令牌由页面申请后直接写入，不显示输入框，不把明文留在页面上。登录的 `scope` 缺少 `account_api_tokens:create` 时停下说明，不写入。
+
+## 已决定（决定 I、J，2026-11-23）
+
+- **决定 I：构建令牌和 DNS 白名单记录也在初始化时写入**。用户原话：「放进初始化，然后DOH实测一下」。`plugin-system` 的构建签名身份与 `_trust.<域名>` 的 TXT 记录由初始化页生成并写入，用户不再手工配置。
+  - 未决 (i1)：初始化后的第一次站点构建签不了名。构建向「当前线上站点」的 `/__ca/issue` 取凭证（`plugin-system` K15），那时线上还是初始化构建，没有 `/__ca`；而且 Pages Function 只读得到它部署之前写入的 secret。令牌一配置，签名失败会让构建失败，站点切不过去。等用户选定方案后写 tasks.md 第 9 节。
+- **决定 J：官方地址换成 `onlinegal.de5.net`**。用户原话：「将域名换成onlinegal.de5.net,之前的域名删除解析，改成301跳转到新域名」。原因：`cc.cd` 没有 DNSSEC 委托，DoH 对 `onlinegal.cc.cd` 永远是 `AD: false`，K16 的 DNS 白名单在旧域名上用不了；`onlinegal.de5.net` 实测两家解析器都是 `AD: true`。设计见 design.md S12，任务见 tasks.md 第 8 节。
 
 ## Capabilities
 
