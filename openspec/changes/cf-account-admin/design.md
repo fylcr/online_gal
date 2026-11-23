@@ -22,7 +22,6 @@
 
 **Non-Goals**
 - OAuth 凭据的整体设计（多提供方、第三方插件提供 OAuth、跨源隔离）：用户暂缓（proposal 第 1 项）。
-- 代理的隐藏与防滥用：用户暂缓（proposal 第 2 项）。
 - 浏览器里运行 Node 专属的手写命令（`dev`、`build`、`deploy`、本地模式、隧道、更新检查、遥测）。
 - 多账号同时登录：同一时刻只保存一个 Cloudflare 登录。
 
@@ -39,9 +38,11 @@
 
 ### A2 — 同源代理：`functions/__cf/[[path]].ts`
 
+下文描述初始化阶段的固定公网路由与通用转发约束。初始化后的站点按 A12 使用私有网络入口。
+
 - 映射：`/__cf/api/<rest>` → `https://api.cloudflare.com/client/v4/<rest>`（所有方法，保留查询串）；`/__cf/oauth/device/auth`、`/__cf/oauth/token`、`/__cf/oauth/revoke` → `https://dash.cloudflare.com/oauth2/...`（只允许 POST）；其余路径 404。
 - 请求头只转发白名单：`authorization`、`content-type`、`accept`、`content-length`。`cookie`、`origin`、`referer`、`cf-connecting-ip`、`x-forwarded-*` 一律不转发。响应去掉 `set-cookie`，加 `cache-control: no-store`。请求体和响应体都以流的方式透传，不缓冲。
-- 只接受浏览器标明同源的请求（`Sec-Fetch-Site: same-origin`，或 `Origin` 等于本站），否则 403。这只能挡住其他网页借道，挡不住非浏览器客户端；真正的防滥用由用户后续设计（proposal 第 2 项）。
+- 只接受浏览器标明同源的请求（`Sec-Fetch-Site: same-origin`，或 `Origin` 等于本站），否则 403。这只能挡住其他网页借道，挡不住非浏览器客户端；站点构建的防滥用见 A12。
 - 不记录请求头和请求体。代理能看到 token，用户已接受。
 - 选 Pages Function 而不是单独的 Worker：与 `/__ca` 同一次部署、同源（不需要 CORS），没有第二个项目要维护。
 - 本地用 Wrangler 4.33.1 验证。站点产物的 `_routes.json` 同时包含 `/__ca/*` 和 `/__cf/*`。真实 `[[path]].ts` 在本地对跨站请求、OAuth 错误方法和未知路径分别返回 403、405 和 404。
@@ -50,9 +51,9 @@
 ### A3 — 受限安全环境就是内核
 
 - token（access、refresh）和设备码只存在于内核的内存和加密保管库中。内核 API 返回的状态**从不**包含它们。
-- 页面里的 cf 向 `/__cf/api/*` 发请求时不带 token。内核拦截 `/__cf/**`，核对调用方，补上 `Authorization: Bearer <access>`，再用自己的 `fetch` 转发到同一路径（Service Worker 自己发出的请求不会再被自己拦截），最终到达 A2 的代理。页面带来的 `Authorization` 头一律丢弃。
+- 页面里的 cf 向 `/__cf/api/*` 发请求时不带 token。内核拦截 `/__cf/**`，核对调用方，补上 `Authorization: Bearer <access>`，再用自己的 `fetch` 转发到 A12 的私有网络路径（Service Worker 自己发出的请求不会再被自己拦截），最终到达 A2 的代理。页面带来的 `Authorization` 头一律丢弃。
 - 调用方核对：用 `FetchEvent.clientId` 取到发起请求的客户端，再判断它的 URL。只有当前管理器的来源是 `official:` 且该客户端的路径不在 `/__plugins/` 和 `/__kernel/` 下时才放行（官方管理器页面及其创建的 worker）。第三方管理器、插件页面、取不到 clientId 的请求一律 403 `account-forbidden`。
-- 内核不受控时（首次访问还没被 Service Worker 接管、或在 `astro dev` 下），请求会直接到达代理且不带 token，Cloudflare 返回 401，页面显示"插件系统未就绪"。
+- 内核不受控时（首次访问还没被 Service Worker 接管、或在 `astro dev` 下），页面显示「插件系统未就绪」。站点构建的公网固定路径不会进入代理。
 
 - **例外**（2026-11-22，因变更 `site-setup` 用户决定 F）：未初始化站点的初始化构建里没有内核。初始化页自己构造 `CloudflareAccount`（内存 `VaultStore`，不落盘），OAuth token 只在页面内存里，请求直接经 `/__cf` 中转。只存在于初始化构建，站点构建不含这段代码。见 `site-setup` design.md S5。
 
@@ -72,6 +73,8 @@
 - 登录、刷新、退出都会清空 A6 的缓存。
 
 ### A6 — 站点管理员判定
+
+下文的账号及项目枚举用于初始化时发现本站项目。初始化后的后台身份核验改由 A12 的指定项目探针完成。
 
 - 内核列出账号（`GET /accounts`，分页），对每个账号列出 Pages 项目（`GET /accounts/{id}/pages/projects`，分页），把当前主机名（小写）与项目的 `subdomain` 和 `domains[]` 比对。命中的第一个为 `{ accountId, accountName, projectName }`，否则为 `null`。
 - 在 `localhost`、`127.0.0.1`、`[::1]` 上比对构建时的站点主机名 `SITE_HOST`（`build-site.mjs` 写入内核，默认 `onlinegal.de5.net`，即站点的自定义域名；2026-11-23 前为 `onlinegal.cc.cd`），方便本地调试 admin。
@@ -120,7 +123,7 @@
   - 内核模块：A3 的中转，接管 `/__cf/**` 的所有方法，页面只能用 `/__cf/api/**`；
   - 内核 API 名字空间 `account/`：`/__kernel/api/account/<provider>/{status,login,poll,logout}`，status 用 GET，其余用 POST；
   - Function：A2 的 `functions/__cf/[[path]].ts`。
-- 登记带来的保留：管理器包不能含 `__cf/**`，`build-site.mjs` 的 RESERVED 含 `__cf`，`_routes.json` 的 `include` 为 `["/__ca/*", "/__cf/*"]`。这不是放行：`/__ca/**` 是插件系统自己的放行路径，`/__cf/**` 由内核模块应答。
+- 登记带来的保留：管理器包不能含 `__cf/**`，`build-site.mjs` 的 RESERVED 含 `__cf`，`_routes.json` 保留 `/__ca/*`，按 A12 仅登记 `/__cf` 的实际私有子路径。站点声明的逻辑 `/__cf/**` 由内核模块应答。
 - 需要插件系统提供登记规则之外的东西时，在 `plugin-system` 变更里提，不在这里直接改它的 spec。
 - 账号模块打进 `sw.js`。它只依赖 WebCrypto、IndexedDB 和 `fetch`，记下 `sw.js` 增加的体积。
 
@@ -147,11 +150,19 @@
   - `apps/app/src/lib/settings-sections.ts` 的 `account` 分区，`apps/app/src/pages/settings/[section].astro` 的 `AccountPanel`。这两处属于前端，改动时同时遵守 `redesign-frontend`。
 - 关闭 sourcemap（`apps/app/astro.config.mjs` 与 `build-site.mjs`）是为本变更做的决定，但作用于整个站点；要改回来时两边一起商量。
 
+### A12 — 初始化后的私有 Cloudflare 入口和后台身份核验
+
+1. **派生入口。** 初始化确认所有者、目标 Pages 项目和正式主机名后，生成 32 字节随机 Pages secret `ONLINE_GAL_CF_ROUTE_KEY`。使用 HMAC-SHA-256 对有版本的 UTF-8 编码元组 `["online-gal/cf-route/v1", accountId, projectName, canonicalHost]` 派生无填充 base64url 路径段。网络入口为 `/__cf/<路由段>/*`，只接受 `GET .../site-admin`、A1 的 OAuth POST 和 `.../api/**`。元组用 JSON 数组编码，主机及账户 ID 使用校验后的规范值。生产构建和 Function 使用同一配置。密钥独立于 Cloudflare OAuth、CA 和构建密钥。有效路由只出现在服务器端路由配置和所有者保存的入口。
+2. **入口交接。** 初始化向所有者提供一次可保存的 `/admin#cf-entry=<路由段>` 链接。导入官方管理器后用 `replaceState` 清除片段，内核关联到本站凭据保管库，之后可直接访问 `/admin`。新浏览器需导入入口一次，随后仍走原 cf OAuth 设备码登录。站点首页、公开设置和公开构建产物无入口索引。摘除所有应用日志、错误、遥测中的完整路由和认证材料。Cloudflare 若记录路径，记录的访问权限和保留期纳入 7.0 核对。所有者可用已认证的本地 `cf` 流程更换路由密钥并获得新入口，应对遗失或泄露。
+3. **快速核验。** 内核通过私有入口发送当前登录者的 OAuth access token。Function 将只读探针固定映射到绑定账户和项目的 Cloudflare `GET /accounts/{accountId}/pages/projects/{projectName}`。仅接受 Cloudflare 的有效成功结果，校验项目与正式主机的绑定后返回最少的站点管理员字段。一个未缓存探针最多发一次上游项目请求。对无权访问、登录过期、入口失效和网络或限流暂不可用分别反馈。缓存沿用 A5/A6 的刷新与清理规则，缓存期最多 10 分钟，临时失败可重试。Cloudflare 继续按当前用户 token 执行每个操作的授权。
+4. **限制转发。** 私有入口下保留 A1 的三个 OAuth POST 端点用于登录、刷新和吊销。通用 API 代理要求通过探针后签发的短期证明。证明最多有效 10 分钟，绑定当前入口、主机和 OAuth token 的摘要，仅存在内核或本次初始化会话内。可从路由密钥按独立用途派生签名材料。Function 在向上游发请求前检查证明，拒绝缺失、已过期、换 token 或跨入口的证明。内核仍执行 A3 的调用方检查，浏览器 cf 继续使用逻辑 `/__cf/api/**`。认证和验证材料均经 HTTPS 传递。
+5. **防刷与验收。** `_routes.json` 精确接入该账户派生的子树，老的固定公网路径和未知路由段交由静态层处理。预览、其他主机和公开产物均不得暴露生产入口。Function 同时校验预期主机和完整路由。隔离部署中通过可观测的调用量核对旧路径和随机路径没有触发 Function。当前自定义域名支持时，对 CF 中转路径启用 WAF 限流并核对拦截发生于 Function 执行前，阈值容纳设备码轮询和正常后台操作。单独排查项目默认域、分支别名和历史部署专属地址。仍能运行旧公开代理的历史部署须在生产验收前关闭公开入口。任何别名保护须验证签名部署专属地址的验签读取仍可用。
+
 ## Risks / Trade-offs
 
 - **借用 cf 的 client id**：授权页显示的是 cf。Cloudflare 可能限制非 CLI 的用法，用户已接受，受限后再说。client id 来自 A1 的构建期读取，只改一处。
 - **全部权限意味着高价值 token**：同源代码可以解密（A4 的限制）。在整体设计完成前，管理器以外的代码都是潜在风险。
-- **代理被借道**：A2 的同源检查挡不住非浏览器客户端，可能被刷请求、消耗 Workers 额度。由用户后续设计。
+- **代理被借道**：A2 的同源检查挡不住非浏览器客户端，可能被刷请求、消耗 Workers 额度。A12 用精确路由减少公网调用，并在可用时加边缘限流。
 - **Service Worker 寿命**：登录轮询由页面驱动，进行中的设备码加密存放；SW 重启后从保管库恢复。
 - **产物体积**：约 4000 个命令按分组拆包；控制台首屏只加载 yargs 和分组索引。实测：cf-browser 145 个 chunk 共 7.5 MiB，入口 125 KiB；`/admin` 首屏不加载 cf，第一次执行命令时才 `import()`；只含 cf 模块的分块由 `apps/app/astro.config.mjs` 的客户端 `chunkFileNames` 放进 `_astro/cf/`，官方管理器把 `_astro/cf/**` 标为 lazy，安装时只下载约 0.2 MiB（未分目录时安装要下载 7.7 MiB）；`sw.js` 因账号模块增加 20.9 KiB（共 59.2 KiB）。站点产物原有约 27 MiB 的 `.map`，大头是 cf 的大分组（如 zero-trust 的 map 1.9 MB）；按用户决定，app 与内核 `sw.js` 都不再生成 sourcemap。
 - **上游变动**：cf 还是预发布版（钉住的提交是 1.0.0-rc.1）。钉住 commit，升级时重跑构建闸门和测试。固定版本暂存 `packages/cf-browser/upstream.json`，不登记进 `.github/upstream-pins.json`：用户决定之后统一写一个每天触发的工作流，把各上游一起更新。

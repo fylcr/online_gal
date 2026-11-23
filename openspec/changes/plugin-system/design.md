@@ -240,7 +240,7 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
 - ~~只有 Function、没有内核模块的登记~~（2026-11-22 加入，同日撤回）：`site-setup` 改为两阶段构建，`/__setup` 只存在于不含插件系统的初始化构建，站点构建里不再有它。撤销见 tasks.md 11.3。
 - 现在没有单独的登记表：`__cf` 直接写在 `packages/plugin-system/src/format.ts` 的保留路径正则、`packages/plugin-system/src/kernel.ts` 的 `routeRequest`、`packages/plugin-system/scripts/build-site.mjs` 的 `RESERVED` 与 `_routes.json` 里。只有一项登记时这样最简单，登记多起来再收拢成一处。
 - 当前登记：
-  - `/__cf` → 变更 `cf-account-admin`（capability `cloudflare-account`），内核模块加 Function。它在共用文件里占用的代码块见该变更 design.md A11。
+  - `/__cf` → 变更 `cf-account-admin`（capability `cloudflare-account`），内核模块加 Function。内核保留逻辑前缀，生产 `_routes.json` 仅启用账户派生子树，见该变更 A12。它在共用文件里占用的代码块见该变更 design.md A11。
   - 插件系统的改动不要顺手改这些块。
 
 ### K20 — 归属与代码边界

@@ -29,7 +29,7 @@
 
 ### Requirement: Other changes extend the kernel by registration
 
-插件系统之外的变更 MUST 通过登记扩展内核，MUST NOT 另改本 capability 的条款。一项登记包括一个顶层前缀 `/__<name>`（MUST NOT 是 `__kernel`、`__plugins` 或 `__ca`），以及以下可选部分：接管该前缀下任何方法请求的内核模块、内核 API 名字空间 `/__kernel/api/<name>/**`、服务器 Function `functions/__<name>/`。登记的前缀 MUST 成为管理器包的保留路径与站点构建的保留名；有 Function 时，`_routes.json` 的 `include` MUST 含 `/__<name>/*`。内核模块 MUST 自行核对调用方。当前的登记是 `/__cf`（变更 `cf-account-admin`）。
+插件系统之外的变更 MUST 通过登记扩展内核，MUST NOT 另改本 capability 的条款。一项登记包括一个顶层前缀 `/__<name>`（MUST NOT 是 `__kernel`、`__plugins` 或 `__ca`），以及以下可选部分：接管该前缀下任何方法请求的内核模块、内核 API 名字空间 `/__kernel/api/<name>/**`、服务器 Function `functions/__<name>/`。登记的前缀 MUST 成为管理器包的保留路径与站点构建的保留名；有 Function 时，`_routes.json` 的 `include` MUST 只列出该登记需要到达服务器的路由。登记可使用 `/__<name>/*`，也可在其下限定子路径。内核模块 MUST 自行核对调用方。当前的登记是 `/__cf`（变更 `cf-account-admin`）。
 
 #### Scenario: Registered and unregistered prefixes
 

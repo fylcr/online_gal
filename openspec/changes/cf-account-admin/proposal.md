@@ -32,11 +32,12 @@
 - 新增包 `packages/cf-browser`（`@online-gal/cf-browser`）：用固定 commit 的上游源码（`.ref/cf`）构建浏览器版 cf。生成的命令与 `src/api/` 原样使用，七个 `#lib/*` 换成浏览器实现；命令按顶层分组拆包、按需加载；对外提供 `runCf(argv, io)`。
 - 管理器（`apps/app`）：设置新增"账号"分区（登录、账号信息、退出、进入站点管理）；新增 `/admin` 页（本站 Pages 项目信息 + cf 控制台）。控制台用 Svelte 自己写，不引入终端库。
 
+- 初始化后启用按 Cloudflare 账户派生的私有 Function 路径。所有者首次在新浏览器使用保存的入口，经 cf OAuth 登录后，由 Function 对本站 Pages 项目发起一次只读查询。旧公网代理退出 Function 路由，自定义域可补充 WAF 限流。见 design.md A12。
+
 ## 暂缓、待用户后续设计
 
 1. OAuth 凭据的整体存储设计：第三方插件提供的 OAuth、多个提供方、真正的隔离（同源代码能用保管库的密钥解密，见 design.md A4）。本变更只做 Cloudflare 一个提供方，接口按提供方分开存放，不预设最终形态。实现完成后整理需要考虑的问题交给用户。
-2. 代理的隐藏与防滥用（`/__cf/*` 对外可见，任何人都能拿自己的 token 借道）。
-3. 把 cf 的固定版本登记进 `.github/upstream-pins.json`：需要用户放开 `.github/**`。在那之前，固定版本记在 `packages/cf-browser/upstream.json`。
+2. 把 cf 的固定版本登记进 `.github/upstream-pins.json`：需要用户放开 `.github/**`。在那之前，固定版本记在 `packages/cf-browser/upstream.json`。
 
 ## Capabilities
 
@@ -47,7 +48,7 @@
 
 ### Modified Capabilities
 
-- 无。本变更按 `plugin-system` 的登记规则登记前缀 `/__cf`（`cloudflare-account` 的 "The account registers `/__cf` with the plugin system"），不修改 `plugin-system` 的条款。
+- 逻辑前缀 `/__cf` 保留。Function 仅启用该前缀下的私有子路径，登记约定由 `plugin-system` K19 维护。初始化接入由 `site-setup` S14 跟踪。
 
 ## Impact
 

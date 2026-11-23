@@ -161,6 +161,21 @@
 - **WHEN** 第一次站点部署已接管生产域名，且所有初始化标签页均已关闭
 - **THEN** 所有者 MUST 能用已认证的本地 `cf` 和仓库验签入口，从现有项目状态和部署历史继续。恢复 MUST 保留已写入的密钥、复用可恢复的部署，并执行相同的部署身份检查、专属地址验签与验签后复核
 
+### Requirement: Setup hands off the private Cloudflare route before switching deployments
+
+初始化 MUST 在验证所有者、项目和正式主机后生成 `ONLINE_GAL_CF_ROUTE_KEY`，与初始化记录一起写为生产 Pages secret。预览 MUST NOT 取得生产路由密钥。初始化 MUST 在首次站点部署前提供仅供所有者保存的入口。两次站点部署 MUST 使用相同的入口。
+
+#### Scenario: Setup continues after the first site deployment replaces the setup page
+
+- **WHEN** 首次站点部署接管正式主机，初始化页仍在当前标签页打开
+- **THEN** 初始化页 MUST 用现有 OAuth 会话完成私有 Function 的项目核验，随后经该入口继续本轮部署及 DNS 流程
+- **AND** 新站点部署 MUST 停止在固定 `/__cf` 网络路径触发 Function
+
+#### Scenario: An existing site upgrades the relay
+
+- **WHEN** 旧项目已有初始化记录但缺少私有路由密钥
+- **THEN** 站点构建 MUST 关闭公开中转，静态站点继续服务。所有者 MUST 能用本地 `cf` 补写路由配置和部署，保留其余初始化配置
+
 ### Requirement: Other changes add setup items through the list
 
 需要在初始化时写入的密钥 MUST 登记在 `apps/setup/src/lib/setup-items.ts`，名字 MUST 匹配 `^[A-Z][A-Z0-9_]*$` 且不是 `ONLINE_GAL_SITE`。读取这些 secret 的功能读不到时 MUST 给出明确错误，MUST NOT 在响应或日志中输出它们的值。

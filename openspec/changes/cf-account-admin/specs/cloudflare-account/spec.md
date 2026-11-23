@@ -61,7 +61,7 @@ access token、refresh token 与设备码 MUST 只存在于内核的内存与保
 #### Scenario: The official manager calls the API without a token
 
 - **WHEN** 已登录时官方管理器页面请求 `/__cf/api/user` 且不带 `Authorization`
-- **THEN** 内核带上 `Authorization: Bearer <access>` 转发到 `/__cf/api/user`，页面得到 Cloudflare 的响应
+- **THEN** 内核通过私有 Function 路径带上 `Authorization: Bearer <access>` 和本站校验所得的短期证明转发，页面得到 Cloudflare 的响应
 
 ### Requirement: Tokens are refreshed and sign-out always clears them
 
@@ -79,12 +79,16 @@ access token、refresh token 与设备码 MUST 只存在于内核的内存与保
 
 ### Requirement: Same-origin proxy function
 
-`functions/__cf/[[path]].ts` MUST 只把 `/__cf/api/<rest>` 转发到 `https://api.cloudflare.com/client/v4/<rest>`（保留方法与查询串），并只把 POST 的 `/__cf/oauth/{device/auth,token,revoke}` 转发到 `https://dash.cloudflare.com/oauth2/` 下的同名端点；其余路径 MUST 返回 404。请求头 MUST 只转发 `authorization`、`content-type`、`accept`、`content-length`。响应 MUST 去掉 `set-cookie` 并带 `cache-control: no-store`。代理 MUST 拒绝（403）既不带 `Sec-Fetch-Site: same-origin`、`Origin` 也不等于本站的请求，并且 MUST NOT 记录请求头或请求体。`_routes.json` 的 `include` MUST 包含 `/__cf/*`。
+初始化构建的 `functions/__cf/[[path]].ts` MUST 将 `/__cf/api/<rest>` 转发到 `https://api.cloudflare.com/client/v4/<rest>`，保留方法与查询串。`/__cf/oauth/{device/auth,token,revoke}` MUST 只接受 POST，转发到 `https://dash.cloudflare.com/oauth2/` 对应端点。未知路径 MUST 返回 404。初始化构建 MUST 在 `_routes.json` 启用 `/__cf/*`。
 
 #### Scenario: Cookies and arbitrary hosts are not forwarded
 
 - **WHEN** 请求 `/__cf/api/zones` 时带了 `Cookie`，另有一个请求访问 `/__cf/other/x`
 - **THEN** 上游请求里没有 `Cookie`；后一个请求得到 404，没有发出任何上游请求
+
+### Requirement: The relay constrains upstream requests and responses
+
+初始化与站点代理 MUST 只转发 `authorization`、`content-type`、`accept`、`content-length` 请求头。响应 MUST 去掉 `set-cookie` 并带 `cache-control: no-store`。代理 MUST 校验同源。`Sec-Fetch-Site` 存在时必须为 `same-origin`，缺失时 `Origin` 必须等于本站。检查不通过 MUST 返回 403。代理 MUST NOT 记录请求头或请求体。
 
 #### Scenario: A cross-site request is refused
 
@@ -93,7 +97,7 @@ access token、refresh token 与设备码 MUST 只存在于内核的内存与保
 
 ### Requirement: Site admin is decided by owning this site's Pages project
 
-内核 MUST 在登录账号能列出的 Pages 项目中，查找 `subdomain` 或 `domains[]` 等于当前主机名的项目；在 `localhost`、`127.0.0.1`、`[::1]` 上 MUST 改用构建时的站点主机名比对。命中时返回 `{ accountId, accountName, projectName }`，否则返回 `null`。结果 MUST 缓存不超过 10 分钟，登录、刷新与退出时 MUST 清空缓存；查询失败的结果 MUST NOT 缓存。该判定 MUST NOT 授予任何内核特权。
+初始化时，项目发现 MUST 在登录账号能列出的 Pages 项目中查找 `subdomain` 或 `domains[]` 等于当前主机名的项目；在 `localhost`、`127.0.0.1`、`[::1]` 上 MUST 改用构建时的站点主机名比对。命中时返回 `{ accountId, accountName, projectName }`，否则返回 `null`。结果 MUST 缓存不超过 10 分钟，登录、刷新与退出时 MUST 清空缓存；查询失败的结果 MUST NOT 缓存。站点构建 MUST 使用下文的私有项目探针取得相同的身份结果，保留上述缓存上限与清理规则。该判定 MUST NOT 授予任何 Cloudflare API 权限。
 
 #### Scenario: The owner sees the admin entry
 
@@ -109,6 +113,34 @@ access token、refresh token 与设备码 MUST 只存在于内核的内存与保
 
 - **WHEN** 登录账号没有匹配的项目
 - **THEN** 账号分区不显示入口，直接打开 `/admin` 或任何 `/admin/<id>` 时都显示无权访问的原因与账号设置的链接
+
+### Requirement: Initialized deployments expose only a private Cloudflare relay route
+
+完成初始化的生产站点 MUST 将经验证的 Cloudflare 账户、Pages 项目和正式主机名与独立随机 Pages secret 绑定，以派生私有 Function 路径。站点构建 MUST 在 Pages 调用层精确包括该私有子路径，并 MUST NOT 包含固定的 `/__cf/*` 通配、公网发现入口或旧 `/__cf/api/**` 与 `/__cf/oauth/**` 网络回退。公开可下载的构建产物和应用日志 MUST NOT 包含私有路径或其密钥。Function MUST 核对规范路径及正式主机。所有者 MUST 能私下导入入口，通过 cf OAuth 登录，并在入口失效后通过已认证的本地 `cf` 恢复管理入口。
+
+#### Scenario: Public paths do not trigger Functions
+
+- **WHEN** 请求命中旧固定路径或错误的私有路由段
+- **THEN** Pages MUST 在调用层排除请求，没有 Function 调用或 Cloudflare 上游转发
+
+#### Scenario: An owner uses a new browser
+
+- **WHEN** 所有者在新浏览器打开初始化时保存的入口
+- **THEN** 官方管理器 MUST 导入后清除 URL 片段，随后使用 cf OAuth，之后可直接打开 `/admin`
+
+### Requirement: The private function verifies the administrator against the configured project
+
+私有 Function MUST 用当前登录者的凭据查询已绑定的一个 Pages 项目，核对返回的项目和正式主机。一次未缓存的状态探针 MUST 至多发起一次上游项目查询，MUST NOT 分页列账户或项目。打开 `/admin` 或任一子页前，内核 MUST 取得有效成功结果或仍有效的缓存。通用 API 转发 MUST 在 Function 验证短期证明后进行，证明 MUST 绑定入口、主机和当前凭据，刷新或退出时 MUST 从内核清除。实际操作仍由 Cloudflare 按请求携带的 OAuth 凭据授权。
+
+#### Scenario: The caller can reach the route but cannot read the configured project
+
+- **WHEN** 调用者掌握私有路径，但缺少有效的本站项目访问权限，或 Cloudflare 返回的是不同项目
+- **THEN** Function MUST 拒绝授予管理员状态或通用 API 转发证明
+
+#### Scenario: Rate limiting interrupts a check
+
+- **WHEN** 核验请求触发边缘限流或遇到网络错误
+- **THEN** 管理器 MUST 显示可重试的暂不可用状态，MUST NOT 将其缓存为无权访问
 
 ### Requirement: Settings has an account section
 

@@ -67,6 +67,10 @@
   - (i1) 用户选择**方案 A（两次站点构建）**。第一次部署带有签发接口和生产密钥的站点，跳过官方包签名。该部署在站点域名生效后，初始化页自动发起第二次构建，后者通过 `/__ca/issue` 领取凭证并签名。先用待发布的信任策略验证线上官方包，再发布 TXT，最后从真实 Service Worker 验证 DoH 与签名。执行见 design.md S13、tasks.md 第 9 节。
 - **决定 J：官方地址换成 `onlinegal.de5.net`**。用户原话：「将域名换成onlinegal.de5.net,之前的域名删除解析，改成301跳转到新域名」。原因：`cc.cd` 没有 DNSSEC 委托，DoH 对 `onlinegal.cc.cd` 永远是 `AD: false`，K16 的 DNS 白名单在旧域名上用不了；`onlinegal.de5.net` 实测两家解析器都是 `AD: true`。设计见 design.md S12，任务见 tasks.md 第 8 节。
 
+## 初始化后收起 Cloudflare 代理
+
+初始化确认所有者后，附带写入独立的 Pages 路由密钥，并给所有者可保存的管理入口。首次站点部署切换到派生的私有路径，初始化会话使用该入口完成后续部署和 DNS 操作。见 design.md S14 与 `cf-account-admin` A12。
+
 ## Capabilities
 
 ### New Capabilities
