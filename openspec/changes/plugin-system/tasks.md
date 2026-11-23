@@ -62,8 +62,7 @@
 - [x] 7.4 `_headers`：全站 COOP/COEP/nosniff；注册表索引 `no-cache`（`/sw.js` 不要求，更新检查靠 `updateViaCache: 'none'`）；`/registry/p/*` `immutable`
 - [x] 7.5 根 `package.json` 新增 `build:site`；`build`/`dev`/`test` 不变
 - [x] 7.6 构建脚本给官方管理器的 lazy 配置是 `engines/**` 与 `**/*.map`：24 个文件共 3.1 MiB，安装时下载 14 个、约 0.1 MiB（10 个 lazy）。曾试过除入口页外全部 lazy，站点根提供静态页之后没有收益，已改回
-- [ ] 7.7（2026-11-23 用户决定改写，原"关闭 Git 集成、改直接上传"作废）官方站点继续用 Cloudflare Pages 的 Git 集成构建，不关闭、不直接上传。需要用户做的只剩生产环境 secret `ONLINE_GAL_CA_BUILD_TOKEN`（随机 32 字节 b64url，设计见 design.md K15 开头）：`/__ca` 上线并验证之后再配置，配置后的下一次生产构建开始给官方包签名。预览环境不配置。CA 私钥不再手工配置，改由变更 `site-setup` 第 7 节在重新初始化时于浏览器里生成并写入 `ONLINE_GAL_CA_PRIVATE_JWK`（见 11.2）。加 DNS 白名单记录还要等 10.0 的 DoH 查询在真实 Service Worker 中接通并实测通过，否则“签名产物能通过验证”无从确认；记录用的公钥指纹在初始化完成时由页面显示。
-  - 2026-11-23 补充：用户决定 I 把构建令牌与 `_trust` TXT 也放进初始化（`site-setup` proposal「决定 I」，任务在其 tasks.md 第 9 节，待用户选定 (i1) 方案）。定下来之前本条保持未勾选，不手工配置。域名改为 `onlinegal.de5.net`（决定 J，`site-setup` design.md S12），TXT 在 `_trust.onlinegal.de5.net`。DoH 在本机的 curl 实测已通过（design.md「10.0 验证结果」），真实 Service Worker 中的验证仍未做。
+- [ ] 7.7 按 `site-setup` S13 与第 9 节在 Cloudflare Pages Git 集成的生产站点启用方案 A。初始化页生成并写入 CA 私钥、构建令牌和引导标记。第一笔部署使 `/__ca` 上线，第二笔部署签名。线上包通过候选承诺验签后由初始化流程写入 `_trust.onlinegal.de5.net`，最后在真实 Service Worker 验收 DoH 与签名。插件侧实现见 `site-setup` 9.2，生产结果通过 9.6 后勾选本项。
 - [ ] 7.8（2026-11-23 用户决定，等仓库公开之后做，现在不做）给 `main` 开分支保护：禁止强制推送、禁止删除分支，不要求 PR、不要求状态检查。现在开不了：仓库是私有的，免费账号对私有仓库的分支保护与规则集都返回 403（`Upgrade to GitHub Pro or make this repository public`）。公开是 `github` 通道的前提（K15），公开时一并做。
 
 ## 8. 测试与验证
@@ -100,9 +99,9 @@
 - [ ] 10.4（`hashAllowed` 的时间窗比对已完成并有测试；DoH 查询、AD 位、多解析器一致性、TXT 解析未做）`src/trust-dns.ts`：DoH 查询、AD 位、多解析器一致性、TXT 解析（`v`/`salt`/`hashes`，条目可带 after/before，单条超 255 字节按多段拼接）；结果缓存进状态，有效期取 DoH 返回的 TTL、上限 1 小时；现取失败且没有未过期缓存才算「DoH 不可达」（受限模式，K17）
 - [ ] 10.5（`InstalledPlugin.attestation` 可选字段已加，并在 `state` API 的 `PluginInfo` 里暴露；因为是可选字段，旧状态能直接读，暂未升 `STATE_FORMAT`；撤销标记未做）`STATE_FORMAT` 升到 2：记录 `attestation`（`verified` | `unverified` | `revoked`）与撤销标记；旧状态按格式不认识从空状态重建
 - [x] 10.6 错误码 `attestation-invalid`、`attestation-unavailable`，并映射 HTTP 状态
-- [x] 10.7 `scripts/sign-plugin.mjs` 用一次性 P-256 密钥签 manifest，向 `/__ca/issue` 取凭证并向公共 Rekor 写入 `hashedrekord`。`scripts/build-site.mjs` 先定版本并计算含封套的目录哈希，再签名、验证并写出 `plugin.bundle.json`，该 bundle 不进目录哈希。未配令牌时保留原封套、不出 bundle，并记录跳过；配置后任何环节失败都中止。`test/plugin-system-microca.test.mjs` 已覆盖跳过、CA 不可达及 mock Rekor 的成功验签；未配令牌的站点构建通过。`github` 发布见可选 10.10。
+- [x] 10.7 `scripts/sign-plugin.mjs` 用一次性 P-256 密钥签 manifest，向 `/__ca/issue` 取凭证并向公共 Rekor 写入 `hashedrekord`。`scripts/build-site.mjs` 先定版本并计算含封套的目录哈希，再签名、验证并写出 `plugin.bundle.json`，该 bundle 不进目录哈希。未配令牌时保留原封套、不出 bundle，并记录跳过。方案 A 的引导构建门槛、启用签名后的失败处理和最终目录哈希调整由 `site-setup` 9.2 补齐。`test/plugin-system-microca.test.mjs` 已覆盖跳过、CA 不可达及 mock Rekor 的成功验签；未配令牌的站点构建通过。`github` 发布见可选 10.10。
 - [x] 10.8 Pages 构建身份：`functions/__ca/issue.ts` 常量时间比较 `ONLINE_GAL_CA_BUILD_TOKEN`，固定 `anon_id` 为 `cf-pages`，用 `ONLINE_GAL_CA_PRIVATE_JWK` 签发 600 秒 ES256 JWS；未配置时明确拒绝。站点 `_routes.json` 已包含 `/__ca/*`，setup 阶段的 `_routes.json` 和 `_worker.js` 不包含该路由。单元测试覆盖授权、拒绝和缓存头；真实 Pages 路由与上线顺序按 7.7 验证。
-  - 非 Pages 的 OIDC 主体绑定、初始化密钥登记（11.2）及 DNS TXT 配置不在本次 Pages 构建签名范围。线上路由已验证。生产密钥改由 `site-setup` 第 7 节在重新初始化时生成（11.2），构建令牌仍由用户按 7.7 手工配置；预览不配置令牌。真实签名产物通过内核验证、DoH 实测通过后才加 TXT。
+  - 非 Pages 的 OIDC 主体绑定、初始化密钥登记（11.2）及 DNS TXT 配置不在本次 Pages 构建签名范围。线上路由已验证。生产密钥按 `site-setup` 第 7 节和第 9 节生成，预览不写入构建令牌。先验线上签名，再写 TXT，最后从真实 Service Worker 验收 DoH。
 - [ ] 10.9（拆分格式夹具已改；`.test/plugin-attest.test.ts` 覆盖解析、承诺哈希（含 repoId）、规范化与白名单；`.test/plugin-system.test.ts` 已补受限模式（官方包 `unverified`、`github:` 下载前被拒、记录被篡改不算不可达）、官方包无 bundle 被拒、记录缓存 1 小时、`/__ca/**` 放行与管理器保留路径；plugin 测试合计 105 项通过；bundle 篡改、DNS 缺哈希或时间窗外、解析器不一致、GitHub 来源坏 bundle、DoH 恢复后补验要等验证器实现后补）`.test/plugin-system.test.ts` 增补：拆分格式、digest 不符、bundle 篡改、DNS 缺哈希或时间窗外、解析器不一致、官方无 bundle、GitHub 来源坏 bundle、未知 `channel`、`github` 通道 `@<ref>` 后缀不同哈希相同、非 `refs/tags/*` 被拒、受限模式（装官方包标 `unverified`、`github:` 被拒、DoH 恢复后补验）、`github` 通道缺 repoId 或 repoId 非数字被拒、不同 repoId 哈希不同；`npx tsc -b tsconfig.packages.json` 与 `openspec validate plugin-system --strict`
 - [ ] 10.10（可选，2026-11-23 降级：日常发布改由 Pages 构建走 `microca`，见 7.7 与 design.md K15；本任务只在启用 `github` 通道时做）`.github/workflows/release.yml`（用户已同意放开 `.github/**`，只新增这一个文件）：`v*` 标签触发；权限 `contents: read`、`id-token: write`、`attestations: write`；`npm ci` → `npm run build:pages`（2026-11-22 因 `site-setup` 决定 F 改；该步骤的 env 给 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`ONLINE_GAL_PAGES_PROJECT`，用于判断阶段；它向 `GITHUB_OUTPUT` 写 `phase`，只有 `phase == 'site'` 时才做下面的来源证明）→ 对 `dist/site/registry/p/*/*/mf-manifest.json` 逐个 `actions/attest-build-provenance`，把 bundle（`bundle-path` 输出，据我所知是 JSONL，单 subject 一行）写成同目录 `plugin.bundle.json` → `cf pages deploy dist/site`（连同 `functions/`；2026-11-23 用户决定改用 `cf` CLI，不用 `wrangler`）。启用前提：`cf pages deploy` 能上传目录（现在不能），且 Git 集成构建已停掉，否则 Pages 会重新构建出字节不同的包。第三方 action 固定到提交 SHA；`v*` 标签保护规则与该文件的 CODEOWNERS 是这条通道的安全边界（design.md K17 (8)）；需要用户配置 Pages 项目与仓库 secrets
 
@@ -115,6 +114,6 @@
 - [ ] 11.2（2026-11-23 决定 H 改写）K18 微型 CA 的私钥登记为站点初始化项，不另做配置入口。
   - 登记已由变更 `site-setup` 第 7 节承接：`ONLINE_GAL_CA_PRIVATE_JWK`（`owner: 'plugin-system'`，`source: 'generated'`），初始化页在浏览器里生成 ECDSA P-256 密钥对，私钥 JWK 写入生产环境 secret，公钥指纹显示给所有者。设计见 `site-setup` 的 design.md S11 与 S7，由管理系统的对话实现，本变更不改 `apps/setup/`。
   - 「允许的平台身份 → `anon_id`」映射不再登记：Pages 构建的身份是固定的 `cf-pages`（10.8 已实现），没有需要初始化的映射表。GitHub 通道的 OIDC 主体绑定随该通道一起暂缓（10.0）。
-  - ~~DNS 的 `_trust.<域名>` TXT 记录不在初始化时写入。~~ 2026-11-23 被用户决定 I 推翻：TXT 也在初始化时写入，任务在 `site-setup` tasks.md 第 9 节（待定）。
+  - 决定 I 将生产构建令牌与 `_trust.<域名>` TXT 纳入初始化。执行顺序见 `site-setup` S13 和第 9 节。
   - `functions/__ca/issue.ts` 读不到 `ONLINE_GAL_CA_PRIVATE_JWK` 时返回 `ca-key-not-configured`，已实现，不静默失败。
 - [x] 11.3（2026-11-22，因 `site-setup` 用户决定 F：初始化代码不进站点构建）撤销 11.1：删除 `packages/plugin-system/src/kernel.ts` 里对 `/__setup` 的放行，删除 `test/plugin-system-route.test.mjs` 里对应的用例（文件只剩这些用例时整个删除）。`format.ts`、`build-site.mjs` 里的 `__setup` 由 `site-setup` 3.2 删除。完成后 `dist/site/` 里搜不到 `__setup`。

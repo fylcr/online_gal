@@ -11,10 +11,10 @@ context: |
   - plugin-system：插件系统（Service Worker 内核、插件包格式与来源证明、插件规则层）。其他 change 只能通过它的登记规则（design.md K19）扩展内核。
   - cf-account-admin：管理系统（Cloudflare 账号、/__cf 代理、浏览器版 cf、/admin），由单独的对话负责，在 plugin-system 里登记了 /__cf。
   - site-setup：站点初始化，两阶段构建。npm run build:pages（scripts/build-pages.mjs）检查 Pages 项目有没有 ONLINE_GAL_SITE：
-    没有就只构建 apps/setup 的初始化页（不含插件系统、管理器、引擎）；所有者用 Cloudflare 登录，填写并校验初始化项
-    （CLOUDFLARE_ACCOUNT_ID、CLOUDFLARE_API_TOKEN、GITHUB_TOKEN），写成生产环境的 Pages secret 并写入 ONLINE_GAL_SITE，再触发一次构建；
-    有就调用 npm run build:site，产物不含任何初始化代码。不提供重置。服务器功能需要的密钥一律登记为初始化项
-    （apps/setup/src/lib/setup-items.ts，见 site-setup design.md S7），不另做配置入口。属于管理系统，由 cf-account-admin 的对话负责。
+    没有就只构建 apps/setup 初始化页。所有者通过 Cloudflare OAuth 登录，页面自动生成所需密钥并写入生产 secrets 及 ONLINE_GAL_SITE。
+    有就调用 npm run build:site，产物不含初始化代码。官方 Git 集成站点按 site-setup S13 部署两次，先启用签发接口，再发布签名产物。
+    初始化页验签后发布 _trust TXT 并在真实 Service Worker 验收 DoH。所有服务器密钥登记在 apps/setup/src/lib/setup-items.ts。
+    管理系统负责初始化页和部署编排，插件系统负责签名构建和 Service Worker 验证。
     apps/app、functions/、站点构建里不得出现初始化代码。
   目录：
   - apps/app：前端，Astro 7 + Svelte 5（计划接入 Tailwind v4）。技术栈固定，不加其他框架、组件库或状态库。

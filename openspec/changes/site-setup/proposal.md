@@ -32,9 +32,9 @@
 2. 没有：**初始化构建**。只产出初始化页和它的服务器接口，任何路径都显示初始化页；插件系统、管理器、注册表、引擎都不构建。
 3. 所有者在初始化页用 Cloudflare 登录，页面确认该账号拥有本站的 Pages 项目。
 4. 所有者不填写任何 token，也不校验 token。页面用刚登录的 OAuth 凭据直接完成写入和构建；账号 id 由登录结果自动填入。OAuth token 只在页面内存里使用，MUST NOT 写入 Pages secret（access token 约 1 小时过期，refresh token 每次续期都会更换，存成 secret 很快失效）。GitHub token 暂不初始化。
-5. 一次写入 Pages 项目：`CLOUDFLARE_ACCOUNT_ID` 写成生产环境的 secret，再写入 `ONLINE_GAL_SITE`。
-6. 页面触发一次新的构建。脚本这次读到 `ONLINE_GAL_SITE`，产出**站点构建**：与 `plugin-system` 原设计一致，不含任何初始化代码。
-7. 新构建生效后，初始化系统在服务器上不存在，访客无需登录即可正常使用。
+5. 初始化页一次写入 Pages 项目的初始化记录和生产密钥。决定 I 的 Git 集成项目还写入一次性的签名引导标记。
+6. 初始化页触发**站点构建**。方案 A 先部署不签名的站点，让 `/__ca/issue` 上线，再触发签名构建。
+7. 验证线上签名产物后，初始化页发布 `_trust` TXT 并等待 DoH 验收。站点构建生效后，访客无需登录。
 
 不提供重置功能。初始化之后要改密钥，只能到 Cloudflare 控制台修改。
 
@@ -64,7 +64,7 @@
 ## 已决定（决定 I、J，2026-11-23）
 
 - **决定 I：构建令牌和 DNS 白名单记录也在初始化时写入**。用户原话：「放进初始化，然后DOH实测一下」。`plugin-system` 的构建签名身份与 `_trust.<域名>` 的 TXT 记录由初始化页生成并写入，用户不再手工配置。
-  - 未决 (i1)：初始化后的第一次站点构建签不了名。构建向「当前线上站点」的 `/__ca/issue` 取凭证（`plugin-system` K15），那时线上还是初始化构建，没有 `/__ca`；而且 Pages Function 只读得到它部署之前写入的 secret。令牌一配置，签名失败会让构建失败，站点切不过去。等用户选定方案后写 tasks.md 第 9 节。
+  - (i1) 用户选择**方案 A（两次站点构建）**。第一次部署带有签发接口和生产密钥的站点，跳过官方包签名。该部署在站点域名生效后，初始化页自动发起第二次构建，后者通过 `/__ca/issue` 领取凭证并签名。先用待发布的信任策略验证线上官方包，再发布 TXT，最后从真实 Service Worker 验证 DoH 与签名。执行见 design.md S13、tasks.md 第 9 节。
 - **决定 J：官方地址换成 `onlinegal.de5.net`**。用户原话：「将域名换成onlinegal.de5.net,之前的域名删除解析，改成301跳转到新域名」。原因：`cc.cd` 没有 DNSSEC 委托，DoH 对 `onlinegal.cc.cd` 永远是 `AD: false`，K16 的 DNS 白名单在旧域名上用不了；`onlinegal.de5.net` 实测两家解析器都是 `AD: true`。设计见 design.md S12，任务见 tasks.md 第 8 节。
 
 ## Capabilities
@@ -83,5 +83,5 @@
 - **删除**：`functions/__setup/`、`apps/app/src/pages/setup.astro`、`apps/app/src/components/setup/`、`apps/app/src/lib/site-gate.js`、`apps/app/src/lib/site-setup.ts`、`apps/app/src/lib/site-setup-items.ts`。
 - **改动**：根 `package.json`（`build:pages`、`build:setup`、`configure:pages`、`check`）、`pnpm-lock.yaml`、`apps/app/src/layouts/Layout.astro`（删引用）、`packages/plugin-system/src/format.ts` 与 `scripts/build-site.mjs`（删 `__setup`）、`kernel.ts`（由插件系统的对话撤销放行）。
 - **部署**：Pages 构建命令和发布工作流的构建步骤改为 `npm run build:pages`，输出目录仍是 `dist/site`。
-- **Cloudflare**：生产环境新增一个 secret（`CLOUDFLARE_ACCOUNT_ID`）；生产和预览环境新增明文变量 `ONLINE_GAL_SITE`；初始化时多一次构建。
+- **Cloudflare**：生产环境保存账户 ID、账户令牌、CA 私钥和构建令牌。生产与预览环境保存 `ONLINE_GAL_SITE`。方案 A 在两次站点构建之间移除一次性生产引导标记，验证签名后在新域名发布一条 TXT。
 - **依赖**：不新增 workspace 依赖。`apps/setup` 只用仓库里已有的同版本包；项目配置命令通过 npm 调用固定版本的 `cf` CLI。

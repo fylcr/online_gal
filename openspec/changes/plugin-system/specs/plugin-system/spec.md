@@ -222,7 +222,7 @@
 
 ### Requirement: Site headers and caching
 
-`_headers` MUST 给全站加上与内核应答相同的跨源隔离响应头。`/registry/index.json` MUST 以 `Cache-Control: no-cache` 发布；`/sw.js` 不要求 `no-cache`，内核的更新检查 MUST 靠注册时的 `updateViaCache: 'none'`（浏览器检查更新时绕过 HTTP 缓存），因此 CDN 或 zone 层对 `/sw.js` 的缓存不影响内核更新；`/registry/p/**` 的路径 MUST 含覆盖整个目录（含 `plugin.json` 与 `mf-manifest.json`）的内容哈希，并以 `immutable` 长缓存发布。同一个这样的 URL MUST 永远只对应一份内容：只改 `plugin.json`（format 1 升到 format 2、补上 `bundle` 指针）也 MUST 换一个新目录，MUST NOT 覆盖旧 URL。
+`_headers` MUST 给全站加上与内核应答相同的跨源隔离响应头。`/registry/index.json` MUST 以 `Cache-Control: no-cache` 发布；`/sw.js` 不要求 `no-cache`，内核的更新检查 MUST 靠注册时的 `updateViaCache: 'none'`（浏览器检查更新时绕过 HTTP 缓存），因此 CDN 或 zone 层对 `/sw.js` 的缓存不影响内核更新；`/registry/p/**` 的路径 MUST 含覆盖整个目录（含 `plugin.json`、`mf-manifest.json` 及存在时的 `plugin.bundle.json`）的内容哈希，并以 `immutable` 长缓存发布。同一个这样的 URL MUST 永远只对应一份内容：只改 `plugin.json`（format 1 升到 format 2、补上 `bundle` 指针）也 MUST 换一个新目录，MUST NOT 覆盖旧 URL。
 
 #### Scenario: The headers file matches what the kernel serves
 
@@ -235,6 +235,11 @@
 - **WHEN** 两次构建同一个官方包，文件清单不变、只有 `plugin.json` 的字节不同
 - **THEN** 两次的目录哈希不同，注册表指向两个不同的路径
 
+#### Scenario: Only the signed bundle changes
+
+- **WHEN** 两次签名构建发布相同版本的 manifest，但生成的 `plugin.bundle.json` 字节不同
+- **THEN** 两次部署的注册表指向不同的包目录
+
 #### Scenario: The worker script is checked past the HTTP cache
 
 - **WHEN** 站点页面注册 `/sw.js`
@@ -243,7 +248,7 @@
 
 ### Requirement: Plugin packing
 
-官方插件的版本 MUST 带内容哈希后缀，使每次不同的构建都有不同的版本。打包工具 MUST 用与内核相同的 `parsePackage` 校验产物，使打包成功的包一定能被内核接受；第三方作者 MUST 能用同一工具打包自己的仓库。
+官方插件的版本 MUST 带文件清单哈希后缀。文件清单的内容改变时，版本 MUST 随之更新。打包工具 MUST 用与内核相同的 `parsePackage` 校验产物，使打包成功的包一定能被内核接受；第三方作者 MUST 能用同一工具打包自己的仓库。
 
 #### Scenario: The manager is rebuilt
 

@@ -236,7 +236,7 @@
      - 实际的 secret 键由 S7 清单生成，上面是第一批（决定 G 后只有一项）。
      - MUST NOT 把 OAuth access token 或 refresh token 写进任何变量：access token 约 1 小时过期，refresh token 每次续期会被更换，写成 secret 很快就失效。
      - `by` 是 `status().user.id`，取不到时用空字符串；`at` 是当前时间。
-   - 成功后再 `GET` 一次项目，确认生产环境包含全部初始化项的键名，并核对非敏感的 `ONLINE_GAL_SITE` 记录。读回其他会话的记录时，继续检查该记录对应的部署。
+   - 成功后再 `GET` 一次项目，确认生产环境包含全部初始化项的键名，并核对非敏感的 `ONLINE_GAL_SITE` 记录。读回其他会话的记录时，继续检查该记录对应的部署。决定 H、I 的生产变量及引导流程见 S11、S13。
    - 把写入时间存入 `sessionStorage['online-gal:setup-written-at']`。
    - OAuth 凭据继续留在 `CloudflareAccount` 内存里，第 7 步触发构建和轮询还要用；流程结束或页面关闭即丢失。
 7. **重新构建**（用户决定 C、F）：按配置的 `rebuild.kind`：
@@ -245,7 +245,7 @@
    - `manual`：设置好 S2 判断阶段所需的环境变量后，可运行 `npm run build:pages` 检查产物。Git 集成项目用 `cf pages deployments create <project> --branch <production-branch>` 触发生产构建。直接上传项目使用已配置的发布流程发布 `dist/site`。
    - `github-rerun` 和 `manual`：每 5 秒查询 `GET .../deployments?env=production`，等待一条 `created_on` 晚于写入时间、`latest_stage.name` 为 `deploy` 且 `latest_stage.status` 为 `success` 的部署。无法恢复写入时间时，以本站状态接口确认切换。
    - 任一方式：状态为 `failure` 或 `canceled` 时显示失败，提供"重新构建"，只重做这一步，因为变量已经写入。超过 30 分钟提示到 Cloudflare 控制台查看。
-8. **确认切换**：每 5 秒查询 `/__setup/status`，最多 5 分钟，直到得到不是 `phase: "setup"` 的 HTTP 响应（站点构建里没有这个接口，会返回 404 或 HTML）。
+8. **确认切换**：每 5 秒查询 `/__setup/status`，最多 5 分钟，直到得到不是 `phase: "setup"` 的 HTTP 响应（站点构建里没有这个接口，会返回 404 或 HTML）。启用 S13 时，第一次切换后保持当前初始化页，等第二次构建、TXT 和 DoH 全部验收后再跳转。
    - 然后清除 `sessionStorage` 里的本流程记录，显示"初始化完成"，`location.replace(safeNext(next))`。
    - 超时：提示稍后刷新。
 
@@ -316,11 +316,14 @@ export const SETUP_ITEMS: readonly SetupItem[];
 |---|---|---|---|
 | `CLOUDFLARE_ACCOUNT_ID` | `account` | — | — |
 | `CLOUDFLARE_ACCOUNT_TOKEN` | `generated` | — | — |
+| `ONLINE_GAL_CA_PRIVATE_JWK` | `generated` | — | — |
+| `ONLINE_GAL_CA_BUILD_TOKEN` | `generated` | — | — |
 
 - 决定 G 删除了 `CLOUDFLARE_API_TOKEN` 与 `GITHUB_TOKEN` 两项。OAuth token 会过期，不能当长期 secret。
 - 决定 H 新增两项，都是 `source: 'generated'`，生成方式见 S11，不手填、不校验：
   - `CLOUDFLARE_ACCOUNT_TOKEN`（`owner: 'site-setup'`）：初始化页用 OAuth 凭据申请的账户令牌，权限只有「Account API Tokens Edit」，资源限于已确认的账户。
   - `ONLINE_GAL_CA_PRIVATE_JWK`（`owner: 'plugin-system'`）：浏览器里生成的 ECDSA P-256 私钥 JWK，K18 微型 CA 的长期私钥。这是 `plugin-system` tasks.md 11.2 的登记。
+- 决定 I 新增 `ONLINE_GAL_CA_BUILD_TOKEN`（`owner: 'plugin-system'`）。只有启用 S13 的 Git 集成流程时生成并写入生产环境。
 - `source: 'input'` 与 `verify` 字段保留在类型里，当前没有条目使用。`source: 'generated'` 是决定 H 新增的，表示值由页面在写入前生成，不取自账号、不由用户填写。
 
 **扩展规则**
@@ -450,3 +453,15 @@ Pages 的构建命令由项目设置决定，所以读取仓库源码的构建�
 - 浏览器里旧源的数据不迁移：`onlinegal.cc.cd` 上的 Service Worker、已安装插件与本地存储属于旧源，跳转后不再使用。决定 J 没有要求迁移。
 - 初始化：重新初始化（tasks 7.6）在新地址上做。初始化页的站点管理员判定（A6）比对项目的 `domains[]`，解绑旧域名后只认新地址。
 - 实测验收记录在 `tasks.md` 8.5：新 domain 和 HTTPS 已 active；旧域原先只有一条 Pages CNAME；301 Single Redirect 保留 path/query；解绑后只留下 proxied 占位 A。
+
+### S13 — 先上线签发接口，再签名并发布信任记录（决定 I，方案 A）
+
+本流程用于官方站点 Git 集成的生产部署。其他构建方式沿用 S5。两次站点构建均遵循 S6。
+
+1. **准备并写入。** 用已确认的项目与自定义域名定位同一账户内的 `onlinegal.de5.net` zone，读取 `_trust.onlinegal.de5.net` 的现有记录。若已有与候选内容不同的记录或有多条记录，停下并保留原记录。复用 S11 的 CA 公钥指纹。用 `crypto.getRandomValues` 分别生成 32 字节构建令牌和独立的随机 salt，编码成无填充 base64url。用 `microCaCommitment(fingerprint, 'cf-pages', salt)` 得到候选 TXT `v=1; salt=<salt>; hashes=<hash>`。在 S5 的项目 PATCH 中同时写入生产 `secret_text` `ONLINE_GAL_CA_BUILD_TOKEN`、生产 `plain_text` `ONLINE_GAL_CA_BOOTSTRAP=1`。生产 `ONLINE_GAL_SITE` 仍为 `v: 1`，另存 `productionBranch` 与可选公开数据 `trust: { host, salt, hash }`，用于构建判定、恢复与验收。预览只接收原有的初始化记录。构建令牌与 CA 私钥明文只在页面内存和发往该项目的 PATCH 请求里出现。
+2. **第一次站点构建。** `CF_PAGES=1`、`CF_PAGES_BRANCH` 匹配生产记录的 `productionBranch`、记录包含 `trust`、构建令牌存在且 `ONLINE_GAL_CA_BOOTSTRAP=1` 时，构建跳过官方包签名并部署 `/__ca/*` 和 `/__cf/*`。页面按部署 ID 等待成功，并用 9.0 确认的部署身份检查核对该部署在生产主机已生效，并用无凭据 POST 检查 `/__ca/issue` 返回 `401 unauthorized` 和 `no-store`。该检查确认 CA 路由与令牌绑定可用，由第二次构建验证签发。确认前保持引导标记。
+3. **第二次站点构建。** 当前初始化页保持打开并复用同源 `/__cf`。PATCH 只清除生产的 `ONLINE_GAL_CA_BOOTSTRAP`，读回确认后自动触发生产构建。包含 `trust` 的生产构建须持有有效格式的构建令牌，从线上 CA 领取凭证，按 K15 签名。缺少令牌、签发失败、Rekor 或自验失败时构建退出。构建脚本通过签发接口用 CA，无需读取私钥。同一不可变包路径不得承载不同的 bundle 字节。预览沿用 K15。
+4. **先验线上包，再发布 TXT。** 确认第二次部署在生产主机生效，直接读取该版本的注册表、每个官方包的 manifest 与 bundle。核对 registry digest，并用 `verifyBundle` 对实际线上字节和候选 `salt`、`hash` 验签。通过后查一次同名 DNS 记录，复用所有者会话里的 OAuth 凭据按 S11 的账户端点申请临时令牌，并用它创建 TXT。已有相同记录时复用。临时令牌仅带该 zone 的 DNS 写权限，TTL 按 9.0 的验证结果设置，完成或失败后撤销。令牌明文仅用于 DNS 写请求，进度只保存撤销所需的非敏感标识。创建、撤销或权限范围无法核对时显示相应失败状态，便于继续。DNS 冲突保留原记录。
+5. **验收 DoH。** 从真实 Service Worker 查询 Cloudflare 与 Google 两个 DoH 端点，记录 CORS、AD 位与 TXT 内容。按 K16 判定，至少一家可信回答带 `AD: true`，多个解析器作答时内容一致且匹配刚写入的记录。用该策略验证线上包。传播超时给出可重试的等待状态。验收成功后清理流程状态、恢复原路径。正式内核的安装和更新按 `plugin-system` 10.2/10.4 接入。
+
+**恢复**。第一次部署生效后，原初始化页只在当前标签页里存活。保留非敏感的部署 ID 和进度，支持重试当前步骤。关闭页面后，操作者使用已认证的 `cf` 以及仓库提供的线上包校验入口，依据项目的 `ONLINE_GAL_SITE.trust`、引导标记、版本部署记录及 TXT 续跑。保留已写入的密钥，复用正在运行的部署。第 7 节的重新初始化命令会轮换 CA，恢复第 9 节时无需执行。

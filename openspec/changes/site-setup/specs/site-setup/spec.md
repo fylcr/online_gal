@@ -83,17 +83,17 @@
 
 ### Requirement: Setup is completed with OAuth only and written once
 
-初始化页 MUST NOT 显示任何 token 输入框或校验步骤，MUST NOT 调用 `POST /__setup/verify`。初始化项清单里出现 `source: "input"` 的项时，页面 MUST 停下说明不支持，不写入。写入 MUST 是一次 PATCH：每项写成生产环境的 `secret_text`，`ONLINE_GAL_SITE` 以 `plain_text` 写入生产与预览环境。项目里已有非空的 `ONLINE_GAL_SITE` 时，页面 MUST NOT 再次写入，只能触发重新构建。在本机地址上，页面 MUST NOT 写入或触发构建，只显示预演。
+初始化页 MUST NOT 显示任何 token 输入框或校验步骤，MUST NOT 调用 `POST /__setup/verify`。初始化项清单里出现 `source: "input"` 的项时，页面 MUST 停下说明不支持，不写入。写入 MUST 是一次 PATCH：每项写成生产环境的 `secret_text`，`ONLINE_GAL_SITE` 以 `plain_text` 写入生产与预览环境。项目里已有非空的 `ONLINE_GAL_SITE` 时，页面 MUST 继续已记录的流程并保留其中的密钥。方案 A 在首次站点部署验证后，允许一次单独的 PATCH 清除生产引导标记。在本机地址上，页面 MUST NOT 写入或触发构建，只显示预演。
 
 #### Scenario: Reload after writing
 
 - **WHEN** 写入成功后所有者刷新页面并重新登录
-- **THEN** 页面直接进入重新构建，不再写入
+- **THEN** 页面从已完成的步骤继续，复用进行中的部署及原有密钥
 
 #### Scenario: Written body carries no token
 
 - **WHEN** 所有者点击"写入并构建"
-- **THEN** PATCH 请求体的生产环境有 `ONLINE_GAL_SITE`、`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_ACCOUNT_TOKEN` 与 `ONLINE_GAL_CA_PRIVATE_JWK`，预览环境只有 `ONLINE_GAL_SITE`，不含 OAuth access token、refresh token 或 GitHub token
+- **THEN** PATCH 请求体的生产环境有 `ONLINE_GAL_SITE`、`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_ACCOUNT_TOKEN` 与 `ONLINE_GAL_CA_PRIVATE_JWK`。方案 A 还写入生产 `secret_text` `ONLINE_GAL_CA_BUILD_TOKEN`、生产 `plain_text` `ONLINE_GAL_CA_BOOTSTRAP=1` 和生产记录中的公开承诺数据。预览环境只收到原有的 `ONLINE_GAL_SITE`。请求体 MUST NOT 含 OAuth access token、refresh token 或 GitHub token
 
 ### Requirement: Reinitialization clears only the setup record
 
@@ -129,12 +129,32 @@
 
 ### Requirement: Writing triggers a new build and the page hands over
 
-写入后，页面 MUST 按构建时写入的方式触发一次新的构建：`pages-git` 用 create deployment，`github-rerun` MUST NOT 调用 GitHub API，只显示那次工作流的手动重跑入口和推新 `v*` 标签的方法，`manual` 显示命令；失败时 MUST 显示原因和手动方法。新构建成功后，页面 MUST 等到 `/__setup/status` 不再返回 `phase: "setup"`，再回到原来的路径。
+方案 A 的生产 Git 集成部署遵循下一条 Requirement。其余情形下，写入后，页面 MUST 按构建时写入的方式触发一次新的构建：`pages-git` 用 create deployment，`github-rerun` MUST NOT 调用 GitHub API，只显示那次工作流的手动重跑入口和推新 `v*` 标签的方法，`manual` 显示命令；失败时 MUST 显示原因和手动方法。新构建成功后，页面 MUST 等到 `/__setup/status` 不再返回 `phase: "setup"`，再回到原来的路径。
 
 #### Scenario: Site build goes live
 
 - **WHEN** 新构建成功，`/__setup/status` 返回站点构建的 HTML
 - **THEN** 页面回到所有者最初打开的路径，站点正常工作
+
+### Requirement: Production setup signs official packages before publishing trust
+
+方案 A 启用时，初始化流程 MUST 生成生产构建令牌和独立的随机 salt，并计算 K16 的 `cf-pages` 承诺哈希。令牌明文 MUST 仅在生成时的内存和发往该项目的初始化 PATCH 中使用。第一次站点构建 MUST 跳过签名并部署签发接口。只有确认对应的生产部署已生效且签发接口带生产令牌绑定后，流程才可清除生产引导标记并触发签名构建。两次部署 MUST 遵守站点构建与初始化构建的隔离规则。
+
+#### Scenario: The signing endpoint is ready
+
+- **WHEN** 第一笔站点部署已在生产域名生效，且无凭据 POST `/__ca/issue` 返回 `401 unauthorized` 和 `no-store`
+- **THEN** 流程清除并读回生产引导标记，发起签名构建并等待其在生产域名生效。校验过程 MUST 保留本次流程已写入的密钥
+
+#### Scenario: The signed site is live
+
+- **WHEN** 第二笔部署在生产域名生效，且全部官方包通过 digest 检查和基于候选承诺的验签
+- **THEN** 初始化流程用只限目标 zone 的临时账户令牌写入候选 TXT，已有相同记录则复用。写入尝试结束后 MUST 撤销临时令牌。已有不同记录或多条记录时 MUST 保留原记录并报告冲突
+- **AND** 流程 MUST 从真实 Service Worker 验证两个 DoH 端点的 CORS、AD 位和 TXT，按 K16 验证策略与线上包。通过后清理进度并回到原路径
+
+#### Scenario: Deployment, verification, or DNS propagation is interrupted
+
+- **WHEN** 首部署未就绪、签名构建失败、包验证失败、DoH 仍未传播，或操作者关闭原初始化页
+- **THEN** 流程 MUST 保留可恢复的进度并允许从失败步骤继续。线上包验签通过之前 MUST NOT 改动 TXT。若 TXT 已写入且匹配候选值，重试 MUST 复用该记录
 
 ### Requirement: Other changes add setup items through the list
 

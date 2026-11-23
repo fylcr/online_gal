@@ -1,12 +1,11 @@
 # Tasks: site-setup
 
-计划书。执行的对话按顺序做，设计细节以 design.md 为准（S1–S10），用户决定 A–G 见 proposal.md。
+设计细节见 design.md，用户决定见 proposal.md。
 
 - **负责**：管理系统的对话（`cf-account-admin` 的对话）。
 - **配合**：`plugin-system` tasks.md 11.3（撤销内核对 `/__setup` 的放行）与 10.10（发布工作流用 `npm run build:pages`），由插件系统的对话完成。
-- **未决事项**：(i1)，见 proposal「决定 I」。决定 I 的任务（第 9 节）等用户选定方案后再写，现在不做。
-- **当前要做**：第 8 节（决定 J：换域名），由管理系统的对话实现。第 7 节已完成，7.6 等第 8 节和第 9 节都做完后由用户做。
-- **完成标准**：初始化构建只有初始化页；写入后自动（或按提示手动）再构建一次，得到与原设计一致、不含任何初始化代码的站点构建。
+- **当前要做**：第 9 节（决定 I，方案 A）。第 8 节已完成。实现和隔离验收完成后，7.6 由用户执行，最后记录真实生产验收。
+- **完成标准**：初始化构建只包含初始化页及其接口。站点构建产物与初始化代码隔离。官方站点按 S13 完成引导部署、签名部署及 DoH 验收。
 
 ## 历史：上一版已完成的工作（v2，按用户决定 F 部分作废）
 
@@ -102,7 +101,7 @@
 - [x] 7.4 测试：PATCH 请求体的生产环境含 `CLOUDFLARE_ACCOUNT_TOKEN` 与 `ONLINE_GAL_CA_PRIVATE_JWK`，且不含任何 OAuth token；缺 `account_api_tokens:create` 时不发创建请求也不发 PATCH；创建请求只发往 `/accounts/{id}/tokens`，`permission_groups` 只有一项且其 id 来自权限组查询；不向 `/user/tokens` 发请求；生成的私钥 JWK 只有五个字段且 `x`、`y`、`d` 都是 43 字符，页面只出现公钥指纹；`reinit:pages --dry-run` 不写入、不部署，正式运行只把 `ONLINE_GAL_SITE` 设为 `null`。
 - [x] 7.5 验收：`npm run check`、`npm run build:setup`、上一条的测试、`npx openspec validate site-setup --strict` 通过。提交并推送到 `main`。
   - 28 项 Node 测试通过（站点初始化、`configure-pages`、`reinit-pages`），Chromium 使用假 OAuth/API 验证页面与会话存储只含公钥指纹，不含令牌或私钥；生产项目 `npm run reinit:pages -- online-gal --dry-run` 未写入或部署。
-- [ ] 7.6【用户】（2026-11-23 改：等第 8 节换域名、第 9 节决定 I 都完成后再做，地址改为新域名）在本机对 `online-gal` 运行 `npm run reinit:pages -- online-gal`，等初始化构建生效后到 `https://onlinegal.de5.net/` 重新登录并完成初始化。完成后 `curl https://onlinegal.de5.net/__setup/status` 应返回站点构建的 HTML，不再是 `phase: "setup"` 的 JSON。
+- [ ] 7.6【用户】（第 8 节已完成，9.5 隔离验收及上线通过后执行，生产结果记入 9.6）在本机对 `online-gal` 运行 `npm run reinit:pages -- online-gal`，等初始化构建生效后到 `https://onlinegal.de5.net/` 重新登录并完成初始化。完成后 `curl https://onlinegal.de5.net/__setup/status` 应返回站点构建的 HTML，不再是 `phase: "setup"` 的 JSON。
 
 ## 8. 决定 J：官方地址换成 `onlinegal.de5.net`
 
@@ -119,6 +118,14 @@
 - [x] 8.5 在本节写验收记录：两个域名的状态、跳转规则 id、8.3 与 8.4 的响应头、8.1 的提交号与部署 id。
   - `onlinegal.de5.net` 为 Pages active custom domain，HTTPS 200，zone DNSSEC active；`onlinegal.cc.cd` 已解绑 Pages，现有 proxied placeholder A 为唯一记录。Redirect ruleset `b233ad59a76a42098d5dbcd36aa22100` / rule `2e556ab8ceea40f3b4adf95f7e1cd2fb` 返回 301 并保留 path/query。代码提交 `c0cb7523d16abf62d446a716c5d8edfd95d0aeb8`；Pages deploy `19d6ba0c-af52-45c5-b44c-6fe83597a493` (`deploy/success`)。旧区原 DNS 清单只有 proxied Pages CNAME `b7001bc58ce68cb6c50b39951664db7c`。
 
-## 9. 决定 I：构建令牌与 DNS 白名单记录放进初始化（待定，现在不做）
+## 9. 决定 I：初始化构建令牌及 DNS 白名单（方案 A）
 
-等用户选定 proposal「决定 I」的 (i1) 方案后，由 OpenSpec 管理对话写本节任务。
+依据 design.md S13。管理系统负责初始化页、部署编排和隔离验收。插件系统负责站点构建、签名和真实 Service Worker 检查。两边按 S13 的变量和顺序对接。
+
+- [ ] 9.0【管理系统】在隔离 Git 集成 Pages 项目验证生产变量的构建与 Function 生效时机、生产域名上的部署身份及切换后同源 `/__cf` 的可用性。使用隔离 zone 和与 S11 相同的账户令牌申请权限，验证可以申请仅对单个 zone 有 DNS 写权限的临时账户令牌，创建并读回测试 TXT 后撤销。记录权限组名称、资源范围和撤销结果。能力不满足时回报具体错误，由 OpenSpec 管理对话决定是否调整授权路径。
+- [ ] 9.1【管理系统】更新 `apps/setup/src/lib/setup-items.ts` 和 `apps/setup/src/lib/setup.ts`。确认站点所有者、项目、生产分支、zone 和 DNS 现状。复用 S11 的 CA 生成结果并按 S13 生成构建令牌和候选 TXT。一次 PATCH 写入原有初始化项、构建令牌、引导标记与含生产分支和候选信任记录的生产初始化记录。预览只写原有初始化记录。在本机预演中生成写入清单。
+- [ ] 9.2【插件系统】按 S13 接入生产引导标记，构建日志能区分两次构建。首构建跳过签名并产出 CA 路由。第二次与后续受签名约束的构建强制签名，失败时以非零状态结束。发布的不可变路径能区分不同的签名封套和 bundle 字节。提供基于现有验证器的线上包检查和真实 Service Worker DoH 验收入口。
+- [ ] 9.3【管理系统】编排两次部署、线上签名验证、DNS 写入和 DoH 验收。第一次部署在生产域名确认 CA 就绪才清除引导标记。第二次部署验签通过才发布 TXT。UI 显示当前步骤和可重试错误，两个部署 ID 可恢复。提供关闭页面后按 S13 从现有配置继续的步骤。TXT 写入成功而 DoH 尚未传播时，从查询步骤继续。
+- [ ] 9.4【共同测试】覆盖生产与预览 PATCH 体、secret 值仅进入正确的请求、首构建产物不签名且包含 CA 路由、中间清标记失败、CA 尚未就绪、签名错误、第二次部署失败、续跑复用部署、旧 bundle 与 DNS 冲突。确认上述失败情况下保持正确的步骤，且签名产物通过验证之前 DNS 写入请求为零。跑针对性测试、`npm run check`、两阶段构建和这两个变更的 OpenSpec 严格校验。
+- [ ] 9.5【共同验收／上线前】在隔离 Git 集成项目跑完整流程。记录两个部署 ID、官方 bundle 验证结果、真实 Service Worker 的 CORS／AD／TXT 和验证结果、临时令牌撤销情况。提交文档和实现，确认官方 Pages 的 Git 源分支已包含第 9 节代码并成功构建。之后通知用户执行 7.6。
+- [ ] 9.6【生产验收／7.6 后】记录 `onlinegal.de5.net` 的两次生产部署、签名检查、`_trust.onlinegal.de5.net` 与真实 Service Worker DoH 结果，核对初始化页已退出并清理引导标记。仅在结果通过后勾选本项和插件系统 7.7。

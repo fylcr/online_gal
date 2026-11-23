@@ -163,7 +163,7 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
 - `plugin.json`：只做指向，`{ "format": 2, "manifest": "mf-manifest.json", "bundle": "plugin.bundle.json" }`，`bundle` 可省略。不含摘要、文件清单与 manifest，所以改它（换路径、换 CDN）不动 mf-manifest.json，改 mf-manifest.json 也不必动它。指向只能是同目录或子目录的相对路径。
 - `plugin.bundle.json`：来源证明（K15）。完整性与来源的证据在被指向的文件里，不在 plugin.json 里：篡改 plugin.json 只能让指向落空或指向别的文件，而证明签的是 mf-manifest.json 的摘要，对不上就被拒绝。
 - 官方注册表条目的 `digest` 改为 mf-manifest.json 的 SHA-256。校验顺序：plugin.json → mf-manifest.json（核对 digest）→ bundle（K16）→ 逐文件哈希；任一步失败整包拒绝。
-- 官方包的目录哈希（`p/<id>/<hash>/`）MUST 覆盖整个目录的内容，不只是文件清单。`plugin.json` 与 `mf-manifest.json` 的字节 MUST 进入这个哈希：同一个 URL 永远只对应一份内容。只改 `plugin.json`（例如 format 1 升到 format 2、补上 `bundle` 指针）也 MUST 换一个新目录，不能覆盖旧 URL。
+- 官方包的目录哈希（`p/<id>/<hash>/`）MUST 覆盖整个目录的内容，不只是文件清单。`plugin.json`、`mf-manifest.json` 和存在时的 `plugin.bundle.json` 的字节 MUST 进入这个哈希。同一个 URL 永远只对应一份内容。只改 `plugin.json`（例如 format 1 升到 format 2、补上 `bundle` 指针）也 MUST 换一个新目录，不能覆盖旧 URL。
 - 内核取官方包的 `plugin.json`、`mf-manifest.json` 与 bundle 时 MUST 带 `cache: 'no-store'`，不能用浏览器的 HTTP 缓存副本。这是对上一条的兜底：旧部署已经把 format 1 的 `plugin.json` 发布在带 `Cache-Control: public, max-age=31536000, immutable` 的 URL 上，那些浏览器会一年内都拿到旧文件。
 - 兼容：仍接受 format 1 的 plugin.json（内嵌，无证明），只用于 GitHub 来源；官方来源必须 format 2。
 
@@ -173,9 +173,9 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
 
 - 2026-11-23 用户决定：日常发布继续用 Cloudflare Pages 的 Git 集成构建，不关闭，也不改成直接上传。官方包在 Pages 生产构建里走 `microca` 通道签名；`github` 通道保留，只给以后的 GitHub Actions 发布用（tasks 10.10，可选）。原因有三条。Pages 构建环境没有 GitHub OIDC 身份，签不出 `github` 通道的证明。在 Actions 里签名、再让 Pages 重新构建也不行，两次构建的 `mf-manifest.json` 字节对不上（任务 #68 实测版本后缀就不同）。`cf` CLI 的 `pages deploy` 不上传目录，直接上传走不通。
 - Pages 构建的身份：生产环境 secret `ONLINE_GAL_CA_BUILD_TOKEN`（随机 32 字节，b64url）。构建拿它向当前线上站点的 `/__ca` 换凭证，CA 把它映射到固定的 `anon_id` `cf-pages`；DNS 白名单加这一项的 `microca` 承诺哈希。令牌泄露只需换令牌，CA 私钥与 DNS 不变。预览环境不配置这个令牌，预览部署不签名。
-- 构建行为：令牌未配置时跳过签名，并在构建日志里写明，官方包没有 bundle（与现状相同）。令牌已配置时，取凭证、写 Rekor、写文件任一步失败，构建就失败，不发布无证明的包。
-- 上线顺序：`/__ca` 先随一次构建上线（这次不签名），再配置令牌，之后的构建开始签名；确认签名产物能通过验证后才加 DNS 记录，因为有 DNS 记录后无 bundle 的官方包会被拒绝（K17）。
-- `plugin.bundle.json` 不进目录哈希（K14 只算 `plugin.json` 与 `mf-manifest.json`）：同一份 `mf-manifest.json` 两次签出的 bundle 不同，但都有效；内核取 bundle 带 `cache: 'no-store'`。
+- 构建行为：站点初始化的方案 A 在首次生产部署之前写入令牌与 `ONLINE_GAL_CA_BOOTSTRAP=1`。构建按 `site-setup` S13 判定首构建，跳过签名并保留签发路由。引导标记清除后，启用了签名的生产构建须取得凭证、写入 Rekor 并验证产物，任一步失败即中止。预览和未启用签名的项目沿用无令牌时的构建行为。
+- 上线顺序由 `site-setup` S13 编排。第一次生产站点部署使 `/__ca` 可用。第二次部署签名并在生产域名生效。线上包按候选承诺验签通过后才发布信任 TXT，再从真实 Service Worker 验证 DoH 和线上包（K16）。
+- 按 K14，版本后缀沿用文件清单哈希。先写定 manifest 版本并签名，随后把最终封套、manifest、文件清单和产出的 `plugin.bundle.json` 字节纳入目录哈希，最后生成注册表路径。相同 manifest 签出不同 bundle 时须发布到不同目录。内核取 bundle 仍带 `cache: 'no-store'`。
 
 **通道一：`github`（可选，GitHub Actions 发布；2026-11-23 起不是日常路径）**
 
