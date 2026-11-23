@@ -147,14 +147,14 @@
 
 #### Scenario: The signed site is live
 
-- **WHEN** 第二笔部署在生产域名生效，且全部官方包通过 digest 检查和基于候选承诺的验签
+- **WHEN** 第二笔部署在生产域名生效，从该部署专属 HTTPS 地址读取的全部官方包通过 digest 检查和基于候选承诺的验签，且验签后生产域名仍指向该部署
 - **THEN** 初始化流程用只限目标 zone 的临时账户令牌写入候选 TXT，已有相同记录则复用。写入尝试结束后 MUST 撤销临时令牌。已有不同记录或多条记录时 MUST 保留原记录并报告冲突
 - **AND** 流程 MUST 从真实 Service Worker 验证两个 DoH 端点的 CORS、AD 位和 TXT，按 K16 验证策略与线上包。通过后清理进度并回到原路径
 
 #### Scenario: Deployment, verification, or DNS propagation is interrupted
 
-- **WHEN** 首部署未就绪、签名构建失败、包验证失败、DoH 仍未传播，或操作者关闭原初始化页
-- **THEN** 流程 MUST 保留可恢复的进度并允许从失败步骤继续。线上包验签通过之前 MUST NOT 改动 TXT。若 TXT 已写入且匹配候选值，重试 MUST 复用该记录
+- **WHEN** 首部署未就绪、签名构建失败、包验证失败、验签后复核的生产部署身份不匹配、DoH 仍未传播，或操作者关闭原初始化页
+- **THEN** 流程 MUST 保留可恢复的进度并允许从失败步骤继续。只有线上包验签和生产部署身份复核均通过才可改动 TXT。若 TXT 已写入且匹配候选值，重试 MUST 复用该记录
 
 ### Requirement: Other changes add setup items through the list
 
