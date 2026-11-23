@@ -221,6 +221,12 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
 - 需要用户提供：域名（`_trust.<域名>` 的 TXT）、允许的 OIDC 主体、Cloudflare API token（写入 GitHub 仓库 secrets，只在启用 `github` 通道时需要）。
 - 2026-11-22 补充：用户决定凡是需要初始化的都在站点初始化时完成。CA 私钥与 OIDC 映射的写入入口是变更 `site-setup` 的初始化项清单（其 design.md S7），不另做配置入口。见 tasks.md 11.2。
 
+#### 10.0 验证结果
+
+- **公共 Rekor v1：通过。** 向 `POST https://rekor.sigstore.dev/api/v1/log/entries` 发送 `hashedrekord` `0.0.1`，签名为 ECDSA P-256 DER，`publicKey.content` 为 base64 包裹的裸 SPKI PEM 公钥（不含证书）。实测 HTTP 201，返回 `verification.signedEntryTimestamp` 与 `verification.inclusionProof`（含 `checkpoint`、`hashes`、`logIndex`、`rootHash`、`treeSize`）。同一回执的顶层 `logIndex` 为 `4047830186`、proof `logIndex` 为 `3925925924`；前者用于 SET，后者用于该树的 Merkle 证明，不能混用。
+- **DoH 从 Service Worker 以 CORS 取 TXT + AD：未证实。** 当前探针网络到 `cloudflare-dns.com:443`、`dns.google:443` 均连接超时，未收到可观察的 HTTP/CORS 响应或 AD 位；不是 CORS 拒绝的证据，也不阻塞 Pages 签名端开发。仍需在可达网络从真实 Service Worker 复测。
+- **GitHub 通道：暂缓（10.10 可选）。** 当前仓库不公开；浏览器验证器、体积及真实产物的证书扩展和输出格式不作为本轮 Pages 签名的验收项。
+
 ### K19 — 其他变更通过登记扩展内核
 
 - 用户决定把管理系统（Cloudflare 账号、`/__cf` 中转、浏览器版 cf、`/admin`）拆成变更 `cf-account-admin`，由单独的对话处理。本变更只负责插件系统，所以 spec 不写具体的扩展，只规定登记规则。

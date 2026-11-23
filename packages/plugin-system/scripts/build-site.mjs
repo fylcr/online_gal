@@ -29,7 +29,9 @@ import { fileURLToPath } from 'node:url';
 
 import { build } from 'esbuild';
 
+import { BUNDLE_FILE, microCaCommitment, microCaFingerprint, parseBundle, verifyBundle } from '../dist/index.js';
 import { contentHash, fileListHash, packDirectory } from './pack-plugin.mjs';
+import { signPlugin } from './sign-plugin.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, '..');
@@ -91,7 +93,7 @@ async function bundleKernel(version, githubRaw) {
   return { js: js.contents };
 }
 
-async function packOfficial(entry, args, out) {
+async function packOfficial(entry, args, out, token) {
   const dir = entry.dir(args);
   try {
     await stat(join(dir, 'index.html'));
@@ -104,11 +106,19 @@ async function packOfficial(entry, args, out) {
   // the immutable URL, including the version actually published.
   const probe = await packDirectory({ dir, manifest: { ...base, version }, lazy: entry.lazy });
   const manifest = { ...base, version: `${version}+${fileListHash(probe.files).slice(0, 12)}` };
-  const pkg = await packDirectory({ dir, manifest, lazy: entry.lazy });
+  const pkg = await packDirectory({ dir, manifest, lazy: entry.lazy, ...(token ? { bundle: BUNDLE_FILE } : {}) });
   const { bytes, envelope, digest, files } = pkg;
 
   const path = `p/${manifest.id}/${contentHash(pkg).slice(0, 16)}/`;
   const target = join(out, 'registry', path);
+  const bundle = token ? await signPlugin(bytes, { token, siteHost: process.env.SITE_HOST || undefined }) : null;
+  if (bundle) {
+    // Check the produced proof before publication. TLS authenticates the CA here;
+    // installations independently use the real DNS policy for its authorization.
+    const salt = 'build';
+    const hash = await microCaCommitment(await microCaFingerprint(bundle.ca), 'cf-pages', salt);
+    await verifyBundle(parseBundle(bundle), bytes, { salt, hashes: [hash] }, manifest.id);
+  }
   for (const file of files) {
     const dest = join(target, file.path);
     await mkdir(dirname(dest), { recursive: true });
@@ -117,6 +127,7 @@ async function packOfficial(entry, args, out) {
   // Format 2: plugin.json only points at mf-manifest.json; the registry digest is mf-manifest.json's SHA-256.
   await writeFile(join(target, 'mf-manifest.json'), bytes);
   await writeFile(join(target, 'plugin.json'), envelope);
+  if (bundle) await writeFile(join(target, BUNDLE_FILE), `${JSON.stringify(bundle, null, 1)}\n`);
   const total = files.reduce((sum, file) => sum + file.size, 0);
   const lazyFiles = files.filter((file) => file.lazy);
   const eager = total - lazyFiles.reduce((sum, file) => sum + file.size, 0);
@@ -213,7 +224,9 @@ async function main() {
   await mkdir(join(out, 'registry'), { recursive: true });
 
   console.log(`building ${out}`);
-  const plugins = Object.fromEntries(await Promise.all(OFFICIAL.map((entry) => packOfficial(entry, args, out))));
+  const token = process.env.ONLINE_GAL_CA_BUILD_TOKEN;
+  if (!token) console.log('未配置 ONLINE_GAL_CA_BUILD_TOKEN，官方包未签名');
+  const plugins = Object.fromEntries(await Promise.all(OFFICIAL.map((entry) => packOfficial(entry, args, out, token))));
   if (plugins[DEFAULT_MANAGER] === undefined) throw new Error(`the default manager ${DEFAULT_MANAGER} was not built`);
   await writeFile(join(out, 'registry/index.json'), `${JSON.stringify({ format: 1, plugins }, null, 1)}\n`);
 

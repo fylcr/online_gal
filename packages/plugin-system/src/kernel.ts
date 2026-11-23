@@ -565,9 +565,10 @@ export class Kernel {
 
     let pkg: PluginPackage;
     let digest: string;
+    let manifestBytes = envelopeBytes;
     let bundlePath: string | undefined;
     if (parsed.kind === 'envelope') {
-      const manifestBytes = await this.fetchBytes(`${base}${encodePath(parsed.envelope.manifest)}`, { cache: 'no-store' });
+      manifestBytes = await this.fetchBytes(`${base}${encodePath(parsed.envelope.manifest)}`, { cache: 'no-store' });
       digest = await sha256(manifestBytes);
       if (expected !== null && digest !== expected.digest) {
         throw new KernelError(
@@ -598,7 +599,7 @@ export class Kernel {
 
     const { manifest } = pkg;
     this.checkProvenance(source, pkg, expected);
-    const attestation = await this.verifyAttestation(source, trust, base, bundlePath, digest, manifest.id);
+    const attestation = await this.verifyAttestation(source, trust, base, bundlePath, manifestBytes, manifest.id);
     if (activate && manifest.role !== 'manager') {
       throw new KernelError('not-a-manager', `"${manifest.id}" is not a manager`, manifest.id);
     }
@@ -706,7 +707,7 @@ export class Kernel {
     trust: TrustState,
     base: string,
     bundlePath: string | undefined,
-    manifestDigest: string,
+    manifestBytes: ArrayBuffer,
     pluginId: string,
   ): Promise<AttestationStatus | undefined> {
     if (trust.mode === 'off') return undefined;
@@ -722,7 +723,7 @@ export class Kernel {
     } catch {
       throw new KernelError('attestation-invalid', 'plugin.bundle.json is not valid JSON', pluginId);
     }
-    await verifyBundle(parseBundle(raw), manifestDigest, trust.policy, pluginId);
+    await verifyBundle(parseBundle(raw), manifestBytes, trust.policy, pluginId);
     return 'verified';
   }
 

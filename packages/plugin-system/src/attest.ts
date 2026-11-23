@@ -15,7 +15,7 @@
  *   - `rekor`  Rekor v1 entry:
  *                { body (base64), integratedTime, logIndex, logId, set, proof }
  *              `set` is the Signed Entry Timestamp (Rekor log key, DER format,
- *              base64); `proof` is { checkpoint, hashes, checkpoint } for the
+ *              base64); `proof` is { checkpoint, hashes, logIndex, treeSize } for the
  *              RFC 6962 inclusion proof
  *
  * Verification steps (all via Web Crypto, no SDK):
@@ -30,14 +30,11 @@
  *   6. Confirm `rekor.integratedTime` falls within [iat, exp].
  *   7. Verify `sig` (ECDSA-P256) over the manifest digest using `eph_pk`.
  *
- * TODO: implement once the anonymous edge micro-CA is deployed (design.md K14–K17).
- * Until then `verifyBundle` is a type-safe stub that always resolves without error
- * when no bundle is present (GitHub sources), and rejects with `attestation-invalid`
- * when a bundle is present but invalid JSON — matching the kernel's current stub
- * in `verifyAttestation`.
  */
 
 import { KernelError } from './errors.js';
+import { checkRekor, es256, fromB64, hex, p256, REKOR_V1_SPKI, sha256, text, utf8 } from './rekor.js';
+import { hashAllowed } from './trust-dns.js';
 
 export const BUNDLE_FORMAT_VERSION = 1;
 
@@ -81,6 +78,9 @@ export interface InclusionProof {
   readonly checkpoint: string;
   /** base64-encoded sibling hashes, leaf-to-root order. */
   readonly hashes: readonly string[];
+  /** Leaf index within the shard, not the global SET log index. */
+  readonly logIndex: number;
+  readonly treeSize: number;
 }
 
 /** What the trust-dns layer hands to the bundle verifier. */
@@ -128,6 +128,9 @@ export function parseBundle(input: unknown): AttestationBundle {
   if (!isRecord(r.proof)) throw invalid('rekor.proof must be an object');
   const p = r.proof;
   if (typeof p.checkpoint !== 'string') throw invalid('rekor.proof.checkpoint must be a string');
+  if (typeof p.logIndex !== 'number' || typeof p.treeSize !== 'number') {
+    throw invalid('rekor proof logIndex and treeSize must be numbers');
+  }
   if (!Array.isArray(p.hashes) || p.hashes.some((h: unknown) => typeof h !== 'string')) {
     throw invalid('rekor.proof.hashes must be an array of strings');
   }
@@ -180,18 +183,61 @@ export async function microCaCommitment(caFingerprint: string, anonId: string, s
   return sha256Text(`microca|${caFingerprint}|${anonId}|${salt}`);
 }
 
-/**
- * Full cryptographic verification of a bundle against the manifest digest and
- * the trust policy from DNS.
- *
- * TODO: implement (design.md K16).
- */
+function ecJwk(jwk: unknown): JsonWebKey {
+  if (!isRecord(jwk)) throw new Error('invalid P-256 public key');
+  const { crv, kty, x, y } = jwk;
+  if (crv !== 'P-256' || kty !== 'EC' || typeof x !== 'string' || typeof y !== 'string' ||
+      !/^[A-Za-z0-9_-]{43}$/.test(x) || !/^[A-Za-z0-9_-]{43}$/.test(y) || 'd' in jwk) {
+    throw new Error('invalid P-256 public key');
+  }
+  return { crv, kty, x, y };
+}
+
+/** RFC 7638 canonical public JWK fingerprint as lowercase hex. */
+export function microCaFingerprint(jwk: JsonWebKey): Promise<string> {
+  return sha256Text(JSON.stringify(ecJwk(jwk)));
+}
+
+function fromUrl(value: string): Uint8Array<ArrayBuffer> {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new Error('invalid base64url');
+  return fromB64(value.replace(/-/g, '+').replace(/_/g, '/'));
+}
+
+/** Verify the bundle against the exact content manifest bytes and DNS policy. */
 export async function verifyBundle(
-  _bundle: AttestationBundle,
-  _manifestDigest: string,
-  _policy: TrustPolicy,
-  _pluginId: string,
+  bundle: AttestationBundle,
+  manifestBytes: BufferSource,
+  policy: TrustPolicy,
+  pluginId: string,
+  { logSpki = REKOR_V1_SPKI }: { logSpki?: string } = {},
 ): Promise<void> {
-  // TODO: implement the seven-step verification described at the top of this file.
-  throw invalid('attestation verification is not yet implemented', _pluginId);
+  if (bundle.channel !== 'microca') throw invalid('GitHub attestation verification is not yet implemented', pluginId);
+  try {
+    const [header, payload, sig, extra] = bundle.cred.split('.');
+    if (!header || !payload || !sig || extra !== undefined) throw new Error('invalid credential JWS');
+    const meta: unknown = JSON.parse(text.decode(fromUrl(header)));
+    if (!isRecord(meta) || meta.alg !== 'ES256' || 'crit' in meta || 'b64' in meta) throw new Error('invalid credential JWS header');
+    const ca = await crypto.subtle.importKey('jwk', ecJwk(bundle.ca), p256, false, ['verify']);
+    if (!await crypto.subtle.verify(es256, ca, fromUrl(sig), utf8.encode(`${header}.${payload}`))) {
+      throw new Error('invalid credential JWS signature');
+    }
+    const claims: unknown = JSON.parse(text.decode(fromUrl(payload)));
+    if (!isRecord(claims)) throw new Error('invalid credential JWS claims');
+    const { anon_id, eph_pk, iat, exp } = claims;
+    const { integratedTime: time } = bundle.rekor;
+    if (typeof anon_id !== 'string' || !anon_id || typeof iat !== 'number' || typeof exp !== 'number' ||
+        !Number.isSafeInteger(iat) || !Number.isSafeInteger(exp) || exp <= iat || exp - iat > 600 || time < iat || time > exp) {
+      throw new Error('invalid credential validity window');
+    }
+    const commitment = await microCaCommitment(await microCaFingerprint(bundle.ca), anon_id, policy.salt);
+    if (!hashAllowed(commitment, policy, time)) throw new Error('credential not permitted by trust policy');
+    const eph = await crypto.subtle.importKey('jwk', ecJwk(eph_pk), p256, true, ['verify']);
+    const signature = fromUrl(bundle.sig);
+    const digest = hex(await sha256(manifestBytes));
+    await checkRekor(bundle.rekor, digest, signature, eph, logSpki);
+    // ECDSA with SHA-256 takes the bytes and hashes them once, not twice.
+    if (!await crypto.subtle.verify(es256, eph, signature, manifestBytes)) throw new Error('invalid manifest signature');
+  } catch (error) {
+    throw invalid(error instanceof Error ? error.message : 'micro-CA verification failed', pluginId);
+  }
 }
