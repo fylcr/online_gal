@@ -29,7 +29,12 @@ export type KernelErrorCode =
   | 'account-forbidden'
   | 'account-signed-out'
   | 'account-unavailable'
-  | 'account-failed';
+  | 'account-failed'
+  | 'entry-required'
+  | 'entry-invalid'
+  | 'not-admin'
+  | 'proof-invalid'
+  | 'temporarily-unavailable';
 
 export class KernelError extends Error {
   override readonly name = 'KernelError';

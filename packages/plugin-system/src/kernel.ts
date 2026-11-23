@@ -1,6 +1,7 @@
 import type { PluginManifest } from '@online-gal/plugin-host';
 
 import { CloudflareAccount, CLOUDFLARE } from './account/cloudflare.js';
+import { validCfEntry } from './account/private-cf-relay.js';
 import { Vault, type VaultStore } from './account/vault.js';
 import { parseBundle, verifyBundle, type TrustPolicy } from './attest.js';
 import { KernelError } from './errors.js';
@@ -323,6 +324,11 @@ const STATUS_BY_CODE: Readonly<Record<string, number>> = {
   'attestation-unavailable': 503,
   'account-forbidden': 403,
   'account-signed-out': 401,
+  'entry-required': 403,
+  'entry-invalid': 404,
+  'not-admin': 403,
+  'proof-invalid': 403,
+  'temporarily-unavailable': 503,
   'account-unavailable': 503,
   'account-failed': 502,
 };
@@ -1267,6 +1273,7 @@ export class Kernel {
       fetch: this.options.fetch,
       vault: new Vault(this.options.vault),
       now: this.now,
+      privateRelay: true,
     });
     return this.cloudflareAccount;
   }
@@ -1317,7 +1324,7 @@ export class Kernel {
         } catch {
           throw new KernelError('request-invalid', 'entry import requires a JSON object');
         }
-        if (!isRecord(body) || typeof body.segment !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.segment)) {
+        if (!isRecord(body) || !validCfEntry(body.segment)) {
           throw new KernelError('request-invalid', 'entry import requires a valid route segment');
         }
         await account.setEntry(body.segment);
