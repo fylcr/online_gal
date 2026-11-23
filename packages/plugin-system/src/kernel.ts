@@ -1306,6 +1306,23 @@ export class Kernel {
       throw new KernelError('request-invalid', `the account API does not accept ${request.method} ${action}`);
     }
     switch (action) {
+      case 'import-entry': {
+        const type = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
+        if (type !== 'application/json') {
+          throw new KernelError('request-invalid', 'entry import requires application/json');
+        }
+        let body: unknown;
+        try {
+          body = await request.json();
+        } catch {
+          throw new KernelError('request-invalid', 'entry import requires a JSON object');
+        }
+        if (!isRecord(body) || typeof body.segment !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.segment)) {
+          throw new KernelError('request-invalid', 'entry import requires a valid route segment');
+        }
+        await account.setEntry(body.segment);
+        return json(200, { ok: true });
+      }
       case 'login':
         return json(200, { ok: true, login: await account.login() });
       case 'poll':
@@ -1325,10 +1342,10 @@ export class Kernel {
    */
   private async relayCloudflare(request: KernelRequest, pathAndQuery: string, clientId: string): Promise<Response> {
     try {
-      await this.assertAccountCaller(clientId);
-      if (!pathAndQuery.startsWith('/__cf/api/')) {
-        throw new KernelError('account-forbidden', 'only /__cf/api/** is relayed for pages');
+      if (request.mode === 'navigate' || !pathAndQuery.startsWith('/__cf/api/')) {
+        throw new KernelError('account-forbidden', 'only manager requests to /__cf/api/** are relayed');
       }
+      await this.assertAccountCaller(clientId);
       return await this.account().forward(request as Request, pathAndQuery);
     } catch (error) {
       const code = errorCode(error);

@@ -29,6 +29,7 @@ import { fileURLToPath } from 'node:url';
 
 import { build } from 'esbuild';
 
+import { readCfRouteConfig } from '../../../functions/__cf/route-config.mjs';
 import { BUNDLE_FILE, microCaCommitment, microCaFingerprint, parseBundle, verifyBundle } from '../dist/index.js';
 import { officialPackagePath } from '../dist/release-metadata.js';
 import { fileListHash, packDirectory } from './pack-plugin.mjs';
@@ -229,6 +230,18 @@ const HEADERS = `/*
   Access-Control-Allow-Origin: *
 `;
 
+async function pagesRoutes(env) {
+  const include = ['/__ca/*'];
+  try {
+    const cf = await readCfRouteConfig(env);
+    if (cf !== null) include.push(`/__cf/${cf.segment}/*`);
+  } catch {
+    // Keep static delivery and CA signing available if relay configuration is invalid.
+    console.warn('[plugin-system] Cloudflare admin relay configuration is invalid; relay disabled');
+  }
+  return { version: 1, include, exclude: [] };
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const out = resolve(args.out ?? join(repoRoot, 'dist/site'));
@@ -263,8 +276,9 @@ async function main() {
   if (root === undefined || (await readJson(root.manifest)).id !== DEFAULT_MANAGER) throw new Error(`the site root must serve ${DEFAULT_MANAGER}`);
   await copyManagerToRoot(root.dir(args), out);
   await writeFile(join(out, '_headers'), HEADERS);
-  // Send only the registered Function prefixes to Pages Functions, not static assets.
-  await writeFile(join(out, '_routes.json'), `${JSON.stringify({ version: 1, include: ['/__ca/*', '/__cf/*'], exclude: [] }, null, 1)}\n`);
+  // Pages consumes this manifest as deployment routing metadata. The kernel and static assets
+  // receive neither the route segment nor its derivation inputs.
+  await writeFile(join(out, '_routes.json'), `${JSON.stringify(await pagesRoutes(process.env), null, 1)}\n`);
 }
 
 main().catch((error) => {

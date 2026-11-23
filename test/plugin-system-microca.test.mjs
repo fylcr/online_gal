@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { createHash, generateKeyPairSync, randomBytes, sign } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createHash, createHmac, generateKeyPairSync, randomBytes, sign } from 'node:crypto';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -166,9 +166,17 @@ test('Pages production deploys unsigned once, then requires a freshly signed imm
       return new Response(await readFile(join(${JSON.stringify(out)}, requested.pathname)));
     };
   `);
+  const routeKey = randomBytes(32).toString('base64url');
+  const account = '0123456789abcdef0123456789abcdef';
+  const owner = randomBytes(16).toString('hex');
+  const project = 'release-test';
+  const segment = createHmac('sha256', Buffer.from(routeKey, 'base64url'))
+    .update(JSON.stringify(['online-gal/cf-route/v1', account, project, trust.host]))
+    .digest('base64url');
   const base = {
     ...process.env, CF_PAGES: '1', CF_PAGES_BRANCH: 'main', ONLINE_GAL_CA_BOOTSTRAP: '', ONLINE_GAL_CA_BUILD_TOKEN: token,
-    ONLINE_GAL_SITE: JSON.stringify({ v: 1, productionBranch: 'main', trust }),
+    ONLINE_GAL_CF_ROUTE_KEY: routeKey, ONLINE_GAL_CF_OWNER_ID: owner,
+    ONLINE_GAL_SITE: JSON.stringify({ v: 1, productionBranch: 'main', account, project, trust, cfRoute: { v: 1, host: trust.host } }),
   };
   const run = (argv, extra = {}) => spawnSync(process.execPath, ['--import', pathToFileURL(fixture).href, ...argv], {
     env: { ...base, ...extra }, encoding: 'utf8', timeout: 15_000,
@@ -176,18 +184,50 @@ test('Pages production deploys unsigned once, then requires a freshly signed imm
   const build = (extra) => run([script, '--app-dist', app, '--out', out], extra);
   const readEntry = async () => JSON.parse(await readFile(join(out, 'registry/index.json'), 'utf8')).plugins['online-gal.manager'];
   const get = (entry, file) => readFile(join(out, 'registry', entry.path, file));
+  const assertRoutes = async (relayEnabled) => {
+    const routes = JSON.parse(await readFile(join(out, '_routes.json'), 'utf8'));
+    const expected = { version: 1, include: ['/__ca/*', ...(relayEnabled ? [`/__cf/${segment}/*`] : [])], exclude: [] };
+    assert.ok(JSON.stringify(routes) === JSON.stringify(expected), 'unexpected Pages routing rules');
+  };
+  const assertPrivateValues = async (result) => {
+    const log = `${result.stdout}${result.stderr}`;
+    assert.ok(![token, owner, routeKey, segment].some((value) => log.includes(value)), 'private build value in subprocess output');
+    for (const entry of await readdir(out, { recursive: true, withFileTypes: true })) {
+      assert.ok(![owner, routeKey, segment].some((value) => entry.name.includes(value)), 'private routing value in artifact name');
+      if (!entry.isFile()) continue;
+      const path = join(entry.parentPath, entry.name);
+      const data = await readFile(path);
+      assert.ok(!data.includes(owner) && !data.includes(routeKey), 'private configuration in build artifact');
+      assert.ok(path === join(out, '_routes.json') || !data.includes(segment), 'private route in public build artifact');
+    }
+  };
 
   const boot = build({ ONLINE_GAL_CA_BOOTSTRAP: '1', TEST_SIGNING_MODE: 'reject' });
   assert.equal(boot.status, 0, boot.stderr);
   assert.match(boot.stdout, /生产引导构建/);
   const unsigned = await readEntry();
   await assert.rejects(get(unsigned, 'plugin.bundle.json'), { code: 'ENOENT' });
-  assert.deepEqual(JSON.parse(await readFile(join(out, '_routes.json'))).include, ['/__ca/*', '/__cf/*']);
+  await assertRoutes(true);
+  await assertPrivateValues(boot);
 
   const preview = build({ CF_PAGES_BRANCH: 'preview', TEST_SIGNING_MODE: 'reject' });
   assert.equal(preview.status, 0, preview.stderr);
   assert.match(preview.stdout, /预览构建/);
   assert.equal((await readEntry()).path, unsigned.path);
+  await assertRoutes(false);
+  await assertPrivateValues(preview);
+
+  for (const overrides of [
+    { ONLINE_GAL_CF_ROUTE_KEY: '', ONLINE_GAL_CF_OWNER_ID: '', ONLINE_GAL_SITE: JSON.stringify({ v: 1, productionBranch: 'main', trust }) },
+    { ONLINE_GAL_CF_ROUTE_KEY: `invalid-${routeKey}` },
+    { ONLINE_GAL_CF_OWNER_ID: '' },
+    { CF_PAGES: '', ONLINE_GAL_CA_BUILD_TOKEN: '' },
+  ]) {
+    const disabled = build({ ONLINE_GAL_CA_BOOTSTRAP: '1', TEST_SIGNING_MODE: 'reject', ...overrides });
+    assert.equal(disabled.status, 0, 'disabled relay must preserve the site build');
+    await assertRoutes(false);
+    await assertPrivateValues(disabled);
+  }
 
   const noToken = build({ ONLINE_GAL_CA_BUILD_TOKEN: '' });
   assert.equal(noToken.status, 1, noToken.stderr);
@@ -211,6 +251,8 @@ test('Pages production deploys unsigned once, then requires a freshly signed imm
   assert.notDeepEqual(await get(rebuilt, 'plugin.bundle.json'), bundle);
   assert.notEqual(rebuilt.path, signed.path);
   assert.notEqual(rebuilt.path, unsigned.path);
+  await assertRoutes(true);
+  await assertPrivateValues(second);
 
   const online = () => run([check, trust.host, trust.salt, trust.hash]);
   const verified = online();
@@ -220,7 +262,8 @@ test('Pages production deploys unsigned once, then requires a freshly signed imm
   const stale = online();
   assert.equal(stale.status, 1, stale.stderr);
   assert.match(stale.stderr, /do not match its immutable directory/);
-  for (const result of [boot, preview, noToken, noRekor, first, second]) {
-    assert.equal(`${result.stdout}${result.stderr}`.includes(token), false);
+  for (const result of [noToken, noRekor, first]) {
+    assert.ok(![token, owner, routeKey, segment].some((value) => `${result.stdout}${result.stderr}`.includes(value)),
+      'private build value in subprocess output');
   }
 });
