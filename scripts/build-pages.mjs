@@ -1,10 +1,37 @@
 import { spawnSync } from 'node:child_process';
-import { appendFile, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const setupEntries = ['index.html', '_astro', 'sw.js', '_worker.js', '_routes.json', '_headers'];
+
+export function releaseIdentity(env) {
+  if (env.CF_PAGES !== '1') return null;
+  const url = env.CF_PAGES_URL;
+  const branch = env.CF_PAGES_BRANCH;
+  if (typeof url !== 'string' || !branch) throw new Error('Pages 部署缺少可核对的部署 URL 或分支。');
+  const parsed = new URL(url);
+  if (parsed.protocol !== 'https:' || parsed.href !== `${parsed.origin}/` || !parsed.hostname.endsWith('.pages.dev')) {
+    throw new Error('Pages 部署 URL 无效。');
+  }
+  const commit = env.CF_PAGES_COMMIT_SHA;
+  return { url: parsed.origin, branch, ...(typeof commit === 'string' && commit ? { commit } : {}) };
+}
+
+export async function writeReleaseIdentity(out, env) {
+  const identity = releaseIdentity(env);
+  if (!identity) return null;
+  const directory = join(out, '.well-known');
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, 'online-gal-deployment.json'), `${JSON.stringify(identity)}\n`);
+  const headers = join(out, '_headers');
+  const current = await readFile(headers, 'utf8');
+  if (!current.includes('/.well-known/online-gal-deployment.json')) {
+    await writeFile(headers, `${current.replace(/\s*$/, '')}\n/.well-known/online-gal-deployment.json\n  Cache-Control: no-store\n  Access-Control-Allow-Origin: *\n`);
+  }
+  return identity;
+}
 
 export async function choosePhase(args, env, fetchProject = fetch) {
   if (args.length) {
@@ -74,7 +101,7 @@ export async function verifyOutput(phase, out, repo = root) {
   for (const entry of setupEntries) {
     if (!entries.includes(entry)) throw new Error(`初始化构建缺少：${entry}`);
   }
-  const markers = ['registry/index.json', '__kernel'];
+  const markers = ['registry/index.json', '__kernel/'];
   const worker = await readFile(join(out, '_worker.js'));
   if (markers.some((marker) => worker.includes(marker))) throw new Error('初始化 Worker 包含插件内核代码。');
   await checkContents(join(out, '_astro'), markers, true);
@@ -103,6 +130,7 @@ async function main() {
     await buildSetup(out);
   }
   await verifyOutput(phase, out);
+  if (phase === 'site') await writeReleaseIdentity(out, process.env);
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `phase=${phase}\n`);
 }
 
