@@ -54,7 +54,7 @@
 
 - 新增 `packages/plugin-system/**`、`packages/plugin-host/**`、`apps/app/plugin.manifest.json`；`tsconfig.packages.json` 两条 reference；`pnpm-lock.yaml` 两个 importer（`plugin-system` 新增 devDependency `esbuild@0.27.7`，仓库已有该版本）。
 - 根 `package.json` 新增 `build:site`；`build`/`dev`/`test` 不变，因此 CI 与本地开发不受影响。
-- **部署改变**：官方站点改由 GitHub Actions 发布工作流构建，再用 `wrangler pages deploy dist/site` 连同 `functions/` 直接上传到 Cloudflare Pages；Cloudflare 的 Git 集成构建要关闭，因为官方包的来源证明只能在 GitHub Actions 里生成。不改的话线上仍是旧的 Astro 静态站，插件系统不生效。
-- 不改管理器源码、不改任何引擎包、`ports/`、许可文件，不改现有工作流；`.github/**` 只新增官方发布工作流 `release.yml`（用户已同意）。
+- **部署改变**（2026-11-23 用户决定改写）：官方站点继续由 Cloudflare Pages 的 Git 集成构建（`npm run build:pages`），不关闭、不改直接上传。官方包的来源证明在 Pages 生产构建里走 `microca` 通道签发，构建用生产环境的构建令牌向本站微型 CA 换凭证（design.md K15）。`github` 通道留给以后的 GitHub Actions 发布，可选。不改的话线上仍是旧的 Astro 静态站，插件系统不生效。
+- 不改管理器源码、不改任何引擎包、`ports/`、许可文件，不改现有工作流。`.github/**` 只在启用 `github` 通道时新增官方发布工作流 `release.yml`（tasks 10.10，可选；用户已同意放开这一个文件）。
 - 新增 `functions/__ca/`：匿名微型 CA，以 Pages Functions 随站点部署。
 - 其他变更通过登记扩展内核（design.md K19）。管理系统（Cloudflare 账号、`/__cf`、浏览器版 cf、`/admin`）属于变更 `cf-account-admin`，由单独的对话负责，不在本变更的范围内。

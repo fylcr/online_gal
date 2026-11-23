@@ -171,18 +171,24 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
 
 `plugin.bundle.json` 带 `channel` 字段，取值 `github` 或 `microca`，决定 K16 走哪个验证分支。两个分支各自算出一个承诺哈希，交给同一份 DNS 白名单比对；一个 mf-manifest.json 只需要其中一条通道的证明。
 
-**通道一：`github`（日常发布，零运维）**
+- 2026-11-23 用户决定：日常发布继续用 Cloudflare Pages 的 Git 集成构建，不关闭，也不改成直接上传。官方包在 Pages 生产构建里走 `microca` 通道签名；`github` 通道保留，只给以后的 GitHub Actions 发布用（tasks 10.10，可选）。原因有三条。Pages 构建环境没有 GitHub OIDC 身份，签不出 `github` 通道的证明。在 Actions 里签名、再让 Pages 重新构建也不行，两次构建的 `mf-manifest.json` 字节对不上（任务 #68 实测版本后缀就不同）。`cf` CLI 的 `pages deploy` 不上传目录，直接上传走不通。
+- Pages 构建的身份：生产环境 secret `ONLINE_GAL_CA_BUILD_TOKEN`（随机 32 字节，b64url）。构建拿它向当前线上站点的 `/__ca` 换凭证，CA 把它映射到固定的 `anon_id` `cf-pages`；DNS 白名单加这一项的 `microca` 承诺哈希。令牌泄露只需换令牌，CA 私钥与 DNS 不变。预览环境不配置这个令牌，预览部署不签名。
+- 构建行为：令牌未配置时跳过签名，并在构建日志里写明，官方包没有 bundle（与现状相同）。令牌已配置时，取凭证、写 Rekor、写文件任一步失败，构建就失败，不发布无证明的包。
+- 上线顺序：`/__ca` 先随一次构建上线（这次不签名），再配置令牌，之后的构建开始签名；确认签名产物能通过验证后才加 DNS 记录，因为有 DNS 记录后无 bundle 的官方包会被拒绝（K17）。
+- `plugin.bundle.json` 不进目录哈希（K14 只算 `plugin.json` 与 `mf-manifest.json`）：同一份 `mf-manifest.json` 两次签出的 bundle 不同，但都有效；内核取 bundle 带 `cache: 'no-store'`。
 
-1. 官方站点只由官方发布工作流（`.github/workflows/release.yml`，打标签触发）构建和发布：构建站点（`npm run build:pages`，2026-11-22 因 `site-setup` 用户决定 F 改：它先判断阶段，未初始化时产出初始化构建，此时没有注册表，跳过来源证明；已初始化时调用 `npm run build:site`）→ 对注册表里每个官方包的 mf-manifest.json 用 `actions/attest-build-provenance` 各生成一份 attestation（单 subject，摘要就是它的 SHA-256；需要 `id-token: write` 与 `attestations: write`）→ 把 bundle 写成同目录的 `plugin.bundle.json` → `wrangler pages deploy dist/site` 连同 `functions/` 一起上传。因此 Cloudflare 的 Git 集成构建必须关闭：它不在 GitHub Actions 里运行，生成不了 attestation；官方站点也就只在打 `refs/tags/*` 时发布。仓库必须公开，这样走公共 Sigstore；私有仓库走 GitHub 自己的 Sigstore 实例，信任根不同，本变更不支持。
+**通道一：`github`（可选，GitHub Actions 发布；2026-11-23 起不是日常路径）**
+
+1. 启用这条通道时，官方站点由发布工作流（`.github/workflows/release.yml`，打标签触发）构建和发布：构建站点（`npm run build:pages`，2026-11-22 因 `site-setup` 用户决定 F 改：它先判断阶段，未初始化时产出初始化构建，此时没有注册表，跳过来源证明；已初始化时调用 `npm run build:site`）→ 对注册表里每个官方包的 mf-manifest.json 用 `actions/attest-build-provenance` 各生成一份 attestation（单 subject，摘要就是它的 SHA-256；需要 `id-token: write` 与 `attestations: write`）→ 把 bundle 写成同目录的 `plugin.bundle.json` → `cf pages deploy dist/site` 连同 `functions/` 一起上传。启用前提：`cf` CLI 能上传目录（2026-11-23 的 `cf pages deploy` 不上传），并且 Git 集成构建要停掉，否则 Pages 会重新构建出不同字节的包。现在这两条都不满足，所以这条通道暂不启用。仓库必须公开，这样走公共 Sigstore；私有仓库走 GitHub 自己的 Sigstore 实例，信任根不同，本变更不支持。
 2. GitHub 产出的 Sigstore bundle 原样放进 `plugin.bundle.json` 的 `sigstore` 字段，不改写。
 3. 暴露的元数据是证书里公开的仓库路径与工作流文件名，不含个人邮箱、登录名与本机信息。这条通道不匿名：DNS 里的哈希只是白名单，遮不住 bundle 里本来就公开的仓库路径。
 
-**通道二：`microca`（应急、本地、GitLab、GitHub 账号异常；匿名）**
+**通道二：`microca`（日常发布：Cloudflare Pages 生产构建；另用于应急、本地、GitLab、GitHub 账号异常；匿名）**
 
 本地与 CI 流程相同：
 
 1. 进程内存生成临时 ECDSA P-256 密钥对，对 mf-manifest.json 的 SHA-256 签名，随后销毁私钥。
-2. 把平台身份（GitHub Actions OIDC，或本地 Google / Microsoft 登录）与临时公钥交给匿名微型 CA（K18，随站点部署的 Pages Function）；CA 核验后签发 10 分钟有效的 JWS（ES256）`{ anon_id, eph_pk, iat, exp }`，不含邮箱、账号、仓库、IP。
+2. 把平台身份（GitHub Actions OIDC、本地 Google / Microsoft 登录，或 Pages 构建持有的 `ONLINE_GAL_CA_BUILD_TOKEN`）与临时公钥交给匿名微型 CA（K18，随站点部署的 Pages Function）；CA 核验后签发 10 分钟有效的 JWS（ES256）`{ anon_id, eph_pk, iat, exp }`，不含邮箱、账号、仓库、IP。
 3. 把（摘要、签名、临时公钥）提交公共 Rekor（hashedrekord），取回条目、SET 与 inclusion proof。
 4. 写出 `plugin.bundle.json`：`v`、`channel`（固定为 `microca`）、`ca`（微型 CA 公钥 JWK，内联）、`cred`（JWS）、`sig`、`rekor`（body、integratedTime、logIndex、logId、set、proof）。
 
@@ -200,19 +206,19 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
 ### K17 — 失败语义、范围与已知限制
 
 - 官方来源（取得了 DNS 记录）：无 bundle 或验证失败 → `attestation-invalid`，不降级，也不替换已安装的旧版本。
-- 受限模式（现取 DoH 全部失败且没有未过期的缓存）：内核只安装网站派发的插件，即官方注册表里由官方发布工作流（K15）构建的包；这样的安装不验证 bundle，信任依据是本站 TLS 与注册表 digest，状态标 `unverified`，在 `/__kernel/` 与 `state` API 可见。`github:` 来源在受限模式下一律以 `attestation-unavailable`（可重试）拒绝。DoH 恢复后，后台检查补验已装的 `unverified` 官方插件：通过标 `verified`，失败标 `revoked`。DNS 记录的缓存有效期取 DoH 返回的 TTL，上限 1 小时。
+- 受限模式（现取 DoH 全部失败且没有未过期的缓存）：内核只安装网站派发的插件，即官方注册表里随站点一起构建的包；这样的安装不验证 bundle，信任依据是本站 TLS 与注册表 digest，状态标 `unverified`，在 `/__kernel/` 与 `state` API 可见。`github:` 来源在受限模式下一律以 `attestation-unavailable`（可重试）拒绝。DoH 恢复后，后台检查补验已装的 `unverified` 官方插件：通过标 `verified`，失败标 `revoked`。DNS 记录的缓存有效期取 DoH 返回的 TTL，上限 1 小时。
 - GitHub 来源：bundle 可选；存在但无效 → 拒绝；有效也不改变信任，信任仍由来源决定（K6），保留 id 规则不变。
 - 撤销：后台检查重取 DNS，已装官方插件的哈希不在白名单或落入排除窗口 → 状态标 `revoked`，在 `/__kernel/` 与 `state` API 可见，不再接受该 bundle。已激活的官方管理器如何降级依赖执行模型（tasks 9.1），本变更不做。
 - 双轨执行（通过 → 主线程，未通过 → Worker 沙箱 + XSS 网关）不在本变更：内核从不执行插件代码（K3），这里只产出「已验证 / 未验证 / 已撤销」标记，供 9.1 使用。
-- 限制：(1) 微型 CA 持有一把长期私钥（Pages 项目的加密环境变量），「零私钥」只对发布者成立；换 CA 密钥会改变指纹，必须同步改 DNS。(2) AD 位是解析器的声明，浏览器无法独立验证，信任落在解析器与域名注册商上。(3) CA 公钥内联使 DNS 成为唯一信任根：能改 TXT 的人能授权任何 CA。(4) DoH 在部分网络被屏蔽：内核进入受限模式，官方首装不会失败，但装上的官方包是 `unverified`；受限模式下信任退回本站 TLS 与注册表 digest。(5) 只实现 Rekor v1 的 SET 与 inclusion proof，v2 的 checkpoint 另议。(6) `github` 通道不匿名，bundle 里公开仓库路径与工作流名。(7) `github` 哈希已并入仓库 ID（用户已决定）：仓库被删除后由他人重名注册，仓库 ID 不同，同名工作流签出的 attestation 不会命中同一个哈希。10.0 必须确认证书里有该扩展；没有就回报用户，不静默回退到不含仓库 ID 的哈希。(8) 任何能在该仓库推 `refs/tags/*` 并触发该工作流的人都能签出官方包，所以该仓库的标签保护与工作流文件的改动权限就是官方发布的安全边界。(9) 受限模式下官方包没有来源证明，信任退回本站 TLS 与注册表 digest。网络层攻击者能阻断 DoH、把用户推进受限模式，但这只能让用户装到本站原样派发的包，拿不到比站点本身更多的东西；站点或 Pages 部署被攻破、攻击者发无 bundle 的包时，DoH 可达的用户会拒绝，DoH 被屏蔽的用户会装上并标 `unverified`。(10) 内核（`sw.js`）与注册表来自同一次 Pages 部署，能改部署的人可以直接换掉 `sw.js` 跳过全部验证；来源证明防的是注册表内容被单独替换、非官方发布者冒充官方，并给执行模型（9.1）提供「官方」身份依据，防不了整站被换。(11) 微型 CA 的私钥与站点同在一个 Pages 项目，能读该项目加密环境变量的人既能签发匿名凭证也能改站点；`github` 通道不依赖这把密钥，但两条通道都依赖同一个 Cloudflare 账号。
+- 限制：(1) 微型 CA 持有一把长期私钥（Pages 项目的加密环境变量），「零私钥」只对发布者成立；换 CA 密钥会改变指纹，必须同步改 DNS。(2) AD 位是解析器的声明，浏览器无法独立验证，信任落在解析器与域名注册商上。(3) CA 公钥内联使 DNS 成为唯一信任根：能改 TXT 的人能授权任何 CA。(4) DoH 在部分网络被屏蔽：内核进入受限模式，官方首装不会失败，但装上的官方包是 `unverified`；受限模式下信任退回本站 TLS 与注册表 digest。(5) 只实现 Rekor v1 的 SET 与 inclusion proof，v2 的 checkpoint 另议。(6) `github` 通道不匿名，bundle 里公开仓库路径与工作流名。(7) `github` 哈希已并入仓库 ID（用户已决定）：仓库被删除后由他人重名注册，仓库 ID 不同，同名工作流签出的 attestation 不会命中同一个哈希。10.0 必须确认证书里有该扩展；没有就回报用户，不静默回退到不含仓库 ID 的哈希。(8) 日常的 `microca` 通道：任何能推 `main` 的人都能签出官方包，因为 Pages 生产构建会执行仓库里的任意代码，也读得到构建令牌。所以 `main` 的推送权限就是官方发布的安全边界。仓库公开后给 `main` 开分支保护，禁止强制推送和删除，不要求 PR（用户 2026-11-23 决定，tasks 7.8）；公开之前没有保护，靠只有用户本人有推送权限。`github` 通道启用后：任何能推 `refs/tags/*` 并触发该工作流的人都能签出官方包，它的边界是标签保护与工作流文件的改动权限。(9) 受限模式下官方包没有来源证明，信任退回本站 TLS 与注册表 digest。网络层攻击者能阻断 DoH、把用户推进受限模式，但这只能让用户装到本站原样派发的包，拿不到比站点本身更多的东西；站点或 Pages 部署被攻破、攻击者发无 bundle 的包时，DoH 可达的用户会拒绝，DoH 被屏蔽的用户会装上并标 `unverified`。(10) 内核（`sw.js`）与注册表来自同一次 Pages 部署，能改部署的人可以直接换掉 `sw.js` 跳过全部验证；来源证明防的是注册表内容被单独替换、非官方发布者冒充官方，并给执行模型（9.1）提供「官方」身份依据，防不了整站被换。(11) 微型 CA 的私钥与站点同在一个 Pages 项目，能读该项目加密环境变量的人既能签发匿名凭证也能改站点；`github` 通道不依赖这把密钥，但两条通道都依赖同一个 Cloudflare 账号。Pages 构建令牌也在同一个项目的生产环境里，能读它的人同样能签出 `cf-pages` 身份的凭证。
 
 ### K18 — 微型 CA 随站点以 Pages Functions 部署
 
-- 源码在仓库的 `functions/__ca/`，路由 `/__ca/*`；随官方发布工作流的 `wrangler pages deploy dist/site` 一起上线，没有单独的 Worker 项目。`build-site.mjs` 生成 `_routes.json`，只让 `/__ca/*` 调用 Function，静态资源不经过它。目录名在 Pages 路由里是否有限制，实现时用 `wrangler pages dev` 实测。
+- 源码在仓库的 `functions/__ca/`，路由 `/__ca/*`；随 Pages 的 Git 集成构建一起上线（2026-11-23 用户决定，见 K15 开头；10.8 实现时确认初始化阶段的构建不带 `/__ca`，或者带上也无害），没有单独的 Worker 项目。`build-site.mjs` 生成 `_routes.json`，只让 `/__ca/*` 调用 Function，静态资源不经过它。目录名在 Pages 路由里是否有限制，实现时用 `cf dev` 实测。
 - 内核对 `/__ca/**` 与 `/sw.js`、`/registry/**` 一样放行到服务器：发布端的本地登录会在浏览器里打开该路径，不放行就会被当前管理器的 404 接住。管理器包的保留路径同步加上 `__ca/**`，理由同 K5。
 - `_headers` 不作用于 Function 的响应，CA 的响应自己带需要的头；发布端是脚本与登录页，不需要跨源隔离头。
-- CA 私钥与「允许的平台身份 → `anon_id`」映射放在 Pages 项目的加密环境变量，不进仓库；公钥 JWK 由发布端写进 bundle。CA 只核验 GitHub Actions / Google / Microsoft 的 OIDC 令牌并签发 K15 的 10 分钟 JWS，不保存令牌，也不在日志里记录平台身份。
-- 需要用户提供：域名（`_trust.<域名>` 的 TXT）、允许的 OIDC 主体、Cloudflare Pages 项目与 API token（写入 GitHub 仓库 secrets）。
+- CA 私钥与「允许的平台身份 → `anon_id`」映射放在 Pages 项目的加密环境变量，不进仓库；公钥 JWK 由发布端写进 bundle。CA 只核验 GitHub Actions / Google / Microsoft 的 OIDC 令牌，或 Pages 构建令牌（`ONLINE_GAL_CA_BUILD_TOKEN`，常量时间比较，映射到 `anon_id` `cf-pages`），然后签发 K15 的 10 分钟 JWS，不保存令牌，也不在日志里记录平台身份。
+- 需要用户提供：域名（`_trust.<域名>` 的 TXT）、允许的 OIDC 主体、Cloudflare API token（写入 GitHub 仓库 secrets，只在启用 `github` 通道时需要）。
 - 2026-11-22 补充：用户决定凡是需要初始化的都在站点初始化时完成。CA 私钥与 OIDC 映射的写入入口是变更 `site-setup` 的初始化项清单（其 design.md S7），不另做配置入口。见 tasks.md 11.2。
 
 ### K19 — 其他变更通过登记扩展内核
@@ -232,7 +238,7 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
   - `packages/plugin-system/**`（`src/account/**` 和 `cf-account-admin` design.md A11 列出的代码块除外）
   - `packages/plugin-host/**`
   - `apps/app/plugin.manifest.json`
-  - `functions/__ca/`（待建，10.8）、`.github/workflows/release.yml`（待建，10.10）
+  - `functions/__ca/`（待建，10.8）、`.github/workflows/release.yml`（可选，10.10）
   - 根 `package.json` 的 `build:site`，`tsconfig.packages.json` 里 `plugin-host` 与 `plugin-system` 两条 reference
 - 提交状态：format 1 的内核与管理器外壳已在 `e1340d2` 提交。format 2 与来源证明的改动还没有提交，包括新文件 `src/attest.ts`、`src/trust-dns.ts`，以及 `format.ts`、`kernel.ts`、`errors.ts`、`index.ts`、`sw.ts`、`scripts/pack-plugin.mjs`、`scripts/build-site.mjs` 的修改。其中后五个文件也含 `cf-account-admin` 的代码块，提交时按 A11 分开。
 

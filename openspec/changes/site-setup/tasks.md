@@ -51,13 +51,13 @@
 - [x] 4.1 `npm run build:setup`。按用户要求使用 `cf` CLI：在本地以生成的 Worker 和静态目录做浏览器冒烟，用 `cf` 在隔离 Pages 项目确认远端路由。验收：任意页面路径显示初始化页；`/__setup/status` 返回 `phase: "setup"`；`/__cf/**` 可用；没有插件注册表。
 - [ ] 4.2 `npm run build:pages -- --phase=site`：检查通过，`dist/site/` 搜不到 `__setup`；`npm run check`、`npx tsc -b tsconfig.packages.json`、`npx openspec validate site-setup --strict` 通过，现有 plugin 与账号测试没有回归。
   - 独立发布工作树用冻结锁文件安装依赖，`npm run check`、两阶段构建、15 项初始化与账号测试、OpenSpec 严格校验通过。旧插件工作台测试在本工作区未找到，保留该项待核对。
-- [ ] 4.3【用户】上线并亲自初始化（用户决定 E）。依赖 `plugin-system` 10.10 提供符合 `cf` CLI 要求的正式发布方式，并发布带来源证明的站点产物。
+- [x] 4.3【用户】上线并亲自初始化（用户决定 E）。2026-11-23 用户确认已完成，第 5、6 步用 `cf` CLI 核对通过。依赖 `plugin-system` 10.10 提供符合 `cf` CLI 要求的正式发布方式，并发布带来源证明的站点产物。
   1. [x] 把 `onlinegal.cc.cd` 绑定为 Pages 项目的自定义域名。2026-11-23 已绑定，域名状态 active，Cloudflare 自动建了 CNAME `onlinegal.cc.cd → online-gal.pages.dev`（代理）。
   2. ~~准备 Cloudflare API token 和 GitHub token~~ 作废（决定 G）：不需要准备任何 token。
   3. [x] 发布一次，应得到初始化构建。生产部署 786e2585 已是初始化构建。注意：此时是 Pages 的 Git 集成直接构建，没有经过 plugin-system 10.10 的正式发布工作流和来源证明；10.10 完成后正式站点构建改走该流程。
-  4. 等第 6 节部署后，打开 `https://onlinegal.cc.cd/` 的任意页面，点"登录 Cloudflare"，在授权页同意全部权限，确认写入，等待第二次构建完成后回到原页面。
-  5. 控制台核对：生产环境只有 `CLOUDFLARE_ACCOUNT_ID` 一个 secret 和 `ONLINE_GAL_SITE`，预览环境只有 `ONLINE_GAL_SITE`；没有 `CLOUDFLARE_API_TOKEN`、`GITHUB_TOKEN`。
-  6. 无痕窗口打开任意页面正常；`curl https://onlinegal.cc.cd/__setup/status` 得不到 `phase: "setup"` 的 JSON。
+  4. [x] 2026-11-23 用户确认已完成：打开 `https://onlinegal.cc.cd/`，登录 Cloudflare 并同意全部权限，确认写入，第二次构建完成后回到原页面。
+  5. [x] 2026-11-23 用 `cf pages projects get online-gal` 核对（`cf` CLI v1.0.0-beta.5，已登录）：生产环境是 `CLOUDFLARE_ACCOUNT_ID`（secret_text）与 `ONLINE_GAL_SITE`（plain_text），预览环境只有 `ONLINE_GAL_SITE`；没有 `CLOUDFLARE_API_TOKEN`、`GITHUB_TOKEN`。
+  6. [x] 2026-11-23 核对：`curl https://onlinegal.cc.cd/__setup/status` 返回 `200 text/html`，不是 `phase: "setup"` 的 JSON；站点根是游戏库。
 
 ## 5. 配置 Pages 构建设置
 

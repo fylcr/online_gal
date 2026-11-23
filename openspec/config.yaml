@@ -37,6 +37,7 @@ context: |
   - 许可：自有代码 GPL-3.0-or-later；官方 Artemis SDK 及其转译体是专有的，不得提交。发布二进制须提供对应源码。
   - 实测：同一时刻只跑一个引擎实例；结束时关掉自己开的浏览器窗口、服务器和后台进程。按 PID 结束进程，不得按进程名批量杀 node.exe。
   - 不改 docs/fetch-engine-artifacts.md 里的历史 hash。
+  - Cloudflare 的命令行只用 `cf` CLI（v1.0.0-beta.5，已登录），不用 `wrangler`。查部署、读构建日志、上传站点都走 `cf pages`。
   - 进度与决定写回对应 change 的 tasks.md / design.md，不另建交接文档。
   团队（pi-teammate，频道 onlinegal，成员都在 D:\online_gal 下运行）：
   - leader：总负责与用户沟通的入口。把用户指令写成 openspec 里的目标与计划，汇总各成员状态向用户汇报，
