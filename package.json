@@ -15,6 +15,8 @@
     "build:pages": "node scripts/build-pages.mjs",
     "configure:pages": "node scripts/configure-pages.mjs",
     "reinit:pages": "node scripts/reinit-pages.mjs",
+    "rotate:cf-entry": "node scripts/rotate-cf-entry.mjs",
+    "recover:pages-release": "node scripts/recover-pages-release.mjs",
     "build:setup": "node scripts/build-pages.mjs --phase=setup",
     "build:site": "npm run build && node packages/plugin-system/scripts/build-site.mjs",
     "build:site:artifact": "tsc -b packages/plugin-system && node packages/plugin-system/scripts/build-site.mjs --manager-artifact",

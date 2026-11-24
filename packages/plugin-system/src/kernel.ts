@@ -1,6 +1,7 @@
 import type { PluginManifest } from '@online-gal/plugin-host';
 
 import { CloudflareAccount, CLOUDFLARE } from './account/cloudflare.js';
+import { validCfEntry } from './account/private-cf-relay.js';
 import { Vault, type VaultStore } from './account/vault.js';
 import { parseBundle, verifyBundle, type TrustPolicy } from './attest.js';
 import { KernelError } from './errors.js';
@@ -323,6 +324,11 @@ const STATUS_BY_CODE: Readonly<Record<string, number>> = {
   'attestation-unavailable': 503,
   'account-forbidden': 403,
   'account-signed-out': 401,
+  'entry-required': 403,
+  'entry-invalid': 404,
+  'not-admin': 403,
+  'proof-invalid': 403,
+  'temporarily-unavailable': 503,
   'account-unavailable': 503,
   'account-failed': 502,
 };
@@ -1267,6 +1273,7 @@ export class Kernel {
       fetch: this.options.fetch,
       vault: new Vault(this.options.vault),
       now: this.now,
+      privateRelay: true,
     });
     return this.cloudflareAccount;
   }
@@ -1306,6 +1313,23 @@ export class Kernel {
       throw new KernelError('request-invalid', `the account API does not accept ${request.method} ${action}`);
     }
     switch (action) {
+      case 'import-entry': {
+        const type = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
+        if (type !== 'application/json') {
+          throw new KernelError('request-invalid', 'entry import requires application/json');
+        }
+        let body: unknown;
+        try {
+          body = await request.json();
+        } catch {
+          throw new KernelError('request-invalid', 'entry import requires a JSON object');
+        }
+        if (!isRecord(body) || !validCfEntry(body.segment)) {
+          throw new KernelError('request-invalid', 'entry import requires a valid route segment');
+        }
+        await account.setEntry(body.segment);
+        return json(200, { ok: true });
+      }
       case 'login':
         return json(200, { ok: true, login: await account.login() });
       case 'poll':
@@ -1325,10 +1349,10 @@ export class Kernel {
    */
   private async relayCloudflare(request: KernelRequest, pathAndQuery: string, clientId: string): Promise<Response> {
     try {
-      await this.assertAccountCaller(clientId);
-      if (!pathAndQuery.startsWith('/__cf/api/')) {
-        throw new KernelError('account-forbidden', 'only /__cf/api/** is relayed for pages');
+      if (request.mode === 'navigate' || !pathAndQuery.startsWith('/__cf/api/')) {
+        throw new KernelError('account-forbidden', 'only manager requests to /__cf/api/** are relayed');
       }
+      await this.assertAccountCaller(clientId);
       return await this.account().forward(request as Request, pathAndQuery);
     } catch (error) {
       const code = errorCode(error);

@@ -1,4 +1,4 @@
-import { onRequest as cloudflare } from '../../../functions/__cf/[[path]].ts';
+import { handleSetup as cloudflare } from '../../../functions/__cf/[[path]].ts';
 import { onRequest as setup, type SetupEnv } from './setup.ts';
 
 interface Env extends SetupEnv {
@@ -10,7 +10,7 @@ export default {
     const { pathname } = new URL(request.url);
     let response: Response;
     try {
-      if (pathname === '/__cf' || pathname.startsWith('/__cf/')) response = await cloudflare({ request });
+      if (pathname === '/__cf' || pathname.startsWith('/__cf/')) response = await cloudflare(request);
       else if (pathname === '/__setup' || pathname.startsWith('/__setup/')) response = await setup({ request, env });
       else response = await env.ASSETS.fetch(request);
     } catch {

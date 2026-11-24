@@ -3,16 +3,16 @@
   import { CloudflareAccount, Vault, type CloudflareStatus, type SiteAdmin } from '@online-gal/plugin-system/account';
   import DeviceLogin from './DeviceLogin.svelte';
   import { MemoryVaultStore } from '../lib/memory-vault';
-  import { SETUP_ITEMS } from '../lib/setup-items';
+  import { setupItems } from '../lib/setup-items';
   import {
     clearSession, clearSetupSession, isLocalHost, missingScopes, readCaFingerprint, RELOAD_KEY,
-    readSession, safeNext, savedDeployment, SetupClient, unsupportedItems, type SetupConfig, WRITTEN_KEY,
+    readSession, safeNext, savedDeployment, SetupClient, SetupRecoveryRequired, unsupportedItems, type SetupConfig, type ReleaseTrust, type ReleaseRunResult, WRITTEN_KEY, writeSession,
   } from '../lib/setup';
 
   let { config }: { config: SetupConfig } = $props();
   type SignedIn = Extract<CloudflareStatus, { signedIn: true }>;
   type Step = 'status' | 'status-error' | 'stale' | 'login' | 'building' | 'build-error' | 'confirming'
-    | 'confirmation-error' | 'local-preview' | 'complete';
+    | 'confirmation-error' | 'local-preview' | 'save-entry' | 'release-running' | 'release-error' | 'recovery' | 'awaiting-dns' | 'complete';
   type ProjectState = 'idle' | 'checking' | 'confirm' | 'writing' | 'error';
   let step = $state<Step>('status');
   let project = $state<ProjectState>('idle');
@@ -28,12 +28,17 @@
   let productionBranch = '';
   let projectWrittenAt: string | undefined;
   let caFingerprint = $state<string>();
+  let releaseTrust = $state<ReleaseTrust>();
+  let releaseResult = $state<ReleaseRunResult>();
+  let entryLink = $state<string>();
+  let requiresEntry = false;
   let scopesMissing = $state<string[]>([]);
   /**
    * Items whose value would have to be typed in. Decision G removed the form, so the page stops
    * here instead of writing a partial configuration; no current item is one.
    */
-  const blocked = unsupportedItems(SETUP_ITEMS);
+  const configuredItems = $derived(setupItems(config.rebuild.kind === 'pages-git'));
+  const blocked = $derived(unsupportedItems(configuredItems));
   /** The write needs the Pages scopes and a configuration the page can produce by itself. */
   let allWritable = $derived(scopesMissing.length === 0 && blocked.length === 0);
   let inspection = 0;
@@ -46,6 +51,7 @@
 
   function complete(): void {
     account = undefined;
+    client.clearEntry();
     clearSetupSession();
     step = 'complete';
     redirectTimer = setTimeout(() => location.replace(next), 1500);
@@ -84,6 +90,38 @@
     }
   }
 
+  async function advanceRelease(owner: SiteAdmin, trust: ReleaseTrust, restartBuild = false): Promise<void> {
+    releaseTrust = trust;
+    step = 'release-running';
+    errorMessage = '';
+    try {
+      releaseResult = await client.advanceRelease(owner, trust, lifetime.signal, undefined, restartBuild, requiresEntry);
+      if (!lifetime.signal.aborted) step = 'awaiting-dns';
+    } catch (error) {
+      if (lifetime.signal.aborted) return;
+      errorMessage = error instanceof Error ? error.message : '发布验签失败，请重试。';
+      step = error instanceof SetupRecoveryRequired ? 'recovery' : 'release-error';
+    }
+  }
+
+  function prepareRelease(owner: SiteAdmin, trust: ReleaseTrust, privateEntry: boolean): void {
+    releaseTrust = trust;
+    requiresEntry = privateEntry;
+    const entry = privateEntry && client.entryLink(owner);
+    if (entry) {
+      entryLink = location.origin + entry;
+      step = 'save-entry';
+    } else {
+      void advanceRelease(owner, trust);
+    }
+  }
+
+  function confirmSavedEntry(): void {
+    if (!entryLink || !admin || !releaseTrust) return;
+    entryLink = undefined;
+    void advanceRelease(admin, releaseTrust);
+  }
+
   async function rebuild(owner: SiteAdmin, restart = false): Promise<void> {
     if (isLocalHost(host)) {
       step = 'local-preview';
@@ -118,7 +156,10 @@
     const missing = status.signedIn ? missingScopes(status.scopes) : [];
     scopesMissing = missing;
     admin = status.signedIn ? status.siteAdmin : null;
-    if (!status.signedIn) caFingerprint = undefined;
+    if (!status.signedIn) {
+      caFingerprint = undefined;
+      client.clearEntry();
+    }
     if (!admin || step !== 'login' || missing.length > 0) return;
     const owner = admin;
     project = 'checking';
@@ -131,7 +172,8 @@
       if (state.written || initialized) {
         if (state.missing.length) throw new Error('项目缺少初始化配置，请在 Cloudflare 控制台检查。');
         caFingerprint = readCaFingerprint(owner, state.writtenAt);
-        await rebuild(owner);
+        if (state.trust) prepareRelease(owner, state.trust, Boolean(state.routeHost));
+        else await rebuild(owner);
       } else {
         project = 'confirm';
       }
@@ -148,18 +190,23 @@
     project = 'writing';
     errorMessage = '';
     try {
-      const result = await client.write(owner, status.user, status.scopes, lifetime.signal);
+      const result = await client.write(owner, status.user, status.scopes, lifetime.signal, config.rebuild.kind === 'pages-git');
       if (lifetime.signal.aborted) return;
       if (result === 'switched') complete();
       else if (result === 'already-written') await inspectOwner(status);
-      else {
-        if (typeof result === 'object') caFingerprint = result.fingerprint;
-        void rebuild(owner);
+      else if (result === 'local') {
+        project = 'idle';
+        step = 'local-preview';
+      } else if (typeof result === 'object') {
+        caFingerprint = result.fingerprint;
+        if (result.trust) prepareRelease(owner, result.trust, result.requiresEntry);
+        else await rebuild(owner);
       }
     } catch (error) {
       if (lifetime.signal.aborted) return;
       errorMessage = error instanceof Error ? error.message : '请重试。';
-      project = 'confirm';
+      if (error instanceof SetupRecoveryRequired) step = 'recovery';
+      else project = 'confirm';
     }
   }
 
@@ -173,6 +220,7 @@
     void checkStatus();
     return () => {
       lifetime.abort();
+      client.clearEntry();
       account = undefined;
       clearTimeout(redirectTimer);
     };
@@ -211,20 +259,26 @@
             {:else}
               <p class="mt-4 text-sm">将一次写入下列配置。页面没有任何 token 输入框，登录凭据只留在当前页面的内存里。</p>
               <ul class="mt-3 space-y-1.5 text-sm">
-                {#each SETUP_ITEMS as item (item.name)}
+                {#each configuredItems as item (item.name)}
                   <li class="flex flex-wrap items-baseline justify-between gap-2">
                     <span>{item.label}</span>
-                    <span class="font-mono text-xs break-all text-base-content/70">{item.source === 'account' ? maskId(status.siteAdmin.accountId) : '保存时生成'} · {item.name} · secret_text · production</span>
+                    <span class="font-mono text-xs break-all text-base-content/70">{item.name === 'CLOUDFLARE_ACCOUNT_ID' ? maskId(status.siteAdmin.accountId) : item.source === 'account' ? '当前登录用户' : '保存时生成'} · {item.name} · secret_text · production</span>
                   </li>
                 {/each}
                 <li class="flex flex-wrap items-baseline justify-between gap-2">
                   <span>站点初始化记录</span>
                   <span class="font-mono text-xs break-all text-base-content/70">ONLINE_GAL_SITE · plain_text · production, preview</span>
                 </li>
+                {#if config.rebuild.kind === 'pages-git'}
+                  <li class="flex flex-wrap items-baseline justify-between gap-2">
+                    <span>临时 CA 引导标记</span>
+                    <span class="font-mono text-xs break-all text-base-content/70">ONLINE_GAL_CA_BOOTSTRAP · plain_text · production only</span>
+                  </li>
+                {/if}
               </ul>
               {#if errorMessage}<p role="alert" class="mt-3 text-sm text-error">{errorMessage}</p>{/if}
               <button class="btn btn-primary mt-4" type="button" disabled={busy || project === 'writing'} onclick={() => void submit(status)}>
-                {project === 'writing' ? '正在写入' : '写入并构建'}
+                {project === 'writing' ? '正在写入' : config.rebuild.kind === 'pages-git' ? '写入配置' : '写入并构建'}
               </button>
             {/if}
           {/if}
@@ -267,6 +321,35 @@
           <p class="mt-2 text-sm">也可以在 Cloudflare Pages 中重新部署生产分支{productionBranch ? ` ${productionBranch}` : ''}。</p>
         {/if}
       {/if}
+    {:else if step === 'save-entry' && entryLink}
+      <p class="font-bold">保存管理入口</p>
+      <p class="mt-2 text-sm">请将完整链接存入自己的密码管理器。新浏览器需用此链接导入入口，再登录 Cloudflare。</p>
+      <label class="mt-3 block text-sm" for="setup-admin-entry">管理链接</label>
+      <input class="input mt-1 w-full font-mono" id="setup-admin-entry" readonly value={entryLink} onfocus={(event) => event.currentTarget.select()} />
+      <button class="btn btn-primary mt-4" type="button" onclick={confirmSavedEntry}>已保存，开始部署</button>
+    {:else if step === 'release-running' || step === 'release-error'}
+      <p class="font-bold">{step === 'release-running' ? '部署并验证官方插件签名' : '发布验签尚未完成'}</p>
+      {#if step === 'release-running'}<p class="mt-2 text-sm">正在核对 Pages 部署身份、CA 路由并验证线上官方包。此阶段不会写入 DNS。</p>{/if}
+      {#if step === 'release-error'}<p class="mt-2 text-sm text-error" role="alert">{errorMessage}</p>{/if}
+      {#if step === 'release-error' && admin && releaseTrust}
+        <button type="button" class="btn btn-sm mt-4" onclick={() => void advanceRelease(admin!, releaseTrust!)}>继续检查</button>
+        <button type="button" class="btn btn-sm mt-4" onclick={() => void advanceRelease(admin!, releaseTrust!, true)}>重新触发当前构建</button>
+      {/if}
+    {:else if step === 'recovery'}
+      <p class="font-bold">请使用 cf 继续发布</p>
+      <p class="mt-2 text-sm" role="alert">{errorMessage}</p>
+    {:else if step === 'awaiting-dns'}
+      <p class="font-bold text-success">签名已验证，等待 DNS 验收</p>
+      <p class="mt-2 text-sm">TXT 尚未创建。9.0 DNS 权限与启用 DNSSEC 的隔离 zone 验收完成前，本页面不会读写真实 DNS。</p>
+      {#if releaseResult}
+        <p class="mt-2 break-all text-xs">候选 DNS 名称：<code>{releaseResult.dnsName}</code></p>
+        <p class="mt-2 break-all text-xs">候选 TXT（尚未发布）：<code class="select-all">{releaseResult.candidateTxt}</code></p>
+        <p class="mt-2 break-all text-xs">引导部署：<code>{releaseResult.bootstrapDeploymentId}</code></p>
+        <p class="break-all text-xs">签名部署：<code>{releaseResult.signingDeploymentId}</code></p>
+      {/if}
+      {#if admin && releaseTrust}
+        <button type="button" class="btn btn-sm mt-4" onclick={() => void advanceRelease(admin!, releaseTrust!)}>重新核对验签</button>
+      {/if}
     {:else if step === 'confirming'}
       <p>正在确认正式站点已生效</p>
     {:else if step === 'confirmation-error'}
@@ -277,7 +360,7 @@
     {:else if step === 'local-preview'}
       <p class="font-bold">本地预演</p>
       <ul class="mt-4 space-y-1 font-mono text-xs">
-        {#each SETUP_ITEMS as item (item.name)}<li>{item.name} · production · secret_text · ••••</li>{/each}
+        {#each configuredItems as item (item.name)}<li>{item.name} · production · secret_text · ••••</li>{/each}
         <li>ONLINE_GAL_SITE · production, preview · plain_text · ••••</li>
       </ul>
       <p class="mt-3 text-sm">构建方式：{config.rebuild.kind}</p>

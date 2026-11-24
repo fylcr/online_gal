@@ -11,6 +11,7 @@
 import { KernelError } from '../errors.js';
 import { CF_CLIENT_ID, CF_DEFAULT_SCOPES } from './cf-identity.generated.js';
 import type { Vault } from './vault.js';
+import { PrivateCfRelay, validCfEntry } from './private-cf-relay.js';
 
 export const CLOUDFLARE = 'cloudflare';
 const PENDING = `${CLOUDFLARE}#pending`;
@@ -88,6 +89,8 @@ export interface CloudflareAccountOptions {
   readonly now: () => number;
   readonly clientId?: string;
   readonly scopes?: readonly string[];
+  /** The production kernel requires an imported entry and retains it in its vault. */
+  readonly privateRelay?: boolean;
 }
 
 /** Fields copied from a page's request; `authorization` is never one of them. */
@@ -101,14 +104,33 @@ export class CloudflareAccount {
   /** Decrypted credentials: `undefined` = not loaded yet, `null` = signed out. */
   private cached: Credentials | null | undefined;
   private refreshing: Promise<Credentials> | undefined;
+  private vaultWrites: Promise<void> = Promise.resolve();
   /** Bumped by login, refresh and sign-out; work started under an older epoch must not store results. */
   private epoch = 0;
   private siteAdminCache: { readonly epoch: number; readonly at: number; readonly admin: SiteAdmin | null } | undefined;
   private siteAdminInflight: { readonly epoch: number; readonly result: Promise<{ admin: SiteAdmin | null; error?: string }> } | undefined;
 
+  private privateTransport: PrivateCfRelay | undefined;
+
   constructor(private readonly options: CloudflareAccountOptions) {
     this.clientId = options.clientId ?? CF_CLIENT_ID;
     this.scopes = options.scopes ?? CF_DEFAULT_SCOPES;
+    if (options.privateRelay === true) {
+      this.privateTransport = new PrivateCfRelay(options.origin, options.fetch, options.now, options.vault);
+    }
+  }
+
+  /** The setup page keeps an explicitly supplied entry in memory for this tab. */
+  async setEntry(segment: string): Promise<void> {
+    if (!validCfEntry(segment)) throw new KernelError('request-invalid', 'invalid Cloudflare entry');
+    this.privateTransport ??= new PrivateCfRelay(this.options.origin, this.options.fetch, this.options.now);
+    this.epoch++;
+    this.siteAdminCache = undefined;
+    await Promise.all([this.privateTransport.setEntry(segment), this.deletePending()]);
+  }
+
+  private oauthDescription(response: Response, body: unknown): string {
+    return this.privateTransport === undefined ? describe(response, body) : `HTTP ${response.status}`;
   }
 
   // ------------------------------------------------------------ status
@@ -118,14 +140,15 @@ export class CloudflareAccount {
     if (credentials === null) return { signedIn: false, pending: await this.pendingView() };
     let check: { admin: SiteAdmin | null; error?: string };
     try {
-      check = await this.siteAdmin();
+      check = this.privateTransport === undefined ? await this.siteAdmin() : await this.privateSiteAdmin(this.privateTransport);
     } catch (error) {
       if (error instanceof KernelError && error.code === 'account-signed-out') {
         return { signedIn: false, pending: await this.pendingView() };
       }
       throw error;
     }
-    const current = (await this.credentials()) ?? credentials;
+    const current = await this.credentials();
+    if (current === null) return { signedIn: false, pending: await this.pendingView() };
     return {
       signedIn: true,
       user: current.user,
@@ -140,6 +163,7 @@ export class CloudflareAccount {
 
   /** Starts a device-flow login (RFC 8628), replacing any login in progress. */
   async login(): Promise<PendingLogin> {
+    const epoch = this.epoch;
     const response = await this.oauth('device/auth', {
       client_id: this.clientId,
       scope: [...this.scopes, 'offline_access'].join(' '),
@@ -150,7 +174,7 @@ export class CloudflareAccount {
     const verificationUri = stringMember(body, 'verification_uri');
     const expiresIn = numberMember(body, 'expires_in');
     if (!response.ok || deviceCode === undefined || userCode === undefined || verificationUri === undefined || expiresIn === undefined) {
-      throw new KernelError('account-failed', `Cloudflare did not start the login (${describe(response, body)})`);
+      throw new KernelError('account-failed', `Cloudflare did not start the login (${this.oauthDescription(response, body)})`);
     }
     const complete = stringMember(body, 'verification_uri_complete');
     const pending: StoredPending = {
@@ -161,7 +185,8 @@ export class CloudflareAccount {
       expiresAt: this.options.now() + expiresIn * 1000,
       interval: Math.max(numberMember(body, 'interval') ?? DEFAULT_INTERVAL_SECONDS, MIN_INTERVAL_SECONDS),
     };
-    await this.options.vault.put(PENDING, pending);
+    if (epoch !== this.epoch) throw signedOut('the Cloudflare session changed during login');
+    await this.writeVault(() => this.options.vault.put(PENDING, pending));
     return view(pending);
   }
 
@@ -170,10 +195,11 @@ export class CloudflareAccount {
    * the worker may be stopped between polls, so the kernel keeps no timer of its own.
    */
   async poll(): Promise<PollResult> {
+    const epoch = this.epoch;
     const pending = await this.options.vault.get<StoredPending>(PENDING);
     if (pending === undefined) return { state: 'none' };
     if (this.options.now() >= pending.expiresAt) {
-      await this.options.vault.delete(PENDING);
+      await this.deletePending();
       return { state: 'expired' };
     }
 
@@ -184,6 +210,7 @@ export class CloudflareAccount {
     });
     const body = await readJson(response);
     const error = stringMember(body, 'error');
+    if (epoch !== this.epoch) return { state: 'none' };
     switch (error) {
       case undefined:
         break;
@@ -191,18 +218,18 @@ export class CloudflareAccount {
         return { state: 'pending', interval: pending.interval };
       case 'slow_down': {
         const slower = { ...pending, interval: pending.interval + SLOW_DOWN_SECONDS };
-        await this.options.vault.put(PENDING, slower);
+        await this.writeVault(() => this.options.vault.put(PENDING, slower));
         return { state: 'slow-down', interval: slower.interval };
       }
       case 'access_denied':
-        await this.options.vault.delete(PENDING);
+        await this.deletePending();
         return { state: 'denied' };
       case 'expired_token':
-        await this.options.vault.delete(PENDING);
+        await this.deletePending();
         return { state: 'expired' };
       default:
-        await this.options.vault.delete(PENDING);
-        throw new KernelError('account-failed', `Cloudflare refused the login: ${error}`);
+        await this.deletePending();
+        throw new KernelError('account-failed', `Cloudflare refused the login (${this.oauthDescription(response, body)})`);
     }
 
     const accessToken = stringMember(body, 'access_token');
@@ -210,8 +237,8 @@ export class CloudflareAccount {
     if (!response.ok || accessToken === undefined || expiresIn === undefined) {
       // A 5xx or 429 may pass; anything else will not turn into a grant on the next poll.
       if (response.status >= 500 || response.status === 429) return { state: 'pending', interval: pending.interval };
-      await this.options.vault.delete(PENDING);
-      throw new KernelError('account-failed', `Cloudflare answered the login with an unusable token (${describe(response, body)})`);
+      await this.deletePending();
+      throw new KernelError('account-failed', `Cloudflare answered the login with an unusable token (${this.oauthDescription(response, body)})`);
     }
 
     const now = this.options.now();
@@ -222,20 +249,20 @@ export class CloudflareAccount {
       ...(refreshToken === undefined ? {} : { refreshToken }),
       expiresAt: now + expiresIn * 1000,
       scopes: scope === undefined ? [] : scope.split(' ').filter((item) => item !== ''),
-      user: await this.fetchUser(accessToken),
+      user: this.privateTransport === undefined ? await this.fetchUser(accessToken) : null,
       obtainedAt: now,
     };
+    if (epoch !== this.epoch) return { state: 'none' };
     this.epoch++;
-    await this.save(credentials);
-    await this.options.vault.delete(PENDING);
-    return { state: 'signed-in', status: await this.status() };
+    await this.save(credentials, true);
+    const status = await this.status();
+    return status.signedIn ? { state: 'signed-in', status } : { state: 'none' };
   }
 
   /** Revokes the refresh token if it can and always forgets the credentials and any login in progress. */
   async logout(): Promise<void> {
     const credentials = await this.credentials();
-    this.epoch++;
-    this.siteAdminCache = undefined;
+    await this.clear();
     if (credentials?.refreshToken !== undefined) {
       try {
         await this.oauth('revoke', {
@@ -247,7 +274,6 @@ export class CloudflareAccount {
         // Offline or refused: the local copy goes regardless (design.md A5).
       }
     }
-    await this.clear();
   }
 
   // ------------------------------------------------------------ relay
@@ -257,6 +283,8 @@ export class CloudflareAccount {
    * `Authorization` is dropped; `pathAndQuery` starts with `/__cf/api/`.
    */
   async forward(request: Request, pathAndQuery: string): Promise<Response> {
+    const relay = this.privateTransport;
+    if (relay !== undefined) return this.privateForward(relay, request, pathAndQuery);
     const token = await this.token();
     const headers = new Headers();
     for (const name of FORWARDED_HEADERS) {
@@ -281,6 +309,69 @@ export class CloudflareAccount {
     const out = new Headers(answer.headers);
     out.set('cache-control', 'no-store');
     return new Response(answer.body, { status: answer.status, statusText: answer.statusText, headers: out });
+  }
+
+  private async privateForward(relay: PrivateCfRelay, request: Request, pathAndQuery: string): Promise<Response> {
+    if (!pathAndQuery.startsWith('/__cf/api/')) throw new KernelError('account-forbidden', 'only Cloudflare API paths may be forwarded');
+    const token = await this.token();
+    const epoch = this.epoch;
+    const endpoint = await relay.endpoint();
+    this.assertToken(epoch, token);
+    try {
+      const grant = await relay.grant(endpoint, token);
+      const headers = new Headers();
+      for (const name of FORWARDED_HEADERS) {
+        const value = request.headers.get(name);
+        if (value !== null) headers.set(name, value);
+      }
+      headers.set('authorization', `Bearer ${token}`);
+      headers.set('x-online-gal-cf-proof', grant.proof);
+      const body = request.method !== 'GET' && request.method !== 'HEAD' ? await request.arrayBuffer() : undefined;
+      this.assertToken(epoch, token);
+      const response = await relay.request(endpoint, pathAndQuery.slice('/__cf'.length), {
+        method: request.method, headers, body, signal: request.signal,
+      });
+      this.assertToken(epoch, token);
+      const out = new Headers(response.headers);
+      out.delete('x-online-gal-cf-proof');
+      out.set('cache-control', 'no-store');
+      return new Response(response.body, { status: response.status, statusText: response.statusText, headers: out });
+    } catch (error) {
+      await this.handlePrivateFailure(relay, error, epoch, token);
+      throw error;
+    }
+  }
+
+  private async privateSiteAdmin(relay: PrivateCfRelay): Promise<{ admin: SiteAdmin | null; error?: string }> {
+    try {
+      const token = await this.token();
+      const epoch = this.epoch;
+      const endpoint = await relay.endpoint();
+      this.assertToken(epoch, token);
+      try {
+        const { admin } = await relay.grant(endpoint, token);
+        this.assertToken(epoch, token);
+        return { admin };
+      } catch (error) {
+        await this.handlePrivateFailure(relay, error, epoch, token);
+        throw error;
+      }
+    } catch (error) {
+      if (!(error instanceof KernelError)) throw error;
+      if (error.code === 'account-signed-out' && this.cached === null) throw error;
+      const code = ['entry-required', 'entry-invalid', 'not-admin'].includes(error.code) ? error.code : 'temporarily-unavailable';
+      return { admin: null, error: code };
+    }
+  }
+
+  private assertToken(epoch: number, token: string): void {
+    if (epoch !== this.epoch || this.cached?.accessToken !== token) throw signedOut('the Cloudflare session changed');
+  }
+
+  private async handlePrivateFailure(relay: PrivateCfRelay, error: unknown, epoch: number, token: string): Promise<void> {
+    if (!(error instanceof KernelError) || this.epoch !== epoch || this.cached?.accessToken !== token) return;
+    if (error.code === 'account-signed-out') await this.clear();
+    else if (error.code === 'proof-invalid' || error.code === 'entry-invalid') relay.invalidate();
   }
 
   // ------------------------------------------------------------ tokens
@@ -322,7 +413,7 @@ export class CloudflareAccount {
     const expiresIn = numberMember(body, 'expires_in');
     if (error !== undefined || !response.ok || accessToken === undefined || expiresIn === undefined) {
       // Not a verdict on the session; keep the credentials and let a later request try again.
-      throw new KernelError('account-failed', `Cloudflare did not refresh the session (${describe(response, body)})`);
+      throw new KernelError('account-failed', `Cloudflare did not refresh the session (${this.oauthDescription(response, body)})`);
     }
     if (this.epoch !== epoch) throw signedOut('signed out while refreshing');
     const now = this.options.now();
@@ -342,30 +433,49 @@ export class CloudflareAccount {
 
   private async credentials(): Promise<Credentials | null> {
     if (this.cached === undefined) {
-      this.cached = (await this.options.vault.get<Credentials>(CLOUDFLARE)) ?? null;
+      const loaded = await this.options.vault.get<Credentials>(CLOUDFLARE);
+      if (this.cached === undefined) this.cached = loaded ?? null;
     }
     return this.cached;
   }
 
-  private async save(credentials: Credentials): Promise<void> {
+  /** Queue vault mutations in session order even when encryption takes longer than deletion. */
+  private writeVault(write: () => Promise<void>): Promise<void> {
+    const result = this.vaultWrites.then(write);
+    this.vaultWrites = result.catch(() => undefined);
+    return result;
+  }
+
+  private deletePending(): Promise<void> {
+    return this.writeVault(() => this.options.vault.delete(PENDING));
+  }
+
+  private async save(credentials: Credentials, endLogin = false): Promise<void> {
     this.cached = credentials;
     this.siteAdminCache = undefined;
-    await this.options.vault.put(CLOUDFLARE, credentials);
+    this.privateTransport?.invalidate();
+    await this.writeVault(async () => {
+      await this.options.vault.put(CLOUDFLARE, credentials);
+      if (endLogin) await this.options.vault.delete(PENDING);
+    });
   }
 
   private async clear(): Promise<void> {
     this.cached = null;
     this.epoch++;
     this.siteAdminCache = undefined;
-    await this.options.vault.delete(CLOUDFLARE);
-    await this.options.vault.delete(PENDING);
+    this.privateTransport?.invalidate();
+    await this.writeVault(async () => {
+      await this.options.vault.delete(CLOUDFLARE);
+      await this.options.vault.delete(PENDING);
+    });
   }
 
   private async pendingView(): Promise<PendingLogin | null> {
     const pending = await this.options.vault.get<StoredPending>(PENDING);
     if (pending === undefined) return null;
     if (this.options.now() >= pending.expiresAt) {
-      await this.options.vault.delete(PENDING);
+      await this.deletePending();
       return null;
     }
     return view(pending);
@@ -463,6 +573,14 @@ export class CloudflareAccount {
   }
 
   private async oauth(endpoint: 'device/auth' | 'token' | 'revoke', fields: Record<string, string>): Promise<Response> {
+    // Private OAuth failures may contain upstream text. Keep route and credentials out of errors.
+    if (this.privateTransport !== undefined) {
+      return this.privateTransport.request(await this.privateTransport.endpoint(), `/oauth/${endpoint}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+        body: new URLSearchParams(fields),
+      });
+    }
     try {
       return await this.options.fetch(`${this.options.origin}/__cf/oauth/${endpoint}`, {
         method: 'POST',

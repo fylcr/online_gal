@@ -4,18 +4,43 @@
    * section page runs the same check again before it shows anything.
    */
   import { onMount } from 'svelte';
-  import { checkAdmin, type AdminGate } from '../../lib/admin';
+  import { checkAdmin, importAdminEntry, type AdminGate } from '../../lib/admin';
   import AdminDenied from './AdminDenied.svelte';
 
   let gate = $state<AdminGate | null>(null);
+  let checking = false;
+  let checkAgain = false;
+  let mounted = false;
 
   async function check(): Promise<void> {
+    if (checking) {
+      checkAgain = true;
+      return;
+    }
+    checking = true;
     gate = null;
-    gate = await checkAdmin();
+    try {
+      gate = await importAdminEntry() ?? await checkAdmin();
+    } finally {
+      checking = false;
+      if (mounted && checkAgain) {
+        checkAgain = false;
+        void check();
+      }
+    }
   }
 
   onMount(() => {
-    void check();
+    mounted = true;
+    const reevaluate = () => { void check(); };
+    navigator.serviceWorker?.addEventListener('controllerchange', reevaluate);
+    window.addEventListener('hashchange', reevaluate);
+    reevaluate();
+    return () => {
+      mounted = false;
+      navigator.serviceWorker?.removeEventListener('controllerchange', reevaluate);
+      window.removeEventListener('hashchange', reevaluate);
+    };
   });
 </script>
 

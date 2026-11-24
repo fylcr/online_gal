@@ -50,7 +50,7 @@ test('site artifact assembly needs no Astro output and preserves registry manife
   const preload = 'data:text/javascript,' + encodeURIComponent('globalThis.fetch = async () => { throw new Error("CA unreachable"); };');
   const build = (digest, token = '') => spawnSync(process.execPath, [
     '--import', preload, buildSite, '--manager-artifact', '--manager-archive', archivePath, '--manager-sha256', digest, '--out', out,
-  ], { env: { ...process.env, CF_PAGES: '', ONLINE_GAL_CA_BUILD_TOKEN: token }, cwd: dir, encoding: 'utf8', timeout: 15_000 });
+  ], { env: { ...process.env, CF_PAGES: '', ONLINE_GAL_CA_BUILD_TOKEN: token, ONLINE_GAL_CF_ROUTE_KEY: '' }, cwd: dir, encoding: 'utf8', timeout: 15_000 });
   const missing = build(sha256(archive));
   assert.equal(missing.status, 1);
   assert.match(missing.stderr, /ENOENT/);
@@ -74,7 +74,7 @@ test('site artifact assembly needs no Astro output and preserves registry manife
   const rootHtml = await readFile(join(out, 'index.html'), 'utf8');
   assert.match(rootHtml, /^<body>K21 fixture<script>.*<\/script><\/body>$/s);
   assert.match(rootHtml, /register\('\/sw.js'/);
-  assert.deepEqual(JSON.parse(await readFile(join(out, '_routes.json'), 'utf8')).include, ['/__ca/*', '/__cf/*']);
+  assert.deepEqual(JSON.parse(await readFile(join(out, '_routes.json'), 'utf8')).include, ['/__ca/*']);
 
   const token = randomBytes(32).toString('base64url');
   const signingFailure = build(sha256(archive), token);

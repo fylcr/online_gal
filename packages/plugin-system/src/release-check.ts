@@ -28,8 +28,7 @@ const request: Fetcher = (url, init) => globalThis.fetch(url, init);
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-async function fetchOfficialPackages(host: string, policy: TrustPolicy, fetcher: Fetcher): Promise<VerifiedOfficialPackage[]> {
-  const origin = `https://${host}`;
+async function fetchOfficialPackages(origin: string, policy: TrustPolicy, fetcher: Fetcher): Promise<VerifiedOfficialPackage[]> {
   async function read(path: string): Promise<ArrayBuffer> {
     const response = await fetcher(`${origin}/registry/${path}`, {
       cache: 'no-store', credentials: 'omit', redirect: 'error', signal: AbortSignal.timeout(10_000),
@@ -73,11 +72,32 @@ function sameHost(host: string, origin: string): void {
   if (origin !== `https://${host}`) throw new Error('release trust host does not match the current HTTPS origin');
 }
 
+function httpsOrigin(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('release verification origin must be an HTTPS origin');
+  }
+  if (url.protocol !== 'https:' || url.username !== '' || url.password !== '' ||
+      url.pathname !== '/' || url.search !== '' || url.hash !== '' ||
+      (value !== url.origin && value !== `${url.origin}/`)) {
+    throw new Error('release verification origin must be an HTTPS origin');
+  }
+  return url.origin;
+}
+
+/** Verify candidate-trusted packages from an already-identity-checked immutable deployment origin. */
+export async function verifyOfficialReleaseAt(candidate: ReleaseTrust, origin: string): Promise<VerifiedOfficialPackage[]> {
+  const { salt, hash } = parseReleaseTrust(candidate);
+  return fetchOfficialPackages(httpsOrigin(origin), { salt, hashes: [hash] }, request);
+}
+
 /** Before TXT publication, check the deployed bytes against the candidate trust commitment. */
 export async function verifyOfficialRelease(candidate: ReleaseTrust): Promise<VerifiedOfficialPackage[]> {
   const { host, salt, hash } = parseReleaseTrust(candidate);
   if (typeof location !== 'undefined') sameHost(host, location.origin);
-  return fetchOfficialPackages(host, { salt, hashes: [hash] }, request);
+  return fetchOfficialPackages(`https://${host}`, { salt, hashes: [hash] }, request);
 }
 
 /** Called by the site's actual service worker. Use fresh DoH responses for acceptance. */
@@ -92,7 +112,7 @@ export async function checkReleaseFromWorker(candidate: unknown, origin: string,
       throw new KernelError('attestation-invalid', 'DNS trust TXT does not match the published candidate');
     }
     stage = 'packages';
-    const packages = await fetchOfficialPackages(host, policy, fetcher);
+    const packages = await fetchOfficialPackages(origin, policy, fetcher);
     return { ok: true, resolvers, packages };
   } catch (error) {
     return {
