@@ -63,7 +63,7 @@
 - [x] 7.5 根 `package.json` 新增 `build:site`；`build`/`dev`/`test` 不变
 - [x] 7.6 构建脚本给官方管理器的 lazy 配置是 `engines/**` 与 `**/*.map`：24 个文件共 3.1 MiB，安装时下载 14 个、约 0.1 MiB（10 个 lazy）。曾试过除入口页外全部 lazy，站点根提供静态页之后没有收益，已改回
 - [ ] 7.7 按 `site-setup` S13 与第 9 节在 Cloudflare Pages Git 集成的生产站点启用方案 A。初始化页生成并写入 CA 私钥、构建令牌和引导标记。第一笔部署使 `/__ca` 上线，第二笔部署签名。线上包通过候选承诺验签后由初始化流程写入 `_trust.onlinegal.de5.net`，最后在真实 Service Worker 验收 DoH 与签名。插件侧实现见 `site-setup` 9.2，生产结果通过 9.6 后勾选本项。
-- [ ] 7.8（2026-11-23 用户决定，等仓库公开之后做，现在不做）给 `main` 开分支保护：禁止强制推送、禁止删除分支，不要求 PR、不要求状态检查。现在开不了：仓库是私有的，免费账号对私有仓库的分支保护与规则集都返回 403（`Upgrade to GitHub Pro or make this repository public`）。公开是 `github` 通道的前提（K15），公开时一并做。
+- [ ] 7.8 仓库已公开。由 small-task-operator 核对 `main` 的分支保护或规则集，再补齐并读回禁止强制推送与删除的规则。保留直接推送，不新增 PR 或状态检查要求。已有其他规则保留。把读回结果记录于此。公开仓库已满足 K15 的仓库可见性前提。
 
 ## 8. 测试与验证
 
@@ -121,16 +121,17 @@
 
 ## 12. GitHub Actions 发布官方管理器插件（K21）
 
-由 plugin-system 主责。frontend 核对 `apps/app` 的构建输入和首屏，admin-system 核对 Pages 阶段选择、签名交接与私有仓库读取配置。
+由 plugin-system 主责。frontend 核对 `apps/app` 的构建输入和首屏，admin-system 核对 Pages 阶段选择、公开制品下载和签名交接。
 
 - [ ] 12.1 新增 `.github/workflows/build-manager-plugin.yml` 和打包入口。以锁文件、已登记的引擎输入及明确的源码 SHA 构建 `apps/app`。发布独立的 format 2 `online-gal.manager` 压缩制品，记录 release tag、asset、归档 SHA-256、源码 SHA 与插件版本。先验证解包后文件清单再发布。重复发布同一标识时核对已发字节，并拒绝覆盖不同内容。验收正式 release 可取用，manifest 标识与 lazy 规则和现有管理器一致。
 - [ ] 12.2 实现站点装配及制品锁定文件。用受控下载或显式本地制品路径，校验归档、目录边界、format 2、ID、角色、官方身份、API 版本、入口及所有文件大小与哈希。Pages 的 `site` 分支只运行内核编译和装配，保留签名和部署身份标记及现有 Function 路由。运行构建夹具，证明没有 Astro 构建调用，根目录和注册表的源文件哈希对应同一包。覆盖缺包、错误摘要、损坏文件、路径冲突、API 版本不匹配和签名失败。
 - [ ] 12.3 站点根 HTML 注入幂等的延迟注册逻辑。保留 `load` 门槛，注册前给浏览器首屏绘制机会。用全新浏览器上下文访问 `/` 与 `/settings/`，记录相同网络条件下迁移前后的 FCP 和注册时刻。延迟及阻断 `/sw.js`、`/registry/` 时静态内容仍能绘制，正常时首次绘制早于注册和插件安装请求。复验接管后的刷新、离线和用户选定的第三方管理器，检查硬刷新限次、深链和隔离响应头。
-- [ ] 12.4 与 admin-system 用隔离 Pages 项目验证 GitHub 取包、私有仓库最小只读凭据、初始化分支零下载、首次站点部署启用 CA、后续签名及线上部署专属地址验签。生产切换先发布并验证初始制品，再启用 Pages 装配链路并提交固定引用。记录 Actions run、制品摘要、部署 ID、签名和浏览器验收结果。演练丢失制品导致部署失败，以及恢复到上一可用制品引用。生产切换与初始化验收按各自既有前提推进。
+- [ ] 12.4 与 admin-system 用隔离 Pages 项目验证公开 GitHub Release 匿名取包、初始化分支零下载、首次站点部署启用 CA、后续签名及线上部署专属地址验签。生产切换先发布并验证初始制品，再启用 Pages 装配链路并提交固定引用。记录 Actions run、制品摘要、部署 ID、签名和浏览器验收结果。演练丢失制品导致部署失败，以及恢复到上一可用制品引用。生产切换与初始化验收按各自既有前提推进。
 
 ### 12.4 验收记录与续跑顺序
 
 - Actions [45420146004](https://github.com/fylcr/online_gal/actions/runs/45420146004) 已完成发布，同标签重跑成功。正式 Release `manager-v0.1.0-k21-r2` 的归档 SHA-256 为 `50502ebfad992ebae8dc6be0a198d7822d1dc005feed7614206d542856cc673b`。S13 联调分支 `test/k21-s13` 的验收提交为 `7b64c79`，固定 Actions [45428923432](https://github.com/fylcr/online_gal/actions/runs/45428923432) 发布的 `manager-v0.1.0-k21-s13-r1`。GitHub Release API 和本地归档的 SHA-256 均为 `8a3e8056c0906ef2e075f93b4ff9f0a21ea376d37930ea67b98bbe3f8b4204f8`。12.1–12.3 的实现和完整验收记录在候选分支，等待合入主线。
-- `online-gal-task106-probe` 上的 Git 集成预览部署 `29503402-1b4f-47e6-8f6e-58392db6d1a1` 已验证配置制品锁时 `setup` 构建成功且跳过下载。`93187c10-7a89-4dad-93fd-d02bc1be1381` 选中 `build:site:artifact`，GitHub Release 请求因缺少凭据返回 HTTP 403。两次部署均对应 `39ec90a`。本地使用实际发布归档完成装配、签名夹具及坏锁恢复。线上正向取包与签名部署待验。
-- admin-system 续跑时在 `online-gal-task106-probe` 的生产构建设置 `ONLINE_GAL_MANAGER_LOCK=packages/plugin-system/manager-artifact.lock.json`。由凭据持有者将只授权 `fylcr/online_gal` 的 `Contents: Read` 凭据写入该环境的 `secret_text` 绑定 `ONLINE_GAL_MANAGER_GITHUB_TOKEN`。用 `cf` 确认隔离项目、绑定类型和与 `ONLINE_GAL_SITE.productionBranch` 匹配的生产分支。复用 `7b64c79` 固定的同一归档，执行 CA 引导、签名两次 Git 集成部署，核对构建日志进入 `build:site:artifact`，记录两次部署的提交、部署 ID 和归档摘要。plugin-system 从签名部署专属地址拉取线上 registry、manifest、bundle 验签，验签后复核隔离项目的稳定入口仍指向同一部署。
+- `online-gal-task106-probe` 上的 Git 集成预览部署 `29503402-1b4f-47e6-8f6e-58392db6d1a1` 已验证配置制品锁时 `setup` 构建成功且跳过下载。`93187c10-7a89-4dad-93fd-d02bc1be1381` 选中 `build:site:artifact`，仓库公开前的匿名 GitHub Release 请求返回 HTTP 403。两次部署均对应 `39ec90a`。本地使用实际发布归档完成装配、签名夹具及坏锁恢复。
+- 仓库公开后已匿名读回仓库可见性与 Release 元数据，`GET /repos/fylcr/online_gal/releases/assets/787793303` 使用 `Accept: application/octet-stream` 最终返回 HTTP 200，完整下载 1,033,254 字节，SHA-256 与 `7b64c79` 的锁一致。隔离 Pages 仍须实测其构建环境的取包及签名。
+- admin-system 续跑时在 `online-gal-task106-probe` 的生产构建设置 `ONLINE_GAL_MANAGER_LOCK=packages/plugin-system/manager-artifact.lock.json`。用 `cf` 确认隔离项目未配置 `ONLINE_GAL_MANAGER_GITHUB_TOKEN`，且所选生产分支与 `ONLINE_GAL_SITE.productionBranch` 一致。复用 `7b64c79` 固定的同一归档，执行 CA 引导、签名两次 Git 集成部署，核对构建日志进入 `build:site:artifact`，记录两次部署的提交、部署 ID 和归档摘要。plugin-system 从签名部署专属地址拉取线上 registry、manifest、bundle 验签，验签后复核隔离项目的稳定入口仍指向同一部署。
 - 从隔离项目自身的 `pages.dev` 地址执行取包、构建、部署专属地址验签和坏锁恢复，使用同一个隔离域作为签名信任记录中的主机。坏锁构建失败后核对上一个成功部署仍可用。恢复有效锁后复核部署身份、归档和 manifest 摘要。完整 `site-setup` S13 所有者浏览器交接及 `site-setup` 9.5 的 DNSSEC 与 DoH 实测使用隔离自定义域。

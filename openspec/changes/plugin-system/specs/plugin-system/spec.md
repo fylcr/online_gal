@@ -213,7 +213,7 @@
 
 ### Requirement: GitHub Actions publishes the official manager package
 
-GitHub Actions MUST 从确定的源码提交构建 `apps/app`，发布为有版本的 format 2 插件 `online-gal.manager`，保留 `role: "manager"` 与官方身份。Pages 的站点构建 MUST 读取明确选定的已发布制品，核对压缩包摘要、插件 manifest 和包内文件完整性，再从已校验的页面字节生成站点根及同源官方注册表。Pages MUST NOT 重编译 `apps/app`。制品不可用、摘要错误、包格式无效或内核 API 不兼容时，构建 MUST 失败并保留当前线上部署。生产签名仍遵循微型 CA 和站点初始化的规则。私有仓库读取凭据 MUST 仅用于授权的构建环境，并从浏览器资源、构建日志和制品中排除。
+GitHub Actions MUST 从确定的源码提交构建 `apps/app`，发布为有版本的 format 2 插件 `online-gal.manager`，保留 `role: "manager"` 与官方身份。Pages 的站点构建 MUST 读取明确选定的已发布制品，核对压缩包摘要、插件 manifest 和包内文件完整性，再从已校验的页面字节生成站点根及同源官方注册表。Pages MUST NOT 重编译 `apps/app`。制品不可用、摘要错误、包格式无效或内核 API 不兼容时，构建 MUST 失败并保留当前线上部署。生产签名仍遵循微型 CA 和站点初始化的规则。从公开 GitHub Release 取包 MUST 支持无凭据的构建环境。私有仓库读取凭据 MUST 仅用于授权的构建环境，并从浏览器资源、构建日志和制品中排除。
 
 #### Scenario: A published manager is used for both site copies
 
