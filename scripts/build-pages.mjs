@@ -120,7 +120,10 @@ async function main() {
     }
   }
   if (phase === 'site') {
-    const args = ['run', 'build:site'];
+    const script = process.env.ONLINE_GAL_MANAGER_LOCK || process.env.ONLINE_GAL_MANAGER_ARCHIVE
+      ? 'build:site:artifact'
+      : 'build:site';
+    const args = ['run', script];
     const child = process.env.npm_execpath
       ? spawnSync(process.execPath, [process.env.npm_execpath, ...args], { cwd: root, stdio: 'inherit' })
       : spawnSync('npm', args, { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
