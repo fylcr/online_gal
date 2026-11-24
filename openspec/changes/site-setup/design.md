@@ -88,7 +88,7 @@
 
 - `npm run build:pages` → `node scripts/build-pages.mjs`：自动判断阶段。Pages 的构建命令和发布工作流的构建步骤都用它。
 - `npm run build:setup` → `node scripts/build-pages.mjs --phase=setup`：本地调试初始化构建。
-- `npm run build:site` 保持原样（`plugin-system` 的站点构建）。脚本的站点阶段调用它，再做 S6 的检查。
+- 脚本的站点阶段调用 `npm run build:site`，再做 S6 的检查。按 `plugin-system` K21 迁移后，Pages 站点阶段读取已发布的官方管理器插件制品并装配。初始化阶段只走 S3。GitHub 管理器发布工作流单独构建 `apps/app` 并打包。
 - 输出目录两个阶段都是 `dist/site/`。脚本开始时先清空 `dist/site/`。
 
 **判断阶段**，按顺序取第一个能决定的：
@@ -106,7 +106,7 @@
 - 打印选定的阶段和依据（第几条规则）。不打印任何变量的值，`ONLINE_GAL_SITE` 只说"存在/不存在"。
 - 有 `GITHUB_OUTPUT` 时，追加一行 `phase=<setup|site>`，供工作流决定是否做来源证明。
 
-**为什么用一个脚本自动判断**：同一份代码、同一个构建命令，Cloudflare 的 Git 构建和 GitHub Actions 都能用；写入变量后只要再构建一次，就自动得到站点构建，不需要人改配置。
+**阶段切换**：Cloudflare 的 Git 集成使用同一个入口。初始化写入 `ONLINE_GAL_SITE` 后，重新构建即进入站点阶段。K21 切换前先准备已发布、固定的管理器制品及所需的构建读取权限，S13 的引导和签名构建使用同一次发布的管理器。可选的整站发布校验仍可调用阶段入口。
 
 ### S3 — 初始化构建的产物
 

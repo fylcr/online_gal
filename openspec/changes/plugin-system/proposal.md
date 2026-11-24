@@ -16,7 +16,8 @@
 1. "所有功能都作为插件使用"；界面在构建时直接产出为插件，改名叫**管理器（manager）**。
 2. 插件系统不是"每页都加载一次的内核"，而是**本地的小型服务器**："插件系统更像是一个 worker 拦截了请求以方便在本地提供更自由的页面和功能"。请求链路是 `浏览器 → 插件系统 → 管理器 → 插件系统 → 浏览器`；换成第三方管理器就是 `浏览器 → 插件系统 → 第三方管理器 → 插件系统 → 浏览器`。真正的服务器只是插件的来源。
 3. 分成两个产物：管理器仍用 Astro 构建，再打包成插件；插件系统只要 Node.js 能构建出来即可，**性能和稳定性优先**。
-4. 官方插件由 **Cloudflare Pages** 分发；第三方插件来自 **GitHub 仓库的标签**。
+4. 官方插件由 **Cloudflare Pages** 向浏览器分发，第三方插件来自 **GitHub 仓库的标签**。
+5. 官方管理器由 **GitHub Actions** 从 `apps/app` 构建并作为 `online-gal.manager` 插件发布。Pages 的站点阶段取用选定的制品，从同一份包生成首访静态页与官方注册表。浏览器先显示管理器，再启动插件系统（K21）。
 
 用户表示详细设定之后补齐，所以本变更只做不依赖细节就必须成立的部分：插件包格式与校验、两种来源、安装/更新/切换/卸载、把当前管理器当作站点在本地提供、以及出错时仍然能恢复。
 
@@ -54,7 +55,7 @@
 
 - 新增 `packages/plugin-system/**`、`packages/plugin-host/**`、`apps/app/plugin.manifest.json`；`tsconfig.packages.json` 两条 reference；`pnpm-lock.yaml` 两个 importer（`plugin-system` 新增 devDependency `esbuild@0.27.7`，仓库已有该版本）。
 - 根 `package.json` 新增 `build:site`；`build`/`dev`/`test` 不变，因此 CI 与本地开发不受影响。
-- **部署改变**（2026-11-23 用户决定改写）：官方站点继续由 Cloudflare Pages 的 Git 集成构建（`npm run build:pages`），不关闭、不改直接上传。官方包的来源证明在 Pages 生产构建里走 `microca` 通道签发，构建用生产环境的构建令牌向本站微型 CA 换凭证（design.md K15）。`github` 通道留给以后的 GitHub Actions 发布，可选。不改的话线上仍是旧的 Astro 静态站，插件系统不生效。
-- 不改管理器源码、不改任何引擎包、`ports/`、许可文件，不改现有工作流。`.github/**` 只在启用 `github` 通道时新增官方发布工作流 `release.yml`（tasks 10.10，可选；用户已同意放开这一个文件）。
+- **构建与部署**见 K21。新增独立的官方管理器发布工作流。Pages 继续用 Git 集成执行 `npm run build:pages`。站点阶段读取固定的管理器插件制品、按 K15 生成生产来源证明，再装配站点根、官方注册表和内核。`site-setup` 的初始化阶段仍单独构建。
+- 改动范围为官方管理器工作流、插件打包和站点装配脚本、构建入口和验收测试。管理器页面源码继续由前端负责，引擎输入由现有引擎发布链路提供。
 - 新增 `functions/__ca/`：匿名微型 CA，以 Pages Functions 随站点部署。
 - 其他变更通过登记扩展内核（design.md K19）。管理系统（Cloudflare 账号、`/__cf`、浏览器版 cf、`/admin`）属于变更 `cf-account-admin`，由单独的对话负责，不在本变更的范围内。

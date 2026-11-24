@@ -168,8 +168,13 @@
 #### Scenario: First visit to a deep link
 
 - **WHEN** 首次访问 `/settings/`
-- **THEN** 服务器直接返回官方管理器的 `/settings/` 静态页，页面 `load` 之后才注册 `/sw.js`，首屏不等待内核
+- **THEN** 服务器直接返回官方管理器的 `/settings/` 静态页及其同源资源，管理器内容先显示，注册 `/sw.js` 在页面 `load` 与首屏绘制之后启动
 - **AND** 内核在后台安装默认管理器，之后的刷新与导航由内核从本地应答
+
+#### Scenario: The worker cannot load on a first visit
+
+- **WHEN** 无内核控制的浏览器首次访问 `/` 且 `/sw.js` 被延迟或无法加载
+- **THEN** 官方管理器的页面内容仍能完成首次内容绘制
 
 #### Scenario: Switching to a third-party manager
 
@@ -206,9 +211,24 @@
 - **WHEN** 一个导航请求以 POST 到达 `/__kernel/api/install`
 - **THEN** 内核以 400 与 `request-invalid` 拒绝，不安装任何东西
 
+### Requirement: GitHub Actions publishes the official manager package
+
+GitHub Actions MUST 从确定的源码提交构建 `apps/app`，发布为有版本的 format 2 插件 `online-gal.manager`，保留 `role: "manager"` 与官方身份。Pages 的站点构建 MUST 读取明确选定的已发布制品，核对压缩包摘要、插件 manifest 和包内文件完整性，再从已校验的页面字节生成站点根及同源官方注册表。Pages MUST NOT 重编译 `apps/app`。制品不可用、摘要错误、包格式无效或内核 API 不兼容时，构建 MUST 失败并保留当前线上部署。生产签名仍遵循微型 CA 和站点初始化的规则。私有仓库读取凭据 MUST 仅用于授权的构建环境，并从浏览器资源、构建日志和制品中排除。
+
+#### Scenario: A published manager is used for both site copies
+
+- **WHEN** Pages 站点构建读取通过校验的官方管理器制品
+- **THEN** 站点根和 `official:online-gal.manager` 使用同一版本的页面及资源，根目录 HTML 仅增添延迟注册脚本
+- **AND** 浏览器从本站获取管理器静态页、内核和插件包
+
+#### Scenario: The selected release is unavailable or invalid
+
+- **WHEN** 固定制品取不到，或归档、manifest、文件摘要、管理器身份或 API 版本校验失败
+- **THEN** Pages 构建以非零状态退出，线上保留上一个成功部署
+
 ### Requirement: Site output layout
 
-构建 MUST 产出可直接部署到 Cloudflare Pages 的目录：站点根的官方管理器静态页（每个 `.html` 带一段 `load` 之后注册 `/sw.js` 的脚本，其余文件字节不变）、`sw.js`、`_headers`、`_routes.json`（只让 `/__ca/*` 与已登记 Function 的前缀调用 Function）与官方注册表 `registry/`；微型 CA 的 Function 在仓库的 `functions/__ca/`，已登记的 Function 在 `functions/__<name>/`，都与该目录一起部署。注册表里的插件包 MUST NOT 含这段脚本，使包的摘要与内核校验的字节一致。站点 MUST NOT 含顶层 `404.html`，使服务器对任何未知路径都返回根 `index.html`。`sw.js` MUST 是 classic script。
+构建 MUST 产出可直接部署到 Cloudflare Pages 的目录，包括站点根的官方管理器静态页、`sw.js`、`_headers`、`_routes.json` 与官方注册表 `registry/`。站点根的 `.html` 带一段在 `load` 之后给浏览器首屏绘制机会再注册 `/sw.js` 的脚本，其余文件字节不变。微型 CA 和其他已登记的 Function 随该目录部署，只有登记在 `_routes.json` 中的路径调用 Function。注册表里的插件包 MUST NOT 含注册脚本，使包的摘要与内核校验的字节一致。站点 MUST NOT 含顶层 `404.html`，使服务器对任何未知路径都返回根 `index.html`。`sw.js` MUST 是 classic script。
 
 #### Scenario: Only the site root registers the worker
 

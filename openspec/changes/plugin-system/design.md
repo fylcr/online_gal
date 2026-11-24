@@ -42,7 +42,7 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
 
 ### K2 — 两个产物，内核尽量小
 
-- **管理器**：`astro build` 原样产出 `apps/app/dist`，`build-site.mjs` 用 `apps/app/plugin.manifest.json` 打包成插件。管理器不知道自己被打包。
+- **管理器**由 GitHub Actions 运行 `astro build` 生成 `apps/app/dist`，用 `apps/app/plugin.manifest.json` 打成官方插件制品。Pages 的站点阶段从发布制品装配，详见 K21。
 - **插件系统**：`packages/plugin-system/src/sw.ts` 由 esbuild 打成单文件 classic script `/sw.js`（压缩后 31.4 KiB）。只依赖 `@online-gal/plugin-host` 的 manifest 校验，不打包任何 UI 框架。
 
 `sw.ts` 只把 Service Worker 事件接到 `Kernel`；全部决策都在 `Kernel` 里，`Kernel` 通过 `KernelOptions` 注入 `caches`/`fetch`/时钟，因此同一份代码在 Node 测试里跑。classic 而不是 module：module Service Worker 在 Firefox 147 之前不可用。
@@ -104,7 +104,7 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
 ### K9 — 引导、内核页与恢复
 
 - 站点根直接放官方管理器的静态页，没有引导页。站点没有顶层 `404.html`：Cloudflare Pages 于是对任何未知路径都返回根 `index.html`，所以首次打开未知路径得到的是管理器首页。内核接管之后则不同：内核对没有 `404.html` 的管理器返回纯文本 404。这个差异目前没有处理（`tasks.md` 9.9）。
-- 站点根的每个 `.html` 在 `</body>` 前带一段注册脚本：页面 `load` 之后才注册 `/sw.js`（`updateViaCache: 'none'`），安装不和首屏争抢。Service Worker 已激活却没有接管这次加载（硬刷新 Shift+F5 会绕过它）时 `reload` 一次，用 `sessionStorage` 记录时间，10 秒内最多一次，避免死循环。插件包里的 `.html` 不带这段脚本，摘要不变。
+- 首次访问由 Pages 直接返回官方管理器页面。K21 切换后，根目录 HTML 在 `load` 之后再让浏览器绘制首屏，随后注册 `/sw.js`，带 `updateViaCache: 'none'`。Service Worker 已激活但绕过了本次加载时（例如 Shift+F5），`reload` 一次，用 `sessionStorage` 记录时间，10 秒内最多一次。注册脚本只注入站点根 HTML。
 - `/__kernel/`：内核自带的页面（安装、切换、卸载、检查更新、重置），不依赖任何插件，管理器坏了也能用。
 - 恢复页：内核应答导航失败时显示错误码，提供重试和进入 `/__kernel/`。
 - 重置：删除全部插件与状态，页面注销 Service Worker 后回到站点根的静态页面（它在 `load` 之后会重新注册内核）。
@@ -171,7 +171,7 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
 
 `plugin.bundle.json` 带 `channel` 字段，取值 `github` 或 `microca`，决定 K16 走哪个验证分支。两个分支各自算出一个承诺哈希，交给同一份 DNS 白名单比对；一个 mf-manifest.json 只需要其中一条通道的证明。
 
-- 2026-11-23 用户决定：日常发布继续用 Cloudflare Pages 的 Git 集成构建，不关闭，也不改成直接上传。官方包在 Pages 生产构建里走 `microca` 通道签名；`github` 通道保留，只给以后的 GitHub Actions 发布用（tasks 10.10，可选）。原因有三条。Pages 构建环境没有 GitHub OIDC 身份，签不出 `github` 通道的证明。在 Actions 里签名、再让 Pages 重新构建也不行，两次构建的 `mf-manifest.json` 字节对不上（任务 #68 实测版本后缀就不同）。`cf` CLI 的 `pages deploy` 不上传目录，直接上传走不通。
+- 2026-11-23 用户决定，日常发布继续使用 Cloudflare Pages 的 Git 集成。官方包在 Pages 生产构建里走 `microca` 通道签名。K21 新增的 GitHub Actions 只负责生成管理器制品。此工作流和 10.10 预留的 `github` 签名通道分别实施。Pages 构建环境没有 GitHub OIDC 身份。此前任务 #68 的两套构建产出过不同的 manifest 字节。K21 在 Actions 写定文件清单与 manifest 版本后，由 Pages 直接对校验过的原始 manifest 签名。
 - Pages 构建的身份：生产环境 secret `ONLINE_GAL_CA_BUILD_TOKEN`（随机 32 字节，b64url）。构建拿它向当前线上站点的 `/__ca` 换凭证，CA 把它映射到固定的 `anon_id` `cf-pages`；DNS 白名单加这一项的 `microca` 承诺哈希。令牌泄露只需换令牌，CA 私钥与 DNS 不变。预览环境不配置这个令牌，预览部署不签名。
 - 构建行为：站点初始化的方案 A 在首次生产部署之前写入令牌与 `ONLINE_GAL_CA_BOOTSTRAP=1`。构建按 `site-setup` S13 判定首构建，跳过签名并保留签发路由。引导标记清除后，启用了签名的生产构建须取得凭证、写入 Rekor 并验证产物，任一步失败即中止。预览和未启用签名的项目沿用无令牌时的构建行为。
 - 上线顺序由 `site-setup` S13 编排。第一次生产站点部署使 `/__ca` 可用。第二次部署签名并在生产域名生效。线上包按候选承诺验签通过后才发布信任 TXT，再从真实 Service Worker 验证 DoH 和线上包（K16）。
@@ -250,9 +250,28 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
   - `packages/plugin-system/**`（`src/account/**` 和 `cf-account-admin` design.md A11 列出的代码块除外）
   - `packages/plugin-host/**`
   - `apps/app/plugin.manifest.json`
-  - `functions/__ca/`（待建，10.8）、`.github/workflows/release.yml`（可选，10.10）
+  - `functions/__ca/`、`.github/workflows/build-manager-plugin.yml`（K21）、`.github/workflows/release.yml`（可选，10.10）
   - 根 `package.json` 的 `build:site`，`tsconfig.packages.json` 里 `plugin-host` 与 `plugin-system` 两条 reference
 - 提交状态：format 1 的内核与管理器外壳已在 `e1340d2` 提交。format 2 与来源证明的改动还没有提交，包括新文件 `src/attest.ts`、`src/trust-dns.ts`，以及 `format.ts`、`kernel.ts`、`errors.ts`、`index.ts`、`sw.ts`、`scripts/pack-plugin.mjs`、`scripts/build-site.mjs` 的修改。其中后五个文件也含 `cf-account-admin` 的代码块，提交时按 A11 分开。
+
+### K21 — Actions 发布管理器插件，Pages 装配并保持首访顺序
+
+**发布**
+
+- 从明确的源码 SHA 在 GitHub Actions 构建 `apps/app`。复用现有锁文件、依赖构建、引擎制品输入和管理器 manifest。用现有打包规则生成 format 2，保持 `online-gal.manager`、`role: "manager"`、官方来源声明、内容版本和 lazy 文件标记。发布的 GitHub Release 资产包含 `plugin.json`、最终版 `mf-manifest.json` 和已列出的文件。`mf-manifest.json` 在发布端写定；生产站点的微型 CA bundle 由 Pages 生成。
+- 工作流经明确的发布触发从受信任的分支或标签取源码。先验证制品，后发布并读回校验。发布记录包含源码 SHA、release tag、asset 名、归档 SHA-256、插件版本，另记录引用的引擎制品标识以便复现。发布任务持有 `contents: write`，普通检查任务使用只读权限。重跑时复用同一标识的相同字节，遇到不一致则失败。
+
+**Pages 装配**
+
+- Git 中的制品引用文件锁定 release tag、asset 名、归档 SHA-256 与源码 SHA。发布成功且校验通过后再更新该引用，Git 集成对引用变更触发部署。后续内核或部署配置的变更可复用相同制品。初始化引导和签名部署使用同一制品引用。生产切换前先发布当前可用管理器的制品，在隔离项目核验完整链路，然后提交初始引用及装配入口。保留可用旧制品，回滚时恢复上一兼容引用并重新构建。
+- 官方仓库当前为私有。使用 GitHub Release API 下载选定的资产。Pages 设置单仓库、仅 Contents 读取权限的构建 secret。生产只向受信任的构建提供凭据，预览凭据与生产隔离。没有授权的预览以明确的取包错误退出。构建端支持显式本地制品输入，用于测试和手工构建。下载凭据只发到 GitHub API，不带入资产的转址、构建产物、浏览器或日志。安装和更新始终访问同源 `/registry/`。
+- 校验归档摘要后在独立的 `.test/` 构建子目录处理。复用校验器检查路径、大小上限、格式、官方管理器身份、API 版本、入口和每个文件的哈希，拒绝覆盖保留目录及部署产物的文件。失败时以非零状态退出。Pages 产出 `/sw.js`、响应头、Function 路由和注册表，保留部署身份标记。站点阶段直接从已验证的插件文件复制管理器页面与资源。站点根 HTML 仅增添 K9 的注册逻辑，注册表内的 HTML 保持原字节。
+- 按 K15 和 S13 对发布的 `mf-manifest.json` 原始字节签名并自验。若要设置 `plugin.json` 内的 bundle 引用，只在装配阶段改封套。最终注册表按 `mf-manifest.json` 出摘要，目录哈希覆盖最终封套、manifest 和 bundle。签名出错时保留上一个成功的 Pages 部署。`site-setup` 的 setup 分支走 S3。`npm run dev` 及前端独立开发沿用 Astro。
+
+**首屏**
+
+- Pages 返回根页或深链的官方管理器静态页及资源。静态页首屏可在 `/sw.js` 和 `/registry/` 被延迟或阻断时完成绘制。站点根 HTML 的幂等逻辑通过 `load` 门槛后让浏览器完成一次绘制，再注册 `/sw.js`。可见页面以实际 FCP 时间戳和注册时刻做回归判定，隐藏页面恢复可见后仍可进入注册流程。
+- Service Worker 安装和默认管理器激活在后台进行。接管后的导航、离线、硬刷新恢复和用户选定的第三方管理器沿用 K9、K10。用同一浏览器和网络条件记录迁移前后 FCP，并核对首访请求顺序和跨源隔离响应头。
 
 ## Risks / Trade-offs
 
@@ -266,6 +285,6 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
 
 ## Migration Plan
 
-- Cloudflare Pages：构建命令改为 `npm run build:pages`（`site-setup` 的两阶段构建脚本，已初始化时调用 `npm run build:site`），输出目录改为 `dist/site`。`build`/`dev`/`test` 不变，开发仍用 Astro dev server（不经过插件系统）。
-- 首次部署后，用户第一次打开直接得到官方管理器的静态页，Service Worker 在页面 `load` 之后注册；之后的导航由内核应答。
+- Cloudflare Pages 执行 `npm run build:pages` 输出 `dist/site`。按 K21 先建立 Actions 发布与取包权限，再把已初始化的站点分支切到制品装配。原有初始化阶段与签名部署按 `site-setup` S13 推进。
+- 首访直接取得官方管理器静态页，首屏绘制后注册 Service Worker，后续导航由内核应答。
 - **回滚**：Service Worker 一旦注册会一直接管页面，单纯回滚到旧的静态站点不会让它消失。回滚时必须部署一个只做 `self.registration.unregister()` 并刷新客户端的 `/sw.js`（注册时带 `updateViaCache: 'none'`，浏览器检查更新会绕过 HTTP 缓存取到它），之后再换回旧站点。
