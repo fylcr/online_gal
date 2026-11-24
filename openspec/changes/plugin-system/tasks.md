@@ -133,4 +133,10 @@
 - [Actions 45420146004](https://github.com/fylcr/online_gal/actions/runs/45420146004) 从 `2e9a6777f1d2b1fc446286853a2fff09a575a475` 发布 [manager-v0.1.0-k21-r2](https://github.com/fylcr/online_gal/releases/tag/manager-v0.1.0-k21-r2)，首次执行与同标签重跑完成。资产 `online-gal.manager-0.1.0_ceed75a8e67e.tar.gz`，归档 SHA-256 `50502ebfad992ebae8dc6be0a198d7822d1dc005feed7614206d542856cc673b`，manifest SHA-256 `f5821d4f0e49e9c008ee966b5d0ea47d39e1f096e926a8942d938f7e848b3b02`，插件版本 `0.1.0+ceed75a8e67e`。
 - Pages 装配提交 `39ec90a`。本地路径与 GitHub Release API 装配通过。站点阶段执行 `build:site:artifact`，仅编译内核并装配。172 个注册表文件和原始 manifest 逐字节与归档一致，143 个 lazy 文件保持原标记。根目录资源字节一致，15 个 HTML 各多一段注册脚本。Function 路由和部署身份标记通过验证。管理器归档、Pages 阶段选择和微型 CA 共 19 项测试通过，覆盖坏制品、取包失败和签名失败。
 - Chromium 156 同源同条件采集 30 次首访。每版每条路由正常首访 5 次。`/` 的 FCP 中位数为 213.1 → 211.5 ms，注册为 177.8 → 218.9 ms。`/settings/` 的 FCP 为 146.3 → 169.7 ms，注册为 145.9 → 177.6 ms。迁移版正常 10/10 次先 FCP 后注册，再请求 SW、注册表与包。两条路由各复验 SW 和注册表延迟 1,200 ms 及 HTTP 503。8/8 次仍完成 FCP，两个隐藏样本恢复可见后均在 FCP 之后注册。30 次首访均通过跨源隔离检查。另复验设置页深链、接管后刷新与离线、第三方管理器及 10 秒硬刷新保护。
-- [通用 CI 45423680109](https://github.com/fylcr/online_gal/actions/runs/45423680109) 的 K21 用例通过，portable suite 有 29 项失败。12.4 隔离 Pages 验收继续记录部署、签名和回滚证据。
+- [通用 CI 45423680109](https://github.com/fylcr/online_gal/actions/runs/45423680109) 的 K21 用例通过。[主线对照 45424792679](https://github.com/fylcr/online_gal/actions/runs/45424792679) 在 `d78c09a` 上复现了 portable suite 的 29 个失败项，名称和顺序均与 K21 分支相同。
+
+12.4 隔离验收进度
+
+- `online-gal-task106-probe` 的预览部署 `29503402-1b4f-47e6-8f6e-58392db6d1a1` 在配置制品锁时成功构建 setup，未运行制品下载。预览部署 `93187c10-7a89-4dad-93fd-d02bc1be1381` 进入 `build:site:artifact`，未授权的 GitHub Release 请求收到 HTTP 403。两个部署均来自 `39ec90a`，试验用预览绑定已恢复。
+- 本地回滚演练使用真实 GitHub Release。坏锁指向的 release 返回 HTTP 404。恢复有效锁后，注册表、站点根 HTML 与 `sw.js` 的 SHA-256 均与首次构建一致。
+- 隔离项目的正向取包仍待 `ONLINE_GAL_MANAGER_GITHUB_TOKEN`，凭据只授权 `fylcr/online_gal` 的 `Contents: Read`。两次线上构建、部署专属地址验签与线上坏锁恢复仍待验收。完整浏览器 S13 同时需要隔离自定义域与包含初始化交接的集成版本。
