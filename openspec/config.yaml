@@ -7,6 +7,7 @@ context: |
   许可 GPL-3.0-or-later，仓库 private，包均为 private、不发布 npm。部署在 Cloudflare Pages：https://onlinegal.de5.net/（自定义域名，2026-11-23 起；旧地址 onlinegal.cc.cd 只做 301 跳转到这里；Pages 默认地址为 onlinegal.pages.dev）
   当前范围：只维护 ONScripter（ONS）与 KiriKiri 两个引擎；Artemis、Siglus、Tyrano、web 代码保留但暂停适配，不要改动。
   主线 change：first-public-beta-ons-kirikiri（首个公开测试版）、redesign-frontend（前端重构）。
+  VFS 待细化目标是在 `packages/vfs` 添加流式随机解压。收到用户的详细方案后再编写设计、规格和实现任务。
   其他进行中的 change：
   - plugin-system：插件系统（Service Worker 内核、插件包格式与来源证明、插件规则层）。其他 change 只能通过它的登记规则（design.md K19）扩展内核。
   - cf-account-admin：管理系统（Cloudflare 账号、/__cf 代理、浏览器版 cf、/admin），由单独的对话负责，在 plugin-system 里登记了 /__cf。
