@@ -5,6 +5,8 @@
 - [ ] 1.1 解析 `OpenListTeam/OpenList-Worker` 当前官方默认分支与 HEAD，梳理列表、元数据、下载及 URL Tree 驱动的依赖。构建包含实际复用的上游 TypeScript 的最小 classic Service Worker，并在隔离 HTTPS 静态站点用 Chromium 验证它接管并处理一次完整读取。记录使用的上游模块、平台依赖、浏览器替代实现、上游许可和对应源码的提供方式。
 - [ ] 1.2 在部署的静态资源中配置同源 URL Tree 夹具，包含多页目录、嵌套路径、Unicode 名称和已知字节的二进制文件。通过 Service Worker 验证列表、元数据、实际下载及中间字节的 `206` 和 `Content-Range`。记录请求和响应，并用隔离夹具检查签名失效及存储拒绝。
 
+外部来源 `https://pan.t-satoru.top/s3b/TP` 的目录、元数据与下载实测见[设计记录](design.md#外部来源实测)。下载端的 CORS 限制阻塞了该地址的浏览器读取，列入跨源联调。
+
 ## 2. 接入文件系统与现有内核
 
 - [ ] 2.1 由文件系统实现 OpenList 浏览器适配和只读请求处理，插件系统依 K19 在 `packages/plugin-system/src/kernel.ts` 路由、`packages/plugin-system/src/format.ts` 包保留名及 `packages/plugin-system/scripts/build-site.mjs` 构建保留名接入 `/__openlist`。确认服务端路由不包含该前缀，并验证未接管页面的错误、接管后正常读取以及 Service Worker 被浏览器终止后的恢复。

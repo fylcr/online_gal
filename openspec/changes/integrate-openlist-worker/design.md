@@ -28,6 +28,14 @@
 
 使用已知字节夹具实测 `Range`。随机读取校验 `206`、`Content-Range`、实际长度和测试字节。上游忽略 Range 或范围不一致时报告能力或读取错误。整文件和允许的降级读取设定字节预算，流超过预算就取消。Service Worker 经过空闲终止后，重新发起列表及读取，验证可按挂载配置恢复。
 
+#### 外部来源实测
+
+2026-11-24 UTC，在 Edge 的 `https://onlinegal.de5.net/` 页面发起只读请求，测试 `https://pan.t-satoru.top/s3b/TP`。
+
+- OpenList 目录和元数据接口均返回 HTTP `200`、JSON `code: 200`。`/api/fs/list` 报告 145 个目录，`page: 2, per_page: 3` 返回 3 项。`/s3b/TP/ATRI` 下选取的文件在列表和 `/api/fs/get` 中均为 `1633575957` 字节。
+- 对元数据返回的跨源下载地址请求 `Range: bytes=16-47`。存储返回 `206` 和 `Content-Range: bytes 16-47/1633575957`。直接 HTTP 请求读到 32 字节，Online Gal 页面上的 `fetch` 因下载响应缺少 `Access-Control-Allow-Origin` 而报 `MissingAllowOriginHeader`。
+- `/s3b/TP` 作为跨源联调样本。复测以 Online Gal 浏览器能读取 `206`、`Content-Range` 和对应字节为准。同源 URL Tree 夹具用于首轮验收和每日检查。
+
 ### 3. 每天跟踪官方默认分支
 
 使用独立的 GitHub Actions 定时及手动入口。每个 UTC 日依据官方仓库元数据解析当前默认分支和 HEAD。用该 SHA 构建包含适配器的静态候选站点，或复用同时匹配上游 SHA、Online Gal 构建输入和制品摘要的候选。下一次运行重新解析 HEAD。上游查询失败时仍执行生产检查，保留两个目标各自的结果。
