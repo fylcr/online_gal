@@ -1,0 +1,92 @@
+name: Build official manager plugin
+
+on:
+  push:
+    tags:
+      - 'manager-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manager-build-${{ github.ref }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SOURCE_SHA: ${{ github.sha }}
+      RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('manager-check-{0}', github.sha) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.2
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build app and its pinned inputs
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          npm run build
+      - name: Package and verify the manager
+        run: |
+          node packages/plugin-system/scripts/manager-artifact.mjs \
+            --app-dist apps/app/dist \
+            --manifest apps/app/plugin.manifest.json \
+            --package-json apps/app/package.json \
+            --out dist/manager-release \
+            --source-sha "$SOURCE_SHA" \
+            --release-tag "$RELEASE_TAG"
+          archives=(dist/manager-release/*.tar.gz)
+          test "${#archives[@]}" -eq 1
+          node packages/plugin-system/scripts/manager-artifact.mjs --verify "${archives[0]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: online-gal-manager-${{ github.sha }}
+          path: dist/manager-release/
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/manager-v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ github.ref_name }}
+      SOURCE_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: online-gal-manager-${{ github.sha }}
+          path: release
+      - name: Publish or verify the exact release bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          archives=(release/*.tar.gz)
+          test "${#archives[@]}" -eq 1
+          archive="${archives[0]}"
+          metadata="$archive.json"
+          asset="$(basename "$archive")"
+          jq -e --arg tag "$RELEASE_TAG" --arg source "$SOURCE_SHA" --arg asset "$asset" \
+            '.releaseTag == $tag and .sourceSha == $source and .asset == $asset' "$metadata" >/dev/null
+          test "$(sha256sum "$archive" | cut -d ' ' -f1)" = "$(jq -r .archiveSha256 "$metadata")"
+          if ! gh release view -- "$RELEASE_TAG" >/dev/null; then
+            # Creation never uses an upload/overwrite fallback for an existing tag.
+            gh release create --verify-tag --latest=false --title "online-gal.manager $RELEASE_TAG" \
+              --notes "Official manager plugin built from $SOURCE_SHA." -- "$RELEASE_TAG" "$archive" "$metadata"
+          fi
+          readback="$(mktemp -d)"
+          gh release download --dir "$readback" --pattern "$asset" --pattern "$asset.json" -- "$RELEASE_TAG"
+          cmp "$archive" "$readback/$asset"
+          cmp "$metadata" "$readback/$asset.json"
+          jq '{releaseTag, asset, sourceSha, archiveSha256, manifestSha256, version, fileCount}' "$metadata" >> "$GITHUB_STEP_SUMMARY"
