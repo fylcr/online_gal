@@ -63,7 +63,7 @@
 - [x] 7.5 根 `package.json` 新增 `build:site`；`build`/`dev`/`test` 不变
 - [x] 7.6 构建脚本给官方管理器的 lazy 配置是 `engines/**` 与 `**/*.map`：24 个文件共 3.1 MiB，安装时下载 14 个、约 0.1 MiB（10 个 lazy）。曾试过除入口页外全部 lazy，站点根提供静态页之后没有收益，已改回
 - [ ] 7.7 按 `site-setup` S13 与第 9 节在 Cloudflare Pages Git 集成的生产站点启用方案 A。初始化页生成并写入 CA 私钥、构建令牌和引导标记。第一笔部署使 `/__ca` 上线，第二笔部署签名。线上包通过候选承诺验签后由初始化流程写入 `_trust.onlinegal.de5.net`，最后在真实 Service Worker 验收 DoH 与签名。插件侧实现见 `site-setup` 9.2，生产结果通过 9.6 后勾选本项。
-- [ ] 7.8 仓库已公开。由 small-task-operator 核对 `main` 的分支保护或规则集，再补齐并读回禁止强制推送与删除的规则。保留直接推送，不新增 PR 或状态检查要求。已有其他规则保留。把读回结果记录于此。公开仓库已满足 K15 的仓库可见性前提。
+- [x] 7.8 公开仓库的 `main` 已启用 GitHub 分支保护，禁止强制推送和删除，对管理员同样生效。GitHub API 读回 `protected=true`、`allow_force_pushes=false`、`allow_deletions=false`、`enforce_admins=true`、`lock_branch=false`。普通直接推送仍可用，未设置必需的 PR 审查、状态检查和推送者限制。公开仓库已满足 K15 的仓库可见性前提。
 
 ## 8. 测试与验证
 
