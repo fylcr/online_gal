@@ -127,3 +127,10 @@
 - [ ] 12.2 实现站点装配及制品锁定文件。用受控下载或显式本地制品路径，校验归档、目录边界、format 2、ID、角色、官方身份、API 版本、入口及所有文件大小与哈希。Pages 的 `site` 分支只运行内核编译和装配，保留签名和部署身份标记及现有 Function 路由。运行构建夹具，证明没有 Astro 构建调用，根目录和注册表的源文件哈希对应同一包。覆盖缺包、错误摘要、损坏文件、路径冲突、API 版本不匹配和签名失败。
 - [ ] 12.3 站点根 HTML 注入幂等的延迟注册逻辑。保留 `load` 门槛，注册前给浏览器首屏绘制机会。用全新浏览器上下文访问 `/` 与 `/settings/`，记录相同网络条件下迁移前后的 FCP 和注册时刻。延迟及阻断 `/sw.js`、`/registry/` 时静态内容仍能绘制，正常时首次绘制早于注册和插件安装请求。复验接管后的刷新、离线和用户选定的第三方管理器，检查硬刷新限次、深链和隔离响应头。
 - [ ] 12.4 与 admin-system 用隔离 Pages 项目验证 GitHub 取包、私有仓库最小只读凭据、初始化分支零下载、首次站点部署启用 CA、后续签名及线上部署专属地址验签。生产切换先发布并验证初始制品，再启用 Pages 装配链路并提交固定引用。记录 Actions run、制品摘要、部署 ID、签名和浏览器验收结果。演练丢失制品导致部署失败，以及恢复到上一可用制品引用。生产切换与初始化验收按各自既有前提推进。
+
+### 12.4 验收记录与续跑顺序
+
+- Actions [45420146004](https://github.com/fylcr/online_gal/actions/runs/45420146004) 已完成发布，同标签重跑成功。正式 Release `manager-v0.1.0-k21-r2` 的归档 SHA-256 为 `50502ebfad992ebae8dc6be0a198d7822d1dc005feed7614206d542856cc673b`。S13 联调分支 `test/k21-s13` 的验收提交为 `7b64c79`，固定 Actions [45428923432](https://github.com/fylcr/online_gal/actions/runs/45428923432) 发布的 `manager-v0.1.0-k21-s13-r1`。GitHub Release API 和本地归档的 SHA-256 均为 `8a3e8056c0906ef2e075f93b4ff9f0a21ea376d37930ea67b98bbe3f8b4204f8`。12.1–12.3 的实现和完整验收记录在候选分支，等待合入主线。
+- `online-gal-task106-probe` 上的 Git 集成预览部署 `29503402-1b4f-47e6-8f6e-58392db6d1a1` 已验证配置制品锁时 `setup` 构建成功且跳过下载。`93187c10-7a89-4dad-93fd-d02bc1be1381` 选中 `build:site:artifact`，GitHub Release 请求因缺少凭据返回 HTTP 403。两次部署均对应 `39ec90a`。本地使用实际发布归档完成装配、签名夹具及坏锁恢复。线上正向取包与签名部署待验。
+- admin-system 续跑时，由凭据持有者将只授权 `fylcr/online_gal` 的 `Contents: Read` 凭据写入隔离项目生产构建的 `secret_text` 绑定 `ONLINE_GAL_MANAGER_GITHUB_TOKEN`。用 `cf` 确认目标项目、分支和绑定类型。复用 `7b64c79` 固定的同一归档执行 CA 引导、签名两次 Git 集成部署。记录两次部署的提交、部署 ID、归档摘要和构建阶段。plugin-system 从签名部署专属地址拉取线上 registry、manifest、bundle 验签，再复核隔离站点入口指向同一部署。
+- 在同一隔离项目演练坏锁部署失败，确认上一个成功版本仍可用。恢复有效锁后确认部署成功，复核发布归档和 manifest 摘要，并补录浏览器结果。完整 `site-setup` S13 的所有者浏览器交接另需隔离自定义域，DNSSEC 与 DoH 验收沿用 `site-setup` 9.5。
