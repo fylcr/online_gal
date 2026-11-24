@@ -139,4 +139,5 @@
 
 - `online-gal-task106-probe` 的预览部署 `29503402-1b4f-47e6-8f6e-58392db6d1a1` 在配置制品锁时成功构建 setup，未运行制品下载。预览部署 `93187c10-7a89-4dad-93fd-d02bc1be1381` 进入 `build:site:artifact`，未授权的 GitHub Release 请求收到 HTTP 403。两个部署均来自 `39ec90a`，试验用预览绑定已恢复。
 - 本地回滚演练使用真实 GitHub Release。坏锁指向的 release 返回 HTTP 404。恢复有效锁后，注册表、站点根 HTML 与 `sw.js` 的 SHA-256 均与首次构建一致。
-- 隔离项目的正向取包仍待 `ONLINE_GAL_MANAGER_GITHUB_TOKEN`，凭据只授权 `fylcr/online_gal` 的 `Contents: Read`。两次线上构建、部署专属地址验签与线上坏锁恢复仍待验收。完整浏览器 S13 同时需要隔离自定义域与包含初始化交接的集成版本。
+- S13 联调分支 `test/k21-s13` 合入了初始化页面与管理页交接。其 GitHub Actions [45428923432](https://github.com/fylcr/online_gal/actions/runs/45428923432) 从 `affa97a22a8c0384e618cbce068028b863ec8ce3` 发布 `manager-v0.1.0-k21-s13-r1`。分支固定资产 `online-gal.manager-0.1.0_96619e1d4822.tar.gz`，归档 SHA-256 `8a3e8056c0906ef2e075f93b4ff9f0a21ea376d37930ea67b98bbe3f8b4204f8`，manifest SHA-256 `c5f56527a1b85730ed75b223931651321b82d34282f3c8fc775ce2fdadd826f3`。本地从同一归档装配引导站点并核对 172 个文件。复用该归档的本地 CA 与 Rekor 夹具通过后续签名和部署专属地址验签。Chromium 的发布归档测试与 Edge 的管理页交接夹具均通过。
+- 隔离项目的正向取包仍待 `ONLINE_GAL_MANAGER_GITHUB_TOKEN`，凭据只授权 `fylcr/online_gal` 的 `Contents: Read`。两次线上构建、线上部署专属地址验签与线上坏锁恢复仍待验收。完整浏览器 S13 同时需要隔离自定义域。

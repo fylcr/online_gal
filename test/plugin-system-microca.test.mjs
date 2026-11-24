@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { onRequest } from '../functions/__ca/issue.ts';
 import { microCaCommitment, microCaFingerprint, parseBundle, verifyBundle } from '../packages/plugin-system/dist/index.js';
-import { buildManagerArtifact } from '../packages/plugin-system/scripts/manager-artifact.mjs';
+import { buildManagerArtifact, inspectManagerArtifact } from '../packages/plugin-system/scripts/manager-artifact.mjs';
 import { signPlugin } from '../packages/plugin-system/scripts/sign-plugin.mjs';
 
 const p256 = () => generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
@@ -129,6 +129,7 @@ test('Pages production deploys unsigned once, then requires a freshly signed imm
   trust.hash = await microCaCommitment(await microCaFingerprint(ca.publicKey.export({ format: 'jwk' })), 'cf-pages', trust.salt);
   const script = fileURLToPath(new URL('../packages/plugin-system/scripts/build-site.mjs', import.meta.url));
   const check = fileURLToPath(new URL('../packages/plugin-system/scripts/check-release.mjs', import.meta.url));
+  const deploymentOrigin = 'https://a1b2c3d4.release-test.pages.dev';
   const fixture = join(root, 'network.mjs');
   const log = p256();
   const logSpki = log.publicKey.export({ format: 'der', type: 'spki' }).toString('base64');
@@ -162,7 +163,7 @@ test('Pages production deploys unsigned once, then requires a freshly signed imm
         return rekorResponse(init, log);
       }
       const requested = new URL(url);
-      assert.equal(requested.origin, 'https://release-test.invalid');
+      assert.equal(requested.origin, process.env.TEST_VERIFY_ORIGIN ?? 'https://release-test.invalid');
       assert.equal(init.cache, 'no-store');
       return new Response(await readFile(join(${JSON.stringify(out)}, requested.pathname)));
     };
@@ -182,17 +183,27 @@ test('Pages production deploys unsigned once, then requires a freshly signed imm
   const run = (argv, extra = {}) => spawnSync(process.execPath, ['--import', pathToFileURL(fixture).href, ...argv], {
     env: { ...base, ...extra }, encoding: 'utf8', timeout: 15_000,
   });
-  const published = await buildManagerArtifact({
-    appDist: app,
-    manifestPath: fileURLToPath(new URL('../apps/app/plugin.manifest.json', import.meta.url)),
-    packageJsonPath: fileURLToPath(new URL('../apps/app/package.json', import.meta.url)),
-    out: root,
-    sourceSha: 'a'.repeat(40),
-    releaseTag: 'manager-v0.1.0-fixture',
-    repoRoot: fileURLToPath(new URL('..', import.meta.url)),
-  });
-  const build = (extra) => run([script, '--manager-artifact', '--manager-archive', join(root, published.asset),
-    '--manager-sha256', published.archiveSha256, '--out', out], extra);
+  let archivePath = process.env.K21_SIGNING_MANAGER_ARCHIVE;
+  let manager;
+  if (archivePath) {
+    const lock = JSON.parse(await readFile(new URL('../packages/plugin-system/manager-artifact.lock.json', import.meta.url), 'utf8'));
+    manager = inspectManagerArtifact(await readFile(archivePath));
+    assert.equal(manager.archiveSha256, lock.archiveSha256);
+  } else {
+    const published = await buildManagerArtifact({
+      appDist: app,
+      manifestPath: fileURLToPath(new URL('../apps/app/plugin.manifest.json', import.meta.url)),
+      packageJsonPath: fileURLToPath(new URL('../apps/app/package.json', import.meta.url)),
+      out: root,
+      sourceSha: 'a'.repeat(40),
+      releaseTag: 'manager-v0.1.0-fixture',
+      repoRoot: fileURLToPath(new URL('..', import.meta.url)),
+    });
+    archivePath = join(root, published.asset);
+    manager = published.inspected;
+  }
+  const build = (extra) => run([script, '--manager-artifact', '--manager-archive', archivePath,
+    '--manager-sha256', manager.archiveSha256, '--out', out], extra);
   const readEntry = async () => JSON.parse(await readFile(join(out, 'registry/index.json'), 'utf8')).plugins['online-gal.manager'];
   const get = (entry, file) => readFile(join(out, 'registry', entry.path, file));
   const assertRoutes = async (relayEnabled) => {
@@ -217,8 +228,8 @@ test('Pages production deploys unsigned once, then requires a freshly signed imm
   assert.equal(boot.status, 0, boot.stderr);
   assert.match(boot.stdout, /生产引导构建/);
   const unsigned = await readEntry();
-  assert.equal(unsigned.digest, published.manifestSha256);
-  assert.deepEqual(await get(unsigned, 'mf-manifest.json'), published.inspected.manifestBytes);
+  assert.equal(unsigned.digest, manager.manifestSha256);
+  assert.deepEqual(await get(unsigned, 'mf-manifest.json'), manager.manifestBytes);
   await assert.rejects(get(unsigned, 'plugin.bundle.json'), { code: 'ENOENT' });
   await assertRoutes(true);
   await assertPrivateValues(boot);
@@ -237,7 +248,7 @@ test('Pages production deploys unsigned once, then requires a freshly signed imm
     { CF_PAGES: '', ONLINE_GAL_CA_BUILD_TOKEN: '' },
   ]) {
     const disabled = build({ ONLINE_GAL_CA_BOOTSTRAP: '1', TEST_SIGNING_MODE: 'reject', ...overrides });
-    assert.equal(disabled.status, 0, 'disabled relay must preserve the site build');
+    assert.equal(disabled.status, 0, `disabled relay must preserve the site build: ${disabled.stderr || disabled.error}`);
     await assertRoutes(false);
     await assertPrivateValues(disabled);
   }
@@ -254,8 +265,8 @@ test('Pages production deploys unsigned once, then requires a freshly signed imm
   assert.equal(first.status, 0, first.stderr);
   assert.match(first.stdout, /生产签名构建/);
   const signed = await readEntry();
-  assert.equal(signed.digest, published.manifestSha256);
-  assert.deepEqual(await get(signed, 'mf-manifest.json'), published.inspected.manifestBytes);
+  assert.equal(signed.digest, manager.manifestSha256);
+  assert.deepEqual(await get(signed, 'mf-manifest.json'), manager.manifestBytes);
   const bundle = await get(signed, 'plugin.bundle.json');
   const second = build();
   assert.equal(second.status, 0, second.stderr);
@@ -273,6 +284,10 @@ test('Pages production deploys unsigned once, then requires a freshly signed imm
   const verified = online();
   assert.equal(verified.status, 0, verified.stderr);
   assert.equal(JSON.parse(verified.stdout).packages[0].path, rebuilt.path);
+  const fixedOrigin = run([check, trust.host, trust.salt, trust.hash, '--deployment-origin', deploymentOrigin],
+    { TEST_VERIFY_ORIGIN: deploymentOrigin });
+  assert.equal(fixedOrigin.status, 0, fixedOrigin.stderr);
+  assert.equal(JSON.parse(fixedOrigin.stdout).packages[0].path, rebuilt.path);
   await writeFile(join(out, 'registry', rebuilt.path, 'plugin.bundle.json'), bundle);
   const stale = online();
   assert.equal(stale.status, 1, stale.stderr);
