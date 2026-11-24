@@ -10,6 +10,7 @@ context: |
   其他进行中的 change：
   - plugin-system：插件系统（Service Worker 内核、插件包格式与来源证明、插件规则层）。其他 change 只能通过它的登记规则（design.md K19）扩展内核。
   - cf-account-admin：管理系统（Cloudflare 账号、/__cf 代理、浏览器版 cf、/admin），由单独的对话负责，在 plugin-system 里登记了 /__cf。
+  - integrate-webdav-source：新增 WebDAV 只读目录来源，由文件系统会话负责。通过 plugin-system K19 登记 /__webdav，直链和其他来源分别沿用原有流程。
   - site-setup：站点初始化，两阶段构建。npm run build:pages（scripts/build-pages.mjs）检查 Pages 项目有没有 ONLINE_GAL_SITE：
     没有就只构建 apps/setup 初始化页。所有者通过 Cloudflare OAuth 登录，页面自动生成所需密钥并写入生产 secrets 及 ONLINE_GAL_SITE。
     有就调用 npm run build:site，产物不含初始化代码。官方 Git 集成站点按 site-setup S13 部署两次，先启用签发接口，再发布签名产物。
@@ -45,7 +46,7 @@ context: |
   - leader：总负责与用户沟通的入口。把用户指令写成 openspec 里的目标与计划，汇总各成员状态向用户汇报，
     裁定范围与归属，整理需要用户决定的问题。只改 openspec/，不做具体实现和杂活。
   - admin-system：cf-account-admin 与 site-setup。plugin-system：plugin-system。
-  - file-system：范围待用户确认。
+  - file-system：负责 integrate-webdav-source 的 VFS、浏览器联调和日检，其他范围待用户确认。
   - small-task-operator：杂活与一次性操作（Cloudflare / GitHub 操作、部署、核对、跑命令），由 leader 派单。
   - redesign-frontend、first-public-beta-ons-kirikiri、establish-architecture-and-release-baseline 暂无专人，需要时由 leader 派给现有成员。
   - 实现者只勾选、备注自己 change 的 tasks.md；proposal/design/specs 的改动和新任务发给 leader 写。

@@ -241,7 +241,7 @@ Service Worker 在页面之前拿到导航请求，跨页面、跨刷新常驻�
 - 登记通过 `packages/plugin-system/src/format.ts` 的保留路径、`packages/plugin-system/src/kernel.ts` 的 `routeRequest`、`packages/plugin-system/scripts/build-site.mjs` 的 `RESERVED` 接入。只有包含服务器 Function 的登记需要更新 `_routes.json` 的服务器路由。
 - 当前登记：
   - `/__cf` → 变更 `cf-account-admin`（capability `cloudflare-account`），内核模块加 Function。内核保留逻辑前缀，生产 `_routes.json` 仅启用账户派生子树，见该变更 A12。它在共用文件里占用的代码块见该变更 design.md A11。
-  - `/__openlist` → 变更 `integrate-openlist-worker`（capability `openlist-remote-source`，待实现），通过现有浏览器 `/sw.js` 的内核模块分发。
+  - `/__webdav` → 变更 `integrate-webdav-source`（capability `webdav-remote-source`，待实现），通过现有浏览器 `/sw.js` 的内核模块处理。
   - 插件系统的改动不要顺手改这些块。
 
 ### K20 — 归属与代码边界
