@@ -178,48 +178,59 @@ export async function buildManagerArtifact({ appDist, manifestPath, packageJsonP
   await writeFile(join(out, `${asset}.json`), `${JSON.stringify(record, null, 2)}\n`);
   return { ...record, archive, inspected };
 }
-export async function fetchManagerArtifact({ archivePath, lockPath, repository, token, fetcher = globalThis.fetch }) {
-  if (archivePath !== undefined) return asBuffer(await readFile(resolve(archivePath)));
+export async function fetchManagerArtifact({ archivePath, archiveSha256, lockPath, token, fetcher = globalThis.fetch }) {
+  if (archivePath !== undefined) {
+    if (!/^[a-f0-9]{64}$/.test(archiveSha256 ?? '')) throw new Error('local manager archive requires an explicit SHA-256');
+    const archive = await readFile(resolve(archivePath));
+    if (sha256(archive) !== archiveSha256) throw new Error('local manager archive does not match its locked SHA-256');
+    return archive;
+  }
+
   const lock = JSON.parse(await readFile(lockPath, 'utf8'));
-  if (lock.format !== ARTIFACT_FORMAT || typeof lock.repository !== 'string' || typeof lock.releaseTag !== 'string' ||
-      typeof lock.asset !== 'string' || !/^[a-f0-9]{64}$/.test(lock.archiveSha256) || !/^[a-f0-9]{40,64}$/.test(lock.sourceSha)) {
+  if (!lock || lock.format !== ARTIFACT_FORMAT || !/^[\w.-]+\/[\w.-]+$/.test(lock.repository ?? '') ||
+      !/^manager-v[\w.-]+$/.test(lock.releaseTag ?? '') || !/^online-gal\.manager-[\w.-]+\.tar\.gz$/.test(lock.asset ?? '') ||
+      !/^[a-f0-9]{64}$/.test(lock.archiveSha256 ?? '') || !/^[a-f0-9]{40}$/.test(lock.sourceSha ?? '')) {
     throw new Error(`manager artifact lock is invalid: ${lockPath}`);
   }
-  if (repository !== undefined && repository !== lock.repository) throw new Error('manager artifact repository does not match the lock');
-  const repo = lock.repository;
-  const api = `https://api.github.com/repos/${repo}`;
-  const headers = { accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28', ...(token ? { authorization: `Bearer ${token}` } : {}) };
-  const releaseResponse = await fetcher(`${api}/releases/tags/${encodeURIComponent(lock.releaseTag)}`, { headers, redirect: 'error' });
-  if (!releaseResponse.ok) throw new Error(`GitHub release ${lock.releaseTag} returned HTTP ${releaseResponse.status}`);
-  const release = await releaseResponse.json();
-  const asset = Array.isArray(release.assets) ? release.assets.find((candidate) => candidate?.name === lock.asset) : undefined;
-  if (!asset || typeof asset.id !== 'number') throw new Error(`GitHub release ${lock.releaseTag} has no ${lock.asset} asset`);
-  const assetResponse = await fetcher(`${api}/releases/assets/${asset.id}`, { headers: { ...headers, accept: 'application/octet-stream' }, redirect: 'manual' });
-  if (!assetResponse.ok && ![301, 302, 303, 307, 308].includes(assetResponse.status)) throw new Error(`GitHub asset ${lock.asset} returned HTTP ${assetResponse.status}`);
-  const location = assetResponse.headers.get('location');
-  const bytes = assetResponse.status >= 300 && assetResponse.status < 400
-    ? asBuffer(await (await fetcher(location, { redirect: 'error' })).arrayBuffer())
-    : asBuffer(await assetResponse.arrayBuffer());
-  if (sha256(bytes) !== lock.archiveSha256) throw new Error(`GitHub asset ${lock.asset} does not match its locked SHA-256`);
-  return bytes;
+  const api = `https://api.github.com/repos/${lock.repository}`;
+  const headers = {
+    accept: 'application/vnd.github+json',
+    'x-github-api-version': '2022-11-28',
+    ...(token ? { authorization: `Bearer ${token}` } : {}),
+  };
+  try {
+    const request = (url, options) => fetcher(url, { signal: AbortSignal.timeout(120_000), ...options });
+    const releaseResponse = await request(`${api}/releases/tags/${encodeURIComponent(lock.releaseTag)}`, { headers, redirect: 'error' });
+    if (!releaseResponse.ok) throw new Error(`release ${lock.releaseTag} returned HTTP ${releaseResponse.status}`);
+    const release = await releaseResponse.json();
+    const asset = release.assets?.find((candidate) => candidate?.name === lock.asset);
+    if (release.draft || release.tag_name !== lock.releaseTag || !Number.isSafeInteger(asset?.id) || asset.id <= 0) {
+      throw new Error(`published release ${lock.releaseTag} has no ${lock.asset} asset`);
+    }
+    const download = await request(`${api}/releases/assets/${asset.id}`, {
+      headers: { ...headers, accept: 'application/octet-stream' }, redirect: 'manual',
+    });
+    let response = download;
+    if ([301, 302, 303, 307, 308].includes(download.status)) {
+      const location = new URL(download.headers.get('location'));
+      if (location.protocol !== 'https:' || location.username || location.password || location.port ||
+          !['release-assets.githubusercontent.com', 'objects.githubusercontent.com'].includes(location.hostname)) {
+        throw new Error('GitHub asset redirect is outside the allowed download hosts');
+      }
+      response = await request(location, { redirect: 'error' });
+    }
+    if (!response.ok) throw new Error(`asset ${lock.asset} returned HTTP ${response.status}`);
+    const bytes = asBuffer(await response.arrayBuffer());
+    if (sha256(bytes) !== lock.archiveSha256) throw new Error(`asset ${lock.asset} does not match its locked SHA-256`);
+    return bytes;
+  } catch (error) {
+    // Fetch exceptions can include signed download URLs in their causes.
+    const message = error instanceof TypeError || error instanceof SyntaxError || error instanceof DOMException
+      ? 'invalid response, timeout, or network error' : error.message;
+    throw new Error(`manager artifact download failed: ${message}`);
+  }
 }
 
-export async function stageManagerArtifact(input, out) {
-  const inspected = parseArtifact(input);
-  const packageDir = join(out, 'manager');
-  await mkdir(packageDir, { recursive: true });
-  for (const [path, bytes] of inspected.entries) {
-    if (path === PACKAGE_FILE || path === MANIFEST_FILE || path === 'plugin.bundle.json') continue;
-    const destination = join(packageDir, path);
-    await mkdir(dirname(destination), { recursive: true });
-    await writeFile(destination, bytes);
-  }
-  const manifestPath = join(out, 'manifest.json');
-  const packageJsonPath = join(out, 'package.json');
-  await writeFile(manifestPath, `${JSON.stringify(inspected.package.manifest, null, 2)}\n`);
-  await writeFile(packageJsonPath, `${JSON.stringify({ version: inspected.package.manifest.version.replace(/\\+[^+]+$/, '') }, null, 2)}\n`);
-  return { dir: packageDir, manifestPath, packageJsonPath, inspected };
-}
 
 function parseArgs(argv) {
   const args = {};

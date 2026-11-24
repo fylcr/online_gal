@@ -123,7 +123,7 @@
 
 由 plugin-system 主责。frontend 核对 `apps/app` 的构建输入和首屏，admin-system 核对 Pages 阶段选择、签名交接与私有仓库读取配置。
 
-- [ ] 12.1 新增 `.github/workflows/build-manager-plugin.yml` 和打包入口。以锁文件、已登记的引擎输入及明确的源码 SHA 构建 `apps/app`。发布独立的 format 2 `online-gal.manager` 压缩制品，记录 release tag、asset、归档 SHA-256、源码 SHA 与插件版本。先验证解包后文件清单再发布。重复发布同一标识时核对已发字节，并拒绝覆盖不同内容。验收正式 release 可取用，manifest 标识与 lazy 规则和现有管理器一致。
+- [x] 12.1 新增 `.github/workflows/build-manager-plugin.yml` 和打包入口。以锁文件、已登记的引擎输入及明确的源码 SHA 构建 `apps/app`。发布独立的 format 2 `online-gal.manager` 压缩制品，记录 release tag、asset、归档 SHA-256、源码 SHA 与插件版本。先验证解包后文件清单再发布。重复发布同一标识时核对已发字节，并拒绝覆盖不同内容。验收正式 release 可取用，manifest 标识与 lazy 规则和现有管理器一致。
 - [ ] 12.2 实现站点装配及制品锁定文件。用受控下载或显式本地制品路径，校验归档、目录边界、format 2、ID、角色、官方身份、API 版本、入口及所有文件大小与哈希。Pages 的 `site` 分支只运行内核编译和装配，保留签名和部署身份标记及现有 Function 路由。运行构建夹具，证明没有 Astro 构建调用，根目录和注册表的源文件哈希对应同一包。覆盖缺包、错误摘要、损坏文件、路径冲突、API 版本不匹配和签名失败。
 - [ ] 12.3 站点根 HTML 注入幂等的延迟注册逻辑。保留 `load` 门槛，注册前给浏览器首屏绘制机会。用全新浏览器上下文访问 `/` 与 `/settings/`，记录相同网络条件下迁移前后的 FCP 和注册时刻。延迟及阻断 `/sw.js`、`/registry/` 时静态内容仍能绘制，正常时首次绘制早于注册和插件安装请求。复验接管后的刷新、离线和用户选定的第三方管理器，检查硬刷新限次、深链和隔离响应头。
 - [ ] 12.4 与 admin-system 用隔离 Pages 项目验证 GitHub 取包、私有仓库最小只读凭据、初始化分支零下载、首次站点部署启用 CA、后续签名及线上部署专属地址验签。生产切换先发布并验证初始制品，再启用 Pages 装配链路并提交固定引用。记录 Actions run、制品摘要、部署 ID、签名和浏览器验收结果。演练丢失制品导致部署失败，以及恢复到上一可用制品引用。生产切换与初始化验收按各自既有前提推进。

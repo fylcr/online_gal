@@ -17,6 +17,7 @@
     "reinit:pages": "node scripts/reinit-pages.mjs",
     "build:setup": "node scripts/build-pages.mjs --phase=setup",
     "build:site": "npm run build && node packages/plugin-system/scripts/build-site.mjs",
+    "build:site:artifact": "tsc -b packages/plugin-system && node packages/plugin-system/scripts/build-site.mjs --manager-artifact",
     "dev": "npm run build:packages && npm run build:cf && pnpm --filter @online-gal/app dev",
     "preview": "pnpm --filter @online-gal/app preview",
     "check": "npm run check:layout && tsc -b tsconfig.packages.json && pnpm --filter @online-gal/app check && pnpm --filter @online-gal/setup check",

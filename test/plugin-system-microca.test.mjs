@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { onRequest } from '../functions/__ca/issue.ts';
 import { microCaCommitment, microCaFingerprint, parseBundle, verifyBundle } from '../packages/plugin-system/dist/index.js';
+import { buildManagerArtifact } from '../packages/plugin-system/scripts/manager-artifact.mjs';
 import { signPlugin } from '../packages/plugin-system/scripts/sign-plugin.mjs';
 
 const p256 = () => generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
@@ -173,7 +174,17 @@ test('Pages production deploys unsigned once, then requires a freshly signed imm
   const run = (argv, extra = {}) => spawnSync(process.execPath, ['--import', pathToFileURL(fixture).href, ...argv], {
     env: { ...base, ...extra }, encoding: 'utf8', timeout: 15_000,
   });
-  const build = (extra) => run([script, '--app-dist', app, '--out', out], extra);
+  const published = await buildManagerArtifact({
+    appDist: app,
+    manifestPath: fileURLToPath(new URL('../apps/app/plugin.manifest.json', import.meta.url)),
+    packageJsonPath: fileURLToPath(new URL('../apps/app/package.json', import.meta.url)),
+    out: root,
+    sourceSha: 'a'.repeat(40),
+    releaseTag: 'manager-v0.1.0-fixture',
+    repoRoot: fileURLToPath(new URL('..', import.meta.url)),
+  });
+  const build = (extra) => run([script, '--manager-artifact', '--manager-archive', join(root, published.asset),
+    '--manager-sha256', published.archiveSha256, '--out', out], extra);
   const readEntry = async () => JSON.parse(await readFile(join(out, 'registry/index.json'), 'utf8')).plugins['online-gal.manager'];
   const get = (entry, file) => readFile(join(out, 'registry', entry.path, file));
 
@@ -181,6 +192,8 @@ test('Pages production deploys unsigned once, then requires a freshly signed imm
   assert.equal(boot.status, 0, boot.stderr);
   assert.match(boot.stdout, /生产引导构建/);
   const unsigned = await readEntry();
+  assert.equal(unsigned.digest, published.manifestSha256);
+  assert.deepEqual(await get(unsigned, 'mf-manifest.json'), published.inspected.manifestBytes);
   await assert.rejects(get(unsigned, 'plugin.bundle.json'), { code: 'ENOENT' });
   assert.deepEqual(JSON.parse(await readFile(join(out, '_routes.json'))).include, ['/__ca/*', '/__cf/*']);
 
@@ -201,6 +214,8 @@ test('Pages production deploys unsigned once, then requires a freshly signed imm
   assert.equal(first.status, 0, first.stderr);
   assert.match(first.stdout, /生产签名构建/);
   const signed = await readEntry();
+  assert.equal(signed.digest, published.manifestSha256);
+  assert.deepEqual(await get(signed, 'mf-manifest.json'), published.inspected.manifestBytes);
   const bundle = await get(signed, 'plugin.bundle.json');
   const second = build();
   assert.equal(second.status, 0, second.stderr);

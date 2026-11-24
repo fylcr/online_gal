@@ -29,8 +29,9 @@ import { fileURLToPath } from 'node:url';
 
 import { build } from 'esbuild';
 
-import { BUNDLE_FILE, microCaCommitment, microCaFingerprint, parseBundle, verifyBundle } from '../dist/index.js';
+import { BUNDLE_FILE, PACKAGE_FILE, microCaCommitment, microCaFingerprint, parseBundle, verifyBundle } from '../dist/index.js';
 import { officialPackagePath } from '../dist/release-metadata.js';
+import { DEFAULT_LAZY, fetchManagerArtifact, inspectManagerArtifact } from './manager-artifact.mjs';
 import { fileListHash, packDirectory } from './pack-plugin.mjs';
 import { signPlugin } from './sign-plugin.mjs';
 import { siteSigning } from './site-signing.mjs';
@@ -41,26 +42,23 @@ const repoRoot = resolve(pkgRoot, '../..');
 
 const DEFAULT_MANAGER = 'online-gal.manager';
 
-/** Official plugins built from this repository: where their files are and their manifest. */
-const OFFICIAL = [
-  {
-    dir: (args) => resolve(args['app-dist'] ?? join(repoRoot, 'apps/app/dist')),
-    manifest: join(repoRoot, 'apps/app/plugin.manifest.json'),
-    packageJson: join(repoRoot, 'apps/app/package.json'),
-    // The manager is also served as plain static pages from the site root (see copyManagerToRoot),
-    // and the worker installs after `load`, so install is off the first-paint path. The worker
-    // therefore downloads the pages and assets (reloads and offline use are answered locally);
-    // only the engine (wasm, glue, worker, source archive) and source maps wait for their first request.
-    lazy: ['engines/**', '_astro/cf/**', '**/*.map'],
-    root: true,
-  },
-];
+const MANAGER = {
+  dir: (args) => resolve(args['app-dist'] ?? join(repoRoot, 'apps/app/dist')),
+  manifest: join(repoRoot, 'apps/app/plugin.manifest.json'),
+  packageJson: join(repoRoot, 'apps/app/package.json'),
+};
 
 function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (!arg.startsWith('--')) throw new Error(`unexpected argument "${arg}"`);
+    if (arg === '--manager-artifact') {
+      args['manager-artifact'] = true;
+      continue;
+    }
+    if (!arg.startsWith('--') || !argv[i + 1] || argv[i + 1].startsWith('--')) {
+      throw new Error(`invalid argument "${arg}"`);
+    }
     args[arg.slice(2)] = argv[++i];
   }
   return args;
@@ -95,23 +93,40 @@ async function bundleKernel(version, githubRaw) {
   return { js: js.contents };
 }
 
-async function packOfficial(entry, args, out, signing) {
-  const dir = entry.dir(args);
+async function packLocalManager(dir, bundle) {
   try {
     await stat(join(dir, 'index.html'));
   } catch {
     throw new Error(`${dir} has no index.html; build the manager first (pnpm --filter @online-gal/app build)`);
   }
-  const base = await readJson(entry.manifest);
-  const { version } = await readJson(entry.packageJson);
-  // Keep the file-list hash in the version, then hash the final package for
-  // the immutable URL, including the version actually published.
-  const probe = await packDirectory({ dir, manifest: { ...base, version }, lazy: entry.lazy });
+  const base = await readJson(MANAGER.manifest);
+  const { version } = await readJson(MANAGER.packageJson);
+  const probe = await packDirectory({ dir, manifest: { ...base, version }, lazy: DEFAULT_LAZY });
   const manifest = { ...base, version: `${version}+${fileListHash(probe.files).slice(0, 12)}` };
+  return packDirectory({ dir, manifest, lazy: DEFAULT_LAZY, bundle });
+}
+
+async function stageManager(archive, dir, bundle) {
+  const artifact = inspectManagerArtifact(archive);
+  const files = [];
+  for (const item of artifact.package.files) {
+    const abs = join(dir, item.path);
+    await mkdir(dirname(abs), { recursive: true });
+    await writeFile(abs, artifact.entries.get(item.path));
+    files.push({ ...item, abs });
+  }
+  const envelope = bundle
+    ? Buffer.from(`${JSON.stringify({ ...artifact.envelope, bundle }, null, 1)}\n`)
+    : artifact.entries.get(PACKAGE_FILE);
+  console.log(`  manager artifact: ${artifact.archiveSha256}`);
+  return { pkg: artifact.package, files, bytes: artifact.manifestBytes, digest: artifact.manifestSha256, envelope };
+}
+
+async function publishManager(packed, out, signing) {
+  const { manifest } = packed.pkg;
+  if (manifest.id !== DEFAULT_MANAGER) throw new Error(`the site root must serve ${DEFAULT_MANAGER}`);
   const { token, host, trust } = signing;
-  const { bytes, envelope, digest, files } = await packDirectory({
-    dir, manifest, lazy: entry.lazy, ...(token ? { bundle: BUNDLE_FILE } : {}),
-  });
+  const { bytes, envelope, digest, files } = packed;
   const bundle = token ? await signPlugin(bytes, { token, siteHost: host }) : null;
   if (bundle) {
     // S13 also binds the build to the configured CA commitment. Manual signing
@@ -160,10 +175,10 @@ async function packOfficial(entry, args, out, signing) {
 }
 
 /**
- * Registers the plugin system from a plain static page, after `load`, so installing the worker
- * never competes with the first paint. Once the worker controls the site, the same pages are
- * answered from its cache. A reload is only needed when the worker is active but did not control
- * this load (a hard reload, Shift+F5), so a manager the user switched to is shown instead.
+ * Registers the plugin system after load and the first contentful paint. A page
+ * without Paint Timing crosses a rendering opportunity before registering.
+ * Once the worker controls the site, the same pages are answered from its cache.
+ * A hard reload bypasses that cache, so reload once to restore the selected manager.
  */
 const REGISTER_SCRIPT = `<script>(() => {
   if (window.__onlineGalPlugins || !('serviceWorker' in navigator)) return;
@@ -182,8 +197,42 @@ const REGISTER_SCRIPT = `<script>(() => {
       if (!navigator.serviceWorker.controller && registration.active && !registration.installing && !registration.waiting) reloadOnce();
     })
     .catch((error) => console.warn('[plugin-system] could not register', error));
-  if (document.readyState === 'complete') start();
-  else addEventListener('load', start, { once: true });
+  const canObservePaint = typeof PerformanceObserver === 'function' && PerformanceObserver.supportedEntryTypes?.includes('paint');
+  let started = false;
+  let waitingForFrame = false;
+  let framePassed = false;
+  let observer;
+  const afterLoad = () => {
+    if (started || document.visibilityState !== 'visible') return;
+    if (canObservePaint) {
+      if (!performance.getEntriesByName('first-contentful-paint', 'paint').length) {
+        if (!observer) {
+          observer = new PerformanceObserver(() => afterLoad());
+          observer.observe({ type: 'paint', buffered: true });
+        }
+        return;
+      }
+    } else if (!framePassed) {
+      if (!waitingForFrame) {
+        waitingForFrame = true;
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          framePassed = true;
+          afterLoad();
+        }));
+      }
+      return;
+    }
+    started = true;
+    observer?.disconnect();
+    document.removeEventListener('visibilitychange', afterLoad);
+    start();
+  };
+  const loaded = () => {
+    document.addEventListener('visibilitychange', afterLoad);
+    afterLoad();
+  };
+  if (document.readyState === 'complete') loaded();
+  else addEventListener('load', loaded, { once: true });
 })();</script>`;
 
 /** Names the site root keeps for itself; the manager build must not use them. */
@@ -229,14 +278,10 @@ const HEADERS = `/*
   Access-Control-Allow-Origin: *
 `;
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
-  const out = resolve(args.out ?? join(repoRoot, 'dist/site'));
+async function buildSite(args, out, dir, packed, signing) {
   await rm(out, { recursive: true, force: true });
   await mkdir(join(out, 'registry'), { recursive: true });
-
   console.log(`building ${out}`);
-  const signing = siteSigning(process.env);
   const log = {
     bootstrap: '生产引导构建，官方包未签名，启用 CA 路由',
     required: '生产签名构建，必须签名并自验所有官方包',
@@ -245,8 +290,7 @@ async function main() {
     unsigned: '未启用 ONLINE_GAL_CA_BUILD_TOKEN 签名，官方包未签名',
   };
   console.log(`[plugin-system] ${log[signing.mode]}`);
-  const plugins = Object.fromEntries(await Promise.all(OFFICIAL.map((entry) => packOfficial(entry, args, out, signing))));
-  if (plugins[DEFAULT_MANAGER] === undefined) throw new Error(`the default manager ${DEFAULT_MANAGER} was not built`);
+  const plugins = Object.fromEntries([await publishManager(packed, out, signing)]);
   await writeFile(join(out, 'registry/index.json'), `${JSON.stringify({ format: 1, plugins }, null, 1)}\n`);
 
   // The version is stamped into the bundle, so hash a provisional build first.
@@ -259,12 +303,40 @@ async function main() {
   await writeFile(join(out, 'sw.js'), kernel.js);
   console.log(`  kernel ${kernelVersion}: sw.js ${(kernel.js.byteLength / 1024).toFixed(1)} KiB`);
 
-  const root = OFFICIAL.find((entry) => entry.root);
-  if (root === undefined || (await readJson(root.manifest)).id !== DEFAULT_MANAGER) throw new Error(`the site root must serve ${DEFAULT_MANAGER}`);
-  await copyManagerToRoot(root.dir(args), out);
+  await copyManagerToRoot(dir, out);
   await writeFile(join(out, '_headers'), HEADERS);
   // Send only the registered Function prefixes to Pages Functions, not static assets.
   await writeFile(join(out, '_routes.json'), `${JSON.stringify({ version: 1, include: ['/__ca/*', '/__cf/*'], exclude: [] }, null, 1)}\n`);
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const out = resolve(args.out ?? join(repoRoot, 'dist/site'));
+  const signing = siteSigning(process.env);
+  const bundle = signing.token ? BUNDLE_FILE : undefined;
+  const archivePath = args['manager-archive'] ?? process.env.ONLINE_GAL_MANAGER_ARCHIVE;
+  const lockPath = args['manager-lock'] ?? process.env.ONLINE_GAL_MANAGER_LOCK;
+  if (!args['manager-artifact'] && archivePath === undefined && lockPath === undefined) {
+    const dir = MANAGER.dir(args);
+    await buildSite(args, out, dir, await packLocalManager(dir, bundle), signing);
+    return;
+  }
+  if (args['app-dist'] !== undefined) throw new Error('--app-dist cannot be used in artifact mode');
+  const archive = await fetchManagerArtifact({
+    archivePath,
+    archiveSha256: args['manager-sha256'] ?? process.env.ONLINE_GAL_MANAGER_SHA256,
+    lockPath: lockPath ?? join(pkgRoot, 'manager-artifact.lock.json'),
+    token: process.env.ONLINE_GAL_MANAGER_GITHUB_TOKEN,
+  });
+  const stagingRoot = join(repoRoot, '.test');
+  await mkdir(stagingRoot, { recursive: true });
+  const dir = await mkdtemp(join(stagingRoot, 'manager-artifact-'));
+  try {
+    const packed = await stageManager(archive, dir, bundle);
+    await buildSite(args, out, dir, packed, signing);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 }
 
 main().catch((error) => {
