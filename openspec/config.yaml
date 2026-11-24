@@ -50,8 +50,9 @@ context: |
     裁定范围与归属，整理需要用户决定的问题。只改 openspec/，不做具体实现和杂活。
   - admin-system：cf-account-admin 与 site-setup。plugin-system：plugin-system。
   - file-system：负责 integrate-webdav-source 的 VFS 网络挂载、WebDAV 适配器和浏览器联调，以及 add-vfs-streaming-archive-decompression 的选型、实现和验收。
+  - krkr-engine：KRKR 引擎专用会话，负责 Kirikiroid2 Web、KAG3 解释器、`ports/krkr/` 的构建维护，以及 XP3 挂载、Range 流播和浏览器测试。按 `first-public-beta-ons-kirikiri` 推进 KRKR 相关任务，跨 VFS 的通用改动与 file-system 协作。源码、构建和制品入口见 `ports/krkr/README.md`。
   - small-task-operator：杂活与一次性操作（Cloudflare / GitHub 操作、部署、核对、跑命令），由 leader 派单。
-  - redesign-frontend、first-public-beta-ons-kirikiri、establish-architecture-and-release-baseline 暂无专人，需要时由 leader 派给现有成员。
+  - redesign-frontend、establish-architecture-and-release-baseline 及 first-public-beta-ons-kirikiri 的其余部分暂无专人，需要时由 leader 派给现有成员。
   - 实现者只勾选、备注自己 change 的 tasks.md；proposal/design/specs 的改动和新任务发给 leader 写。
   - 改别人范围的文件时把需求发给负责人，不自己改。范围以各 change 的归属一节为准（plugin-system K20、cf-account-admin A11）。
   - apps/app 的页面、组件、布局、样式归 redesign-frontend 的负责人（账号与 admin 文件除外）。first-public-beta 任务里的界面部分
