@@ -4,20 +4,21 @@ on:
   push:
     tags:
       - 'manager-v*'
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: manager-build-${{ github.ref }}
+  group: manager-release-${{ github.ref }}
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       SOURCE_SHA: ${{ github.sha }}
-      RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('manager-check-{0}', github.sha) }}
+      RELEASE_TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,34 +46,14 @@ jobs:
           archives=(dist/manager-release/*.tar.gz)
           test "${#archives[@]}" -eq 1
           node packages/plugin-system/scripts/manager-artifact.mjs --verify "${archives[0]}"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: online-gal-manager-${{ github.sha }}
-          path: dist/manager-release/
-          if-no-files-found: error
-
-  publish:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/manager-v')
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    env:
-      GH_REPO: ${{ github.repository }}
-      RELEASE_TAG: ${{ github.ref_name }}
-      SOURCE_SHA: ${{ github.sha }}
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: online-gal-manager-${{ github.sha }}
-          path: release
-      - name: Publish or verify the exact release bytes
+      - name: Publish and verify the exact release bytes
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
-          archives=(release/*.tar.gz)
+          archives=(dist/manager-release/*.tar.gz)
           test "${#archives[@]}" -eq 1
           archive="${archives[0]}"
           metadata="$archive.json"
@@ -81,7 +62,6 @@ jobs:
             '.releaseTag == $tag and .sourceSha == $source and .asset == $asset' "$metadata" >/dev/null
           test "$(sha256sum "$archive" | cut -d ' ' -f1)" = "$(jq -r .archiveSha256 "$metadata")"
           if ! gh release view -- "$RELEASE_TAG" >/dev/null; then
-            # Creation never uses an upload/overwrite fallback for an existing tag.
             gh release create --verify-tag --latest=false --title "online-gal.manager $RELEASE_TAG" \
               --notes "Official manager plugin built from $SOURCE_SHA." -- "$RELEASE_TAG" "$archive" "$metadata"
           fi
