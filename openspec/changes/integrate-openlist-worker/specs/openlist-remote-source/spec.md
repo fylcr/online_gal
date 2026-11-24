@@ -45,7 +45,7 @@ VFS MUST 能打开已配置的 OpenList 游戏根目录，列出直接子项，�
 
 ### Requirement: Verified browser download and byte ranges
 
-启用的远程存储驱动 MUST 通过真实浏览器验证鉴权、跨域和实际下载链。声明支持随机访问时，每次非空范围读取 MUST 校验 HTTP `206`、`Content-Range` 和实际长度。范围不可用时 MUST 报告能力或读取错误。整文件和允许的降级读取 MUST 遵守字节预算。
+项目 MUST 在真实浏览器用候选和生产部署的同源只读夹具验证实际下载链，并用隔离夹具验证适用的鉴权结果。声明支持随机访问时，每次非空范围读取 MUST 校验 HTTP `206`、`Content-Range` 和实际长度。范围不可用时 MUST 报告能力或读取错误。整文件和允许的降级读取 MUST 遵守字节预算。
 
 #### Scenario: Read a range against known bytes
 
@@ -83,7 +83,7 @@ VFS MUST 能打开已配置的 OpenList 游戏根目录，列出直接子项，�
 
 #### Scenario: A candidate breaks an interface
 
-- **WHEN** 候选的列表、元数据、读取权限、跨域、下载或 Range 契约失败
+- **WHEN** 候选的列表、元数据、读取权限、下载或 Range 契约失败
 - **THEN** 发布门禁拦下候选，报告对应的上游提交和失败操作，生产继续用通过验收的版本
 - **AND** 修复后重新解析上游，再次运行候选验收
 

@@ -23,4 +23,4 @@
 ## Impact
 
 - `packages/vfs` 负责浏览器运行时适配和远程 `GameSource`，`packages/core` 接入现有来源打开路径。现有 `/sw.js` 通过 K19 登记增加 `/__openlist` 路由，由文件系统会话和插件系统负责人协调。
-- 候选和生产都使用 Pages 静态站点。选定的远程存储需支持实际的浏览器读取链路。GitHub Actions 负责日检，站点发布沿用现有流程。
+- 候选和生产都使用 Pages 静态站点。首轮用同源目录和合成文件验证浏览器读取，CORS 留到跨源存储接入时处理。GitHub Actions 负责日检，站点发布沿用现有流程。
