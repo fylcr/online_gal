@@ -32,6 +32,8 @@ context: |
   硬约定：
   - 布局：产品代码只放 packages/、apps/、ports/ 并入库；测试、真实游戏、一次性脚本、截图放 .test/，参考检出与官方 SDK 放 .ref/（均 gitignored）。
     产品代码不得引用 .test/。任何 archive 解包前须断言落点在 .test/<dir>/、.ref/<dir>/ 或已校验的 ports/<port>/out/<dir>/ 下，绝不解到仓库根。
+  - 未经用户明确允许，不得删除 `.test/test-game/`、`.test/test-games/` 或其中任何文件和子目录。
+    此限制也适用于脚本、`git clean`、批量清理和重建。操作涉及 `.test/` 或其他上级目录时，必须先确认这两个目录及其内容会被保留，否则先取得用户的明确许可。
   - 提交：用显式 pathspec，不扫进他人 staged 改动；提交后及时 push，并在 GitHub 上看同一 commit 的 CI。
     docs/session-5697f1a7-handoff.md 与 ports/artemis/**/path-string.h 不 stage。
   - 证据：目录完整、构建成功、合成测试通过、真实游戏可用、再分发授权是五个不同结论。真实游戏测试是唯一判据，由用户亲自执行，
