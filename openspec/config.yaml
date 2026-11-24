@@ -47,7 +47,7 @@ context: |
   - leader：总负责与用户沟通的入口。把用户指令写成 openspec 里的目标与计划，汇总各成员状态向用户汇报，
     裁定范围与归属，整理需要用户决定的问题。只改 openspec/，不做具体实现和杂活。
   - admin-system：cf-account-admin 与 site-setup。plugin-system：plugin-system。
-  - file-system：负责 integrate-webdav-source 的 VFS 网络挂载、WebDAV 适配器和浏览器联调，其他范围待用户确认。
+  - file-system：负责 integrate-webdav-source 的 VFS 网络挂载、WebDAV 适配器和浏览器联调，以及 add-vfs-streaming-archive-decompression 的选型、实现和验收。
   - small-task-operator：杂活与一次性操作（Cloudflare / GitHub 操作、部署、核对、跑命令），由 leader 派单。
   - redesign-frontend、first-public-beta-ons-kirikiri、establish-architecture-and-release-baseline 暂无专人，需要时由 leader 派给现有成员。
   - 实现者只勾选、备注自己 change 的 tasks.md；proposal/design/specs 的改动和新任务发给 leader 写。
