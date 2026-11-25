@@ -3,7 +3,7 @@
 ## Context
 
 - `apps/app` 现状：Astro 7.3、`@astrojs/svelte` 9、Svelte 5.43，静态输出，部署在 Cloudflare Pages（`https://onlinegal.de5.net/`，2026-11-23 起为官方地址，旧地址 `onlinegal.cc.cd` 301 跳转；默认地址 `onlinegal.pages.dev`）。
-- 页面：`src/pages/index.astro` → `Library.svelte`（`client:load`）；`play.astro` → `Player.svelte`（`client:only="svelte"`，`bare` 布局，读 `?id=`）；`settings.astro` → `Settings.svelte`；`engines.astro` → `Engines.svelte`。`src/layouts/Layout.astro` 含头部导航与页脚。
+- 重构基线为 `Library.svelte`、`Player.svelte`、`Settings.svelte` 与 `Engines.svelte`。当前 `src/pages/index.astro` 已换成 `GameCard.astro` 与 `mock-games.ts` 的静态网格，`src/pages/play.astro` 目前只有返回游戏库的外壳。
 - `src/lib/platform.ts` 是唯一组合根：`getPlatform()`、`browserSupport()`、`defaultSettings`、`formatPlayTime/formatDate/relativeTime`，并按编译期常量配置 KiriKiri 与 Artemis 引擎。
 - 组件实际调用的 API：`platform.importDirectory/importFileList/importDataTransfer`、`library.list/get/patch/remove/redetect/openSource`、`saves.list/get/put/remove/exportAll/importAll/fileStore`、`settings.save/patch`、`loadSettings`、`registry.list`、`probeFailures`；`Session` 的 `start/stop/pause/resume/isPaused/save/restore/captureThumbnail/applySettings`；`@online-gal/core` 的 `runtimeLabel`、`unsupportedReason`、`isPlayable`。
 - 设置字段：`mute`、`volumes`、`textSpeed`、`surface`、`showDiagnostics`。播放器已有全屏（`requestFullscreen`）、键盘处理、存档导入/导出、缩略图。
@@ -17,7 +17,7 @@
 - 现有功能全部保留，可运行状态如实显示。
 
 **Non-Goals**
-- 不改 `packages/` 的 API 或行为；需要新 API 时另开 change。
+- 沿用 core/VFS 的现有公开契约。必要的本地目录兼容修正由 `file-system` 负责，超出本地目录链路的 API 需求另开 change。
 - 不改引擎加载、隔离头、产物挂载（属于 `first-public-beta-ons-kirikiri`）。
 - 不引入 React/Vue、daisyUI 以外的组件库、全局状态库、CSS-in-JS。
 
@@ -36,11 +36,20 @@
 13. **桌面网格**（用户 2026-10-30，取代 Decision 11 的 `px-3`）：外边距 24px；第 1 栏 48px 放 logo 与 dock（左缘对齐）；栏间距 48px；第 2 栏从 120px 起，页面标题、内容、页脚左缘对齐。头部高 96px，logo 48px，标题 `text-3xl`。
     **页面标题在头部**（用户 2026-10-30）：页面名从内容区移到头部 logo 右侧（`#page-title`），作为 swup 第二个 container 随访问替换并一起淡入淡出。
 14. **设置页为层级菜单**（用户 2026-10-30，取代折叠方案）：`/settings` 是大项列表，每项进入独立子页 `/settings/<id>`（`src/pages/settings/[section].astro`，大项定义在 `src/lib/settings-sections.ts`）。现有大项：播放、音频、引擎、数据、高级，内容待填。设置内容居中，`max-w-2xl`。
-16. **游戏库卡片**（用户 2026-10-30）：版式参考 KunGal（`KunMoe/kun-galgame-forum` 的 `components/galgame/card/`）：竖版 5:7 封面、左上引擎标签、封面右下角游玩时长（底部渐变遮罩，未玩过显示“未玩过”）、标题固定两行高、卡片左下角厂商（每张卡片等高）；**厂商字段 `GameRecord` 目前没有**，真实显示需另开 change 改 `packages/core`；网格按容器宽度分 2–7 列（container query）。该项目是 **AGPL-3.0**，与本仓库 GPL-3.0-or-later 不同，故只参考版式、自行实现，**不复制其代码或素材**。不可启动的卡片封面变灰并覆盖“本测试版不支持/未识别”标记，不是链接。组件 `src/components/library/GameCard.astro`，数据暂为 `src/lib/mock-games.ts`（临时）。
+16. **游戏库卡片**（用户 2026-10-30）：版式参考 KunGal（`KunMoe/kun-galgame-forum` 的 `components/galgame/card/`）：竖版 5:7 封面、左上引擎标签、封面右下角游玩时长（底部渐变遮罩，未玩过显示“未玩过”）、标题固定两行高、卡片左下角厂商（每张卡片等高）；**厂商字段 `GameRecord` 目前没有**，真实显示需另开 change 改 `packages/core`；网格按容器宽度分 2–7 列（container query）。该项目是 **AGPL-3.0**，与本仓库 GPL-3.0-or-later 不同，故只参考版式、自行实现，**不复制其代码或素材**。不可启动的卡片封面变灰并覆盖“本测试版不支持/未识别”标记，不是链接。现有 `src/components/library/GameCard.astro` 及网格可作版式基线，生产数据接入见 Decision 17。
 15. **面包屑**（用户 2026-10-30）：页面标题 `<h1 id="page-title">` 留在导航栏 logo 右侧，设置及其子页一律显示“设置”。面包屑只在设置子页出现（`/settings` 列表页没有），在导航栏下方，左缘对齐第 2 栏（`lg:pl-30`），`text-sm`；路径式：根用 `>` 表示设置首页（链接到 `/settings`），每一级前加 `/`，符号与文字间留空（如 `> / 音频`、`> / 音频 / 子项`），末级为当前页。`#breadcrumbs` 容器每页都渲染（swup 要求两侧都有 container），无面包屑时为空。两者都是 swup container。标题不变的访问（如 `/settings` ↔ `/settings/<id>`）标题不做淡入淡出：`swup.ts` 在 `visit:start` 比较当前标题与目标 dock 项名称，相同则给 `<html>` 加 `data-static-title`，`global.css` 据此关闭 `#page-title` 的过渡，`visit:end` 移除。`/engines` 重定向改到 `/settings/engines`。dock 高亮对子页按前缀匹配（`/settings/*` 高亮“设置”）。
 10. **页面切换用 swup 4**（用户 2026-10-30 指定）：`swup` 4.10.0 + `@swup/a11y-plugin`、`@swup/head-plugin`、`@swup/scripts-plugin`（只重跑 body 脚本，让新内容里的 Astro 岛水合）。只替换 `Layout.astro` 的 `#swup`，头部导航与页脚常驻；淡入淡出 180ms，尊重 `prefers-reduced-motion`。`/play` 不走 swup（`ignoreVisit`），进出播放器都是整页加载，保证引擎实例随文档销毁。初始化在 `src/lib/swup.ts`。swup 是导航库，不是 UI 框架/组件库/状态库，不违反技术栈约束。
 11. **导航栏与 logo**（用户 2026-10-30）：无边框，左侧 logo、右侧按钮组，中间留白；两侧内边距 `px-3`，主内容不限宽。logo 是用户用 AI 生成的 `D:\atri\logo1.webp`，存为 `src/assets/logo.webp`，经 `astro:assets` + `sharp` 缩成 40px@1x/2x。**许可 CC BY-NC 4.0，不属于 GPL**，记录于 `src/assets/LICENSE.md` 与根 `THIRD_PARTY_NOTICES.md`。用户计划开 donations，认为与 NC 不冲突。
 12. **桌面端竖向 dock**（用户 2026-10-30）：`src/components/Dock.astro`，固定在左侧垂直居中，`#swup` 之外常驻，零 JS；图标内联 SVG，hover 显示 daisyUI tooltip。圆角（dock `rounded-2xl`、按钮 `rounded-xl`），是对 Decision 7“圆角 0”的局部例外；当前页用加深底色（`base-content/12`）而不是换色，hover 为 `base-content/5`。加深底色是 dock 内唯一一块高亮元素，靠 `--dock-i` 平移到当前项（300ms，`prefers-reduced-motion` 下关闭）；`swup.ts` 在 `visit:start` 就移动，与内容淡出同时进行。`lg`（≥1024px）以下暂隐藏，移动端方案待 (b)。
+
+17. **真实游戏库与本地目录**
+
+    - 首页用 `getPlatform().library.list()` 投影真实记录。初始 HTML 保留 Astro 外壳和可绘制的静态内容，交互岛加载库数据。库为空时显示空状态，同时提供右下角「添加游戏」按钮。移除 `MOCK_GAMES` 和只供其使用的演示数据引用，已有游戏记录和存档随原库继续可用。
+    - 圆形按钮位于游戏库视口右下角，使用现有 `primary` / `primary-content` 色令牌，是零圆角规则的局部例外。用 `+` 图标和「添加游戏」可访问名称，支持键盘、清晰焦点与触控。按安全区预留边距，避免遮挡末行卡片，并随游戏库导航生命周期挂载。按钮打开导入选项，优先提供「本地文件夹」，已有文件、压缩包及拖放入口沿用各自流程。
+    - 「本地文件夹」在用户手势内调用 `showDirectoryPicker({ mode: "read" })`，得到句柄后经 `Platform.importDirectory` 交给 `FileSystemDirectorySource`。浏览器不提供可用的目录句柄时，从目录 input 的 `webkitRelativePath` 获得 `FileList`，经 `Platform.importFileList` 交给现有文件源。路径相对于所选根目录。同名文件按完整相对路径定位，保留原文件名和子目录。
+    - 句柄路径持久化句柄及游戏记录，检测和游玩按需读取，`readRange` 只读取指定片段。目录 input 回退使用现有浏览器文件存储，选择前说明会占用本地站点存储。游戏文件一直由浏览器读取，源目录保持只读，运行时写入进入每个游戏的存档覆层。归档、WebDAV 等来源沿用各自流程。
+    - 刷新后使用既有记录恢复挂载。权限未授予或目录移动时，在对应卡片、详情或播放器提供「重新授权」或「重新选择文件夹」。权限申请由用户手势触发。成功恢复该记录的来源后沿用原游戏 ID 和存档。取消选择、读不到文件和存储失败各有对应反馈，已有条目可以再次尝试。
+    - 识别结果来自 platform。可启动游戏沿用 `/play?id=`，以持久化的游戏 ID 恢复源并进入现有会话。当前播放页只有外壳，若目标分支仍缺此接线，交付范围包含从本地目录条目到 `library.openSource` 与引擎会话的最小完整路径，播放器其余重构按第 6 节推进。
 
 ## Risks / Trade-offs
 

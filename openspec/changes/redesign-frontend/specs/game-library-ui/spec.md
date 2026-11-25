@@ -18,6 +18,37 @@
 - **WHEN** 用户删除一个游戏
 - **THEN** 先要求确认，确认后游戏与其存档都被移除
 
+### Requirement: Game library shows real records and an add button
+
+游戏库 MUST 从 platform 显示真实游戏记录。页面 MUST 在游戏库视口右下角提供圆形「添加游戏」按钮，颜色使用当前主题的主要操作和对应文字色令牌。按钮 MUST 支持键盘与触控，并为卡片与移动端安全区留出空间。
+
+#### Scenario: Open the library with and without games
+
+- **WHEN** 用户打开游戏库
+- **THEN** 空库显示空状态，非空库只显示真实记录
+- **AND** 两种情况下都能用右下角的「添加游戏」打开导入入口
+
+### Requirement: Play an extracted local game folder
+
+用户 MUST 能从「添加游戏」选择一个已解压的本地游戏文件夹。平台 MUST 保留所选目录内的相对路径，通过现有只读 `GameSource` 读取文件，运行时写入 MUST 进入每个游戏的存档覆层。支持目录句柄时 MUST 按需读取文件及字节范围。目录选择器不可用时，游戏库 MUST 在浏览器支持的情况下提供目录 input 回退。
+
+#### Scenario: Import, then open a local game
+
+- **WHEN** 用户选择含有嵌套目录的已解压游戏根目录
+- **THEN** 游戏库显示识别结果及真实记录
+- **AND** 可启动的条目经同一记录 ID 打开播放器，VFS 按完整相对路径向引擎提供文件
+
+#### Scenario: Directory permission expires after reload
+
+- **WHEN** 刷新页面后打开条目，而目录授权已失效或文件夹已移动
+- **THEN** 页面提供用户可触发的重新授权或重选入口
+- **AND** 恢复成功后保留原记录 ID 和存档，取消或失败时保留原条目以便重试
+
+#### Scenario: Folder input fallback preserves nested paths
+
+- **WHEN** 浏览器没有可用的目录句柄，而用户从目录 input 选择含 `config.txt` 与 `sub/config.txt` 的目录
+- **THEN** VFS 从各自的完整相对路径返回对应内容，刷新后也可以打开已导入的游戏
+
 ### Requirement: Truthful playability state
 每个游戏卡片与详情 MUST 根据 platform 给出的状态显示三类之一：可开始、不支持（显示 platform 给出的原因，例如“本测试版不支持”）、未识别。只有可开始的游戏 SHALL 显示“开始”入口。界面 MUST NOT 硬编码引擎名单。
 

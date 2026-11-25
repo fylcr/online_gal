@@ -9,7 +9,8 @@
 - 技术栈固定为 **Astro + Svelte 5 + Tailwind CSS v4**（经 `@tailwindcss/vite` 接入）**+ daisyUI 5**（Tailwind 插件，用户 2026-10-29 批准）。不引入其他 UI 框架、组件库或状态库。
 - 页面结构：外壳、导航、说明类页面改为纯 `.astro`（零 JS）；只有需要交互的部分（游戏库、播放器、设置表单）保留 Svelte 岛。
 - 重新设计游戏库、播放器、设置、引擎/支持说明页的布局与交互，并新增“已知限制”说明。
-- `apps/app/src/lib/platform.ts` 仍是唯一客户端组合根；组件只通过它访问 `@online-gal/core`。本 change 不修改 `packages/` 下任何包的行为。
+- 游戏库用真实游戏记录取代首页的占位卡片。右下角提供与现有主题一致的圆形「添加游戏」按钮，用户可通过浏览器选择已解压的本地游戏文件夹。
+- `apps/app/src/lib/platform.ts` 仍是唯一客户端组合根。组件通过它访问 `@online-gal/core`。本地目录复用 core 的导入、来源重开与存档覆层，以及 VFS 的现有目录源。`file-system` 负责这一链路所需的兼容修正。
 - 现有功能 MUST 保持可用（见 `game-library-ui`、`player-ui` 的功能对等要求），重构不得静默删除功能。
 - 可启动与不可启动的判断由 platform 提供，界面不硬编码引擎名单，从而兼容 beta 只开放 ONS/KiriKiri 的裁剪。
 
@@ -37,6 +38,6 @@
 
 ## Impact
 
-- 代码：仅 `apps/app/`（`src/`、`astro.config.mjs`、`package.json`、新增 Tailwind 相关依赖）。`pnpm-lock.yaml` 因新依赖变化。
+- 界面改动落在 `apps/app/`（`src/`、`astro.config.mjs`、`package.json`）。`pnpm-lock.yaml` 随 Tailwind 相关依赖更新。
 - 依赖：依赖包重命名已落地（`@online-gal/engine-core-*` / `@online-gal/engine-interpreter-*`）。与 `first-public-beta-ons-kirikiri` 的 2.4 任务（“本测试版不支持”文案）重叠：该文案的界面实现以本 change 为准，beta change 只提供不可用原因。
-- 不影响：`packages/`、`ports/`、WASM 产物、IndexedDB schema、`astro.config.mjs` 中的隔离头与 KiriKiri/Artemis 挂载逻辑。
+- 本地目录链路涉及 `packages/core` 与 `packages/vfs` 的现有源接口。目录句柄、回退文件和存档继续使用现有 IndexedDB 记录格式。引擎与 WASM 交付由各自 change 管理。
