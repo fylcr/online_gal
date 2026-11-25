@@ -1,17 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import GameCard from '../components/library/GameCard.astro';
-// TEMPORARY layout mock, see src/lib/mock-games.ts.
-import { MOCK_GAMES } from '../lib/mock-games';
+import GameLibrary from '../components/library/GameLibrary.svelte';
 ---
 
 <Layout title="游戏库">
-  {/* Column count follows the content width (container query), not the viewport. */}
-  <div class="@container">
-    <ul
-      class="grid grid-cols-2 gap-3 @lg:grid-cols-3 @2xl:grid-cols-4 @4xl:grid-cols-5 @5xl:grid-cols-6 @7xl:grid-cols-7"
-    >
-      {MOCK_GAMES.map((game) => <GameCard game={game} />)}
-    </ul>
-  </div>
+  <GameLibrary client:load />
 </Layout>

@@ -389,8 +389,13 @@ export interface LaunchOptions {
 export async function launchSession(options: LaunchOptions): Promise<Session> {
   const runtimeId = await resolveRuntime(options);
   const session = new Session({ ...options, runtimeId });
-  await session.start();
-  return session;
+  try {
+    await session.start();
+    return session;
+  } catch (error) {
+    await session.stop().catch(console.error);
+    throw error;
+  }
 }
 
 async function resolveRuntime(options: LaunchOptions): Promise<string> {

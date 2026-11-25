@@ -7,12 +7,13 @@
  * per page load rather than per component.
  */
 import { Platform, checkBrowserSupport, type BrowserSupport } from '@online-gal/core';
-import { DEFAULT_SETTINGS } from '@online-gal/core';
+import { DEFAULT_SETTINGS, DirectoryPermissionError, launchSession, unsupportedReason, type Session } from '@online-gal/core';
 import type { AppSettings, GameRecord, SaveSlotRecord } from '@online-gal/core';
 import { configureKirikiriWasm } from '@online-gal/engine-core-kirikiroid2-web';
 import { configureArtemisCompat } from '@online-gal/engine-core-artemis-compat';
 
-export type { AppSettings, GameRecord, SaveSlotRecord, BrowserSupport };
+export type { AppSettings, GameRecord, SaveSlotRecord, BrowserSupport, Session };
+export { DirectoryPermissionError };
 
 /**
  * Where this deployment serves the KiriKiri WebAssembly build.
@@ -72,6 +73,34 @@ export function browserSupport(): BrowserSupport {
 }
 
 export const defaultSettings = DEFAULT_SETTINGS;
+
+/** null means this browser needs the directory-input fallback. */
+export function pickGameDirectory(): Promise<FileSystemDirectoryHandle> | null {
+  const picker = window as Window & {
+    showDirectoryPicker?: (options: { mode: 'read' }) => Promise<FileSystemDirectoryHandle>;
+  };
+  return picker.showDirectoryPicker?.({ mode: 'read' }) ?? null;
+}
+
+export function playBlockReason(record: GameRecord): string | null {
+  const runtimeId = record.config.forcedRuntimeId ?? record.detection.runtimeId;
+  if (!runtimeId) return '未识别';
+  const provider = getPlatform().registry.get(runtimeId);
+  if (!provider || provider.availability === 'unavailable' ||
+      (!record.config.forcedRuntimeId && record.detection.availability === 'unavailable')) {
+    return '本测试版不支持';
+  }
+  return unsupportedReason(runtimeId);
+}
+
+export async function startGame(record: GameRecord, canvas: HTMLCanvasElement): Promise<Session> {
+  const platform = getPlatform();
+  const [source, settings] = await Promise.all([
+    platform.library.openSource(record),
+    platform.loadSettings(),
+  ]);
+  return launchSession({ registry: platform.registry, record, canvas, source, settings, store: platform.saves.fileStore(record.id) });
+}
 
 /** Formats milliseconds as a compact play-time string. */
 export function formatPlayTime(milliseconds: number): string {

@@ -1,9 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import GamePlayer from '../components/player/GamePlayer.svelte';
 ---
 
 <Layout title="播放" bare>
-  <div class="flex min-h-screen items-center justify-center bg-neutral text-neutral-content">
-    <a href="/" class="link">返回游戏库</a>
-  </div>
+  <GamePlayer client:load />
 </Layout>
