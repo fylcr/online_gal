@@ -1,5 +1,5 @@
 import { IndexedDbStore } from '@online-gal/vfs';
-import { Database, request } from './db.js';
+import { Database, keyPrefixRange, request } from './db.js';
 import {
   DEFAULT_SETTINGS,
   type AppSettings,
@@ -10,6 +10,14 @@ const DB_NAME = 'online-gal';
 const DB_VERSION = 1;
 const STORE_SETTINGS = 'settings';
 const STORE_SAVES = 'saves';
+
+export function saveSlotPrefix(gameId: string): string {
+  return `${gameId}\u0000`;
+}
+
+export function saveOverlayNamespace(gameId: string): string {
+  return `saves:${gameId}`;
+}
 
 /** Persists global application settings as a single JSON record. */
 export class SettingsStore {
@@ -74,32 +82,30 @@ export class SettingsStore {
 export class SaveStore {
   private readonly db: Database;
 
-  constructor(dbName = DB_NAME) {
+  constructor(private readonly dbName = DB_NAME) {
     this.db = new Database({
       name: dbName,
       version: DB_VERSION,
-      stores: [STORE_SAVES, STORE_SETTINGS],
+      stores: [STORE_SAVES, STORE_SETTINGS, 'games', 'fileIndex'],
     });
   }
 
   /** The engine-visible writable filesystem for a game. */
   fileStore(gameId: string): IndexedDbStore {
-    return new IndexedDbStore(`saves:${gameId}`, DB_NAME, STORE_SAVES);
+    return new IndexedDbStore(saveOverlayNamespace(gameId), this.dbName, STORE_SAVES);
   }
 
   private key(gameId: string, slot: number): string {
-    return `${gameId}\u0000${String(slot).padStart(4, '0')}`;
+    return `${saveSlotPrefix(gameId)}${String(slot).padStart(4, '0')}`;
   }
 
   async list(gameId: string): Promise<readonly SaveSlotRecord[]> {
-    const all = await this.db.transaction([STORE_SAVES], 'readonly', (transaction) =>
+    const slots = await this.db.transaction([STORE_SAVES], 'readonly', (transaction) =>
       request<SaveSlotRecord[]>(
-        transaction.objectStore(STORE_SAVES).getAll() as IDBRequest<SaveSlotRecord[]>,
+        transaction.objectStore(STORE_SAVES).getAll(keyPrefixRange(saveSlotPrefix(gameId))),
       ),
     );
-    return all
-      .filter((record) => record.gameId === gameId)
-      .sort((a, b) => a.slot - b.slot);
+    return slots.sort((a, b) => a.slot - b.slot);
   }
 
   async get(gameId: string, slot: number): Promise<SaveSlotRecord | null> {

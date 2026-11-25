@@ -48,6 +48,11 @@ function assertHandleName(name: string): void {
   }
 }
 
+function isMissingHandle(error: unknown): boolean {
+  return error instanceof DOMException &&
+    (error.name === 'NotFoundError' || error.name === 'TypeMismatchError');
+}
+
 /**
  * A `GameSource` over a directory the user authorised through the File System
  * Access API.
@@ -71,10 +76,7 @@ export class FileSystemDirectorySource implements GameSource {
     return new FileSystemDirectorySource(handle.name, handle);
   }
 
-  private async resolveFile(
-    path: string,
-    create = false,
-  ): Promise<FileSystemFileHandle | null> {
+  private async resolveFile(path: string): Promise<FileSystemFileHandle | null> {
     const parts = segmentsOf(path);
     if (parts.length === 0) return null;
     let dir: FileSystemDirectoryHandle = this.root;
@@ -82,17 +84,19 @@ export class FileSystemDirectorySource implements GameSource {
       const segment = parts[i]!;
       assertHandleName(segment);
       try {
-        dir = await dir.getDirectoryHandle(segment, { create });
-      } catch {
-        return null;
+        dir = await dir.getDirectoryHandle(segment);
+      } catch (error) {
+        if (isMissingHandle(error)) return null;
+        throw error;
       }
     }
     const leaf = parts[parts.length - 1]!;
     assertHandleName(leaf);
     try {
-      return await dir.getFileHandle(leaf, { create });
-    } catch {
-      return null;
+      return await dir.getFileHandle(leaf);
+    } catch (error) {
+      if (isMissingHandle(error)) return null;
+      throw error;
     }
   }
 
@@ -105,8 +109,9 @@ export class FileSystemDirectorySource implements GameSource {
       assertHandleName(segment);
       try {
         dir = await dir.getDirectoryHandle(segment);
-      } catch {
-        return null;
+      } catch (error) {
+        if (isMissingHandle(error)) return null;
+        throw error;
       }
     }
     return dir;
@@ -179,6 +184,18 @@ export interface ImportedFile {
   readonly file: Blob;
 }
 
+/** Pairs each selected file with its full path relative to the selected folder. */
+export function fromFileList(files: FileList | readonly File[]): readonly ImportedFile[] {
+  const entries = new Map<string, ImportedFile>();
+  for (const file of Array.from(files)) {
+    const relative = file.webkitRelativePath;
+    const parts = relative ? normalisePath(relative).split('/') : [];
+    const path = parts.length > 1 ? parts.slice(1).join('/') : normalisePath(file.name);
+    if (path) entries.set(path, { path, file });
+  }
+  return [...entries.values()];
+}
+
 export class FileListSource implements GameSource {
   private readonly files = new Map<string, Blob>();
   private readonly dirs = new Set<string>(['']);
@@ -215,17 +232,7 @@ export class FileListSource implements GameSource {
 
   /** Builds a source from a `FileList` produced by a directory input. */
   static fromFileList(name: string, files: FileList | readonly File[]): FileListSource {
-    const entries: ImportedFile[] = [];
-    for (const file of Array.from(files)) {
-      const relative =
-        (file as File & { webkitRelativePath?: string }).webkitRelativePath ||
-        file.name;
-      // Drop the selected folder's own name so the game root is the folder.
-      const parts = normalisePath(relative).split('/');
-      const path = parts.length > 1 ? parts.slice(1).join('/') : parts[0]!;
-      entries.push({ path, file });
-    }
-    return new FileListSource(name, entries);
+    return new FileListSource(name, fromFileList(files));
   }
 
   async list(dir = ''): Promise<readonly string[]> {

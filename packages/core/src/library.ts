@@ -11,6 +11,7 @@ import {
   FileListSource,
   FileSystemDirectorySource,
   IndexedDbStore,
+  type FileSystemHandlePermission,
   type ImportedFile,
 } from '@online-gal/vfs';
 import {
@@ -19,7 +20,8 @@ import {
   openBlobArchive,
   openGameSourceArchive,
 } from '@online-gal/vfs/archives';
-import { Database, request } from './db.js';
+import { Database, keyPrefixRange, request } from './db.js';
+import { saveOverlayNamespace, saveSlotPrefix } from './storage.js';
 import {
   createId,
   type DetectionRecord,
@@ -31,6 +33,17 @@ const DB_NAME = 'online-gal';
 const DB_VERSION = 1;
 const STORE_GAMES = 'games';
 const STORE_FILE_INDEX = 'fileIndex';
+const IMPORTED_FILES_NAMESPACE = 'files';
+
+/** The saved directory cannot be read without granting access or picking it again. */
+export class DirectoryPermissionError extends Error {
+  readonly code = 'directory-permission-required';
+
+  constructor(readonly gameId: string) {
+    super('the game folder is unavailable; restore read access or select it again');
+    this.name = 'DirectoryPermissionError';
+  }
+}
 
 /** Extensions that are archives rather than regular game files. */
 export function isArchivePath(path: string): boolean {
@@ -113,19 +126,17 @@ export class GameLibrary {
     return updated;
   }
 
-  /** Removes a record together with its stored files and save slots. */
+  /** Removes a game and its application-owned files and saves in one transaction. */
   async remove(id: string): Promise<void> {
-    const store = new IndexedDbStore('files', this.options.dbName ?? DB_NAME, 'fileIndex');
-    for (const path of await store.list(id)) {
-      await store.remove(`${id}/${path}`);
-    }
-    await this.db.transaction(['saves', STORE_GAMES], 'readwrite', async (transaction) => {
+    await this.db.transaction([STORE_GAMES, 'saves', STORE_FILE_INDEX], 'readwrite', async (transaction) => {
       const saves = transaction.objectStore('saves');
-      const keys = await request<IDBValidKey[]>(saves.getAllKeys());
-      for (const key of keys) {
-        if (String(key).startsWith(`${id}\u0000`)) saves.delete(key);
-      }
-      transaction.objectStore(STORE_GAMES).delete(id);
+      const files = transaction.objectStore(STORE_FILE_INDEX);
+      await Promise.all([
+        request(transaction.objectStore(STORE_GAMES).delete(id)),
+        request(saves.delete(keyPrefixRange(saveSlotPrefix(id)))),
+        request(saves.delete(keyPrefixRange(`${saveOverlayNamespace(id)}\u0000`))),
+        request(files.delete(keyPrefixRange(`${IMPORTED_FILES_NAMESPACE}\u0000${id}/`))),
+      ]);
     });
   }
 
@@ -191,6 +202,7 @@ export class GameLibrary {
         const handle = request_.source.handle;
         if (!handle) throw new Error('a directory import needs a directory handle');
         const source = new FileSystemDirectorySource(handle.name, handle);
+        await source.list('');
         return { source, descriptor: { kind: 'directory', handle } };
       }
       case 'files': {
@@ -198,7 +210,7 @@ export class GameLibrary {
         if (files.length === 0) throw new Error('a file import needs at least one file');
         await this.storeFiles(id, files);
         const store = this.fileStore();
-        const source = await this.openStoredSource(id, store, request_.name, files.length);
+        const source = await this.openStoredSource(id, store, request_.name);
         return {
           source,
           descriptor: { kind: 'files', fileCount: files.length },
@@ -243,7 +255,7 @@ export class GameLibrary {
   }
 
   private fileStore(): IndexedDbStore {
-    return new IndexedDbStore('files', this.options.dbName ?? DB_NAME, STORE_FILE_INDEX);
+    return new IndexedDbStore(IMPORTED_FILES_NAMESPACE, this.options.dbName ?? DB_NAME, STORE_FILE_INDEX);
   }
 
   private async storeFiles(id: string, files: readonly ImportedFile[]): Promise<void> {
@@ -258,11 +270,13 @@ export class GameLibrary {
 
   private async moveStoredFiles(fromId: string, toId: string): Promise<void> {
     const store = this.fileStore();
-    for (const path of await store.list(fromId)) {
-      const data = await store.read(`${fromId}/${path}`);
+    const prefix = `${fromId}/`;
+    for (const path of await store.list(prefix)) {
+      if (!path.startsWith(prefix)) continue;
+      const data = await store.read(path);
       if (!data) continue;
-      await store.write(`${toId}/${path}`, data);
-      await store.remove(`${fromId}/${path}`);
+      await store.write(`${toId}/${path.slice(prefix.length)}`, data);
+      await store.remove(path);
     }
   }
 
@@ -277,10 +291,11 @@ export class GameLibrary {
     id: string,
     store: IndexedDbStore,
     name: string,
-    fileCount: number,
   ): Promise<GameSource> {
-    const paths = await store.list(id);
-    const loose = paths.map((path) => path.slice(id.length + 1));
+    const prefix = `${id}/`;
+    const paths = (await store.list(prefix)).filter((path) => path.startsWith(prefix));
+    if (paths.length === 0) throw new Error('the stored files for this game are missing; re-import it');
+    const loose = paths.map((path) => path.slice(prefix.length));
     const memory = new MemoryGameSource(name);
     const archives: string[] = [];
 
@@ -291,7 +306,6 @@ export class GameLibrary {
       }
       const data = await store.read(`${id}/${path}`);
       if (data) memory.addFile(path, data);
-      void fileCount;
     }
 
     return this.combine(memory, name, archives, async (archivePath) => {
@@ -366,41 +380,53 @@ export class GameLibrary {
    */
   async openSource(record: GameRecord): Promise<GameSource> {
     const base = await this.openBaseSource(record);
-    const store = new IndexedDbStore(`saves:${record.id}`, this.options.dbName ?? DB_NAME, 'saves');
+    const store = new IndexedDbStore(saveOverlayNamespace(record.id), this.options.dbName ?? DB_NAME, 'saves');
     return new OverlayGameSource(base, store, { name: record.name, writePrefix: 'userfs' });
+  }
+
+  /** Updates an existing directory binding only after the selected folder can be read. */
+  async reselectDirectory(id: string, handle: FileSystemDirectoryHandle): Promise<GameRecord> {
+    if (!(await hasDirectoryPermission(handle))) throw new DirectoryPermissionError(id);
+    const directory = new FileSystemDirectorySource(handle.name, handle);
+    await directory.list('');
+    const detection = await this.detect(directory);
+
+    return this.db.transaction([STORE_GAMES], 'readwrite', async (transaction) => {
+      const games = transaction.objectStore(STORE_GAMES);
+      const current = await request<GameRecord | undefined>(games.get(id));
+      if (current?.source.kind !== 'directory') throw new Error('the directory game no longer exists');
+      const updated: GameRecord = { ...current, source: { kind: 'directory', handle }, detection };
+      await request(games.put(updated, id));
+      return updated;
+    });
   }
 
   private async openBaseSource(record: GameRecord): Promise<GameSource> {
     const { source } = record;
     switch (source.kind) {
       case 'directory': {
-        if (!source.handle) throw new Error('the directory handle for this game is missing');
-        const permission = await ensurePermission(source.handle);
-        if (!permission) {
-          throw new Error(
-            'the browser needs permission to re-read this game folder; re-import it to grant access',
-          );
+        if (!source.handle || !(await hasDirectoryPermission(source.handle))) {
+          throw new DirectoryPermissionError(record.id);
         }
         const directory = new FileSystemDirectorySource(record.name, source.handle);
-        const entries = await directory.list('');
+        let entries: readonly string[];
+        try {
+          entries = await directory.list('');
+        } catch (error) {
+          if (error instanceof DOMException &&
+              ['NotAllowedError', 'NotFoundError', 'SecurityError'].includes(error.name)) {
+            throw new DirectoryPermissionError(record.id);
+          }
+          throw error;
+        }
         const archives = entries.filter((entry) => isArchivePath(entry));
         return this.combine(directory, record.name, archives, async (path) => {
           const bytes = await directory.readFile(path);
           return new Blob([bytes as BlobPart]);
         });
       }
-      case 'files': {
-        const store = this.fileStore();
-        if (!(await store.list(record.id)).length) {
-          throw new Error('the stored files for this game are missing; re-import it');
-        }
-        return this.openStoredSource(
-          record.id,
-          store,
-          record.name,
-          source.fileCount ?? 0,
-        );
-      }
+      case 'files':
+        return this.openStoredSource(record.id, this.fileStore(), record.name);
       case 'local':
         return this.openLocalSource(source.localPath ?? '', record.name);
       default:
@@ -461,27 +487,22 @@ async function blobToBytes(blob: Blob): Promise<Uint8Array> {
 /** Permission mode accepted by the File System Access API. */
 export type FsPermissionMode = 'read' | 'readwrite';
 
-/**
- * Re-requests read permission for a previously authorised directory.
- *
- * The query/request pair is declared here rather than relied upon from the DOM
- * typings, which do not expose it on every supported TypeScript version.
- */
-export async function ensurePermission(
-  handle: FileSystemHandle,
-  mode: FsPermissionMode = 'read',
-): Promise<boolean> {
-  const permissions = handle as FileSystemHandle & {
-    queryPermission?: (descriptor: { mode: FsPermissionMode }) => Promise<PermissionState>;
-    requestPermission?: (descriptor: { mode: FsPermissionMode }) => Promise<PermissionState>;
-  };
-  if (!permissions.queryPermission) return true;
+async function hasDirectoryPermission(handle: FileSystemHandle, mode: FsPermissionMode = 'read'): Promise<boolean> {
+  const permissions = handle as FileSystemHandle & FileSystemHandlePermission;
   try {
-    if ((await permissions.queryPermission({ mode })) === 'granted') return true;
-    if (!permissions.requestPermission) return false;
+    return !permissions.queryPermission || (await permissions.queryPermission({ mode })) === 'granted';
+  } catch {
+    return false;
+  }
+}
+
+/** Call from a user gesture to request permission on a previously picked handle. */
+export async function ensurePermission(handle: FileSystemHandle, mode: FsPermissionMode = 'read'): Promise<boolean> {
+  const permissions = handle as FileSystemHandle & FileSystemHandlePermission;
+  if (!permissions.requestPermission) return hasDirectoryPermission(handle, mode);
+  try {
     return (await permissions.requestPermission({ mode })) === 'granted';
   } catch {
-    // The request must come from a user gesture; treat a failure as "not now".
     return false;
   }
 }

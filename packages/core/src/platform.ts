@@ -1,5 +1,5 @@
 import { RuntimeRegistry, type GameSource, type RuntimeProvider } from '@online-gal/engine-api';
-import { FileListSource, fromDataTransfer, type ImportedFile } from '@online-gal/vfs';
+import { FileListSource, fromDataTransfer, fromFileList, type ImportedFile } from '@online-gal/vfs';
 import { kirikiriWasmProvider } from '@online-gal/engine-core-kirikiroid2-web';
 import { kirikiriProvider } from '@online-gal/engine-interpreter-kirikiri-kag3';
 import { onscripterWasmProvider } from '@online-gal/engine-core-onscripter-yuri';
@@ -8,9 +8,9 @@ import { artemisProvider } from '@online-gal/engine-core-artemis-compat';
 import { siglusProvider } from '@online-gal/engine-shell-siglus';
 import { tyranoProvider } from '@online-gal/engine-core-tyranobuilder';
 import { webProvider } from '@online-gal/engine-core-web-html5';
-import { GameLibrary, type ImportRequest, type ImportResult } from './library.js';
+import { GameLibrary, ensurePermission, type ImportRequest, type ImportResult } from './library.js';
 import { SaveStore, SettingsStore } from './storage.js';
-import { DEFAULT_SETTINGS, type AppSettings } from './types.js';
+import { DEFAULT_SETTINGS, type AppSettings, type GameRecord } from './types.js';
 
 /**
  * Built-in runtime providers, in registration (tie-break) order.
@@ -90,24 +90,29 @@ export class Platform {
     });
   }
 
+  /** Call directly from the user's click to restore read access to a saved handle. */
+  requestDirectoryPermission(record: GameRecord): Promise<boolean> {
+    const { source } = record;
+    return source.kind === 'directory' && source.handle
+      ? ensurePermission(source.handle)
+      : Promise.resolve(false);
+  }
+
+  /** Updates a directory binding while preserving the game ID and its saves. */
+  reselectDirectory(id: string, handle: FileSystemDirectoryHandle): Promise<GameRecord> {
+    return this.library.reselectDirectory(id, handle);
+  }
+
   /** Imports a `FileList` from `<input type="file" webkitdirectory>`. */
   async importFileList(files: FileList | readonly File[]): Promise<ImportResult> {
     const list = Array.from(files);
     if (list.length === 0) throw new Error('no files were selected');
     const name = deriveFolderName(list);
-    const imported = FileListSource.fromFileList(name, list);
-    const entries: ImportedFile[] = imported.paths().map((path) => ({
-      path,
-      file: list.find((file) => {
-        const relative =
-          (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
-        return relative.endsWith(path);
-      }) as File,
-    }));
+    const entries = fromFileList(list);
     return this.library.import({
       name,
       source: { kind: 'files', fileCount: entries.length },
-      files: entries.filter((entry) => entry.file instanceof Blob),
+      files: entries,
     });
   }
 

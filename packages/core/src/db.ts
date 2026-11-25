@@ -105,6 +105,12 @@ export function request<T>(idbRequest: IDBRequest<T>): Promise<T> {
   });
 }
 
+/** Selects string keys starting with a prefix ending in a delimiter. */
+export function keyPrefixRange(prefix: string): IDBKeyRange {
+  const end = prefix.slice(0, -1) + String.fromCharCode(prefix.charCodeAt(prefix.length - 1) + 1);
+  return IDBKeyRange.bound(prefix, end, false, true);
+}
+
 /** Opens a cursor and collects every record. */
 export function getAll<T>(store: IDBObjectStore): Promise<T[]> {
   return request(store.getAll() as IDBRequest<T[]>);
