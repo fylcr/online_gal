@@ -1,14 +1,15 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const origin = process.env.ONLINE_GAL_LIBRARY_URL ?? 'http://127.0.0.1:4322';
-const { PLAYWRIGHT_MODULE, CHROMIUM_EXECUTABLE } = process.env;
-assert(PLAYWRIGHT_MODULE, 'Set PLAYWRIGHT_MODULE to the Playwright index.mjs path');
-const { chromium } = await import(pathToFileURL(PLAYWRIGHT_MODULE).href);
-const browser = await chromium.launch({ executablePath: CHROMIUM_EXECUTABLE });
+const root = fileURLToPath(new URL('../', import.meta.url));
+const require = createRequire(resolve(process.env.LIBRARY_BROWSER_TOOLS ?? root, 'package.json'));
+const { chromium } = require('playwright');
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
 const fixturesDir = await mkdtemp(join(tmpdir(), 'online-gal-library-'));
 const games = ['Directory Alpha', 'Directory Beta'].map((name) => ({
   name,
@@ -139,10 +140,17 @@ try {
   await page.getByRole('heading', { name: '尚无游戏' }).waitFor();
   assert.equal(await page.evaluate(() => crossOriginIsolated), true);
   const add = page.getByRole('button', { name: '添加游戏', exact: true });
+  const initial = await add.boundingBox();
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', {
+    insets: { right: 12, rightMax: 12, bottom: 20, bottomMax: 20 },
+  });
   const bounds = await add.boundingBox();
   const dock = await page.getByRole('navigation', { name: '主导航' }).boundingBox();
-  assert(bounds && dock && bounds.x > 200 && bounds.x + bounds.width <= 320 && bounds.y + bounds.height < dock.y);
+  assert(initial && bounds && dock && bounds.x > 200 && bounds.y + bounds.height < dock.y);
   assert.equal(bounds.width, bounds.height);
+  assert.equal(initial.x - bounds.x, 12);
+  assert.equal(initial.y - bounds.y, 20);
   await openPicker(page, true);
   await page.keyboard.press('Escape');
   await page.getByRole('link', { name: '设置', exact: true }).click();
@@ -154,6 +162,7 @@ try {
 
   await page.evaluate(async ({ name, files }) => {
     const root = await navigator.storage.getDirectory();
+    await root.getDirectoryHandle('Empty Alpha', { create: true });
     const dir = await root.getDirectoryHandle(name, { create: true });
     for (const [path, content] of Object.entries(files)) {
       const [leaf, nested] = path.split('/').reverse();
@@ -212,6 +221,14 @@ try {
     assert.equal(new URL(page.url()).searchParams.get('id'), alphaId);
   }
   await set('picker', 'select');
+  await set('folder', 'Empty Alpha');
+  await reselect.click();
+  await page.getByRole('alert').filter({ hasText: 'the selected game folder is empty' }).waitFor();
+  assert.deepEqual(await saveAndRead(page, alphaId), { ...alphaSaves, paths: undefined });
+  assert.equal(await page.evaluate(async (id) => {
+    const { getPlatform } = await import('/src/lib/platform.ts');
+    return (await getPlatform().library.get(id)).source.handle.name;
+  }, alphaId), 'Directory Alpha');
   await set('folder', 'Moved Alpha');
   await set('permission', 'prompt');
   await reselect.click();
