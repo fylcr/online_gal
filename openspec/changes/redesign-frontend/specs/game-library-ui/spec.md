@@ -14,9 +14,18 @@
 - **THEN** 显示导入进度
 - **AND** 完成后提示识别出的引擎，新游戏出现在列表中
 
-#### Scenario: Delete requires confirmation
-- **WHEN** 用户删除一个游戏
-- **THEN** 先要求确认，确认后游戏与其存档都被移除
+### Requirement: Delete games from the card context menu
+
+每张游戏卡片 MUST 在右键菜单提供「从游戏库删除」。选择该项 MUST 打开确认窗口，显示游戏名称并说明本站保存的该游戏存档会一并删除。用户确认后，平台 MUST 删除所选游戏的库记录和本站存档。用户磁盘上的原始游戏文件夹和文件 MUST 保持原样。游戏详情 MUST 保留同一个删除流程，供键盘和触屏用户使用。
+
+#### Scenario: Remove the right-clicked game
+- **WHEN** 用户右键一张游戏卡片，选择「从游戏库删除」并确认
+- **THEN** 游戏库移除所选条目及其本站存档，其他条目和存档保持原样
+- **AND** 刷新后该卡片仍已移除，原始游戏文件保持原样
+
+#### Scenario: Cancel card deletion
+- **WHEN** 用户关闭右键菜单或取消删除确认
+- **THEN** 游戏记录、存档和卡片保持原样
 
 ### Requirement: Game library shows real records and an add button
 
