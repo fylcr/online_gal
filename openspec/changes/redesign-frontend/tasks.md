@@ -53,6 +53,12 @@ Chromium 156.0.8078.4 在隔离配置中导入两份含松散 `00.txt` 的合成
 - 4.7–4.8 使用真实 OPFS 目录句柄与 IndexedDB 持久化，由脚本控制目录选择和授权结果。合成 HTML 游戏从 `/play?id=` 进入现有运行时会话，刷新后可重开。拒绝授权、取消或失败以及重选空文件夹均保留原记录和存档。重新授权或选中有效目录后可继续使用原 ID 播放。用真实目录 input 导入另一份临时磁盘文件夹，核对根层和子目录同名文件、刷新后重开，以及写入本地覆层后的读取结果。
 - 4.9 核对 Escape 和点击外部关闭右键操作、取消确认、详情复用确认及按 ID 确认删除。两条记录各有一个存档槽和内容不同的同名覆层文件。刷新后所选记录及两类存档已清除，另一条记录及槽位和覆层字节仍在。逐个复核磁盘夹具和 OPFS 原始目录字节。真实 ONS 与 KiriKiri 的验收列在 7.2。
 
+### 生产部署记录
+
+- 联合候选 `0a03330102fe72f352a35db3fa255c775fe117cf` 已合入 `main`。Pages 生产部署 `99c40bce-5504-48ae-98ab-d9cdedd686cd` 成功，`onlinegal.de5.net` 指向该部署。线上 `/`、`/play/` 和 `/settings/` 均返回 200，带 `COOP: same-origin` 和 `COEP: credentialless`。首页 HTML 含真实游戏库组件和「添加游戏」按钮。
+- 同一提交的 [Build packages](https://github.com/fylcr/online_gal/actions/runs/45543375775) 报告 portable suite 612 项中 580 通过、30 失败、2 跳过。按名称对照[此前主线基线](https://github.com/fylcr/online_gal/actions/runs/45424792679)，其中 29 项已出现。本次多报的一项位于 `test/artemis-compat-compact-audio-restore-check.test.mjs:314`，断言观察到额外的 `census-key` 和 `pull`，待用相同 CI 条件复核。
+- 同一提交的 [Build wasm (Artemis compat)](https://github.com/fylcr/online_gal/actions/runs/45543375939) 在构建脚本的 `configure` 阶段退出 1。公开日志未打印配置错误详情。
+
 ## 5. 设置
 
 - [ ] 5.1 重写设置页，所有设置项与数据管理操作保留，修改即保存。验证：修改音量后刷新页面值仍在。
