@@ -7,7 +7,7 @@
 - `src/lib/platform.ts` 是唯一组合根：`getPlatform()`、`browserSupport()`、`defaultSettings`、`formatPlayTime/formatDate/relativeTime`，并按编译期常量配置 KiriKiri 与 Artemis 引擎。
 - 组件实际调用的 API：`platform.importDirectory/importFileList/importDataTransfer`、`library.list/get/patch/remove/redetect/openSource`、`saves.list/get/put/remove/exportAll/importAll/fileStore`、`settings.save/patch`、`loadSettings`、`registry.list`、`probeFailures`；`Session` 的 `start/stop/pause/resume/isPaused/save/restore/captureThumbnail/applySettings`；`@online-gal/core` 的 `runtimeLabel`、`unsupportedReason`、`isPlayable`。
 - 设置字段：`mute`、`volumes`、`textSpeed`、`surface`、`showDiagnostics`。播放器已有全屏（`requestFullscreen`）、键盘处理、存档导入/导出、缩略图。
-- 用户习惯：纯 Astro + Tailwind；Svelte 不冲突即保留。前端细节由用户在 `apps/` 中亲自实施。
+- 用户习惯：纯 Astro + Tailwind；Svelte 不冲突即保留。游戏库 4.5–4.9 按 `tasks.md` 的分工由 `frontend` 和 `file-system` 实施。
 
 ## Goals / Non-Goals
 
