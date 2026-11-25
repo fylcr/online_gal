@@ -56,8 +56,9 @@ Chromium 156.0.8078.4 在隔离配置中导入两份含松散 `00.txt` 的合成
 ### 生产部署记录
 
 - 联合候选 `0a03330102fe72f352a35db3fa255c775fe117cf` 已合入 `main`。Pages 生产部署 `99c40bce-5504-48ae-98ab-d9cdedd686cd` 成功，`onlinegal.de5.net` 指向该部署。线上 `/`、`/play/` 和 `/settings/` 均返回 200，带 `COOP: same-origin` 和 `COEP: credentialless`。首页 HTML 含真实游戏库组件和「添加游戏」按钮。
-- 同一提交的 [Build packages](https://github.com/fylcr/online_gal/actions/runs/45543375775) 报告 portable suite 612 项中 580 通过、30 失败、2 跳过。按名称对照[此前主线基线](https://github.com/fylcr/online_gal/actions/runs/45424792679)，其中 29 项已出现。本次多报的一项位于 `test/artemis-compat-compact-audio-restore-check.test.mjs:314`，断言观察到额外的 `census-key` 和 `pull`，待用相同 CI 条件复核。
-- 同一提交的 [Build wasm (Artemis compat)](https://github.com/fylcr/online_gal/actions/runs/45543375939) 在构建脚本的 `configure` 阶段退出 1。公开日志未打印配置错误详情。
+- Edge 158.0.4370.33 在线上独立浏览器配置中验证了空库、圆形添加按钮、键盘打开导入窗和 `crossOriginIsolated === true`。通过目录 input 导入临时合成 HTML 游戏，从游戏库启动并返回，随后右键取消删除、确认删除、刷新后检查空库。逐字节复核了临时目录中的源文件。真实 ONS 与 KiriKiri 游戏的验收见 7.2。
+- 同一提交的 Build packages 报告 portable suite 612 项中 580 通过、30 失败、2 跳过。按测试名对照此前主线，29 项已出现。额外一项在 `test/artemis-compat-compact-audio-restore-check.test.mjs:397` 观察到额外的 `census-key` 和 `pull`，待用相同 CI 条件复核。[本次运行](https://github.com/fylcr/online_gal/actions/runs/45543375775) · [主线基线](https://github.com/fylcr/online_gal/actions/runs/45424792679)
+- 同一提交的 Build wasm (Artemis compat) 在 `configure` 阶段退出 1，此前主线也在同一阶段失败。配置错误详情写入构建工作区的 `ports/artemis/compat-web/out/build.log`，公开运行只显示退出码。[本次运行](https://github.com/fylcr/online_gal/actions/runs/45543375939) · [此前运行](https://github.com/fylcr/online_gal/actions/runs/45111953742)
 
 ## 5. 设置
 
