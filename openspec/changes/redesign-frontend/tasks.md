@@ -29,11 +29,19 @@
 - [ ] 4.4 删除旧 `Library.svelte` 与其专用 CSS。验证：`game-library-ui` 功能对等清单逐项通过；构建通过。
 
 - [ ] 4.5 【前端】以 `getPlatform().library.list()` 替换 `MOCK_GAMES`，移除生产首页的占位数据引用。保留静态首屏外壳，实现真实列表和空状态。在右下角加入使用现有主题主色、支持键盘与触控的圆形「添加游戏」按钮。验证空库、已有游戏库、窄屏安全区、键盘打开导入入口，以及导航到游戏库外时按钮移除。
-- [ ] 4.6 【file-system】验证并补齐 `Platform.importDirectory`、`FileSystemDirectorySource`、`library.openSource` 和目录 input 回退。夹具含同名不同层文件与可识别的松散资源。校验完整相对路径、文件大小、指定范围字节、句柄挂载的按需读取、刷新后的恢复、只读源和本地覆层。目录 input 须按完整路径配对文件，避免后缀匹配。校验失权及重选可恢复同一记录 ID 和存档。
+- [x] 4.6 【file-system】验证并补齐 `Platform.importDirectory`、`FileSystemDirectorySource`、`library.openSource` 和目录 input 回退。夹具含同名不同层文件与可识别的松散资源。校验完整相对路径、文件大小、指定范围字节、句柄挂载的按需读取、刷新后的恢复、只读源和本地覆层。目录 input 须按完整路径配对文件，避免后缀匹配。校验失权及重选可恢复同一记录 ID 和存档。
 - [ ] 4.7 【前端，与 file-system 联调】从「添加游戏 → 本地文件夹」接入只读目录选择器及目录 input 回退。呈现识别结果、导入失败、重新授权与重选。成功后刷新库列表。让可启动条目经 `/play?id=` 打开既有会话。目标分支若只有播放页外壳，先补这一最小启动路径。
 - [ ] 4.8 【前端 + file-system】用隔离浏览器配置和合成目录验证选择、列表、进入播放、刷新后重开及失权恢复。单独验证目录 input 回退、取消或失败时保留记录、源文件字节未变、写入只在覆层。记录测试命令、浏览器版本和结果，并校验 `astro check` 与 `openspec validate redesign-frontend --strict`。真实游戏仍按 7.2 验收。
 
 - [ ] 4.9 【前端 + file-system】为每张真实游戏卡片加右键「从游戏库删除」，与详情共用显示游戏名及存档影响的确认流程，经 platform 按游戏 ID 删除。`file-system` 核对 core 删除同时清理该 ID 的存档槽和运行时写入的覆层文件。用两条各有存档槽和覆层文件的游戏记录验收关闭菜单、取消确认和确认删除。刷新后复查所选记录及两类存档已移除，验证另一条记录及其两类存档、两份原始本地文件夹的完整性。
+
+### 本地目录与删除的 core 验收
+
+运行 `npm run build:packages`，将 `LIBRARY_BROWSER_TOOLS` 指向安装了 `playwright` 和 `esbuild` 的目录，再运行 `node test/local-library-storage.e2e.mjs`。可通过 `CHROMIUM_PATH` 指定浏览器。`npm run check` 和 `openspec validate redesign-frontend --strict` 通过。
+
+Chromium 156.0.8078.4 在隔离配置中导入两份含松散 `00.txt` 的合成游戏。真实浏览器目录句柄在刷新后可重新打开。打开前没有读取 `config.txt` 的文件正文，第一次范围请求只切片 `[3, 10)`。测试通过浏览器句柄控制许可状态，确认打开只查询授权，点击恢复按钮才请求 `read` 权限。重新选择目录后保留记录 ID、存档槽和覆层，拒绝授权时保留原绑定。用真实目录 input 先传入 `sub/config.txt`，刷新后根层和嵌套的同名文件仍各自返回正确字节。
+
+按 ID 调用 `GameLibrary.remove()` 后刷新，所选记录、存档槽、覆层文件和目录 input 的导入副本均已清理。另一条目录记录及其存档槽、覆层内容仍可读取。逐个复核源文件字节与夹具一致。4.8 和 4.9 的界面场景由合并候选验证。
 
 ## 5. 设置
 
