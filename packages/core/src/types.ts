@@ -99,6 +99,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
 };
 
+/** Game IDs are single key components for imported files, save slots, and overlays. */
+export function assertGameId(id: string): void {
+  if (typeof id !== 'string' || !id || /[^a-z0-9_-]/i.test(id)) {
+    throw new Error(`invalid game ID: ${JSON.stringify(id)}`);
+  }
+}
+
 /** Creates a stable id without depending on `crypto.randomUUID` support. */
 export function createId(prefix = 'g'): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {

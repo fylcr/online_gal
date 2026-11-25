@@ -76,17 +76,21 @@ export class Database {
         }
       };
 
-      Promise.resolve(action(transaction)).then(
-        (value) => {
-          result = value;
-        },
-        (error) => {
-          if (!settled) {
-            settled = true;
-            reject(error);
-          }
-        },
-      );
+      const rejectAction = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        try {
+          transaction.abort();
+        } catch {
+          // IndexedDB may already have aborted the transaction.
+        }
+        reject(error);
+      };
+      try {
+        Promise.resolve(action(transaction)).then((value) => { result = value; }, rejectAction);
+      } catch (error) {
+        rejectAction(error);
+      }
     });
   }
 

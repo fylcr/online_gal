@@ -177,6 +177,13 @@ try {
     try { await platform.reselectDirectory(id, moved); } catch (error) { denied = error.code; }
     const afterDenied = await platform.library.get(id);
     const unchanged = await afterDenied.source.handle.isSameEntry(original);
+    const empty = await disk.getDirectoryHandle('empty-game', { create: true });
+    await empty.getDirectoryHandle('empty-sub', { create: true });
+    let emptyError;
+    try { await platform.reselectDirectory(id, empty); } catch (error) { emptyError = error.message; }
+    const afterEmpty = await platform.library.get(id);
+    const preservedAfterEmpty = await afterEmpty.source.handle.isSameEntry(original);
+    const slotAfterEmpty = (await platform.saves.get(id, 1))?.state;
     delete moved.queryPermission;
     const updated = await platform.reselectDirectory(id, moved);
     const reopened = await platform.library.openSource(updated);
@@ -185,6 +192,9 @@ try {
       unavailable,
       denied,
       unchanged,
+      emptyError,
+      preservedAfterEmpty,
+      slotAfterEmpty,
       id: updated.id,
       overlay: decode(await reopened.readFile('config.txt')),
       movedBytes: decode(await reopened.readFile('sub/config.txt')),
@@ -193,13 +203,14 @@ try {
   }, firstId);
   assert.deepEqual(reselect, {
     unavailable: 'directory-permission-required', denied: 'directory-permission-required',
-    unchanged: true, id: firstId,
+    unchanged: true, emptyError: 'the selected game folder is empty', preservedAfterEmpty: true,
+    slotAfterEmpty: { checkpoint: 'first-game' }, id: firstId,
     overlay: 'overlay first-game', movedBytes: 'moved folder bytes', slot: { checkpoint: 'first-game' },
   });
 
   await page.locator('input').setInputFiles(inputFolder);
-  const inputId = await page.evaluate(async () => {
-    const { Platform } = await import('/library.js');
+  const inputFixture = await page.evaluate(async () => {
+    const { IndexedDbStore, Platform } = await import('/library.js');
     const platform = new Platform({ dbName: 'directory-regression' });
     const list = [...document.querySelector('input').files];
     // Force the nested config to arrive first. An endsWith('config.txt') lookup would take it.
@@ -207,8 +218,16 @@ try {
     const { record } = await platform.importFileList(list);
     const importedAgain = await platform.importFileList(list);
     if (!importedAgain.replaced || importedAgain.record.id !== record.id) throw new Error('input re-import changed ID');
-    return record.id;
+    const collision = new File(['replacement'], 'config.txt');
+    Object.defineProperty(collision, 'webkitRelativePath', { value: 'picker-fixture/sub/../config.txt' });
+    let collisionError;
+    try { await platform.importFileList([...list, collision]); } catch (error) { collisionError = error.message; }
+    const store = new IndexedDbStore('files', 'directory-regression', 'fileIndex');
+    return { id: record.id, collisionError, keys: await store.list() };
   });
+  const inputId = inputFixture.id;
+  assert.equal(inputFixture.collisionError, 'conflicting imported file path: "config.txt"');
+  assert.deepEqual(inputFixture.keys, Object.keys(files).map((path) => `${inputId}/${path}`).sort());
   await page.reload();
   const input = await page.evaluate(async (id) => {
     const { Platform } = await import('/library.js');
@@ -264,7 +283,116 @@ try {
       'moved-game': { ...files, 'sub/config.txt': 'moved folder bytes' },
     },
   });
-  console.log(`Chromium ${browser.version()} passed directory restore, input fallback and per-game removal`);
+  const concurrent = await page.evaluate(async (texts) => {
+    const { IndexedDbStore, Platform } = await import('/library.js');
+    const dbName = 'concurrent-removal';
+    const importer = new Platform({ dbName });
+    const remover = new Platform({ dbName });
+    const store = new IndexedDbStore('files', dbName, 'fileIndex');
+    const encode = (text) => new TextEncoder().encode(text);
+    const picked = (text, path) => {
+      const file = new File([text], path.split('/').at(-1));
+      Object.defineProperty(file, 'webkitRelativePath', { value: `race-game/${path}` });
+      return file;
+    };
+    const inputs = Object.entries(texts).map(([path, text]) => picked(text, path));
+    const { record } = await importer.importFileList(inputs);
+    const { id } = record;
+    await importer.saves.fileStore(id).write('save.dat', encode('old save'));
+    await importer.saves.put({ gameId: id, slot: 1, createdAt: 0, caption: 'old slot', state: {}, playTimeMs: 0 });
+
+    const delayed = picked('delayed bytes', 'delayed.bin');
+    const started = Promise.withResolvers();
+    const release = Promise.withResolvers();
+    Object.defineProperty(delayed, 'arrayBuffer', { value: async () => {
+      started.resolve();
+      await release.promise;
+      return File.prototype.arrayBuffer.call(delayed);
+    } });
+    const importing = importer.importFileList([...inputs, delayed]);
+    await Promise.race([started.promise, importing]);
+    await remover.library.remove(id);
+    const keysAfterDelete = await store.list();
+    release.resolve();
+    const fresh = await importing;
+    const keysAfterImport = await store.list();
+    const originalSlots = await importer.saves.list(id);
+    const originalOverlay = await importer.saves.fileStore(id).list();
+
+    let removal;
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (value, key) {
+      const insert = put.call(this, value, key);
+      if (this.name === 'games' && key === fresh.record.id) removal = remover.library.remove(key);
+      return insert;
+    };
+    let replaced;
+    try {
+      replaced = await importer.importFileList(inputs);
+      await removal;
+    } finally {
+      IDBObjectStore.prototype.put = put;
+    }
+    return {
+      keysAfterDelete, keysAfterImport, originalSlots, originalOverlay,
+      freshId: fresh.record.id, freshRecord: !fresh.replaced && fresh.record.id !== id,
+      replaced: replaced.replaced && replaced.record.id === fresh.record.id,
+      removedDuringCommit: Boolean(removal),
+      remaining: await importer.library.list(),
+      remainingFiles: await store.list(),
+    };
+  }, files);
+  assert.deepEqual(concurrent, {
+    keysAfterDelete: [],
+    keysAfterImport: [...Object.keys(files), 'delayed.bin'].map((path) => `${concurrent.freshId}/${path}`).sort(),
+    originalSlots: [], originalOverlay: [], freshRecord: true, freshId: concurrent.freshId,
+    replaced: true, removedDuringCommit: true, remaining: [], remainingFiles: [],
+  });
+
+  const prefixes = await page.evaluate(async () => {
+    const { IndexedDbStore, Platform } = await import('/library.js');
+    const dbName = 'id-prefixes';
+    const platform = new Platform({ dbName });
+    const store = new IndexedDbStore('files', dbName, 'fileIndex');
+    const encode = (text) => new TextEncoder().encode(text);
+    const { record } = await platform.importFileList([new File(['example'], 'fixture.txt')]);
+    const save = (id) => ({ gameId: id, slot: 1, createdAt: 0, caption: id, state: {}, playTimeMs: 0 });
+    const [id, sibling] = ['game', 'game-other'];
+    for (const gameId of [id, sibling]) {
+      await platform.library.put({ ...record, id: gameId });
+      await platform.saves.put(save(gameId));
+      await platform.saves.fileStore(gameId).write('save.dat', encode(gameId));
+      await store.write(`${gameId}/fixture.txt`, encode(gameId));
+    }
+    const invalid = ['', 'saves:game', 'game\u0000slot', 'game/child', 'game\\child'];
+    const rejected = [];
+    for (const gameId of invalid) {
+      for (const action of [
+        () => platform.library.put({ ...record, id: gameId }),
+        () => platform.library.remove(gameId),
+        () => platform.saves.put(save(gameId)),
+        () => platform.saves.fileStore(gameId).write('save.dat', encode(gameId)),
+      ]) {
+        try { await action(); } catch (error) { rejected.push(error.message.startsWith('invalid game ID')); }
+      }
+    }
+    const intact = (await platform.saves.get(id, 1))?.caption === id &&
+      new TextDecoder().decode(await platform.saves.fileStore(id).read('save.dat')) === id;
+    await platform.library.remove(id);
+    return {
+      intact, rejected, removed: (await platform.library.get(id)) === null,
+      siblingRecord: (await platform.library.get(sibling))?.id,
+      siblingSlot: (await platform.saves.get(sibling, 1))?.caption,
+      siblingOverlay: await platform.saves.fileStore(sibling).list(),
+      siblingFiles: await store.list(id),
+    };
+  });
+  assert.deepEqual(prefixes, {
+    intact: true, rejected: Array(20).fill(true), removed: true,
+    siblingRecord: 'game-other', siblingSlot: 'game-other',
+    siblingOverlay: ['save.dat'], siblingFiles: ['game-other/fixture.txt'],
+  });
+  console.log(`Chromium ${browser.version()} passed directory restore, import collisions, and concurrent per-game removal`);
 } finally {
   await browser?.close();
   await new Promise((done) => server.close(done));

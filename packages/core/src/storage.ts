@@ -2,6 +2,7 @@ import { IndexedDbStore } from '@online-gal/vfs';
 import { Database, keyPrefixRange, request } from './db.js';
 import {
   DEFAULT_SETTINGS,
+  assertGameId,
   type AppSettings,
   type SaveSlotRecord,
 } from './types.js';
@@ -12,10 +13,12 @@ const STORE_SETTINGS = 'settings';
 const STORE_SAVES = 'saves';
 
 export function saveSlotPrefix(gameId: string): string {
+  assertGameId(gameId);
   return `${gameId}\u0000`;
 }
 
 export function saveOverlayNamespace(gameId: string): string {
+  assertGameId(gameId);
   return `saves:${gameId}`;
 }
 

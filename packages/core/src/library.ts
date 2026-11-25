@@ -11,6 +11,8 @@ import {
   FileListSource,
   FileSystemDirectorySource,
   IndexedDbStore,
+  joinPath,
+  normaliseImportedFiles,
   type FileSystemHandlePermission,
   type ImportedFile,
 } from '@online-gal/vfs';
@@ -23,6 +25,7 @@ import {
 import { Database, keyPrefixRange, request } from './db.js';
 import { saveOverlayNamespace, saveSlotPrefix } from './storage.js';
 import {
+  assertGameId,
   createId,
   type DetectionRecord,
   type GameRecord,
@@ -113,21 +116,27 @@ export class GameLibrary {
   }
 
   async put(record: GameRecord): Promise<void> {
+    assertGameId(record.id);
     await this.db.transaction([STORE_GAMES], 'readwrite', (transaction) =>
       request(transaction.objectStore(STORE_GAMES).put(record, record.id)),
     );
   }
 
   async patch(id: string, patch: Partial<GameRecord>): Promise<GameRecord | null> {
-    const existing = await this.get(id);
-    if (!existing) return null;
-    const updated: GameRecord = { ...existing, ...patch, id: existing.id };
-    await this.put(updated);
-    return updated;
+    assertGameId(id);
+    return this.db.transaction([STORE_GAMES], 'readwrite', async (transaction) => {
+      const games = transaction.objectStore(STORE_GAMES);
+      const existing = await request<GameRecord | undefined>(games.get(id));
+      if (!existing) return null;
+      const updated: GameRecord = { ...existing, ...patch, id };
+      await request(games.put(updated, id));
+      return updated;
+    });
   }
 
   /** Removes a game and its application-owned files and saves in one transaction. */
   async remove(id: string): Promise<void> {
+    assertGameId(id);
     await this.db.transaction([STORE_GAMES, 'saves', STORE_FILE_INDEX], 'readwrite', async (transaction) => {
       const saves = transaction.objectStore('saves');
       const files = transaction.objectStore(STORE_FILE_INDEX);
@@ -135,7 +144,7 @@ export class GameLibrary {
         request(transaction.objectStore(STORE_GAMES).delete(id)),
         request(saves.delete(keyPrefixRange(saveSlotPrefix(id)))),
         request(saves.delete(keyPrefixRange(`${saveOverlayNamespace(id)}\u0000`))),
-        request(files.delete(keyPrefixRange(`${IMPORTED_FILES_NAMESPACE}\u0000${id}/`))),
+        request(files.delete(keyPrefixRange(importedFilePrefix(id)))),
       ]);
     });
   }
@@ -147,56 +156,54 @@ export class GameLibrary {
   /** Imports a game, stores its files, and detects the engine. */
   async import(request_: ImportRequest): Promise<ImportResult> {
     const id = createId();
-    const { source, descriptor } = await this.materialise(id, request_);
-
+    const { source, descriptor, files = [] } = await this.materialise(request_);
     const detection = await this.detect(source);
+    // Finish reading the selected files before opening the IndexedDB transaction.
+    const contents = await Promise.all(files.map(async ({ path, file }) => ({
+      path,
+      bytes: await blobToBytes(file),
+    })));
+    const name = request_.name.toLowerCase();
 
-    // De-duplicate against an existing entry with the same engine and name so
-    // re-importing a folder updates rather than duplicates.
-    const existing = (await this.list()).find(
-      (record) =>
-        record.name.toLowerCase() === request_.name.toLowerCase() &&
-        record.detection.runtimeId === detection.runtimeId,
-    );
-
-    const record: GameRecord = {
-      id: existing?.id ?? id,
-      name: request_.name,
-      ...(request_.title ? { title: request_.title } : {}),
-      source: descriptor,
-      detection,
-      config: existing?.config ?? {},
-      ...(existing?.cover ? { cover: existing.cover } : {}),
-      addedAt: existing?.addedAt ?? Date.now(),
-      lastPlayedAt: existing?.lastPlayedAt ?? null,
-      playTimeMs: existing?.playTimeMs ?? 0,
-      favorite: existing?.favorite ?? false,
-      tags: existing?.tags ?? [],
-    };
-
-    if (existing && existing.id !== id) {
-      // The new files were written under the fresh id; move them across.
-      await this.moveStoredFiles(id, existing.id);
-      await this.patch(existing.id, { source: descriptor, detection });
-      return { record: (await this.get(existing.id))!, replaced: true };
-    }
-
-    await this.put(record);
-    return { record, replaced: false };
+    // The lookup and file replacement share a transaction with the record. A
+    // concurrent delete either removes the completed import or runs before it,
+    // in which case the import receives a fresh ID.
+    return this.db.transaction([STORE_GAMES, STORE_FILE_INDEX], 'readwrite', async (transaction) => {
+      const games = transaction.objectStore(STORE_GAMES);
+      const storedFiles = transaction.objectStore(STORE_FILE_INDEX);
+      const records = await request<GameRecord[]>(games.getAll());
+      const existing = records.find((record) =>
+        record.name.toLowerCase() === name && record.detection.runtimeId === detection.runtimeId,
+      );
+      const record: GameRecord = existing
+        ? { ...existing, source: descriptor, detection }
+        : {
+          id,
+          name: request_.name,
+          ...(request_.title ? { title: request_.title } : {}),
+          source: descriptor,
+          detection,
+          config: {},
+          addedAt: Date.now(),
+          lastPlayedAt: null,
+          playTimeMs: 0,
+          favorite: false,
+          tags: [],
+        };
+      const prefix = importedFilePrefix(record.id);
+      await request(storedFiles.delete(keyPrefixRange(prefix)));
+      await Promise.all(contents.map(async ({ path, bytes }) =>
+        request(storedFiles.put(bytes, prefix + path)),
+      ));
+      await request(games.put(record, record.id));
+      return { record, replaced: existing !== undefined };
+    });
   }
 
-  /**
-   * Builds the `GameSource` for an import and persists any file content.
-   *
-   * Directory handles are stored by reference, so a game with tens of
-   * thousands of files imports instantly and reads on demand. Picked and
-   * dropped files are copied into IndexedDB because the `File` objects cannot
-   * be reopened after a reload.
-   */
+  /** Builds a source for detection before persisting the import. */
   private async materialise(
-    id: string,
     request_: ImportRequest,
-  ): Promise<{ source: GameSource; descriptor: GameSourceDescriptor }> {
+  ): Promise<{ source: GameSource; descriptor: GameSourceDescriptor; files?: readonly ImportedFile[] }> {
     switch (request_.source.kind) {
       case 'directory': {
         const handle = request_.source.handle;
@@ -206,13 +213,14 @@ export class GameLibrary {
         return { source, descriptor: { kind: 'directory', handle } };
       }
       case 'files': {
-        const files = request_.files ?? [];
+        const files = normaliseImportedFiles(request_.files ?? []);
         if (files.length === 0) throw new Error('a file import needs at least one file');
-        await this.storeFiles(id, files);
-        const store = this.fileStore();
-        const source = await this.openStoredSource(id, store, request_.name);
+        const loose = new FileListSource(request_.name, files.filter(({ path }) => !isArchivePath(path)));
+        const archives = new Map(files.filter(({ path }) => isArchivePath(path)).map(({ path, file }) => [path, file]));
+        const source = await this.combine(loose, request_.name, [...archives.keys()].sort(), async (path) => archives.get(path) ?? null);
         return {
           source,
+          files,
           descriptor: { kind: 'files', fileCount: files.length },
         };
       }
@@ -256,28 +264,6 @@ export class GameLibrary {
 
   private fileStore(): IndexedDbStore {
     return new IndexedDbStore(IMPORTED_FILES_NAMESPACE, this.options.dbName ?? DB_NAME, STORE_FILE_INDEX);
-  }
-
-  private async storeFiles(id: string, files: readonly ImportedFile[]): Promise<void> {
-    const store = this.fileStore();
-    await Promise.all(
-      files.map(async (entry) => {
-        const bytes = await blobToBytes(entry.file);
-        await store.write(`${id}/${entry.path}`, bytes);
-      }),
-    );
-  }
-
-  private async moveStoredFiles(fromId: string, toId: string): Promise<void> {
-    const store = this.fileStore();
-    const prefix = `${fromId}/`;
-    for (const path of await store.list(prefix)) {
-      if (!path.startsWith(prefix)) continue;
-      const data = await store.read(path);
-      if (!data) continue;
-      await store.write(`${toId}/${path.slice(prefix.length)}`, data);
-      await store.remove(path);
-    }
   }
 
   /**
@@ -386,9 +372,10 @@ export class GameLibrary {
 
   /** Updates an existing directory binding only after the selected folder can be read. */
   async reselectDirectory(id: string, handle: FileSystemDirectoryHandle): Promise<GameRecord> {
+    assertGameId(id);
     if (!(await hasDirectoryPermission(handle))) throw new DirectoryPermissionError(id);
     const directory = new FileSystemDirectorySource(handle.name, handle);
-    await directory.list('');
+    if (!(await hasFiles(directory))) throw new Error('the selected game folder is empty');
     const detection = await this.detect(directory);
 
     return this.db.transaction([STORE_GAMES], 'readwrite', async (transaction) => {
@@ -478,6 +465,23 @@ export class GameLibrary {
   async probeWith(runtimeId: string, source: GameSource) {
     return this.options.registry.probeRuntime(runtimeId, source);
   }
+}
+
+function importedFilePrefix(id: string): string {
+  assertGameId(id);
+  return `${IMPORTED_FILES_NAMESPACE}\u0000${id}/`;
+}
+
+async function hasFiles(directory: FileSystemDirectorySource): Promise<boolean> {
+  const pending = [''];
+  while (pending.length > 0) {
+    const path = pending.pop()!;
+    for (const entry of await directory.list(path)) {
+      if (!entry.endsWith('/')) return true;
+      pending.push(joinPath(path, entry));
+    }
+  }
+  return false;
 }
 
 async function blobToBytes(blob: Blob): Promise<Uint8Array> {

@@ -1,5 +1,5 @@
 import type { GameSource, WritableStore } from '@online-gal/engine-api';
-import { dirname, joinPath, normaliseDir, normalisePath } from './path.js';
+import { ancestorsOf, dirname, joinPath, normaliseDir, normalisePath } from './path.js';
 
 /**
  * Extensions the DOM typings do not yet cover.
@@ -184,16 +184,30 @@ export interface ImportedFile {
   readonly file: Blob;
 }
 
+/** Canonicalises imported paths and rejects ambiguous file and directory names. */
+export function normaliseImportedFiles(files: readonly ImportedFile[]): readonly ImportedFile[] {
+  const paths = new Set<string>();
+  const entries = files.map(({ path, file }) => {
+    const key = normalisePath(path);
+    if (!key) throw new Error(`invalid imported file path: ${JSON.stringify(path)}`);
+    if (paths.has(key)) throw new Error(`conflicting imported file path: ${JSON.stringify(key)}`);
+    paths.add(key);
+    return { path: key, file };
+  });
+  for (const { path } of entries) {
+    const conflict = ancestorsOf(path).find((parent) => paths.has(parent));
+    if (conflict) throw new Error(`imported path is both a file and a directory: ${JSON.stringify(conflict)}`);
+  }
+  return entries;
+}
+
 /** Pairs each selected file with its full path relative to the selected folder. */
 export function fromFileList(files: FileList | readonly File[]): readonly ImportedFile[] {
-  const entries = new Map<string, ImportedFile>();
-  for (const file of Array.from(files)) {
+  return normaliseImportedFiles(Array.from(files, (file) => {
     const relative = file.webkitRelativePath;
     const parts = relative ? normalisePath(relative).split('/') : [];
-    const path = parts.length > 1 ? parts.slice(1).join('/') : normalisePath(file.name);
-    if (path) entries.set(path, { path, file });
-  }
-  return [...entries.values()];
+    return { path: parts.length > 1 ? parts.slice(1).join('/') : file.name, file };
+  }));
 }
 
 export class FileListSource implements GameSource {
