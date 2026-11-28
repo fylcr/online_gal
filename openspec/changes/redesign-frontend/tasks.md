@@ -114,6 +114,39 @@ dock 左缘改为 `left: var(--logo-left)`，与导航栏 logo 的左缘取同�
 
 **实测（Chromium 156，无设备仿真，视口 1693×869）：** `html`/`body`/`body > div` 三者均为 `1693.33 × 869.33`，即完全等于视口；`min-height` 解析为 `869.333px`；`scrollWidth - clientWidth` 与 `scrollHeight - clientHeight` 均为 **0**；`<html>`/`<body>`/`body > div` 三者均无 `style` 内联属性；`getComputedStyle(html).zoom` 与 `visualViewport.scale` 均为 `1`。
 
+### 当前元素布局安排（最终状态，除 dock 与 navbar 外页面内无按钮）
+
+**记号：** W = 视口宽，F = W/12（页脚文字距两侧边缘的距离），w = logo 宽（W<640px 为 2.5rem，否则 3rem）。横屏 = 宽 > 高（桌面），竖屏 = 高 ≥ 宽（手机）。外壳变量定义在 `html.site-shell`（`apps/app/src/styles/global.css`）。
+
+**层级（自上而下）：** `html.site-shell` > `body.min-h-dvh` > `div.flex.min-h-dvh.w-full.flex-col`，其下依次为：
+
+1. `header[data-site-header]`：`fixed inset-x-0 top-0 z-30`，下边 1px 细线，上内边距 `--site-safe-top`。内层 `.site-inline`（`flex`，行高 `--site-header-row`：W<640 为 4.5rem，否则 5rem，无水平 padding）从左到右为：`.site-logo`（`margin-left: --logo-left`）、`h1.site-title`（`margin-left: --title-gap`）、`.site-actions`（`margin-left:auto`，`margin-right: --logo-left`），后者含搜索按钮和汉堡按钮（daisyUI `btn-ghost btn-circle`，40×40，搜索打开占位 `dialog#site-search`，汉堡为 `dropdown-end` 占位菜单）。
+2. `div#breadcrumbs.site-content`：swup 容器，`padding-top: --site-header-height`，无面包屑时为空。
+3. `Dock`：`fixed z-20`，在 `#swup` 之外，跨页保持挂载。
+4. `main#swup.site-content`：`flex-1 w-full`，`pt-6`，`pb: --site-content-end`。
+5. `footer[data-site-footer]`：`fixed inset-x-0 bottom-0 z-10`，内层 `.site-footer-text` 高 `--site-footer-row`（3rem），上边 1px 细线，`padding-inline: W/12`，文字 `GPL-3.0-or-later`。
+6. `dialog#site-search`：daisyUI modal 占位。
+
+**水平对齐规则（`--logo-left` / `--title-gap`）：**
+
+| 视口宽 W | logo 左缘 | 标题与 logo 间距 | 标题/内容左缘 |
+|---|---|---|---|
+| ≤480px | F（logo 左缘贴 F） | 2.5rem×2/3≈26.67px | F+66.67px |
+| 481–639px | F−w/2（logo 中心在 F） | ≈26.67px | F+46.67px |
+| 640–1152px | F−w/2 | 32px | F+56px |
+| 1153–1344px | F−w（logo 右缘贴 F） | 32px | F+32px |
+| ≥1345px | (F−w)/2 | (F−w)/2 | F（与页脚文字左缘对齐） |
+
+以上均再加 `--site-safe-left`。`.site-content` 的 `padding-left = logo-left + w + title-gap`，所以标题、面包屑、主内容共用同一条左边线；右内边距为 `max(1.5rem, --site-safe-right)`。汉堡按钮右外边距等于 `--logo-left`，即右侧按钮到右缘的距离等于 logo 到左缘的距离。
+
+**竖直安排：** 页头高 `--site-header-height = 行高 + safe-top + 1px`；页脚高 `--site-footer-height = 3rem + safe-bottom`；`--site-content-end`：横屏为页脚高 + 1rem，竖屏为页脚高 + `--site-dock-gap`(0.5rem) + `--site-dock-size`(3rem) + 0.75rem。
+
+**dock：** 图标 `size-10`、容器 `p-1`，名称用 daisyUI `tooltip`（横屏 `tooltip-right`，竖屏 `tooltip-top`）。横屏为竖排，`top:50%` 垂直居中，`left: --logo-left`（与 logo 左缘重合）；竖屏为横排，贴底并浮在页脚上方（`bottom: 页脚高 + 0.5rem`），水平居中。
+
+**空库提示：** `[data-empty-library]` 为 `fixed inset-0 grid place-items-center`，居中文字，无边框、无按钮。
+
+**实测（Chromium 156，W=1679、H=775，横屏，F=139.92px）：** `--logo-left = (F−3rem)/2`，logo 左缘 45.97px；标题左缘 139.94px（与 F 差 0.02px）；logo 与标题间距 45.97px；汉堡按钮右缘距页面右缘 45.64px（与 logo 左距的 0.33px 差来自 1679.33px 的小数视口宽）；dock 左缘 45.97px，与 logo 左缘差 0；dock 48×92px；`#swup` 左内边距 139.938px、右 24px、上 24px、下 64px；页头高 80.67px，页脚高 48px；`docH = clientH = 775`，横向溢出 0。
+
 ## 4. 游戏库
 
 - [ ] 4.1 拆分 `Library.svelte` 为 `src/components/library/` 下的小组件（导入区、工具栏、卡片、详情、提示）。验证：单文件约 300 行以内；`astro check` 0 error。
