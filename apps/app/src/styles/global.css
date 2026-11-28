@@ -106,10 +106,11 @@
 /*
  * The action group is `display: contents`, so the two buttons are direct flex items of
  * `.site-inline` and the percentage inside `--logo-left` resolves against the viewport-wide
- * header, the same base as the logo. Both buttons are positioned by their ICON, not the 40px
- * button box: the 20px icon sits in 0.625rem of empty button on each side (--btn-pad).
- *   hamburger icon right edge -> page right edge          = --logo-left
- *   search icon right edge    -> hamburger icon left edge = --logo-left
+ * header, the same base as the logo. Only the hamburger is positioned by its ICON (the 20px
+ * icon sits in 0.625rem of empty button on each side, --btn-pad); the two buttons stay
+ * adjacent, so the icon-to-icon gap is the two insets = 1.25rem, as before.
+ *   hamburger icon right edge -> page right edge = --logo-left
+ *   search icon -> hamburger icon            = 2 * --btn-pad
  */
 .site-actions {
   --btn-pad: 0.625rem; /* (btn-circle 2.5rem - size-5 1.25rem) / 2 */
@@ -122,9 +123,6 @@
 
 .site-actions > :first-child {
   margin-left: auto;
-  /* Icon gap = this margin + the two 0.625rem icon insets, so it lands on --logo-left.
-     Floored at 0 so a very narrow viewport cannot overlap the two buttons. */
-  margin-right: max(0px, calc(var(--logo-left) - 2 * var(--btn-pad)));
 }
 
 .site-actions > :last-child {

@@ -137,7 +137,7 @@ dock 左缘改为 `left: var(--logo-left)`，与导航栏 logo 的左缘取同�
 | 1153–1344px | F−w（logo 右缘贴 F） | 32px | F+32px |
 | ≥1345px | (F−w)/2 | (F−w)/2 | F（与页脚文字左缘对齐） |
 
-以上均再加 `--site-safe-left`。`.site-content` 的 `padding-left = logo-left + w + title-gap`，所以标题、面包屑、主内容共用同一条左边线；右内边距为 `max(1.5rem, --site-safe-right)`。汉堡**图标**右缘到页面右缘等于 `--logo-left`，搜索**图标**右缘到汉堡图标左缘也等于 `--logo-left`，即右侧两个图标的间距与 logo 到左缘的距离一致（见下文「导航栏右侧图标定位」）。
+以上均再加 `--site-safe-left`。`.site-content` 的 `padding-left = logo-left + w + title-gap`，所以标题、面包屑、主内容共用同一条左边线；右内边距为 `max(1.5rem, --site-safe-right)`。汉堡**图标**右缘到页面右缘等于 `--logo-left`，搜索图标与汉堡图标保持按钮紧邻，图标间距为 1.25rem（2 × `--btn-pad`），不随 `--logo-left` 变化（见下文「导航栏右侧图标定位」与「搜索图标间距回退」）。
 
 **竖直安排：** 页头高 `--site-header-height = 行高 + safe-top + 1px`；页脚高 `--site-footer-height = 3rem + safe-bottom`；`--site-content-end`：横屏为页脚高 + 1rem，竖屏为页脚高 + `--site-dock-gap`(0.5rem) + `--site-dock-size`(3rem) + 0.75rem。
 
@@ -151,9 +151,15 @@ dock 左缘改为 `left: var(--logo-left)`，与导航栏 logo 的左缘取同�
 
 **变更前：** `.site-actions` 是 `flex` 容器，`margin-right: var(--logo-left)`，搜索与汉堡是两个相邻的 40×40 `btn-circle`，按钮之间没有间距。量到的是按钮盒子：汉堡按钮右缘到页面右缘 = `--logo-left`；而 20px 的图标在按钮内左右各留 0.625rem 空白，所以图标实际距右缘 = `--logo-left` + 0.625rem，搜索图标右缘到汉堡图标左缘只有 1.25rem。
 
-**变更后：** 定位点改为 svg 图标边缘。`.site-actions` 改为 `display: contents`，两个按钮直接成为 `.site-inline` 的 flex 子项，`--logo-left` 里的百分比因此与 logo 一样按整幅视口宽的页头解析。`--btn-pad: 0.625rem`（btn-circle 2.5rem 减 size-5 1.25rem 再除以 2）。规则：第一个按钮 `margin-left: auto; margin-right: max(0px, var(--logo-left) - 2 * var(--btn-pad))`，最后一个按钮 `margin-right: max(0px, var(--logo-left) - var(--btn-pad))`，两个按钮 `flex: none` 保持 40px 点击区域，不会被压缩。`max(0px, …)` 是为极窄视口兜底，避免两个按钮重叠。下拉菜单仍是 `dropdown-end`，另加 `margin-inline-end: var(--btn-pad)`，让菜单右缘对齐汉堡**图标**右缘而不是按钮右缘。
+**变更后：** 定位点改为 svg 图标边缘。`.site-actions` 改为 `display: contents`，两个按钮直接成为 `.site-inline` 的 flex 子项，`--logo-left` 里的百分比因此与 logo 一样按整幅视口宽的页头解析。`--btn-pad: 0.625rem`（btn-circle 2.5rem 减 size-5 1.25rem 再除以 2）。规则：第一个按钮只有 `margin-left: auto`（两个按钮紧邻，图标间距为 2 × `--btn-pad` = 1.25rem；曾设为「搜索图标到汉堡图标等于 `--logo-left`」，已按用户要求撤回），最后一个按钮 `margin-right: max(0px, var(--logo-left) - var(--btn-pad))`，两个按钮 `flex: none` 保持 40px 点击区域，不会被压缩。`max(0px, …)` 为极窄视口兜底，避免右外边距变成负值。下拉菜单仍是 `dropdown-end`，另加 `margin-inline-end: var(--btn-pad)`，让菜单右缘对齐汉堡**图标**右缘而不是按钮右缘。
 
-**实测（Chromium 156，视口 1679.33×775，横屏）：** `--logo-left` = 45.97px。汉堡图标 1613.36–1633.36px，右缘距页面右缘 45.97px（`innerWidth` 取整成 1679 时读数为 45.64px，差的 0.33px 来自取整）。搜索图标 1547.4–1567.4px，右缘到汉堡图标左缘 45.97px，与 logo 左缘一致。两个按钮仍为 40×40，标题宽 72px，横向溢出 0。聚焦汉堡后下拉菜单宽 208px，右缘 1633.36px，与图标右缘差 0。`astro check` 0 错误、0 警告、0 提示。后台标签页下过渡不推进，菜单 `opacity` 会读到起始值 0，但不影响几何位置。
+**实测（Chromium 156，视口 1679.33×775，横屏）：** `--logo-left` = 45.97px。汉堡图标 1613.36–1633.36px，右缘距页面右缘 45.97px（`innerWidth` 取整成 1679 时读数为 45.64px，差的 0.33px 来自取整）。搜索图标 1547.4–1567.4px，右缘到汉堡图标左缘 45.97px（该读数对应已撤回的做法，最终读数见「搜索图标间距回退」）。两个按钮仍为 40×40，标题宽 72px，横向溢出 0。聚焦汉堡后下拉菜单宽 208px，右缘 1633.36px，与图标右缘差 0。`astro check` 0 错误、0 警告、0 提示。后台标签页下过渡不推进，菜单 `opacity` 会读到起始值 0，但不影响几何位置。
+
+### 搜索图标间距回退（最终状态）
+
+用户随后要求搜索图标与汉堡图标之间的距离保持原样，不再等于 `--logo-left`。`.site-actions > :first-child` 只保留 `margin-left: auto`，两个按钮重新紧邻，图标间距回到两侧内边距之和 2 × `--btn-pad` = 1.25rem；汉堡图标右缘到页面右缘仍等于 `--logo-left`，下拉菜单仍对齐汉堡图标右缘。
+
+**实测（Chromium 156，视口 1677×718，横屏）：** `--logo-left` = 45.86px；汉堡图标 1611.14–1631.14px，右缘距页面右缘 45.86px，与 logo 左缘一致；搜索图标 1571.14–1591.14px，右缘到汉堡图标左缘 20px（1.25rem）；两个按钮间隙 0，均为 40×40，横向溢出 0。
 
 ### Edge 复现「页面缩成一团」的结论
 
