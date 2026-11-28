@@ -40,12 +40,12 @@ const heading = Astro.props.heading ?? title;
     <link rel="icon" type="image/webp" href="/logo.webp" />
     <title>{title} · online_gal</title>
   </head>
-  <body class="min-h-screen bg-base-100 font-sans text-base-content antialiased">
+  <body class="min-h-dvh bg-base-100 font-sans text-base-content antialiased">
     {
       bare ? (
         <slot />
       ) : (
-        <div class="flex min-h-screen flex-col">
+        <div class="flex min-h-dvh w-full flex-col">
           {/*
             Desktop vs mobile is decided by aspect ratio, not width: `landscape:` (width > height)
             is desktop, `portrait:` (height ≥ width) is mobile.

@@ -79,11 +79,13 @@
 - `/`、`/settings/audio/` 与 320px 竖屏下均无横向溢出。空库「暂无游戏」在每个测试宽度下都精确居中于视口（`vw/2`）。
 - 键盘 Tab 顺序为 logo → 搜索 → 汉堡 → dock（游戏库），焦点元素全部可见且不被遮挡。搜索按钮触发 `dialog.showModal()`，汉堡聚焦后下拉展开（`visibility: visible`，宽 208px）。`/play?id=nope` 保持 bare 外壳：无页脚、无 `#swup`、无 navbar logo，显示「游戏不存在」。
 - `pnpm --filter @online-gal/app check`（19 个文件，0 错误、0 警告、0 提示）、`pnpm --filter @online-gal/app build`（14 页）与 `openspec validate redesign-frontend --strict` 均通过。
-### dock 标签、dock 左缘与汉堡按钮边距
+### dock 提示、dock 左缘与汉堡按钮边距
 
 **变更前：** dock 每项只有一个 `size-10` 图标按钮，名称靠 daisyUI `tooltip` 在悬停/聚焦时浮出（`landscape:tooltip-right portrait:tooltip-top`），`data-tip` 存 `SectionNav` 的 `label`。dock 左缘为 `calc(1.5rem + var(--site-safe-left))`，与导航栏 logo 无关，因此在宽屏下 dock 明显偏左于 logo。导航栏按钮组右外边距为 `max(1rem, var(--site-safe-right))`，与 logo 的左外边距不是同一个值。
 
-**变更后：** dock 的 tooltip 换成常驻标签，放在各自按钮正下方（`flex flex-col items-center`，图标 `size-10` 上、标签 `h-4 text-[10px] leading-4` 下），不再有悬停浮层。因为标签占了一行，横屏 dock 的项间距从 `2.75rem` 变成 `3.75rem`（图标 2.5rem + 标签 1rem + `gap-1`），竖屏仍为 `2.75rem`（项宽仍是图标宽，`游戏库`/`设置` 在 10px 下窄于 2.5rem）；滑块高亮仍为 `size-10`，贴在图标上。
+**变更后（最终状态）：** dock 保持图标 + daisyUI 悬停提示（`landscape:tooltip-right portrait:tooltip-top`，`data-tip` 取 `SectionNav` 的 `label`），项高仍为 `size-10`，滑块步长两个方向都是 `2.75rem`，`--site-dock-size` 维持 `3rem`。
+
+> 中途曾一度把提示改成常驻标签（图标上、文字下），项间距随之变成横屏 `3.75rem`、`--site-dock-size` 改为 `4rem`；按用户后续要求已完全回退。`[SUPERSEDED by tooltip revert]`
 
 dock 左缘改为 `left: var(--logo-left)`，与导航栏 logo 的左缘取同一个值，因此横屏下 dock 容器左边与 logo 左边完全重合。竖屏 dock 仍按设计在底部居中（`left: calc((100% + safe-left - safe-right) / 2)`），不参与左对齐。
 
@@ -103,6 +105,14 @@ dock 左缘改为 `left: var(--logo-left)`，与导航栏 logo 的左缘取同�
 - `pnpm --filter @online-gal/app check`（19 个文件，0 错误、0 警告、0 提示）、`pnpm --filter @online-gal/app build`（14 页）均通过。
 
 **验收时的一个测量陷阱：** bsk 的 Agent Window 标签页处于后台（`document.hidden` 为 true），合成器不推进过渡，读取 `translate` 会拿到停在 `currentTime: 0` 的过渡起始值，造成「滑块不动」的误判。脚本内先 `await new Promise(r => setTimeout(r, 450))` 再读取即可拿到终值。同理，`emulate` 切换设备后立刻截图可能拿到未绘制的空帧，logo 会整块发白；延时重拍即正常。
+
+### 外壳沾满视口（`100vh` → 动态视口）
+
+**变更前：** 最外层两级（`<body>` 与 `body > div`）都用 Tailwind `min-h-screen`，即 `min-height: 100vh`。桌面浏览器上 `100vh` 总是等于窗口高度，但在移动端/桌面端 URL 栏伸缩或 Windows 缩放时，`100vh` 取的是「大视口」，与当前可见高度不一致，表现为页面不沾满或底部被浏览器 UI 遮住。且播放页已用 `h-dvh`，外壳与它不一致。
+
+**变更后：** 两处改为 `min-h-dvh`（`100dvh`，跟随动态视口），并给 `body > div` 补上 `w-full`，让它不依赖父元素块级默认宽度就能沾满横向。桌面下 `dvh` 与 `vh` 等价，布局像素不变。
+
+**实测（Chromium 156，无设备仿真，视口 1693×869）：** `html`/`body`/`body > div` 三者均为 `1693.33 × 869.33`，即完全等于视口；`min-height` 解析为 `869.333px`；`scrollWidth - clientWidth` 与 `scrollHeight - clientHeight` 均为 **0**；`<html>`/`<body>`/`body > div` 三者均无 `style` 内联属性；`getComputedStyle(html).zoom` 与 `visualViewport.scale` 均为 `1`。
 
 ## 4. 游戏库
 
