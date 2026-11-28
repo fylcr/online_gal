@@ -5,8 +5,6 @@
  * `src/lib/swup.ts`), so leaving or entering it is always a full page load.
  */
 import '../styles/global.css';
-import { Image } from 'astro:assets';
-import logo from '../assets/logo.webp';
 import Dock from '../components/Dock.astro';
 
 interface Crumb {
@@ -60,7 +58,8 @@ const heading = Astro.props.heading ?? title;
             <div class="site-inline flex h-[var(--site-header-row)] items-center justify-between gap-2">
               <div class="flex min-w-0 items-center">
                 <a href="/" class="flex shrink-0 items-center" aria-label="online_gal 首页">
-                  <Image src={logo} alt="" width={48} height={48} densities={[1, 2]} class="size-10 sm:size-12" loading="eager" />
+                  {/* Original 1254×1254 file from public/, served as-is: astro:assets resizing to 48/96px re-encoded it and blurred it. */}
+                  <img src="/logo.webp" alt="" width="48" height="48" class="size-10 sm:size-12" loading="eager" decoding="async" />
                 </a>
                 <h1 id="page-title" class="transition-fade site-title min-w-0 wrap-anywhere text-lg leading-tight font-bold sm:text-2xl">
                   {heading}
