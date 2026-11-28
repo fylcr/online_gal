@@ -79,6 +79,30 @@
 - `/`、`/settings/audio/` 与 320px 竖屏下均无横向溢出。空库「暂无游戏」在每个测试宽度下都精确居中于视口（`vw/2`）。
 - 键盘 Tab 顺序为 logo → 搜索 → 汉堡 → dock（游戏库），焦点元素全部可见且不被遮挡。搜索按钮触发 `dialog.showModal()`，汉堡聚焦后下拉展开（`visibility: visible`，宽 208px）。`/play?id=nope` 保持 bare 外壳：无页脚、无 `#swup`、无 navbar logo，显示「游戏不存在」。
 - `pnpm --filter @online-gal/app check`（19 个文件，0 错误、0 警告、0 提示）、`pnpm --filter @online-gal/app build`（14 页）与 `openspec validate redesign-frontend --strict` 均通过。
+### dock 标签、dock 左缘与汉堡按钮边距
+
+**变更前：** dock 每项只有一个 `size-10` 图标按钮，名称靠 daisyUI `tooltip` 在悬停/聚焦时浮出（`landscape:tooltip-right portrait:tooltip-top`），`data-tip` 存 `SectionNav` 的 `label`。dock 左缘为 `calc(1.5rem + var(--site-safe-left))`，与导航栏 logo 无关，因此在宽屏下 dock 明显偏左于 logo。导航栏按钮组右外边距为 `max(1rem, var(--site-safe-right))`，与 logo 的左外边距不是同一个值。
+
+**变更后：** dock 的 tooltip 换成常驻标签，放在各自按钮正下方（`flex flex-col items-center`，图标 `size-10` 上、标签 `h-4 text-[10px] leading-4` 下），不再有悬停浮层。因为标签占了一行，横屏 dock 的项间距从 `2.75rem` 变成 `3.75rem`（图标 2.5rem + 标签 1rem + `gap-1`），竖屏仍为 `2.75rem`（项宽仍是图标宽，`游戏库`/`设置` 在 10px 下窄于 2.5rem）；滑块高亮仍为 `size-10`，贴在图标上。
+
+dock 左缘改为 `left: var(--logo-left)`，与导航栏 logo 的左缘取同一个值，因此横屏下 dock 容器左边与 logo 左边完全重合。竖屏 dock 仍按设计在底部居中（`left: calc((100% + safe-left - safe-right) / 2)`），不参与左对齐。
+
+导航栏按钮组的右外边距改为 `var(--logo-left)`，即汉堡按钮到页面右缘的距离等于 logo 到页面左缘的距离。
+
+标签使竖屏 dock 从 3rem 高变成 4rem，`--site-dock-size` 随之由 3rem 改为 4rem（`p-1` 0.5rem + 图标 2.5rem + 标签 1rem），竖屏内容底边距变量 `--site-content-end` 自动跟着变大。
+
+**bsk 浏览器验收（Chromium 156，`emulate` 直接设定视口）：**
+
+- dock 左缘与 logo 左缘之差在横屏 1440/1300/1000px 下均为 **0.00px**（两者分别落在 35.99/60.32/59.32px）。
+- 汉堡按钮右缘距页面右缘与 logo 左缘距页面左缘完全相等（`insetMatch` = 0.000），实测 1440px 为 35.99 vs 35.99，1300px 为 60.32 vs 60.32，1000px 为 59.32 vs 59.32，500/400/320px 竖屏为 21.66/33.32/26.66 对同值。
+- 每个 dock 项「标签顶 − 图标底」= 0.00px（紧贴下方），标签水平中心与图标中心之差 = 0.00px；两个标签文本为 `游戏库`、`设置`。
+- 滑块高亮在切到 `/settings` 后落在第二项图标上（`hlOnIcon` = true，`translate: 0px 60px`，即 `--dock-i` 1 × 3.75rem）。竖屏 `translate: 44px`（1 × 2.75rem）。
+- 竖屏 iPhone-14（390×844）下 dock 高 64px = 4rem，底部距页脚 8px = `--site-dock-gap`，滚动底部留白 132px = 页脚 48 + 8 + dock 64 + 12。
+- 反复 Swup 切换 `/` ↔ `/settings` 四次，dock 始终只有一个实例，标签与边距不变，`aria-current` 与滑块同步更新。
+- 各宽度无横向溢出；搜索按钮仍触发 `dialog.showModal()`（`:modal` 为 true），Escape 可关闭；汉堡聚焦后下拉展开（`visibility: visible`，宽 208px，右缘与按钮右缘对齐）。
+- `pnpm --filter @online-gal/app check`（19 个文件，0 错误、0 警告、0 提示）、`pnpm --filter @online-gal/app build`（14 页）均通过。
+
+**验收时的一个测量陷阱：** bsk 的 Agent Window 标签页处于后台（`document.hidden` 为 true），合成器不推进过渡，读取 `translate` 会拿到停在 `currentTime: 0` 的过渡起始值，造成「滑块不动」的误判。脚本内先 `await new Promise(r => setTimeout(r, 450))` 再读取即可拿到终值。同理，`emulate` 切换设备后立刻截图可能拿到未绘制的空帧，logo 会整块发白；延时重拍即正常。
 
 ## 4. 游戏库
 
