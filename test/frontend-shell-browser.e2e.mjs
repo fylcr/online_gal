@@ -11,10 +11,6 @@ const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePa
 const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 const page = await context.newPage();
 page.setDefaultTimeout(10_000);
-const requests = [];
-page.on('request', (request) => {
-  requests.push(request.url());
-});
 
 async function hideDevToolbar() {
   await page.addStyleTag({ content: 'astro-dev-toolbar { display: none !important }' });
@@ -57,37 +53,16 @@ async function seedGames() {
   await page.getByRole('link', { name: '开始 Evening Blossom' }).waitFor();
 }
 
-async function openMenuWithKeyboard() {
-  const toggle = page.getByRole('button', { name: '打开导航菜单' });
-  await toggle.focus();
+// Search and the navigation menu are placeholder daisyUI dialogs opened by the
+// navbar buttons. Their content is redesigned later; here we only check that
+// each opens and closes.
+async function openDialog(name) {
+  const trigger = page.getByRole('button', { name });
+  await trigger.focus();
   await page.keyboard.press('Enter');
-  const menu = page.getByRole('navigation', { name: '导航菜单' });
-  await menu.waitFor();
-  assert.equal(await menu.evaluate((element) => element.matches(':popover-open')), true);
-  return { toggle, menu };
-}
-
-async function assertDelayedSearchFocus() {
-  const delayed = await browser.newPage();
-  const { promise, resolve: allowHydration } = Promise.withResolvers();
-  try {
-    await delayed.route('**/src/components/library/GameLibrary.svelte*', async (route) => {
-      await promise;
-      await route.continue();
-    });
-    await delayed.goto(`${origin}/settings/`);
-    await delayed.waitForFunction(() => Boolean(window.__swup));
-    await delayed.evaluate(() => {
-      window.__swup.hooks.once('visit:end', () => { window.shellTestVisitEnded = true; });
-    });
-    await delayed.getByRole('button', { name: '搜索游戏' }).click();
-    await delayed.waitForFunction(() => window.shellTestVisitEnded && document.querySelector('astro-island[ssr] #game-search'));
-    allowHydration();
-    await delayed.waitForFunction(() => document.activeElement === document.getElementById('game-search'));
-  } finally {
-    allowHydration();
-    await delayed.close();
-  }
+  const dialog = page.getByRole('dialog', { name });
+  await dialog.waitFor();
+  return { trigger, dialog };
 }
 
 try {
@@ -99,65 +74,41 @@ try {
   await staticPage.getByRole('heading', { name: '游戏库', exact: true }).waitFor();
   await staticPage.locator('[data-site-footer]').waitFor();
   await staticContext.close();
-  await assertDelayedSearchFocus();
+
   await page.goto(origin);
   await hideDevToolbar();
   await page.locator('section[aria-label="本地游戏"]').waitFor();
-  await page.getByRole('heading', { name: '尚无游戏' }).waitFor();
+  // Empty library: centered, frameless notice with no button.
+  await page.getByRole('heading', { name: '暂无游戏' }).waitFor();
+  assert.equal(await page.getByRole('button', { name: '导入游戏' }).count(), 0);
   await assertShell();
+
+  // The library page itself carries no buttons beyond the navbar and the dock.
+  const pageButtons = await page.evaluate(() => {
+    const outside = (element) =>
+      !element.closest('[data-site-header]') && !element.closest('[data-dock]') && !element.closest('dialog');
+    return [...document.querySelectorAll('button, .btn, [role="button"]')]
+      .filter(outside)
+      .filter((element) => element.getClientRects().length > 0)
+      .map((element) => element.getAttribute('aria-label') || element.textContent.trim());
+  });
+  assert.deepEqual(pageButtons, []);
 
   await seedGames();
   await hideDevToolbar();
-  const searchButton = page.getByRole('button', { name: '搜索游戏' });
-  await searchButton.click();
-  await page.waitForFunction(() => document.activeElement === document.querySelector('#game-search'));
-  await page.getByRole('heading', { name: '游戏库', exact: true }).click();
-  const settings = page.getByRole('link', { name: '设置', exact: true });
-  await settings.first().click();
-  await page.waitForURL(/\/settings\/?$/);
-  await searchButton.focus();
-  await page.keyboard.press('Enter');
-  await page.waitForURL((url) => url.pathname === '/');
-  const search = page.getByRole('searchbox', { name: '搜索游戏' });
-  await search.waitFor();
-  await page.waitForFunction(() => document.activeElement === document.querySelector('#game-search'));
-  await assertShell();
+  // No inline search field and no floating add button.
+  assert.equal(await page.locator('#game-search').count(), 0);
+  assert.equal(await page.getByRole('button', { name: '添加游戏', exact: true }).count(), 0);
 
-  const requestCountBeforeSearch = requests.length;
-  const urlBeforeSearch = page.url();
-  await search.fill('blossom');
-  await page.getByRole('link', { name: '开始 Evening Blossom' }).waitFor();
-  assert.equal(await page.getByRole('link', { name: '开始 Moonlit Story' }).count(), 0);
-  await search.fill('alpha');
-  await page.getByRole('link', { name: '开始 Evening Blossom' }).waitFor();
-  assert.equal(await page.getByRole('link', { name: '开始 Moonlit Story' }).count(), 0);
-  await search.fill('mystery');
-  await page.getByRole('link', { name: '开始 Moonlit Story' }).waitFor();
-  assert.equal(await page.getByRole('link', { name: '开始 Evening Blossom' }).count(), 0);
-  await search.fill('not a local game');
-  await page.getByRole('status').filter({ hasText: '搜索无结果' }).waitFor();
-  await page.getByRole('button', { name: '清空' }).click();
-  await page.getByRole('link', { name: '开始 Evening Blossom' }).waitFor();
-  await page.getByRole('link', { name: '开始 Moonlit Story' }).waitFor();
-  assert.equal(page.url(), urlBeforeSearch);
-  assert.deepEqual(requests.slice(requestCountBeforeSearch), []);
-
-  const { toggle, menu } = await openMenuWithKeyboard();
-  assert.equal(await menu.getByRole('link', { name: '游戏库', exact: true }).getAttribute('aria-current'), 'page');
+  const search = await openDialog('搜索游戏');
+  assert.match(await search.dialog.textContent(), /搜索弹窗待重新设计/);
   await page.keyboard.press('Escape');
-  await menu.waitFor({ state: 'hidden' });
-  assert.equal(await toggle.evaluate((element) => document.activeElement === element), true);
+  await search.dialog.waitFor({ state: 'hidden' });
 
-  await searchButton.click();
-  await openMenuWithKeyboard();
-  await page.keyboard.press('Tab');
-  assert.equal(await menu.evaluate((element) => element.contains(document.activeElement)), true);
-  await page.keyboard.press('Escape');
-  await menu.waitFor({ state: 'hidden' });
-  await toggle.click();
-  await menu.waitFor();
-  await page.locator('#swup').click({ position: { x: 8, y: 8 } });
-  await menu.waitFor({ state: 'hidden' });
+  const menu = await openDialog('打开导航菜单');
+  assert.match(await menu.dialog.textContent(), /菜单待重新设计/);
+  await menu.dialog.locator('.modal-box').getByRole('button', { name: '关闭', exact: true }).click();
+  await menu.dialog.waitFor({ state: 'hidden' });
 
   for (let index = 0; index < 3; index += 1) {
     await page.getByRole('link', { name: '设置', exact: true }).first().click();
@@ -184,13 +135,6 @@ try {
   const focusBounds = await tail.boundingBox();
   const footerBounds = await page.locator('[data-site-footer]').boundingBox();
   assert(focusBounds && footerBounds && focusBounds.y + focusBounds.height <= footerBounds.y);
-  const { menu: settingsMenu } = await openMenuWithKeyboard();
-  assert.equal(await settingsMenu.getByRole('link', { name: '设置', exact: true }).getAttribute('aria-current'), 'page');
-  await settingsMenu.getByRole('link', { name: '游戏库', exact: true }).click();
-  await page.waitForURL((url) => url.pathname === '/');
-  await searchButton.click();
-  await page.waitForURL((url) => url.pathname === '/');
-  await page.waitForFunction(() => document.activeElement === document.querySelector('#game-search'));
 
   const mobile = await browser.newPage({ viewport: { width: 320, height: 640 }, hasTouch: true });
   await mobile.goto(origin);
@@ -198,36 +142,26 @@ try {
   await mobile.evaluate(() => window.scrollTo(0, 0));
   const cdp = await mobile.context().newCDPSession(mobile);
   await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 12, right: 12, bottom: 20, left: 8 } });
-  const add = mobile.getByRole('button', { name: '添加游戏', exact: true });
-  const initial = await add.boundingBox();
-  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 12, right: 20, bottom: 32, left: 8 } });
-  const safe = await add.boundingBox();
   const menuToggle = mobile.getByRole('button', { name: '打开导航菜单' });
   const menuToggleBounds = await menuToggle.boundingBox();
   const searchBounds = await mobile.getByRole('button', { name: '搜索游戏' }).boundingBox();
   const dockBounds = await mobile.getByRole('navigation', { name: '主导航' }).boundingBox();
   const footerBoundsMobile = await mobile.locator('[data-site-footer]').boundingBox();
-  assert(initial && safe && menuToggleBounds && searchBounds && dockBounds && footerBoundsMobile);
-  assert.equal(initial.x - safe.x, 8);
-  assert.equal(initial.y - safe.y, 12);
-  assert.equal(await add.evaluate((element) => getComputedStyle(element).position), 'fixed');
+  assert(menuToggleBounds && searchBounds && dockBounds && footerBoundsMobile);
   assert(searchBounds.x + searchBounds.width <= menuToggleBounds.x);
   assert(searchBounds.y + searchBounds.height <= footerBoundsMobile.y);
   assert(footerBoundsMobile.y >= dockBounds.y + dockBounds.height);
-  assert(safe.y + safe.height <= dockBounds.y);
   assert.equal(await mobile.locator('[data-site-header]').evaluate((element) => getComputedStyle(element).position), 'fixed');
   await mobile.getByRole('button', { name: '打开导航菜单' }).tap();
-  const mobileMenu = mobile.getByRole('navigation', { name: '导航菜单' });
+  const mobileMenu = mobile.getByRole('dialog', { name: '打开导航菜单' });
   await mobileMenu.waitFor();
-  const menuBounds = await mobileMenu.boundingBox();
-  assert(menuBounds && menuBounds.x + menuBounds.width <= 300 && menuBounds.y >= 60);
-  await mobile.locator('#swup').tap({ position: { x: 4, y: 8 } });
+  await mobile.keyboard.press('Escape');
   await mobileMenu.waitFor({ state: 'hidden' });
 
   await mobile.goto(`${origin}/play`);
   assert.equal(await mobile.locator('[data-site-header]').count(), 0);
   assert.equal(await mobile.locator('[data-site-footer]').count(), 0);
-  console.log('3.4-3.7: fixed shell, scroll focus, safe-area portrait layout, keyboard/touch menu, repeated Swup visits, local search and bare player passed');
+  console.log('shell: fixed header/footer, frameless empty state, no page buttons, placeholder search/menu dialogs, safe-area portrait layout, repeated Swup visits, bare player passed');
 } finally {
   await context.close();
   await browser.close();

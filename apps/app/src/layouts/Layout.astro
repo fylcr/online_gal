@@ -8,7 +8,6 @@ import '../styles/global.css';
 import { Image } from 'astro:assets';
 import logo from '../assets/logo.webp';
 import Dock from '../components/Dock.astro';
-import { SECTION_NAV, matchesSection } from '../lib/section-nav';
 
 interface Crumb {
   label: string;
@@ -67,16 +66,15 @@ const heading = Astro.props.heading ?? title;
                   {heading}
                 </h1>
               </div>
-              <div class="flex shrink-0 items-center gap-1" role="group" aria-label="操作">
-                <button type="button" data-search-game aria-label="搜索游戏" class="btn btn-ghost size-11" title="搜索游戏">
-                  <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-                    <circle cx="10.8" cy="10.8" r="6.3" />
-                    <path d="m16 16 4.5 4.5" />
+              <div class="flex flex-none items-center" role="group" aria-label="操作">
+                <button type="button" data-open-modal="site-search" aria-label="搜索游戏" class="btn btn-ghost btn-circle" title="搜索游戏">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </button>
-                <button type="button" popovertarget="site-menu" aria-label="打开导航菜单" class="btn btn-ghost size-11" title="打开导航菜单">
-                  <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-                    <path d="M4 6h16M4 12h16M4 18h16" />
+                <button type="button" data-open-modal="site-menu" aria-label="打开导航菜单" class="btn btn-ghost btn-circle" title="打开导航菜单">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
                 </button>
               </div>
@@ -127,21 +125,27 @@ const heading = Astro.props.heading ?? title;
             </div>
           </footer>
 
-          <nav id="site-menu" popover aria-label="导航菜单" class="site-menu fixed m-0 overflow-auto rounded-lg border border-base-300 bg-base-100 p-1 text-base-content shadow-md">
-            <ul>
-              {SECTION_NAV.map(({ href, label }, index) => (
-                <li>
-                  <a
-                    href={href}
-                    data-nav
-                    autofocus={index === 0}
-                    aria-current={matchesSection(href, Astro.url.pathname) ? 'page' : undefined}
-                    class="flex min-h-11 items-center px-3 text-sm hover:bg-base-200 focus-visible:outline-offset-[-2px] aria-[current=page]:bg-base-200 aria-[current=page]:font-semibold"
-                  >{label}</a>
-                </li>
-              ))}
-            </ul>
-          </nav>
+          <dialog id="site-search" class="modal" aria-label="搜索游戏">
+            <div class="modal-box">
+              <h2 class="text-lg font-bold">搜索游戏</h2>
+              <p class="py-4 text-base-content/70">搜索弹窗待重新设计。</p>
+              <div class="modal-action">
+                <form method="dialog"><button class="btn">关闭</button></form>
+              </div>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button aria-label="关闭">关闭</button></form>
+          </dialog>
+
+          <dialog id="site-menu" class="modal" aria-label="打开导航菜单">
+            <div class="modal-box">
+              <h2 class="text-lg font-bold">导航菜单</h2>
+              <p class="py-4 text-base-content/70">菜单待重新设计。</p>
+              <div class="modal-action">
+                <form method="dialog"><button class="btn">关闭</button></form>
+              </div>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button aria-label="关闭">关闭</button></form>
+          </dialog>
         </div>
       )
     }

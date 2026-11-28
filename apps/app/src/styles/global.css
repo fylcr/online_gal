@@ -62,11 +62,10 @@
   --site-footer-row: 3rem;
   --site-header-height: calc(var(--site-header-row) + var(--site-safe-top) + 1px);
   --site-footer-height: calc(var(--site-footer-row) + var(--site-safe-bottom));
-  --site-add-size: 3.5rem;
-  --site-add-offset: 1.25rem;
   --site-dock-size: 3rem;
   --site-dock-gap: 0.5rem;
-  --site-content-end: calc(var(--site-footer-height) + var(--site-add-offset) + var(--site-add-size) + 1rem);
+  /* The floating add button is gone; only the fixed footer needs clearance. Portrait adds the dock below. */
+  --site-content-end: calc(var(--site-footer-height) + 1rem);
   scroll-padding-block: calc(var(--site-header-height) + 0.5rem) var(--site-content-end);
 }
 
@@ -83,17 +82,6 @@
   left: calc(1.5rem + var(--site-safe-left));
 }
 
-.site-add-game {
-  right: calc(1.5rem + var(--site-safe-right));
-  bottom: calc(var(--site-footer-height) + var(--site-add-offset));
-}
-
-.site-menu:popover-open {
-  inset: calc(var(--site-header-height) + 0.5rem) max(1rem, var(--site-safe-right)) auto auto;
-  width: min(18rem, calc(100vw - max(1rem, var(--site-safe-left)) - max(1rem, var(--site-safe-right))));
-  max-height: calc(100dvh - var(--site-header-height) - var(--site-content-end) - 0.5rem);
-}
-
 @media (min-width: 640px) {
   .site-shell {
     --site-header-row: 5rem;
@@ -108,7 +96,7 @@
 
 @media (orientation: portrait) {
   .site-shell {
-    --site-add-offset: calc(var(--site-dock-gap) + var(--site-dock-size) + 0.75rem);
+    --site-content-end: calc(var(--site-footer-height) + var(--site-dock-gap) + var(--site-dock-size) + 0.75rem);
   }
 
   .site-dock {

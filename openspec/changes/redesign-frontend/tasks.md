@@ -34,6 +34,15 @@
 - 验证菜单当前栏目、键盘和触控打开、Tab、Escape 焦点恢复、点击外部关闭及反复 Swup 切页。搜索从首页或设置页进入时均聚焦输入框；拦住 Svelte 组件加载直到切页结束，放行后仍能聚焦。名称、标题和标签过滤、空库、无匹配及清空均通过，输入搜索词时不发请求也不改变 URL。
 - `pnpm --filter @online-gal/app check` 通过（19 个文件，0 错误、0 警告、0 提示）；`pnpm --filter @online-gal/app build`、`openspec validate redesign-frontend --strict` 和 `node test/local-library-browser.e2e.mjs` 通过。
 
+### 游戏库页面收敛（弹窗占位）
+
+按后续要求，只改游戏库页面，设置页和播放页不动。右下角圆形「添加游戏」按钮和页面内搜索框已去除，游戏库页除导航栏和 dock 外不再有按钮。导航栏右侧按 daisyUI 的 `btn btn-ghost btn-circle` 放置搜索和汉堡按钮，点击后打开 daisyUI 默认 `<dialog class="modal">` 占位；占位弹窗之后重新设计。空库显示居中、无框、无按钮的「暂无游戏」。卡片上的「游戏详情」按钮已去除，右键菜单保留原样，长按与菜单重设计暂不做。删除确认同样换成 daisyUI 占位弹窗，暂不执行删除。
+
+内容底边距不再为已删除的添加按钮留空：横屏只给页脚留位，竖屏额外给 dock 留位。
+
+- Chromium 156.0.8078.4 运行 `node test/frontend-shell-browser.e2e.mjs` 通过。1280×800 横屏与 320×640 触屏竖屏下，导航栏和页脚保持固定，禁用 JavaScript 时首屏仍显示静态头栏和页脚。空库为居中「暂无游戏」且无导入按钮；游戏库页面本身无可见按钮，也没有 `#game-search` 和「添加游戏」按钮。搜索和汉堡按钮用键盘和触控打开 daisyUI 占位弹窗，Escape 或「关闭」关闭。反复 Swup 切页、长页滚动焦点不被页脚遮挡、`/play` 不显示普通外壳均通过。
+- `pnpm --filter @online-gal/app check` 通过（19 个文件，0 错误、0 警告、0 提示）。`node test/local-library-browser.e2e.mjs` 依赖已移除的「添加游戏」入口和导入弹窗，在导入弹窗重新设计前暂时不能跑。
+
 ## 4. 游戏库
 
 - [ ] 4.1 拆分 `Library.svelte` 为 `src/components/library/` 下的小组件（导入区、工具栏、卡片、详情、提示）。验证：单文件约 300 行以内；`astro check` 0 error。

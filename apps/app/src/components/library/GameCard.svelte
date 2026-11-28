@@ -1,10 +1,9 @@
 <script lang="ts">
   import { formatPlayTime, relativeTime, type GameRecord } from '../../lib/platform';
 
-  let { game, blocked, onDetails, onMenu }: {
+  let { game, blocked, onMenu }: {
     game: GameRecord;
     blocked: string | null;
-    onDetails: (event: MouseEvent) => void;
     onMenu: (event: MouseEvent) => void;
   } = $props();
   const name = $derived(game.title || game.name);
@@ -38,7 +37,7 @@
   </div>
 {/snippet}
 
-<!-- Right-click supplements the visible details button for keyboard and touch users. -->
+<!-- Right-click opens the card menu (its redesign, incl. long-press, is deferred). -->
 <li oncontextmenu={onMenu} class="card min-w-0 overflow-hidden rounded-2xl bg-base-200">
   {#if blocked}
     <div>{@render cover()}</div>
@@ -47,7 +46,4 @@
       {@render cover()}
     </a>
   {/if}
-  <button type="button" class="btn btn-ghost min-h-11 justify-start self-start px-3 text-xs" aria-label={`游戏详情 ${name}`} onclick={onDetails}>
-    游戏详情
-  </button>
 </li>

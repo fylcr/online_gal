@@ -26,7 +26,6 @@ declare global {
 }
 
 const PLAYER_PATH = /^\/play\/?$/;
-const LIBRARY_PATH = '/';
 
 /**
  * Marks nav links (`a[data-nav]`, outside `#swup`) for `pathname` and moves
@@ -75,21 +74,23 @@ function holdUnchangedHeading(pathname: string): void {
   document.documentElement.toggleAttribute('data-static-title', next !== null && next === current);
 }
 
-function focusLibrarySearch(signal: AbortSignal): void {
-  const input = document.querySelector<HTMLInputElement>('#game-search');
-  if (!input) return;
-  const focus = () => {
-    if (!input.isConnected) return;
-    input.scrollIntoView({ block: 'nearest' });
-    input.focus({ preventScroll: true });
-  };
-  // The server-rendered field exists before Svelte can handle input.
-  const island = input.closest('astro-island[ssr]');
-  if (island) island.addEventListener('astro:hydrate', focus, { once: true, signal });
-  else focus();
+/**
+ * Header buttons (`[data-open-modal="<id>"]`) open the matching daisyUI
+ * `<dialog>` in the persistent shell. These are placeholder modals; the search
+ * and menu are redesigned later. Registered once at startup because the shell
+ * (header + dialogs) is never swapped by swup.
+ */
+function wireShellModals(): void {
+  for (const trigger of document.querySelectorAll<HTMLElement>('[data-open-modal]')) {
+    trigger.addEventListener('click', () => {
+      const dialog = document.getElementById(trigger.dataset.openModal ?? '');
+      if (dialog instanceof HTMLDialogElement) dialog.showModal();
+    });
+  }
 }
 
 export function startSwup(): void {
+  wireShellModals();
   // The player page has no `#swup`; a re-run of this script must not create a second instance.
   if (window.__swup || !document.getElementById('swup')) return;
 
@@ -108,38 +109,14 @@ export function startSwup(): void {
     ],
   });
 
-  const menu = document.getElementById('site-menu');
-  const closeMenu = () => menu?.hidePopover?.();
-  let searchFocus = new AbortController();
-  const focusSearch = () => {
-    searchFocus.abort();
-    searchFocus = new AbortController();
-    focusLibrarySearch(searchFocus.signal);
-  };
-
-  document.querySelector('[data-search-game]')?.addEventListener('click', () => {
-    if (matchesSection(LIBRARY_PATH, location.pathname) && document.getElementById('game-search')) {
-      focusSearch();
-    } else {
-      swup.navigate(LIBRARY_PATH, { meta: { focusLibrarySearch: true } });
-    }
-  });
-  menu?.addEventListener('click', (event) => {
-    if (event.target instanceof Element && event.target.closest('a')) closeMenu();
-  });
-
   swup.hooks.on('visit:start', (visit) => {
-    closeMenu();
-    searchFocus.abort();
-    if (visit.meta.focusLibrarySearch === true) visit.a11y.focus = false;
     const pathname = new URL(visit.to.url, location.href).pathname;
     holdUnchangedHeading(pathname);
     // Move the highlight as soon as the visit starts, so it slides while the content fades.
     markCurrentNav(pathname);
   });
-  swup.hooks.on('visit:end', (visit) => {
+  swup.hooks.on('visit:end', () => {
     document.documentElement.removeAttribute('data-static-title');
-    if (visit.meta.focusLibrarySearch === true) focusSearch();
   });
   // Re-sync after the swap (covers redirects and aborted visits).
   swup.hooks.on('page:view', () => markCurrentNav());
