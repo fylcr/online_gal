@@ -85,12 +85,28 @@
  */
 .site-shell {
   --logo-w: 2.5rem; /* size-10 */
-  --logo-left: calc(100% / 12); /* F <= w: logo left edge on footer */
+  --logo-left: calc(100% / 12 + var(--site-safe-left)); /* F <= w: logo left edge on footer */
   --title-gap: calc(2.5rem * 2 / 3);
 }
 
 .site-inline {
-  padding-inline: var(--logo-left) max(1rem, var(--site-safe-right));
+  /*
+   * No horizontal padding here on purpose: the logo and the title take their
+   * offsets as margins so their percentages resolve against THIS box's width,
+   * which equals the viewport (the header is `inset-x-0` with no side padding).
+   * Padding here would shrink the base and the title would drift.
+   */
+  padding-inline: 0;
+}
+
+.site-logo {
+  margin-left: var(--logo-left);
+}
+
+/* Actions stay pinned right; their own right margin keeps the header inset. */
+.site-actions {
+  margin-left: auto;
+  margin-right: max(1rem, var(--site-safe-right));
 }
 
 .site-title {
@@ -112,10 +128,12 @@
   left: calc(1.5rem + var(--site-safe-left));
 }
 
-@media (min-width: 480px) {
+/* Boundaries use "greater than" (F > n·w), so the min-width is the threshold
+ * pixel plus one: 12w (=480) and 24w (=1152) and 28w (=1344). */
+@media (min-width: 481px) {
   /* w < F <= 2w: logo centre on F */
   .site-shell {
-    --logo-left: calc(100% / 12 - var(--logo-w) / 2);
+    --logo-left: calc(100% / 12 + var(--site-safe-left) - var(--logo-w) / 2);
   }
 }
 
@@ -124,21 +142,21 @@
     --site-header-row: 5rem;
     --logo-w: 3rem; /* size-12 */
     --title-gap: calc(3rem * 2 / 3);
-    --logo-left: calc(100% / 12 - var(--logo-w) / 2);
+    --logo-left: calc(100% / 12 + var(--site-safe-left) - var(--logo-w) / 2);
   }
 }
 
-@media (min-width: 1152px) {
+@media (min-width: 1153px) {
   /* F > 2w: logo right edge on F */
   .site-shell {
-    --logo-left: calc(100% / 12 - var(--logo-w));
+    --logo-left: calc(100% / 12 + var(--site-safe-left) - var(--logo-w));
   }
 }
 
-@media (min-width: 1344px) {
+@media (min-width: 1345px) {
   /* primary: F >= 7/3·w, logo centred in the margin, title aligned with footer */
   .site-shell {
-    --logo-left: calc((100% / 12 - var(--logo-w)) / 2);
+    --logo-left: calc((100% / 12 - var(--logo-w)) / 2 + var(--site-safe-left));
     --title-gap: calc((100% / 12 - var(--logo-w)) / 2);
   }
 }

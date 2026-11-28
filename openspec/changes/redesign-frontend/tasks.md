@@ -49,6 +49,37 @@
 
 **变更后：** 页脚文字使用独立的 `.site-footer-text` 类，左右边距均为 `calc(100% / 12)`，即页面宽度的十二分之一。桌面和手机统一，不再区分横竖屏。页脚不再与 navbar logo 或标题对齐，而是按页面宽度的固定比例留白。
 
+### 导航栏 logo、标题与页脚的比例对齐
+
+记页面宽度为 `P`，页脚左缘 `F = P / 12`，logo 宽度为 `w`（`size-10` = 2.5rem，`≥640px` 时 `size-12` = 3rem）。
+
+**优先方案（标题与页脚对齐）：** 标题左缘落在 `F`；logo 到页面边缘的距离等于 logo 到标题的距离，即 logo 居中于页边距，`logo-left = (F - w) / 2`，两段间距均为 `d = (F - w) / 2`。
+
+**优先方案的成立条件：** 需要 `d > 2/3·w`，化简为 `F > 7/3·w`（页面宽度 `> 1344px`）。不成立时回退到下列三档，标题与 logo 的间距恒为 `2/3·w`，logo 按 `F` 与 `w` 的比例贴合页脚：
+
+| 页面宽度 | 条件 | logo 对齐方式 | `logo-left` | 标题间距 |
+| --- | --- | --- | --- | --- |
+| `≤480px` | `F ≤ w` | 左缘对齐页脚 | `F` | `2/3·w` |
+| `481–1152px` | `w < F ≤ 2w` | 中线对齐页脚 | `F - w/2` | `2/3·w` |
+| `1153–1344px` | `F > 2w` | 右缘对齐页脚 | `F - w` | `2/3·w` |
+| `≥1345px` | `F > 7/3·w` | 居中于页边距（优先方案） | `(F - w)/2` | `(F - w)/2` |
+
+断点取阈值像素加一，因为规则用的是「大于」而非「大于等于」。`global.css` 中以 `--logo-w`、`--logo-left`、`--title-gap` 三个变量实现上述四档，`.site-content`（正文与面包屑）的左边距为 `logo-left + w + title-gap`，因此正文跟随标题对齐。`--logo-left` 内含 `--site-safe-left`。
+
+**曾出现的缺陷：** 标题原本嵌在一个 `flex min-w-0 items-center` 的包装 div 内，`margin-left` 中的百分比按**包含块**宽度解析，该 div 宽度仅 96px，`--title-gap` 算出 `-20px`，标题压到 logo 上。修复方式：把 logo 与标题提为 `.site-inline` 的直接子元素，`.site-inline` 不再设水平内边距，使其内容宽等于视口宽；按钮组改用 `margin-left: auto` 与右侧外边距。同时移除了 `.site-inline` 上的 `gap-2`，避免额外 8px 破坏间距计算。
+
+**导航栏 logo 改用原图：** 此前用 Astro 的 `<Image>` 组件，构建时把 1254×1254 的原图缩到 48/96px 并重新编码，显示发糊。现改为直接引用 `public/logo.webp` 原文件（`<img src="/logo.webp">`），构建不再处理图片，产物 `dist/logo.webp` 与原文件字节一致。
+
+**bsk 浏览器验收（Chromium 156，`emulate` 直接设定视口）：**
+
+- 四档规则与表中公式逐一比对均通过（容差 0.6px）：1440px 与 1400px 命中优先方案，1300px 右缘对齐，1000px 与 500px 中线对齐，400px 与 320px 左缘对齐。
+- 优先方案下 logo 到页边与 logo 到标题的距离相等（1440px 均为 35.99px），标题与页脚的横向偏差 0.02px。
+- 断点边界 480/481/1152/1153/1344/1345px 全部与公式一致，无跳变错档。
+- 正文与面包屑左边距在每个断点上都等于标题左边距（120/131/100px）。
+- `/`、`/settings/audio/` 与 320px 竖屏下均无横向溢出。空库「暂无游戏」在每个测试宽度下都精确居中于视口（`vw/2`）。
+- 键盘 Tab 顺序为 logo → 搜索 → 汉堡 → dock（游戏库），焦点元素全部可见且不被遮挡。搜索按钮触发 `dialog.showModal()`，汉堡聚焦后下拉展开（`visibility: visible`，宽 208px）。`/play?id=nope` 保持 bare 外壳：无页脚、无 `#swup`、无 navbar logo，显示「游戏不存在」。
+- `pnpm --filter @online-gal/app check`（19 个文件，0 错误、0 警告、0 提示）、`pnpm --filter @online-gal/app build`（14 页）与 `openspec validate redesign-frontend --strict` 均通过。
+
 ## 4. 游戏库
 
 - [ ] 4.1 拆分 `Library.svelte` 为 `src/components/library/` 下的小组件（导入区、工具栏、卡片、详情、提示）。验证：单文件约 300 行以内；`astro check` 0 error。
