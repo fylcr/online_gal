@@ -28,7 +28,11 @@
 
 ### 固定外壳与本地搜索的 Chromium 验收
 
-在隔离工作树用 Chromium 156.0.8078.4 运行 `LIBRARY_BROWSER_TOOLS=D:/online_gal/.test/task322-tools CHROMIUM_PATH=C:/Users/ASUS/AppData/Local/ms-playwright/chromium-1248/chrome-win64/chrome.exe node test/frontend-shell-browser.e2e.mjs`，服务地址为 `http://127.0.0.1:4358`。测试先在禁用 JavaScript 的页面确认普通页静态头栏、标题和页脚首屏可见，再以 1280×800 横屏和 320×640 触屏竖屏覆盖固定头部与页脚、长页末尾焦点、窄屏安全区变化、dock 与添加按钮间距、空库、首页直达搜索、从设置页切回后的搜索聚焦、按名称/标题/标签过滤、无结果与清空、无网络搜索请求、菜单键盘/触控打开、Tab、Escape 焦点回归、点击外部关闭、反复 Swup 切页及 `/play` bare 外壳。
+在隔离工作树运行 `npm run build:packages`，再用 `pnpm --filter @online-gal/app exec astro dev --host 127.0.0.1 --port 4358` 启动应用。将 `LIBRARY_BROWSER_TOOLS` 指向安装了 Playwright 的目录，运行 `node test/frontend-shell-browser.e2e.mjs`。可用 `CHROMIUM_PATH` 指定浏览器、`ONLINE_GAL_SHELL_URL` 覆盖服务地址。
+
+- Chromium 156.0.8078.4 在 1280×800 横屏、320×640 触屏竖屏及注入安全区的条件下通过。禁用 JavaScript 时，普通页首屏仍显示静态头栏、标题和页脚。长页滚动时两栏固定，末尾的焦点不被遮挡；窄屏安全区变化时，dock、添加按钮和菜单不重叠。`/play` 不显示普通外壳。
+- 验证菜单当前栏目、键盘和触控打开、Tab、Escape 焦点恢复、点击外部关闭及反复 Swup 切页。搜索从首页或设置页进入时均聚焦输入框；拦住 Svelte 组件加载直到切页结束，放行后仍能聚焦。名称、标题和标签过滤、空库、无匹配及清空均通过，输入搜索词时不发请求也不改变 URL。
+- `pnpm --filter @online-gal/app check` 通过（19 个文件，0 错误、0 警告、0 提示）；`pnpm --filter @online-gal/app build`、`openspec validate redesign-frontend --strict` 和 `node test/local-library-browser.e2e.mjs` 通过。
 
 ## 4. 游戏库
 

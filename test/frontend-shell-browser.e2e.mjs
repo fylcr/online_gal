@@ -11,9 +11,9 @@ const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePa
 const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 const page = await context.newPage();
 page.setDefaultTimeout(10_000);
-const crossOriginRequests = [];
+const requests = [];
 page.on('request', (request) => {
-  if (!request.url().startsWith(origin)) crossOriginRequests.push(request.url());
+  requests.push(request.url());
 });
 
 async function hideDevToolbar() {
@@ -123,7 +123,12 @@ try {
   await page.waitForFunction(() => document.activeElement === document.querySelector('#game-search'));
   await assertShell();
 
+  const requestCountBeforeSearch = requests.length;
+  const urlBeforeSearch = page.url();
   await search.fill('blossom');
+  await page.getByRole('link', { name: '开始 Evening Blossom' }).waitFor();
+  assert.equal(await page.getByRole('link', { name: '开始 Moonlit Story' }).count(), 0);
+  await search.fill('alpha');
   await page.getByRole('link', { name: '开始 Evening Blossom' }).waitFor();
   assert.equal(await page.getByRole('link', { name: '开始 Moonlit Story' }).count(), 0);
   await search.fill('mystery');
@@ -131,11 +136,11 @@ try {
   assert.equal(await page.getByRole('link', { name: '开始 Evening Blossom' }).count(), 0);
   await search.fill('not a local game');
   await page.getByRole('status').filter({ hasText: '搜索无结果' }).waitFor();
-  assert.equal(new URL(page.url()).search, '');
   await page.getByRole('button', { name: '清空' }).click();
   await page.getByRole('link', { name: '开始 Evening Blossom' }).waitFor();
   await page.getByRole('link', { name: '开始 Moonlit Story' }).waitFor();
-  assert.deepEqual(crossOriginRequests, []);
+  assert.equal(page.url(), urlBeforeSearch);
+  assert.deepEqual(requests.slice(requestCountBeforeSearch), []);
 
   const { toggle, menu } = await openMenuWithKeyboard();
   assert.equal(await menu.getByRole('link', { name: '游戏库', exact: true }).getAttribute('aria-current'), 'page');
