@@ -70,19 +70,36 @@
 }
 
 /*
- * Alignment grid:
- * dock icon left edge  = 1.5rem + safe-left + p-1(0.25rem) = 1.75rem + safe-left
- * → header logo left edge (site-inline left pad) = 1.75rem + safe-left
- * → portrait footer/content left edge also = 1.75rem + safe-left (logo flush with footer)
- * landscape: logo(3rem sm) + gap(3rem landscape:sm:ml-12) = 6rem offset from logo left edge
- *            → title/content left = 1.75rem + safe-left + 6rem = 7.75rem + safe-left
+ * Navbar logo / title / footer alignment.
+ * Footer text sits F = 1/12 of the page width from each edge. The title wants
+ * to line up with the footer, and the logo wants its distance to the page edge
+ * to equal its distance to the title, i.e. centred in the margin at
+ * logo-left = (F - w)/2, both gaps = d = (F - w)/2. That "primary" layout is
+ * only usable while d > 2/3·w  <=>  F > 7/3·w. Otherwise the logo aligns to the
+ * footer and the title keeps a fixed 2/3·w gap:
+ *   F > 2w  -> logo right edge on F  (logo-left = F - w)
+ *   w<F≤2w  -> logo centre on F     (logo-left = F - w/2)
+ *   F ≤ w   -> logo left edge on F   (logo-left = F)
+ * w is 2.5rem below 640px and 3rem at/above it, so the regime thresholds
+ * (12w, 24w, 28w of page width) land at 480, 640, 1152 and 1344px.
  */
-.site-inline {
-  padding-inline: calc(1.75rem + var(--site-safe-left)) max(1rem, var(--site-safe-right));
+.site-shell {
+  --logo-w: 2.5rem; /* size-10 */
+  --logo-left: calc(100% / 12); /* F <= w: logo left edge on footer */
+  --title-gap: calc(2.5rem * 2 / 3);
 }
 
+.site-inline {
+  padding-inline: var(--logo-left) max(1rem, var(--site-safe-right));
+}
+
+.site-title {
+  margin-left: var(--title-gap);
+}
+
+/* Content/breadcrumbs follow the title: logo-left + logo-w + title-gap. */
 .site-content {
-  padding-inline: calc(1.75rem + var(--site-safe-left)) max(1.5rem, var(--site-safe-right));
+  padding-inline: calc(var(--logo-left) + var(--logo-w) + var(--title-gap)) max(1.5rem, var(--site-safe-right));
 }
 
 /* Footer text: always 1/12 page width from each edge, desktop and mobile alike. */
@@ -95,16 +112,34 @@
   left: calc(1.5rem + var(--site-safe-left));
 }
 
-@media (min-width: 640px) {
+@media (min-width: 480px) {
+  /* w < F <= 2w: logo centre on F */
   .site-shell {
-    --site-header-row: 5rem;
+    --logo-left: calc(100% / 12 - var(--logo-w) / 2);
   }
 }
 
-@media (orientation: landscape) {
-  /* title left edge = logo-left(1.75rem) + logo-width(3rem sm) + gap(3rem landscape:sm:ml-12) = 7.75rem */
-  .site-content {
-    padding-left: calc(7.75rem + var(--site-safe-left));
+@media (min-width: 640px) {
+  .site-shell {
+    --site-header-row: 5rem;
+    --logo-w: 3rem; /* size-12 */
+    --title-gap: calc(3rem * 2 / 3);
+    --logo-left: calc(100% / 12 - var(--logo-w) / 2);
+  }
+}
+
+@media (min-width: 1152px) {
+  /* F > 2w: logo right edge on F */
+  .site-shell {
+    --logo-left: calc(100% / 12 - var(--logo-w));
+  }
+}
+
+@media (min-width: 1344px) {
+  /* primary: F >= 7/3·w, logo centred in the margin, title aligned with footer */
+  .site-shell {
+    --logo-left: calc((100% / 12 - var(--logo-w)) / 2);
+    --title-gap: calc((100% / 12 - var(--logo-w)) / 2);
   }
 }
 
