@@ -10,6 +10,7 @@ context: |
   VFS 流式随机解压见 `add-vfs-streaming-archive-decompression`，覆盖 ZIP/Zip64、7z、RAR4/RAR5 的浏览器只读归档挂载、成员流和解压后区间读取。
   其他进行中的 change：
   - plugin-system：插件系统（Service Worker 内核、插件包格式与来源证明、插件规则层）。其他 change 只能通过它的登记规则（design.md K19）扩展内核。
+  - add-orama-search-plugin：plugin-system 主责官方 Orama 搜索插件与发布，frontend 主责接入游戏库搜索。复用同源插件文件路由，不新增服务器搜索服务。
   - cf-account-admin：管理系统（Cloudflare 账号、/__cf 代理、浏览器版 cf、/admin），由单独的对话负责，在 plugin-system 里登记了 /__cf。
   - integrate-webdav-source：VFS 只读网络文件挂载，首个协议为 WebDAV。文件系统会话负责挂载与适配器，通过 plugin-system K19 登记 /__webdav。直链和其他来源沿用各自流程。
   - site-setup：站点初始化，两阶段构建。npm run build:pages（scripts/build-pages.mjs）检查 Pages 项目有没有 ONLINE_GAL_SITE：
