@@ -43,6 +43,12 @@
 - Chromium 156.0.8078.4 运行 `node test/frontend-shell-browser.e2e.mjs` 通过。1280×800 横屏与 320×640 触屏竖屏下，导航栏和页脚保持固定，禁用 JavaScript 时首屏仍显示静态头栏和页脚。空库「暂无游戏」的中心与视口中心在横屏和竖屏下偏差均不超过 1px，且无导入按钮；游戏库页面本身无可见按钮，也没有 `#game-search` 和「添加游戏」按钮。搜索按钮用键盘打开占位弹窗，Escape 关闭。汉堡按钮不再打开弹窗，聚焦或点击后在按钮下方展开占位下拉，竖屏下不超出 320px 视口；点击页面其他位置或 Swup 切页后收起。反复 Swup 切页、长页滚动焦点不被页脚遮挡、`/play` 不显示普通外壳均通过。
 - `pnpm --filter @online-gal/app check` 通过（19 个文件，0 错误、0 警告、0 提示）。`node test/local-library-browser.e2e.mjs` 依赖已移除的「添加游戏」入口和导入弹窗，在导入弹窗重新设计前暂时不能跑。
 
+### 页脚文字对齐调整
+
+**变更前：** 页脚文字使用 `.site-content` 类，桌面横屏左边距为 `calc(7.75rem + safe-left)`（与标题对齐），手机竖屏左边距为 `calc(1.75rem + safe-left)`（与 logo 对齐）。右边距桌面为 `max(1.5rem, safe-right)`，手机同。两端距离在不同屏幕宽度下为固定像素值，不随页面宽度缩放。
+
+**变更后：** 页脚文字使用独立的 `.site-footer-text` 类，左右边距均为 `calc(100% / 12)`，即页面宽度的十二分之一。桌面和手机统一，不再区分横竖屏。页脚不再与 navbar logo 或标题对齐，而是按页面宽度的固定比例留白。
+
 ## 4. 游戏库
 
 - [ ] 4.1 拆分 `Library.svelte` 为 `src/components/library/` 下的小组件（导入区、工具栏、卡片、详情、提示）。验证：单文件约 300 行以内；`astro check` 0 error。

@@ -39,7 +39,7 @@ const heading = Astro.props.heading ?? title;
     <meta charset="utf-8" />
     {/* viewport-fit=cover makes env(safe-area-inset-*) report the notch / home bar (portrait dock). */}
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/webp" href="/logo.webp" />
     <title>{title} · online_gal</title>
   </head>
   <body class="min-h-screen bg-base-100 font-sans text-base-content antialiased">
@@ -126,7 +126,7 @@ const heading = Astro.props.heading ?? title;
           </main>
 
           <footer data-site-footer class="fixed inset-x-0 bottom-0 z-10 bg-base-100 pb-[var(--site-safe-bottom)]">
-            <div class="site-content flex h-[var(--site-footer-row)] items-center border-t border-base-300 text-xs text-base-content/60">
+            <div class="site-footer-text flex h-[var(--site-footer-row)] items-center border-t border-base-300 text-xs text-base-content/60">
               GPL-3.0-or-later
             </div>
           </footer>
