@@ -14,6 +14,15 @@
 - **THEN** 显示导入进度
 - **AND** 完成后提示识别出的引擎，新游戏出现在列表中
 
+### Requirement: Search the local game library from the navbar
+
+游戏库 MUST 提供可通过导航栏到达的搜索输入框，按名称、标题和标签筛选已有本地记录。查询 MUST 在浏览器中执行，搜索词 MUST NOT 发送到网络或进入 URL。
+
+#### Scenario: Filter and clear a local query
+- **WHEN** 用户从导航栏进入游戏库搜索，并输入只匹配部分游戏的词
+- **THEN** 列表只展示匹配记录，清空搜索词后恢复完整列表
+- **AND** 有记录但无匹配时显示「搜索无结果」，空库仍显示添加游戏入口
+
 ### Requirement: Delete games from the card context menu
 
 每张游戏卡片 MUST 在右键菜单提供「从游戏库删除」。选择该项 MUST 打开确认窗口，显示游戏名称并说明本站保存的该游戏存档会一并删除。用户确认后，平台 MUST 按游戏 ID 删除所选游戏的库记录、本站存档槽和运行时存档覆层文件。用户磁盘上的原始游戏文件夹和文件 MUST 保持原样。游戏详情 MUST 保留同一个删除流程，供键盘和触屏用户使用。
