@@ -103,11 +103,40 @@
   margin-left: var(--logo-left);
 }
 
-/* Actions stay pinned right; their inset mirrors the logo's so both sides are equal. */
+/*
+ * The action group is `display: contents`, so the two buttons are direct flex items of
+ * `.site-inline` and the percentage inside `--logo-left` resolves against the viewport-wide
+ * header, the same base as the logo. Both buttons are positioned by their ICON, not the 40px
+ * button box: the 20px icon sits in 0.625rem of empty button on each side (--btn-pad).
+ *   hamburger icon right edge -> page right edge          = --logo-left
+ *   search icon right edge    -> hamburger icon left edge = --logo-left
+ */
 .site-actions {
+  --btn-pad: 0.625rem; /* (btn-circle 2.5rem - size-5 1.25rem) / 2 */
+}
+
+/* Both buttons keep their 40px tap target; they must not shrink as flex items. */
+.site-actions > * {
+  flex: none;
+}
+
+.site-actions > :first-child {
   margin-left: auto;
-  /* Same distance to the edge as the logo: `--logo-left` is the logo's left offset. */
-  margin-right: var(--logo-left);
+  /* Icon gap = this margin + the two 0.625rem icon insets, so it lands on --logo-left.
+     Floored at 0 so a very narrow viewport cannot overlap the two buttons. */
+  margin-right: max(0px, calc(var(--logo-left) - 2 * var(--btn-pad)));
+}
+
+.site-actions > :last-child {
+  /* Hamburger icon right edge -> page right edge = --logo-left. */
+  margin-right: max(0px, calc(var(--logo-left) - var(--btn-pad)));
+}
+
+/* The menu hangs off the hamburger ICON's right edge, not the button's: with
+   `dropdown-end` the content's end edge sits on the container's, so pull it in by the
+   icon inset (marker margin on an end-anchored absolute box shifts it towards the start). */
+.site-actions .dropdown-content {
+  margin-inline-end: var(--btn-pad);
 }
 
 .site-title {
