@@ -53,7 +53,16 @@ async function seedGames() {
   await page.getByRole('link', { name: '开始 Evening Blossom' }).waitFor();
 }
 
-// Search and the navigation menu are placeholder daisyUI dialogs opened by the
+// The empty notice is centred on the browser viewport, not on its parent.
+async function assertEmptyCentered(target) {
+  const box = await target.getByRole('heading', { name: '暂无游戏' }).locator('xpath=..').boundingBox();
+  const { width, height } = target.viewportSize();
+  assert(box);
+  assert(Math.abs(box.x + box.width / 2 - width / 2) <= 1, `horizontal centre ${box.x + box.width / 2} vs ${width / 2}`);
+  assert(Math.abs(box.y + box.height / 2 - height / 2) <= 1, `vertical centre ${box.y + box.height / 2} vs ${height / 2}`);
+}
+
+// Search is a placeholder daisyUI dialog opened by the
 // navbar buttons. Their content is redesigned later; here we only check that
 // each opens and closes.
 async function openDialog(name) {
@@ -80,6 +89,7 @@ try {
   await page.locator('section[aria-label="本地游戏"]').waitFor();
   // Empty library: centered, frameless notice with no button.
   await page.getByRole('heading', { name: '暂无游戏' }).waitFor();
+  await assertEmptyCentered(page);
   assert.equal(await page.getByRole('button', { name: '导入游戏' }).count(), 0);
   await assertShell();
 
@@ -105,10 +115,24 @@ try {
   await page.keyboard.press('Escape');
   await search.dialog.waitFor({ state: 'hidden' });
 
-  const menu = await openDialog('打开导航菜单');
-  assert.match(await menu.dialog.textContent(), /菜单待重新设计/);
-  await menu.dialog.locator('.modal-box').getByRole('button', { name: '关闭', exact: true }).click();
-  await menu.dialog.waitFor({ state: 'hidden' });
+  // The hamburger is a daisyUI dropdown with a placeholder panel, not a dialog.
+  assert.equal(await page.getByRole('dialog', { name: '打开导航菜单' }).count(), 0);
+  const dropdown = page.locator('[data-site-menu]');
+  await page.getByRole('button', { name: '打开导航菜单' }).focus();
+  await dropdown.waitFor();
+  assert.match(await dropdown.textContent(), /菜单待重新设计/);
+  const toggleBox = await page.getByRole('button', { name: '打开导航菜单' }).boundingBox();
+  const dropdownBox = await dropdown.boundingBox();
+  assert(toggleBox && dropdownBox && dropdownBox.y >= toggleBox.y + toggleBox.height);
+  await page.locator('#swup').click({ position: { x: 8, y: 8 } });
+  await dropdown.waitFor({ state: 'hidden' });
+  await page.getByRole('button', { name: '打开导航菜单' }).click();
+  await dropdown.waitFor();
+  await page.getByRole('link', { name: '设置', exact: true }).first().click();
+  await page.waitForURL(/\/settings\/?$/);
+  await dropdown.waitFor({ state: 'hidden' });
+  await page.getByRole('link', { name: '游戏库', exact: true }).first().click();
+  await page.waitForURL((url) => url.pathname === '/');
 
   for (let index = 0; index < 3; index += 1) {
     await page.getByRole('link', { name: '设置', exact: true }).first().click();
@@ -153,15 +177,18 @@ try {
   assert(footerBoundsMobile.y >= dockBounds.y + dockBounds.height);
   assert.equal(await mobile.locator('[data-site-header]').evaluate((element) => getComputedStyle(element).position), 'fixed');
   await mobile.getByRole('button', { name: '打开导航菜单' }).tap();
-  const mobileMenu = mobile.getByRole('dialog', { name: '打开导航菜单' });
+  const mobileMenu = mobile.locator('[data-site-menu]');
   await mobileMenu.waitFor();
-  await mobile.keyboard.press('Escape');
+  const mobileMenuBox = await mobileMenu.boundingBox();
+  assert(mobileMenuBox && mobileMenuBox.x >= 0 && mobileMenuBox.x + mobileMenuBox.width <= 320);
+  await mobile.locator('#swup').tap({ position: { x: 4, y: 8 } });
   await mobileMenu.waitFor({ state: 'hidden' });
+  await assertEmptyCentered(mobile);
 
   await mobile.goto(`${origin}/play`);
   assert.equal(await mobile.locator('[data-site-header]').count(), 0);
   assert.equal(await mobile.locator('[data-site-footer]').count(), 0);
-  console.log('shell: fixed header/footer, frameless empty state, no page buttons, placeholder search/menu dialogs, safe-area portrait layout, repeated Swup visits, bare player passed');
+  console.log('shell: fixed header/footer, frameless empty state, no page buttons, placeholder search dialog, placeholder menu dropdown, viewport-centred empty state, safe-area portrait layout, repeated Swup visits, bare player passed');
 } finally {
   await context.close();
   await browser.close();

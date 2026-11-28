@@ -69,14 +69,7 @@
     <button class="btn" type="button" onclick={reload}>重试</button>
   {:else if games === null}
     <p class="text-base-content/65" role="status">正在读取游戏库…</p>
-  {:else if games.length === 0}
-    <div class="grid min-h-[50vh] place-items-center text-center">
-      <div>
-        <h2 class="text-xl font-semibold">暂无游戏</h2>
-        <p class="mt-2 text-base-content/60">游戏库为空</p>
-      </div>
-    </div>
-  {:else}
+  {:else if games.length > 0}
     <ul class="grid grid-cols-2 gap-3 @lg:grid-cols-3 @2xl:grid-cols-4 @4xl:grid-cols-5 @5xl:grid-cols-6 @7xl:grid-cols-7">
       {#each games as game (game.id)}
         <GameCard {game} blocked={playBlockReason(game)} onMenu={(event) => openMenu(game, event)} />
@@ -84,6 +77,20 @@
     </ul>
   {/if}
 </section>
+
+<!--
+  Empty notice centred on the browser viewport, not on its parent. It sits outside the
+  `@container` section because container (layout) containment would become the fixed
+  element's containing block.
+-->
+{#if !loadError && games?.length === 0}
+  <div data-empty-library class="pointer-events-none fixed inset-0 grid place-items-center text-center">
+    <div>
+      <h2 class="text-xl font-semibold">暂无游戏</h2>
+      <p class="mt-2 text-base-content/60">游戏库为空</p>
+    </div>
+  </div>
+{/if}
 
 {#if menu}
   <button bind:this={menuButton} type="button" data-card-context-action class="btn btn-sm fixed z-40 shadow-lg" style:left="{menu.x}px" style:top="{menu.y}px" onclick={() => menu && confirmDelete(menu.game)}>

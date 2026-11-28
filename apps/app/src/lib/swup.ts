@@ -110,6 +110,9 @@ export function startSwup(): void {
   });
 
   swup.hooks.on('visit:start', (visit) => {
+    // The navbar dropdown is focus-driven (daisyUI); drop focus so it does not stay open across visits.
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.closest('[data-site-header] .dropdown')) active.blur();
     const pathname = new URL(visit.to.url, location.href).pathname;
     holdUnchangedHeading(pathname);
     // Move the highlight as soon as the visit starts, so it slides while the content fades.
