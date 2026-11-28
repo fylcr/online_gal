@@ -4,6 +4,12 @@
   import { getPlatform, pickGameDirectory, playBlockReason, type GameRecord } from '../../lib/platform';
 
   let games = $state<readonly GameRecord[] | null>(null);
+  let query = $state('');
+  let searchInput: HTMLInputElement;
+  const needle = $derived(query.trim().toLowerCase());
+  const visibleGames = $derived(!needle ? games ?? [] : (games ?? []).filter(({ name, title, tags }) =>
+    [name, title ?? '', ...tags].some((value) => value.toLowerCase().includes(needle)),
+  ));
   let loadError = $state('');
   let notice = $state('');
   let importError = $state('');
@@ -12,7 +18,7 @@
   let deleting = $state(false);
   let selected = $state<GameRecord | null>(null);
   let menu = $state<{ game: GameRecord; x: number; y: number } | null>(null);
-  let menuButton: HTMLButtonElement;
+  let menuButton = $state<HTMLButtonElement>();
   let addButton: HTMLButtonElement;
   let folderInput: HTMLInputElement;
   let importDialog: HTMLDialogElement;
@@ -87,7 +93,7 @@
     actionOrigin = (event.currentTarget as HTMLElement).querySelector('button');
     menu = { game, x: event.clientX, y: event.clientY };
     await tick();
-    if (!menu) return;
+    if (!menu || !menuButton) return;
     const { width, height } = menuButton.getBoundingClientRect();
     menu.x = Math.max(8, Math.min(menu.x, window.innerWidth - width - 8));
     menu.y = Math.max(8, Math.min(menu.y, window.innerHeight - height - 8));
@@ -142,7 +148,18 @@
 
 <svelte:window onpageshow={(event) => { if (event.persisted) void reload(); }} onpointerdown={closeMenu} onkeydown={onKeydown} onresize={closeMenu} onscroll={closeMenu} />
 
-<section aria-label="本地游戏" class="@container pb-16">
+<section aria-label="本地游戏" class="@container">
+  <div class="mb-6 flex max-w-xl items-center gap-3">
+    <label for="game-search" class="sr-only">搜索游戏</label>
+    <div class="relative min-w-0 flex-1">
+      <svg viewBox="0 0 24 24" class="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-base-content/50" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+        <circle cx="10.8" cy="10.8" r="6.3" />
+        <path d="m16 16 4.5 4.5" />
+      </svg>
+      <input bind:this={searchInput} bind:value={query} id="game-search" type="search" autocomplete="off" placeholder="搜索名称、标题或标签" class="input input-bordered w-full pl-10" />
+    </div>
+    <button type="button" class="btn btn-ghost" disabled={!query} onclick={() => { query = ''; searchInput.focus({ preventScroll: true }); }}>清空</button>
+  </div>
   <div role="status" aria-live="polite">
     {#if notice}<p class="alert alert-info mb-4">{notice}</p>{/if}
   </div>
@@ -157,9 +174,11 @@
       <p class="mt-2 text-base-content/70">选择一个已解压的本地游戏文件夹。</p>
       <button type="button" class="btn btn-primary mt-4" onclick={openImport}>导入游戏</button>
     </div>
+  {:else if visibleGames.length === 0}
+    <p role="status" class="py-6 font-semibold">搜索无结果</p>
   {:else}
     <ul class="grid grid-cols-2 gap-3 @lg:grid-cols-3 @2xl:grid-cols-4 @4xl:grid-cols-5 @5xl:grid-cols-6 @7xl:grid-cols-7">
-      {#each games as game (game.id)}
+      {#each visibleGames as game (game.id)}
         <GameCard {game} blocked={playBlockReason(game)} onDetails={(event) => openDetails(game, event)} onMenu={(event) => openMenu(game, event)} />
       {/each}
     </ul>
@@ -167,7 +186,7 @@
 </section>
 
 <button bind:this={addButton} type="button" aria-label="添加游戏" aria-haspopup="dialog" onclick={openImport}
-  class="btn btn-circle btn-primary fixed right-[calc(1.5rem+env(safe-area-inset-right))] bottom-[calc(1.5rem+env(safe-area-inset-bottom))] z-30 size-14 text-3xl shadow-lg portrait:bottom-[calc(5rem+env(safe-area-inset-bottom))]">
+  class="site-add-game btn btn-circle btn-primary fixed z-30 size-[var(--site-add-size)] text-3xl shadow-lg">
   <span aria-hidden="true">+</span>
 </button>
 

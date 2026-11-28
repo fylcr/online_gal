@@ -8,6 +8,7 @@ import '../styles/global.css';
 import { Image } from 'astro:assets';
 import logo from '../assets/logo.webp';
 import Dock from '../components/Dock.astro';
+import { SECTION_NAV, matchesSection } from '../lib/section-nav';
 
 interface Crumb {
   label: string;
@@ -34,7 +35,7 @@ const heading = Astro.props.heading ?? title;
 ---
 
 <!doctype html>
-<html lang="zh-CN" data-theme="swiss">
+<html lang="zh-CN" data-theme="swiss" class:list={[!bare && 'site-shell']}>
   <head>
     <meta charset="utf-8" />
     {/* viewport-fit=cover makes env(safe-area-inset-*) report the notch / home bar (portrait dock). */}
@@ -56,19 +57,29 @@ const heading = Astro.props.heading ?? title;
             Portrait: single column at px-6; the dock floats at the bottom, so the page reserves
             room below the footer (dock 48px + 24px offset + 24px gap + safe area).
           */}
-          <header>
-            <div class="flex h-24 items-center justify-between px-6">
-              <div class="flex items-center">
+          <header data-site-header class="fixed inset-x-0 top-0 z-30 border-b border-base-300 bg-base-100 pt-[var(--site-safe-top)]">
+            <div class="site-inline flex h-[var(--site-header-row)] items-center justify-between gap-2">
+              <div class="flex min-w-0 items-center">
                 <a href="/" class="flex shrink-0 items-center" aria-label="online_gal 首页">
-                  <Image src={logo} alt="" width={48} height={48} densities={[1, 2]} class="size-12" loading="eager" />
+                  <Image src={logo} alt="" width={48} height={48} densities={[1, 2]} class="size-10 sm:size-12" loading="eager" />
                 </a>
-                {/* Swup container: replaced on every visit, fades with the content. */}
-                <h1 id="page-title" class="transition-fade ml-6 text-3xl font-bold tracking-tight landscape:ml-12">
+                <h1 id="page-title" class="transition-fade ml-3 min-w-0 wrap-anywhere text-lg leading-tight font-bold sm:ml-6 sm:text-2xl landscape:sm:ml-12">
                   {heading}
                 </h1>
               </div>
-              {/* Right-side button group: empty for now, filled as features land. */}
-              <div class="flex items-center gap-2" role="group" aria-label="操作" />
+              <div class="flex shrink-0 items-center gap-1" role="group" aria-label="操作">
+                <button type="button" data-search-game aria-label="搜索游戏" class="btn btn-ghost size-11" title="搜索游戏">
+                  <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                    <circle cx="10.8" cy="10.8" r="6.3" />
+                    <path d="m16 16 4.5 4.5" />
+                  </svg>
+                </button>
+                <button type="button" popovertarget="site-menu" aria-label="打开导航菜单" class="btn btn-ghost size-11" title="打开导航菜单">
+                  <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                    <path d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </header>
 
@@ -78,7 +89,7 @@ const heading = Astro.props.heading ?? title;
             rendered (swup needs every container on both sides of a visit) and empty when the
             page has no breadcrumbs.
           */}
-          <div id="breadcrumbs" class="transition-fade px-6 text-sm landscape:pl-30">
+          <div id="breadcrumbs" class="site-content transition-fade pt-[var(--site-header-height)] text-sm">
             {breadcrumbs && (
               <nav aria-label="面包屑">
                 <ol class="flex flex-wrap items-center gap-x-2 text-base-content/40">
@@ -106,15 +117,31 @@ const heading = Astro.props.heading ?? title;
 
           <Dock />
 
-          <main id="swup" class="transition-fade w-full flex-1 px-6 pt-6 pb-16 landscape:pl-30">
+          <main id="swup" class="site-content transition-fade w-full flex-1 pt-6 pb-[var(--site-content-end)]">
             <slot />
           </main>
 
-          <footer class="border-t border-base-300">
-            <div class="px-6 py-4 text-xs text-base-content/60 landscape:pl-30">
+          <footer data-site-footer class="fixed inset-x-0 bottom-0 z-10 bg-base-100 pb-[var(--site-safe-bottom)]">
+            <div class="site-content flex h-[var(--site-footer-row)] items-center border-t border-base-300 text-xs text-base-content/60">
               GPL-3.0-or-later
             </div>
           </footer>
+
+          <nav id="site-menu" popover aria-label="导航菜单" class="site-menu fixed m-0 overflow-auto rounded-lg border border-base-300 bg-base-100 p-1 text-base-content shadow-md">
+            <ul>
+              {SECTION_NAV.map(({ href, label }, index) => (
+                <li>
+                  <a
+                    href={href}
+                    data-nav
+                    autofocus={index === 0}
+                    aria-current={matchesSection(href, Astro.url.pathname) ? 'page' : undefined}
+                    class="flex min-h-11 items-center px-3 text-sm hover:bg-base-200 focus-visible:outline-offset-[-2px] aria-[current=page]:bg-base-200 aria-[current=page]:font-semibold"
+                  >{label}</a>
+                </li>
+              ))}
+            </ul>
+          </nav>
         </div>
       )
     }

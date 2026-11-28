@@ -1,7 +1,7 @@
 /**
  * Page transitions between the shell pages (`/`, `/settings`).
  *
- * - Only `#swup` and the header's `#page-title` are replaced; the rest of the
+ * - The content, page title and breadcrumbs are replaced; the rest of the
  *   header, the dock and the footer stay mounted.
  * - `/play` is never a swup visit: it runs an engine with its own lifetime
  *   and needs a clean document, so entering or leaving it is a full load.
@@ -17,6 +17,7 @@ import Swup from 'swup';
 import SwupA11yPlugin from '@swup/a11y-plugin';
 import SwupHeadPlugin from '@swup/head-plugin';
 import SwupScriptsPlugin from '@swup/scripts-plugin';
+import { matchesSection } from './section-nav';
 
 declare global {
   interface Window {
@@ -25,32 +26,26 @@ declare global {
 }
 
 const PLAYER_PATH = /^\/play\/?$/;
-
-function normalize(path: string): string {
-  return path.replace(/\/+$/, '') || '/';
-}
+const LIBRARY_PATH = '/';
 
 /**
  * Marks nav links (`a[data-nav]`, outside `#swup`) for `pathname` and moves
  * the dock highlight (`[data-dock]`, `--dock-i`) to the matching item.
  */
-/** `/` matches only itself; any other nav target also covers its sub-pages (`/settings/audio`). */
-function matchesNav(link: HTMLAnchorElement, here: string): boolean {
-  const target = normalize(new URL(link.href).pathname);
-  return target === '/' ? here === '/' : here === target || here.startsWith(`${target}/`);
+function matchesNav(link: HTMLAnchorElement, pathname: string): boolean {
+  return matchesSection(new URL(link.href).pathname, pathname);
 }
 
 function markCurrentNav(pathname: string = location.pathname): void {
-  const here = normalize(pathname);
   for (const dock of document.querySelectorAll<HTMLElement>('[data-dock]')) {
     const links = [...dock.querySelectorAll<HTMLAnchorElement>('a[data-nav]')];
-    const index = links.findIndex((link) => matchesNav(link, here));
+    const index = links.findIndex((link) => matchesNav(link, pathname));
     // Keep the last position when idle, so the highlight fades out in place.
     if (index >= 0) dock.style.setProperty('--dock-i', String(index));
     dock.toggleAttribute('data-idle', index < 0);
   }
   for (const link of document.querySelectorAll<HTMLAnchorElement>('a[data-nav]')) {
-    if (matchesNav(link, here)) {
+    if (matchesNav(link, pathname)) {
       link.setAttribute('aria-current', 'page');
     } else {
       link.removeAttribute('aria-current');
@@ -63,9 +58,8 @@ function markCurrentNav(pathname: string = location.pathname): void {
  * (the heading is the dock section name: 游戏库 / 设置). `null` when no dock item matches.
  */
 function headingFor(pathname: string): string | null {
-  const here = normalize(pathname);
   const link = [...document.querySelectorAll<HTMLAnchorElement>('[data-dock] a[data-nav]')].find((a) =>
-    matchesNav(a, here),
+    matchesNav(a, pathname),
   );
   return link?.getAttribute('aria-label') ?? null;
 }
@@ -79,6 +73,20 @@ function holdUnchangedHeading(pathname: string): void {
   const current = document.getElementById('page-title')?.textContent?.trim() ?? '';
   const next = headingFor(pathname);
   document.documentElement.toggleAttribute('data-static-title', next !== null && next === current);
+}
+
+function focusLibrarySearch(signal: AbortSignal): void {
+  const input = document.querySelector<HTMLInputElement>('#game-search');
+  if (!input) return;
+  const focus = () => {
+    if (!input.isConnected) return;
+    input.scrollIntoView({ block: 'nearest' });
+    input.focus({ preventScroll: true });
+  };
+  // The server-rendered field exists before Svelte can handle input.
+  const island = input.closest('astro-island[ssr]');
+  if (island) island.addEventListener('astro:hydrate', focus, { once: true, signal });
+  else focus();
 }
 
 export function startSwup(): void {
@@ -100,13 +108,39 @@ export function startSwup(): void {
     ],
   });
 
+  const menu = document.getElementById('site-menu');
+  const closeMenu = () => menu?.hidePopover?.();
+  let searchFocus = new AbortController();
+  const focusSearch = () => {
+    searchFocus.abort();
+    searchFocus = new AbortController();
+    focusLibrarySearch(searchFocus.signal);
+  };
+
+  document.querySelector('[data-search-game]')?.addEventListener('click', () => {
+    if (matchesSection(LIBRARY_PATH, location.pathname) && document.getElementById('game-search')) {
+      focusSearch();
+    } else {
+      swup.navigate(LIBRARY_PATH, { meta: { focusLibrarySearch: true } });
+    }
+  });
+  menu?.addEventListener('click', (event) => {
+    if (event.target instanceof Element && event.target.closest('a')) closeMenu();
+  });
+
   swup.hooks.on('visit:start', (visit) => {
+    closeMenu();
+    searchFocus.abort();
+    if (visit.meta.focusLibrarySearch === true) visit.a11y.focus = false;
     const pathname = new URL(visit.to.url, location.href).pathname;
     holdUnchangedHeading(pathname);
     // Move the highlight as soon as the visit starts, so it slides while the content fades.
     markCurrentNav(pathname);
   });
-  swup.hooks.on('visit:end', () => document.documentElement.removeAttribute('data-static-title'));
+  swup.hooks.on('visit:end', (visit) => {
+    document.documentElement.removeAttribute('data-static-title');
+    if (visit.meta.focusLibrarySearch === true) focusSearch();
+  });
   // Re-sync after the swap (covers redirects and aborted visits).
   swup.hooks.on('page:view', () => markCurrentNav());
   window.__swup = swup;
